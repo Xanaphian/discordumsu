@@ -38,10 +38,51 @@ export interface Member {
   joinedAt: number;
 }
 
-export type ChannelType = 'text' | 'voice' | 'announce' | 'space';
+export type ChannelType = 'text' | 'voice' | 'announce' | 'space' | 'site';
 
 /** Sesli bağlantı kurulan kanal türleri (ses ve 3D oda) */
 export const isVoiceLike = (t: ChannelType) => t === 'voice' || t === 'space';
+/** Adı boşluklu serbest metin olan kanal türleri (#slug değil) */
+export const hasFreeName = (t: ChannelType) => isVoiceLike(t) || t === 'site';
+
+// ---- Site odası ----
+export const DEFAULT_SITE_URL = 'https://xanaphian.com/';
+/** Site odasında birinin o an baktığı sayfa */
+export interface WebViewer {
+  userId: ID;
+  sessionId: ID;
+  url: string;
+  title: string;
+}
+/** Site odası adresini doğrula: yalnız http(s), kimlik bilgisi yok, en fazla 500 karakter */
+export function cleanSiteUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  let t = raw.trim();
+  if (!t) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(t)) t = 'https://' + t;
+  try {
+    const u = new URL(t);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    if (u.username || u.password || !u.hostname.includes('.')) return null;
+    const out = u.toString();
+    return out.length <= 500 ? out : null;
+  } catch {
+    return null;
+  }
+}
+/** "www." ve büyük harf farkını yok sayarak alan adı */
+export const siteHost = (url: string) => {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+/** url, home sitesinin (ya da bir alt alan adının) içinde mi? */
+export function sameSite(url: string, home: string): boolean {
+  const a = siteHost(url), b = siteHost(home);
+  return !!a && !!b && (a === b || a.endsWith('.' + b));
+}
 
 // ---- 3D oda ----
 export interface AvatarLook {
@@ -70,6 +111,7 @@ export interface Channel {
   topic?: string;
   position: number;
   slowmode?: number;
+  url?: string; // site odası: açılış adresi
 }
 
 export interface Category {
@@ -145,8 +187,8 @@ export type ClientFrame =
   | { t: 'comm.delete'; cid: ID }
   | { t: 'comm.leave'; cid: ID }
   | { t: 'comm.invite.reset'; cid: ID }
-  | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; rid?: string }
-  | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number }
+  | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; url?: string; rid?: string }
+  | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string }
   | { t: 'chan.delete'; cid: ID; id: ID }
   | { t: 'chan.move'; cid: ID; id: ID; categoryId: ID | null; index: number }
   | { t: 'cat.create'; cid: ID; name: string }
@@ -168,11 +210,13 @@ export type ClientFrame =
   | { t: 'sp.emote'; e: string }
   | { t: 'sp.booth'; i: number; text: string | null }
   | { t: 'sp.look'; look: AvatarLook }
+  | { t: 'web.at'; ch: ID; url: string; title: string }
+  | { t: 'web.leave' }
   | { t: 'ping' };
 
 // ---- Sunucu -> İstemci ----
 export type ServerFrame =
-  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; v: number }
+  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; v: number }
   | { t: 'msg'; m: Message; nonce?: string }
   | { t: 'msg.upd'; m: Message }
   | { t: 'msg.del'; ch: ID; id: ID }
@@ -197,6 +241,7 @@ export type ServerFrame =
   | { t: 'sp.booths'; booths: Booth[] }
   | { t: 'sp.look'; sid: ID; look: AvatarLook }
   | { t: 'vc.you'; sessionId: ID }
+  | { t: 'web'; ch: ID; viewers: WebViewer[] }
   | { t: 'pong' };
 
 export const PROTOCOL_VERSION = 1;

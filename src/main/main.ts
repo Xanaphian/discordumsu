@@ -103,6 +103,7 @@ function createWindow() {
       spellcheck: false,
       v8CacheOptions: 'bypassHeatCheck',
       backgroundThrottling: true,
+      webviewTag: true, // site odaları
     },
   });
   if (config.bounds?.maximized) win.maximize();
@@ -188,11 +189,69 @@ if (process.defaultApp) {
 
 Menu.setApplicationMenu(null);
 
+// ---------- site odaları (<webview>) ----------
+const SITE_PARTITION = 'persist:kovan-site';
+const baseHost = (u: string) => {
+  try {
+    return new URL(u).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+/** hedef, şu an açık sitenin (ya da alt alan adının) içinde mi */
+const inSite = (target: string, current: string) => {
+  const a = baseHost(target), b = baseHost(current);
+  if (!a || !/^https?:/i.test(target)) return false;
+  if (!b) return true;
+  const root = (h: string) => h.split('.').slice(-2).join('.');
+  return a === b || root(a) === root(b);
+};
+const openOutside = (url: string) => {
+  if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+};
+
+app.on('web-contents-created', (_e, wc) => {
+  if (wc.getType() === 'window') {
+    // yalnızca güvenli, önyüklemesiz site görünümleri eklenebilir
+    wc.on('will-attach-webview', (ev, prefs, params) => {
+      if (!/^https?:\/\//i.test(params.src || '') || params.partition !== SITE_PARTITION) {
+        ev.preventDefault();
+        return;
+      }
+      delete (prefs as any).preload;
+      prefs.nodeIntegration = false;
+      prefs.nodeIntegrationInSubFrames = false;
+      prefs.contextIsolation = true;
+      prefs.sandbox = true;
+      prefs.webSecurity = true;
+      prefs.allowRunningInsecureContent = false;
+    });
+    return;
+  }
+  if (wc.getType() !== 'webview') return;
+  // site dışına çıkan bağlantılar varsayılan tarayıcıda açılır
+  wc.on('will-navigate', (ev, url) => {
+    if (!inSite(url, wc.getURL())) {
+      ev.preventDefault();
+      openOutside(url);
+    }
+  });
+  wc.setWindowOpenHandler(({ url }) => {
+    if (inSite(url, wc.getURL())) wc.loadURL(url);
+    else openOutside(url);
+    return { action: 'deny' };
+  });
+});
+
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
     cb(['media', 'notifications', 'clipboard-sanitized-write', 'fullscreen'].includes(permission));
   });
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => ['media', 'notifications', 'clipboard-sanitized-write'].includes(permission));
+  // site odası oturumu: kamera, mikrofon, konum vb. hiçbir izin verilmez
+  const siteSession = session.fromPartition(SITE_PARTITION);
+  siteSession.setPermissionRequestHandler((_wc, permission, cb) => cb(['fullscreen', 'clipboard-sanitized-write'].includes(permission)));
+  siteSession.setPermissionCheckHandler((_wc, permission) => permission === 'clipboard-sanitized-write');
 
   try {
     await hub.start((config.settings.hubPort as number) || DEFAULT_PORT);
