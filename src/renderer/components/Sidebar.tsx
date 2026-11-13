@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
 import {
-  ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
+  ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
   Signal, WifiOff, Bell,
 } from 'lucide-react';
 import {
@@ -8,13 +8,14 @@ import {
   updateSettings,
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf } from '../lib/voice';
+import { enterSpace, exitSpace } from '../lib/space';
 import { Avatar, STATUS_LABEL, Tooltip } from './Common';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName } from '../lib/util';
-import { can, Perm, type Channel, type Community, type Status } from '../../shared/protocol';
+import { can, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
 
 const ChannelIcon = ({ type, size = 18 }: { type: Channel['type']; size?: number }) =>
-  type === 'voice' ? <Volume2 size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
+  type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
 
 const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chId: string }) {
   const members = useStore((s) => s.voice[chId]);
@@ -58,15 +59,27 @@ const ChannelRow = memo(function ChannelRow({
   const inVoice = useVoice((s) => s.ch === ch.id);
   const [over, setOver] = useState(false);
   const click = () => {
-    if (ch.type === 'voice') {
-      joinVoice(c.id, ch.id);
-      selectChannel(c.id, ch.id);
-    } else selectChannel(c.id, ch.id);
+    if (ch.type === 'voice') joinVoice(c.id, ch.id);
+    selectChannel(c.id, ch.id);
   };
   const menu = (e: React.MouseEvent) =>
     openMenu(e, [
-      ...(ch.type !== 'voice' ? [{ label: 'Okundu olarak işaretle', onClick: () => markRead(ch.id), disabled: !unread }] : []),
-      ...(ch.type === 'voice' ? [inVoice ? { label: 'Bağlantıyı kes', onClick: () => leaveVoice() } : { label: 'Katıl', onClick: () => joinVoice(c.id, ch.id) }] : []),
+      ...(!isVoiceLike(ch.type) ? [{ label: 'Okundu olarak işaretle', onClick: () => markRead(ch.id), disabled: !unread }] : []),
+      ...(isVoiceLike(ch.type)
+        ? [
+            inVoice
+              ? { label: ch.type === 'space' ? 'Odadan çık' : 'Bağlantıyı kes', onClick: () => (ch.type === 'space' ? exitSpace() : leaveVoice()) }
+              : {
+                  label: ch.type === 'space' ? 'Odaya gir' : 'Katıl',
+                  onClick: () => {
+                    if (ch.type === 'space') {
+                      selectChannel(c.id, ch.id);
+                      enterSpace(c.id, ch.id);
+                    } else joinVoice(c.id, ch.id);
+                  },
+                },
+          ]
+        : []),
       { label: 'Kanalı etiket olarak kopyala', onClick: () => copyText(`<#${ch.id}>`) },
       ...(manage
         ? [
@@ -122,7 +135,7 @@ const ChannelRow = memo(function ChannelRow({
           </button>
         )}
       </div>
-      {ch.type === 'voice' && <VoiceMembers c={c} chId={ch.id} />}
+      {isVoiceLike(ch.type) && <VoiceMembers c={c} chId={ch.id} />}
     </>
   );
 });
@@ -140,7 +153,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
   const groups = useMemo(() => {
     const cats = [...c.categories].sort((a, b) => a.position - b.position);
     const byCat = (id: string | null) =>
-      c.channels.filter((x) => x.categoryId === id).sort((a, b) => (a.type === 'voice' ? 1 : 0) - (b.type === 'voice' ? 1 : 0) || a.position - b.position);
+      c.channels.filter((x) => x.categoryId === id).sort((a, b) => (isVoiceLike(a.type) ? 1 : 0) - (isVoiceLike(b.type) ? 1 : 0) || a.position - b.position);
     return [{ cat: null as null | (typeof cats)[0], chans: byCat(null) }, ...cats.map((cat) => ({ cat, chans: byCat(cat.id) }))];
   }, [c]);
 
@@ -223,7 +236,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
                         className="cat-add"
                         onClick={(e) => {
                           e.stopPropagation();
-                          openModal({ type: 'createChannel', cid: c.id, categoryId: cat.id, kind: chans.every((x) => x.type === 'voice') && chans.length ? 'voice' : 'text' });
+                          openModal({ type: 'createChannel', cid: c.id, categoryId: cat.id, kind: chans.every((x) => isVoiceLike(x.type)) && chans.length ? 'voice' : 'text' });
                         }}
                         aria-label="Kanal oluştur"
                       >

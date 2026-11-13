@@ -9,7 +9,7 @@ import os from 'node:os';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
-  Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId,
+  Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
 } from '../shared/protocol';
 
 const MAX_CONTENT = 4000;
@@ -155,12 +155,22 @@ interface Session {
   status: Status;
   alive: boolean;
   voice: { ch: ID; muted: boolean; deaf: boolean } | null;
+  space: ID | null;
+  lastMove: number;
   bucket: number;
   bucketTs: number;
   lastSend: Record<ID, number>;
 }
 
 export const BOT_ID = 'kovan-asistan';
+
+const HATS = ['none', 'antenna', 'crown', 'cap', 'wizard', 'halo', 'headphones'] as const;
+function cleanLook(l: Partial<AvatarLook> | undefined): AvatarLook {
+  return {
+    color: typeof l?.color === 'string' && /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : '#f5a524',
+    hat: HATS.includes(l?.hat as any) ? (l!.hat as AvatarLook['hat']) : 'antenna',
+  };
+}
 
 export class Hub {
   private dir: string;
@@ -171,6 +181,8 @@ export class Hub {
   private sessions = new Set<Session>();
   private userSessions = new Map<ID, Set<Session>>();
   private voiceRooms = new Map<ID, Map<ID, VoiceMember>>();
+  private spaceRooms = new Map<ID, Map<ID, { s: Session; av: SpaceAvatar }>>();
+  private booths = new Map<ID, Booth[]>();
   private server: http.Server | null = null;
   private wss: WebSocketServer | null = null;
   private saveTimers = new Map<string, NodeJS.Timeout>();
@@ -199,11 +211,36 @@ export class Hub {
         const c: StoredCommunity = JSON.parse(fs.readFileSync(path.join(this.dir, 'communities', cid + '.json'), 'utf8'));
         this.comms.set(cid, c);
         for (const ch of c.channels) this.chanToComm.set(ch.id, cid);
+        this.migrate(c);
       } catch {
         /* eksik topluluk dosyası */
       }
     }
     this.ensureBot();
+  }
+
+  /** v1.1: karşılama lobilerine 3D oda ekle */
+  private migrate(c: StoredCommunity) {
+    if (!c.members.some((m) => m.userId === BOT_ID) || c.channels.some((x) => x.type === 'space') || (c as any).m11) return;
+    (c as any).m11 = 1;
+    const cat: Category = { id: makeId(), name: '3D Odalar', position: c.categories.length };
+    c.categories.push(cat);
+    const ch: Channel = { id: makeId(), name: 'Kovan Meydanı', type: 'space', categoryId: cat.id, position: 0, topic: 'Avatarınla dolaş, yakındakilerle sesli konuş' };
+    c.channels.push(ch);
+    this.chanToComm.set(ch.id, c.id);
+    const welcome = c.channels.find((x) => x.type === 'announce');
+    if (welcome) {
+      const m: Message = {
+        id: makeId(),
+        channelId: welcome.id,
+        authorId: BOT_ID,
+        ts: Date.now(),
+        content:
+          '## Yeni: 3D Odalar 🐝\n**Kovan Meydanı**\'na gir, avatarınla dolaş. Yanına yaklaştığın kişinin sesi yükselir, uzaklaştıkça kısılır; ses yönünü de duyarsın.\n- **WASD / ok tuşları** yürü, **Shift** koş, **Boşluk** zıpla, sağ tık sürükle kamera\n- **Enter** ile yaz: mesajın başının üstünde balon olarak çıkar\n- **1-7** ile emote: el salla, dans, alkış, kalp…\n- **Sahneye** çık: herkes seni mesafeden bağımsız duyar\n- **Stand** kirala: yanına git, **E** bas, tabelana yazını yaz\n- **Kamp ateşi** banklarına **E** ile otur',
+      };
+      this.log(welcome.id).add(m);
+    }
+    this.saveComm(c.id);
   }
 
   private ensureBot() {
@@ -424,6 +461,8 @@ export class Hub {
       status: 'online',
       alive: true,
       voice: null,
+      space: null,
+      lastMove: 0,
       bucket: 40,
       bucketTs: Date.now(),
       lastSend: {},
@@ -432,17 +471,23 @@ export class Hub {
     ws.on('pong', () => (s.alive = true));
     ws.on('message', (raw) => {
       s.alive = true;
-      // basit hız sınırı: 40 çerçeve / 5 sn
-      const now = Date.now();
-      s.bucket = Math.min(40, s.bucket + ((now - s.bucketTs) / 5000) * 40);
-      s.bucketTs = now;
-      if (s.bucket < 1) return this.send(s, { t: 'err', msg: 'Çok hızlı gidiyorsun, biraz yavaşla.' });
-      s.bucket -= 1;
       let f: ClientFrame;
       try {
         f = JSON.parse(raw.toString());
       } catch {
         return;
+      }
+      const now = Date.now();
+      if (f.t === 'sp.move') {
+        // 3D oda hareketi: en fazla ~25/sn
+        if (now - s.lastMove < 35) return;
+        s.lastMove = now;
+      } else if (f.t !== 'vc.signal' && f.t !== 'ping') {
+        // basit hız sınırı: 40 çerçeve / 5 sn
+        s.bucket = Math.min(40, s.bucket + ((now - s.bucketTs) / 5000) * 40);
+        s.bucketTs = now;
+        if (s.bucket < 1) return this.send(s, { t: 'err', msg: 'Çok hızlı gidiyorsun, biraz yavaşla.' });
+        s.bucket -= 1;
       }
       try {
         this.handle(s, f);
@@ -457,6 +502,7 @@ export class Hub {
   private onClose(s: Session) {
     this.sessions.delete(s);
     if (s.voice) this.leaveVoice(s);
+    if (s.space) this.leaveSpace(s);
     if (s.userId) {
       const set = this.userSessions.get(s.userId);
       set?.delete(s);
@@ -500,7 +546,7 @@ export class Hub {
   private lastIdsFor(c: StoredCommunity): Record<ID, ID> {
     const out: Record<ID, ID> = {};
     for (const ch of c.channels) {
-      if (ch.type === 'voice') continue;
+      if (isVoiceLike(ch.type)) continue;
       const l = this.log(ch.id).last();
       if (l) out[ch.id] = l;
     }
@@ -602,7 +648,7 @@ export class Hub {
         if (!c || c.inviteKey !== f.key) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
-          const first = c.channels.find((x) => x.type !== 'voice');
+          const first = c.channels.find((x) => !isVoiceLike(x.type));
           if (first) {
             const m: Message = { id: makeId(), channelId: first.id, authorId: uid, content: '', ts: Date.now(), kind: 'join' };
             this.log(first.id).add(m);
@@ -619,7 +665,7 @@ export class Hub {
       }
       case 'send': {
         const r = this.commOfChannel(s, f.ch);
-        if (!r || r.channel.type === 'voice') return;
+        if (!r || isVoiceLike(r.channel.type)) return;
         if (r.channel.type === 'announce' && !can(this.snapshot(r.c), uid, Perm.MANAGE_CHANNELS))
           return this.send(s, { t: 'err', msg: 'Bu kanala sadece yöneticiler yazabilir.', nonce: f.nonce });
         const content = clampStr(f.content, MAX_CONTENT).trim();
@@ -706,7 +752,7 @@ export class Hub {
         const out: Message[] = [];
         if (c && q) {
           for (const ch of c.channels) {
-            if (ch.type === 'voice') continue;
+            if (isVoiceLike(ch.type)) continue;
             const L = this.log(ch.id).list;
             for (let i = L.length - 1; i >= 0 && out.length < 400; i--) {
               if (L[i].content.toLocaleLowerCase('tr').includes(q)) out.push(L[i]);
@@ -790,11 +836,11 @@ export class Hub {
       case 'chan.create': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_CHANNELS);
         if (!c || c.channels.length >= 200) return;
-        const type: ChannelType = f.type === 'voice' || f.type === 'announce' ? f.type : 'text';
+        const type: ChannelType = isVoiceLike(f.type) || f.type === 'announce' ? f.type : 'text';
         const catId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
         const ch: Channel = {
           id: makeId(),
-          name: type === 'voice' ? cleanName(f.name, 48) || 'Ses' : channelSlug(f.name),
+          name: isVoiceLike(type) ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : 'Ses') : channelSlug(f.name),
           type,
           categoryId: catId,
           position: Math.max(-1, ...c.channels.filter((x) => x.categoryId === catId).map((x) => x.position)) + 1,
@@ -809,7 +855,7 @@ export class Hub {
         const c = this.commFor(s, f.cid, Perm.MANAGE_CHANNELS);
         const ch = c?.channels.find((x) => x.id === f.id);
         if (!c || !ch) return;
-        if (f.name !== undefined) ch.name = ch.type === 'voice' ? cleanName(f.name, 48) || ch.name : channelSlug(f.name);
+        if (f.name !== undefined) ch.name = isVoiceLike(ch.type) ? cleanName(f.name, 48) || ch.name : channelSlug(f.name);
         if (f.topic !== undefined) ch.topic = clampStr(f.topic, 512);
         if (f.slowmode !== undefined) ch.slowmode = Math.max(0, Math.min(3600, Number(f.slowmode) || 0));
         if (f.categoryId !== undefined) ch.categoryId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
@@ -920,9 +966,83 @@ export class Hub {
         this.pushComm(c);
         return;
       }
+      case 'sp.join': {
+        const r = this.commOfChannel(s, f.ch);
+        if (!r || r.channel.type !== 'space') return;
+        if (s.space) this.leaveSpace(s);
+        s.space = f.ch;
+        let room = this.spaceRooms.get(f.ch);
+        if (!room) this.spaceRooms.set(f.ch, (room = new Map()));
+        const look = cleanLook(f.look);
+        // giriş noktası: meydanın güney kenarında rastgele
+        const ang = Math.PI / 2 + (Math.random() - 0.5) * 0.8;
+        const av: SpaceAvatar = { sid: s.sid, userId: uid, look, x: Math.cos(ang) * 10, z: Math.sin(ang) * 10, ry: Math.PI, a: 0 };
+        const add = JSON.stringify({ t: 'sp.add', av } satisfies ServerFrame);
+        for (const o of room.values()) this.sendRaw(o.s, add);
+        room.set(s.sid, { s, av });
+        if (!this.booths.has(f.ch)) this.booths.set(f.ch, Array.from({ length: 6 }, () => ({ owner: null, text: '' })));
+        this.send(s, { t: 'sp.snap', ch: f.ch, you: s.sid, avatars: [...room.values()].map((x) => x.av), booths: this.booths.get(f.ch)! });
+        return;
+      }
+      case 'sp.look': {
+        const room = s.space && this.spaceRooms.get(s.space);
+        const me = room && room.get(s.sid);
+        if (!room || !me) return;
+        me.av.look = cleanLook(f.look);
+        const data = JSON.stringify({ t: 'sp.look', sid: s.sid, look: me.av.look } satisfies ServerFrame);
+        for (const o of room.values()) this.sendRaw(o.s, data);
+        return;
+      }
+      case 'sp.leave':
+        return this.leaveSpace(s);
+      case 'sp.move': {
+        const room = s.space && this.spaceRooms.get(s.space);
+        const me = room && room.get(s.sid);
+        if (!room || !me) return;
+        const num = (v: unknown, lim: number) => (typeof v === 'number' && isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : 0);
+        me.av.x = num(f.x, 60);
+        me.av.z = num(f.z, 60);
+        me.av.ry = num(f.ry, 100);
+        me.av.a = Math.max(0, Math.min(9, Math.round(num(f.a, 9))));
+        const data = JSON.stringify({ t: 'sp.mv', sid: s.sid, x: me.av.x, z: me.av.z, ry: me.av.ry, a: me.av.a } satisfies ServerFrame);
+        for (const o of room.values()) if (o.s !== s) this.sendRaw(o.s, data);
+        return;
+      }
+      case 'sp.say': {
+        const room = s.space && this.spaceRooms.get(s.space);
+        const text = clampStr(f.text, 200).trim();
+        if (!room || !text) return;
+        const data = JSON.stringify({ t: 'sp.say', sid: s.sid, text } satisfies ServerFrame);
+        for (const o of room.values()) this.sendRaw(o.s, data);
+        return;
+      }
+      case 'sp.emote': {
+        const room = s.space && this.spaceRooms.get(s.space);
+        if (!room || !['wave', 'dance', 'jump', 'clap', 'heart', 'laugh', 'spin'].includes(f.e)) return;
+        const data = JSON.stringify({ t: 'sp.emote', sid: s.sid, e: f.e } satisfies ServerFrame);
+        for (const o of room.values()) this.sendRaw(o.s, data);
+        return;
+      }
+      case 'sp.booth': {
+        const ch = s.space;
+        const room = ch && this.spaceRooms.get(ch);
+        const booths = ch && this.booths.get(ch);
+        if (!room || !booths || !Number.isInteger(f.i) || !booths[f.i]) return;
+        const b = booths[f.i];
+        if (f.text === null) {
+          if (b.owner === uid) booths[f.i] = { owner: null, text: '' };
+        } else {
+          if (b.owner && b.owner !== uid && room.has(this.sidOfUserIn(room, b.owner) || '')) return; // başkasının dolu standı
+          for (const x of booths) if (x.owner === uid && x !== b) (x.owner = null), (x.text = '');
+          booths[f.i] = { owner: uid, text: clampStr(f.text, 60).trim() || 'Stand' };
+        }
+        const data = JSON.stringify({ t: 'sp.booths', booths } satisfies ServerFrame);
+        for (const o of room.values()) this.sendRaw(o.s, data);
+        return;
+      }
       case 'vc.join': {
         const r = this.commOfChannel(s, f.ch);
-        if (!r || r.channel.type !== 'voice') return;
+        if (!r || !isVoiceLike(r.channel.type)) return;
         if (s.voice) this.leaveVoice(s);
         s.voice = { ch: f.ch, muted: !!f.muted, deaf: !!f.deaf };
         let room = this.voiceRooms.get(f.ch);
@@ -961,6 +1081,33 @@ export class Hub {
         return;
       }
     }
+  }
+
+  private sidOfUserIn(room: Map<ID, { s: Session; av: SpaceAvatar }>, uid: ID): ID | null {
+    for (const [sid, x] of room) if (x.av.userId === uid) return sid;
+    return null;
+  }
+
+  private leaveSpace(s: Session) {
+    const ch = s.space;
+    if (!ch) return;
+    s.space = null;
+    const room = this.spaceRooms.get(ch);
+    if (!room) return;
+    room.delete(s.sid);
+    const data = JSON.stringify({ t: 'sp.del', sid: s.sid } satisfies ServerFrame);
+    for (const o of room.values()) this.sendRaw(o.s, data);
+    // ayrılanın standı boşalsın
+    const booths = this.booths.get(ch);
+    if (booths && s.userId && !this.sidOfUserIn(room, s.userId)) {
+      let changed = false;
+      for (const b of booths) if (b.owner === s.userId) (b.owner = null), (b.text = ''), (changed = true);
+      if (changed) {
+        const bd = JSON.stringify({ t: 'sp.booths', booths } satisfies ServerFrame);
+        for (const o of room.values()) this.sendRaw(o.s, bd);
+      }
+    }
+    if (!room.size) this.spaceRooms.delete(ch);
   }
 
   private leaveVoice(s: Session) {
@@ -1047,6 +1194,8 @@ export class Hub {
       const voice = cat('Ses Kanalları');
       chan('Lobi', 'voice', voice);
       chan('Oyun', 'voice', voice);
+      const space = cat('3D Odalar');
+      chan('Kovan Meydanı', 'space', space, 'Avatarınla dolaş, yakındakilerle sesli konuş');
     } else {
       const talk = cat('Metin Kanalları');
       chan('genel', 'text', talk);

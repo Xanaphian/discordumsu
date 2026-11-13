@@ -38,7 +38,29 @@ export interface Member {
   joinedAt: number;
 }
 
-export type ChannelType = 'text' | 'voice' | 'announce';
+export type ChannelType = 'text' | 'voice' | 'announce' | 'space';
+
+/** Sesli bağlantı kurulan kanal türleri (ses ve 3D oda) */
+export const isVoiceLike = (t: ChannelType) => t === 'voice' || t === 'space';
+
+// ---- 3D oda ----
+export interface AvatarLook {
+  color: string;
+  hat: 'none' | 'antenna' | 'crown' | 'cap' | 'wizard' | 'halo' | 'headphones';
+}
+export interface SpaceAvatar {
+  sid: ID;
+  userId: ID;
+  look: AvatarLook;
+  x: number;
+  z: number;
+  ry: number;
+  a: number; // 0 bekle, 1 yürü, 2 koş, 3 otur, 4 zıpla
+}
+export interface Booth {
+  owner: ID | null;
+  text: string;
+}
 
 export interface Channel {
   id: ID;
@@ -139,6 +161,13 @@ export type ClientFrame =
   | { t: 'vc.leave' }
   | { t: 'vc.state'; muted: boolean; deaf: boolean }
   | { t: 'vc.signal'; to: ID; data: unknown }
+  | { t: 'sp.join'; ch: ID; look: AvatarLook }
+  | { t: 'sp.leave' }
+  | { t: 'sp.move'; x: number; z: number; ry: number; a: number }
+  | { t: 'sp.say'; text: string }
+  | { t: 'sp.emote'; e: string }
+  | { t: 'sp.booth'; i: number; text: string | null }
+  | { t: 'sp.look'; look: AvatarLook }
   | { t: 'ping' };
 
 // ---- Sunucu -> İstemci ----
@@ -159,6 +188,14 @@ export type ServerFrame =
   | { t: 'err'; msg: string; rid?: string; nonce?: string }
   | { t: 'vc'; ch: ID; members: VoiceMember[] }
   | { t: 'vc.signal'; from: ID; fromUser: ID; data: unknown }
+  | { t: 'sp.snap'; ch: ID; you: ID; avatars: SpaceAvatar[]; booths: Booth[] }
+  | { t: 'sp.add'; av: SpaceAvatar }
+  | { t: 'sp.del'; sid: ID }
+  | { t: 'sp.mv'; sid: ID; x: number; z: number; ry: number; a: number }
+  | { t: 'sp.say'; sid: ID; text: string }
+  | { t: 'sp.emote'; sid: ID; e: string }
+  | { t: 'sp.booths'; booths: Booth[] }
+  | { t: 'sp.look'; sid: ID; look: AvatarLook }
   | { t: 'vc.you'; sessionId: ID }
   | { t: 'pong' };
 

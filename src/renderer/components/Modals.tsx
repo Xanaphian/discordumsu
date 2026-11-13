@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Hash, Volume2, Megaphone, Copy, Check, ImagePlus, LoaderCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
+import { X, Hash, Volume2, Megaphone, Box, Copy, Check, ImagePlus, LoaderCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
 import {
   useStore, openModal, createCommunity, joinByInvite, makeInvite, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
 } from '../lib/store';
 import { CommunityIcon, Avatar } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtTime, displayName } from '../lib/util';
 import { renderMarkdown } from '../lib/markdown';
-import { can, Perm, type ChannelType, type Message } from '../../shared/protocol';
+import { can, Perm, isVoiceLike, type ChannelType, type Message } from '../../shared/protocol';
 import { UserSettings, CommunitySettings } from './Settings';
 import { joinVoice } from '../lib/voice';
 
@@ -190,6 +190,7 @@ const TYPES: { t: ChannelType; label: string; sub: string; icon: React.ReactNode
   { t: 'text', label: 'Metin', sub: 'Mesaj, görsel, emoji ve dosya gönder', icon: <Hash size={22} /> },
   { t: 'voice', label: 'Ses', sub: 'Sesli sohbet için birlikte takıl', icon: <Volume2 size={22} /> },
   { t: 'announce', label: 'Duyuru', sub: 'Sadece yöneticilerin yazabildiği kanal', icon: <Megaphone size={22} /> },
+  { t: 'space', label: '3D Oda', sub: 'Avatarlarla dolaşılan, yakınlık sesli meydan', icon: <Box size={22} /> },
 ];
 
 function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId: string | null; kind?: ChannelType }) {
@@ -231,8 +232,8 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
         <label className="field">
           <span>Kanal adı</span>
           <div className="input-icon">
-            {type === 'voice' ? <Volume2 size={16} /> : type === 'announce' ? <Megaphone size={16} /> : <Hash size={16} />}
-            <input autoFocus placeholder={type === 'voice' ? 'Sohbet odası' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+            {type === 'voice' ? <Volume2 size={16} /> : type === 'space' ? <Box size={16} /> : type === 'announce' ? <Megaphone size={16} /> : <Hash size={16} />}
+            <input autoFocus placeholder={type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Kovan Meydanı' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
           </div>
         </label>
         <label className="field">
@@ -279,7 +280,7 @@ function EditChannelModal({ cid, chId }: { cid: string; chId: string }) {
           <span>Kanal adı</span>
           <input value={name} maxLength={48} onChange={(e) => setName(e.target.value)} />
         </label>
-        {ch.type !== 'voice' && (
+        {!isVoiceLike(ch.type) && (
           <>
             <label className="field">
               <span>Kanal konusu</span>
@@ -384,11 +385,11 @@ function QuickSwitcher() {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const items = useMemo(() => {
-    const all: { key: string; label: string; sub: string; kind: 'ch' | 'voice' | 'comm'; cid: string; ch?: string; unread: boolean }[] = [];
+    const all: { key: string; label: string; sub: string; kind: 'ch' | 'voice' | 'space' | 'comm'; cid: string; ch?: string; unread: boolean }[] = [];
     for (const c of Object.values(communities)) {
       all.push({ key: c.id, label: c.name, sub: 'Topluluk', kind: 'comm', cid: c.id, unread: false });
       for (const ch of c.channels)
-        all.push({ key: ch.id, label: ch.name, sub: c.name, kind: ch.type === 'voice' ? 'voice' : 'ch', cid: c.id, ch: ch.id, unread: !!lastIds[ch.id] && lastIds[ch.id] > (read[ch.id] || '') });
+        all.push({ key: ch.id, label: ch.name, sub: c.name, kind: ch.type === 'voice' ? 'voice' : ch.type === 'space' ? 'space' : 'ch', cid: c.id, ch: ch.id, unread: !!lastIds[ch.id] && lastIds[ch.id] > (read[ch.id] || '') });
     }
     const n = q.toLocaleLowerCase('tr').replace(/^[#@*!]/, '');
     const f = n ? all.filter((x) => x.label.toLocaleLowerCase('tr').includes(n)) : all.filter((x) => x.unread).concat(all.filter((x) => !x.unread && x.kind === 'ch'));
@@ -422,7 +423,7 @@ function QuickSwitcher() {
         <div className="quick-list">
           {items.map((it, i) => (
             <div key={it.key} className={cx('quick-item', i === sel && 'sel', it.unread && 'unread')} onMouseEnter={() => setSel(i)} onClick={() => go(i)}>
-              {it.kind === 'comm' ? <CommunityIcon c={communities[it.cid]} size={22} /> : it.kind === 'voice' ? <Volume2 size={18} /> : <Hash size={18} />}
+              {it.kind === 'comm' ? <CommunityIcon c={communities[it.cid]} size={22} /> : it.kind === 'voice' ? <Volume2 size={18} /> : it.kind === 'space' ? <Box size={18} /> : <Hash size={18} />}
               <span className="qi-label">{it.label}</span>
               <span className="qi-sub">{it.sub}</span>
             </div>

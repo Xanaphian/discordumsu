@@ -4,7 +4,7 @@ import { useStore, selectCommunity, openModal, openMenu, markCommunityRead, upda
 import { CommunityIcon, Logo, Tooltip } from './Common';
 import { cx, copyText } from '../lib/util';
 import type { Community } from '../../shared/protocol';
-import { can, Perm } from '../../shared/protocol';
+import { can, Perm, isVoiceLike } from '../../shared/protocol';
 
 export function useUnread() {
   const communities = useStore((s) => s.communities);
@@ -17,7 +17,7 @@ export function useUnread() {
     for (const c of Object.values(communities)) {
       let unread = false, m = 0;
       for (const ch of c.channels) {
-        if (ch.type === 'voice') continue;
+        if (isVoiceLike(ch.type)) continue;
         const last = lastIds[ch.id];
         const u = !!last && (!read[ch.id] || last > read[ch.id]);
         unreadCh[ch.id] = u;

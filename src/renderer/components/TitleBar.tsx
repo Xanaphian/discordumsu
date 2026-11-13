@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, RefreshCw, RotateCw, CircleAlert, LoaderCircle, Hash, Volume2, Megaphone } from 'lucide-react';
+import { Download, RefreshCw, RotateCw, CircleAlert, LoaderCircle, Hash, Volume2, Megaphone, Box } from 'lucide-react';
 import { useStore, toast } from '../lib/store';
 import { Logo, Tooltip } from './Common';
 import { fmtSize } from '../lib/util';
@@ -79,7 +79,7 @@ export function TitleBar() {
     }
     if (u.state === 'error' && u.manual) toast('Güncelleme denetlenemedi: ' + u.message, 'err');
   }, [u]);
-  const Icon = ch?.type === 'voice' ? Volume2 : ch?.type === 'announce' ? Megaphone : Hash;
+  const Icon = ch?.type === 'voice' ? Volume2 : ch?.type === 'space' ? Box : ch?.type === 'announce' ? Megaphone : Hash;
   return (
     <header className="titlebar">
       <div className="tb-brand">

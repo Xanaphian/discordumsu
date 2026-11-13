@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import {
+  type AvatarLook,
   Attachment, ChannelType, ClientFrame, Community, ID, Message, ServerFrame, Status, UserPublic, VoiceMember,
-  decodeInvite, encodeInvite, makeId,
+  decodeInvite, encodeInvite, makeId, isVoiceLike,
 } from '../../shared/protocol';
 import { HostConn, probeHost, ConnStatus } from './net';
 import { debounce } from './util';
@@ -35,6 +36,10 @@ export interface Settings {
   noiseSuppression: boolean;
   enterToSend: boolean;
   showLinkPreviews: boolean;
+  avatarHat: AvatarLook['hat'];
+  avatarColor: string;
+  spaceNight: boolean;
+  spaceQuality: 'low' | 'high';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -56,6 +61,10 @@ export const DEFAULT_SETTINGS: Settings = {
   noiseSuppression: true,
   enterToSend: true,
   showLinkPreviews: true,
+  avatarHat: 'antenna',
+  avatarColor: '',
+  spaceNight: false,
+  spaceQuality: 'high',
 };
 
 export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string };
@@ -349,8 +358,8 @@ function upsertCommunity(host: string, c: Community, lastIds?: Record<ID, ID>) {
     if (settings !== s.settings) persistSettings(settings);
     let chanByComm = s.chanByComm;
     const curCh = chanByComm[c.id];
-    if (!curCh || !c.channels.some((x) => x.id === curCh && x.type !== 'voice')) {
-      const first = sortedChannels(c).find((x) => x.type !== 'voice');
+    if (!curCh || !c.channels.some((x) => x.id === curCh && !isVoiceLike(x.type))) {
+      const first = sortedChannels(c).find((x) => !isVoiceLike(x.type));
       chanByComm = { ...chanByComm, [c.id]: first?.id || '' };
     }
     return {
@@ -390,7 +399,7 @@ export function sortedChannels(c: Community) {
     const ca = a.categoryId ? (catPos.get(a.categoryId) ?? 999) : -1;
     const cb = b.categoryId ? (catPos.get(b.categoryId) ?? 999) : -1;
     if (ca !== cb) return ca - cb;
-    const ta = a.type === 'voice' ? 1 : 0, tb = b.type === 'voice' ? 1 : 0;
+    const ta = isVoiceLike(a.type) ? 1 : 0, tb = isVoiceLike(b.type) ? 1 : 0;
     if (ta !== tb) return ta - tb;
     return a.position - b.position;
   });
@@ -542,6 +551,16 @@ function onFrame(host: string, f: ServerFrame) {
     case 'vc.signal':
       voiceHooks.onSignal?.(host, f.from, f.data);
       return;
+    case 'sp.snap':
+    case 'sp.add':
+    case 'sp.del':
+    case 'sp.mv':
+    case 'sp.say':
+    case 'sp.emote':
+    case 'sp.booths':
+    case 'sp.look':
+      spaceHooks.onFrame?.(host, f);
+      return;
     case 'err':
       if (f.nonce) {
         set((s) => {
@@ -561,6 +580,8 @@ function onFrame(host: string, f: ServerFrame) {
       return;
   }
 }
+
+export const spaceHooks: { onFrame?: (host: string, f: ServerFrame) => void } = {};
 
 export const voiceHooks: {
   onRoom?: (host: string, ch: ID, members: VoiceMember[]) => void;

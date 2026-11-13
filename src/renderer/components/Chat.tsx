@@ -14,7 +14,7 @@ import { EmojiPicker } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
 import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey } from '../lib/util';
 import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
-import { can, Perm, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
+import { can, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
 
 const BASE = 1_000_000;
 const GROUP_MS = 7 * 60 * 1000;
@@ -628,7 +628,7 @@ function Composer({ c, ch }: { c: Community; ch: Channel }) {
     if (m) {
       const q = m[2].toLocaleLowerCase('tr');
       const items = c.channels
-        .filter((x) => x.type !== 'voice' && x.name.includes(q))
+        .filter((x) => !isVoiceLike(x.type) && x.name.includes(q))
         .slice(0, 8)
         .map((x) => ({ key: x.id, label: x.name, insert: `#${x.name} `, icon: <Hash size={16} /> }));
       setSug(items.length ? { kind: 'channel', start: caret - m[2].length - 1, items } : null);
@@ -669,7 +669,7 @@ function Composer({ c, ch }: { c: Community; ch: Channel }) {
       t = t.replace(new RegExp(`(^|\\s)@${esc}(?=$|[\\s.,!?:;])`, 'g'), `$1<@${mb.id}>`);
     }
     for (const x of c.channels) {
-      if (x.type === 'voice') continue;
+      if (isVoiceLike(x.type)) continue;
       const esc = x.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       t = t.replace(new RegExp(`(^|\\s)#${esc}(?=$|[\\s.,!?:;])`, 'g'), `$1<#${x.id}>`);
     }

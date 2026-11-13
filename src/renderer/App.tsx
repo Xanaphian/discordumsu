@@ -9,7 +9,9 @@ import { MemberList } from './components/Members';
 import { Modals } from './components/Modals';
 import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
 import { HomeView, Onboarding, VoiceView } from './components/Views';
+import { SpaceView } from './components/SpaceView';
 import { Logo } from './components/Common';
+import { isVoiceLike } from '../shared/protocol';
 
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
@@ -56,7 +58,7 @@ function useShortcuts() {
         const c = st.communities[st.current];
         if (!c) return;
         e.preventDefault();
-        const list = sortedChannels(c).filter((x) => x.type !== 'voice');
+        const list = sortedChannels(c).filter((x) => !isVoiceLike(x.type));
         const cur = list.findIndex((x) => x.id === st.chanByComm[c.id]);
         const dir = e.key === 'ArrowUp' ? -1 : 1;
         if (e.shiftKey) {
@@ -102,8 +104,8 @@ function Main() {
     );
   return (
     <>
-      {ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
-      {membersOpen && ch.type !== 'voice' && <MemberList c={c} />}
+      {ch.type === 'space' ? <SpaceView c={c} ch={ch} /> : ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
+      {membersOpen && !isVoiceLike(ch.type) && <MemberList c={c} />}
     </>
   );
 }

@@ -1,7 +1,7 @@
 {
   "name": "kovan",
   "productName": "Kovan",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Kovan - topluluklar, kanallar ve gerçek zamanlı sohbet",
   "author": "Xanaphian",
   "license": "UNLICENSED",
@@ -23,6 +23,7 @@
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.181.0",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.3.0",
     "electron": "^45.3.1",
@@ -32,6 +33,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-virtuoso": "^4.18.22",
+    "three": "^0.181.2",
     "typescript": "^6.0.3",
     "vite": "^8.3.8",
     "zustand": "^5.1.0"
