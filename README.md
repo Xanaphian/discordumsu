@@ -3,10 +3,10 @@
 Topluluklar, kanallar ve gerçek zamanlı sohbet için hafif bir masaüstü uygulaması (Windows).
 
 ## Özellikler
-- **Kendine özgü görünüm**: varsayılan Destan görünümü (koyu zemin, metal çerçeveler, keskin hatlar), üst çubukta topluluk sekmeleri, 11 renk teması ve üst çubukta hızlı tema seçici, balon mesajlar
+- **Kendine özgü görünüm**: sade, lacivert-altın tonlu varsayılan görünüm, solda dikey topluluk listesi, 11 renk teması ve üst çubukta hızlı tema seçici, balon mesajlar
 - **Odalar**: ses, 3D oda ve site odaları kanal listesinde kendine özgü kartlar olarak görünür; görüşme ekranında çerçeveli katılımcı kutuları
 - **Yazma kutusu**: ekle menüsü (dosya, sesli mesaj, kod bloğu, sürpriz metin, zar, yazı tura), biçimlendirme çubuğu, gönder düğmesi
-- **Gelişmiş profil**: afiş (renk, degrade, resim ya da hareketli GIF, desen), tüm karta arka plan resmi, kart teması, avatar şekli ve çerçevesi, isim yazı tipi ve efekti, özel durum, etkinlik, zamirler, ilgi alanları, bağlantılar, kart efektleri, yerel saat, doğum günü
+- **Gelişmiş profil**: afiş (renk, degrade, resim ya da hareketli GIF, desen; yükseklik, konum ve yakınlık ayarı), tüm karta arka plan resmi (konumlanabilir), kart teması, avatar şekli ve çerçevesi, isim yazı tipi ve efekti, özel durum, etkinlik, zamirler, ilgi alanları, bağlantılar, kart efektleri, yerel saat, doğum günü
 - **Topluluklar**: üst çubukta altıgen simgeli sekmeler, sürükle-bırak sıralama, okunmamış/bahsetme rozetleri
 - **Kanallar**: kategoriler, metin / ses / duyuru kanalları, konu, yavaş mod, sürükle-bırak sıralama
 - **Mesajlaşma**: gruplanan mesajlar, yanıt, düzenleme, silme, sabitleme, tepkiler, @bahsetme, #kanal bağlantısı,

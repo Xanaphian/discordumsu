@@ -735,15 +735,14 @@ h2,
   --fw: 3px;
 }
 .avatar.frame-rainbow::before {
-  background: conic-gradient(from var(--spin), #f43f5e, #f59e0b, #facc15, #84cc16, #06b6d4, #8b5cf6, #f43f5e);
-  animation: av-spin 4s linear infinite;
+  background: conic-gradient(#f43f5e, #f59e0b, #facc15, #84cc16, #06b6d4, #8b5cf6, #f43f5e);
 }
 .avatar.frame-orbit {
   --fw: 3px;
 }
 .avatar.frame-orbit::before {
-  background: conic-gradient(from var(--spin), transparent 0 50%, color-mix(in srgb, var(--av-c) 40%, transparent) 70%, var(--av-c) 92%, #fff 100%);
-  animation: av-spin 2.4s linear infinite;
+  /* 1.9: artık dönmüyor; iki tonlu sabit halka */
+  background: linear-gradient(135deg, #fff, var(--av-c) 45%, color-mix(in srgb, var(--av-c) 55%, #000));
 }
 @keyframes av-spin {
   to {

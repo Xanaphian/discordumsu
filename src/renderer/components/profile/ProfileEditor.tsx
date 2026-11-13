@@ -1,15 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Dices, RotateCcw, Upload, Trash2, Plus, X, Smile, ImagePlus, Link as LinkIcon } from 'lucide-react';
 import { useStore, updateProfile, toast, meAsUser } from '../../lib/store';
 import { Avatar, Toggle } from '../Common';
 import { EmojiPicker } from '../Overlays';
 import { cx, COLORS, resizeImage } from '../../lib/util';
 import {
-  ACTIVITY_KINDS, BANNER_MAX, BG_MAX, BIO_MAX, EFFECTS, FRAMES, NAME_FONTS, NAME_FX, PATTERNS, SHAPES, sanitizeProfile,
+  ACTIVITY_KINDS, BANNER_H, BANNER_MAX, BG_MAX, BIO_MAX, EFFECTS, FRAMES, NAME_FONTS, NAME_FX, PATTERNS, SHAPES, sanitizeProfile,
   type ActivityKind, type ProfileBanner, type ProfileExtra, type ProfileLink,
 } from '../../../shared/profile';
 import {
-  ACTIVITY_VERB, EFFECT_LABEL, FRAME_LABEL, NAME_FONT_LABEL, NAME_FX_LABEL, PATTERN_LABEL, PRESETS, SHAPE_LABEL, bannerBackground, linkBrand,
+  ACTIVITY_VERB, EFFECT_LABEL, FRAME_LABEL, NAME_FONT_LABEL, NAME_FX_LABEL, PATTERN_LABEL, PRESETS, SHAPE_LABEL, bannerBackground, imgFrameStyle, linkBrand,
 } from './look';
 import { NameText, ProfileCard } from './ProfileCard';
 
@@ -83,8 +83,136 @@ function readImage(file: File, w: number, h: number, max: number): Promise<strin
     });
   }
   if (file.type === 'image/gif') toast('GIF çok büyük olduğu için hareketsiz resme çevrildi.', 'info');
-  return resizeCover(file, w, h, max);
+  return resizeFit(file, w, h, max);
 }
+
+/** Resmi kırpmadan verilen kutuya sığdırıp küçültür; hangi kısmın görüneceği sonra seçilir. */
+function resizeFit(file: File, w: number, h: number, max: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let scale = Math.min(1, w / img.width, h / img.height);
+      const draw = () => {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * scale));
+        c.height = Math.max(1, Math.round(img.height * scale));
+        const g = c.getContext('2d')!;
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(img, 0, 0, c.width, c.height);
+        let q = 0.85;
+        let out = c.toDataURL('image/webp', q);
+        while (out.length > max && q > 0.4) out = c.toDataURL('image/webp', (q -= 0.12));
+        return out;
+      };
+      let out = draw();
+      while (out.length > max && scale > 0.2) {
+        scale *= 0.8;
+        out = draw();
+      }
+      resolve(out);
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
+    img.src = url;
+  });
+}
+
+type Framing = { x?: number; y?: number; zoom?: number };
+
+/** Resmi sürükleyerek konumlandırma, tekerlek ya da kaydırıcıyla yakınlaştırma */
+function ImageFramer({ src, value, onChange, aspect, tall }: { src: string; value: Framing; onChange: (f: Framing) => void; aspect: number; tall?: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
+  const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
+  // resmin tamamının sığdığı yakınlık (cover'a göre)
+  const fitZoom = nat ? Math.max(20, Math.floor((Math.min(aspect / (nat.w / nat.h), (nat.w / nat.h) / aspect)) * 100)) : 100;
+  const minZoom = Math.min(100, fitZoom);
+  const x = value.x ?? 50, y = value.y ?? 50, zoom = value.zoom ?? 100;
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const onDown = (e: React.PointerEvent) => {
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    drag.current = { px: e.clientX, py: e.clientY, x, y };
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    const el = box.current;
+    if (!d || !el) return;
+    const r = el.getBoundingClientRect();
+    const k = 100 / (zoom / 100);
+    onChange({ ...value, x: Math.round(clamp(d.x - ((e.clientX - d.px) / r.width) * k * 1.4, 0, 100)), y: Math.round(clamp(d.y - ((e.clientY - d.py) / r.height) * k * 1.4, 0, 100)) });
+  };
+  const onUp = () => (drag.current = null);
+  return (
+    <div className="pe-framer">
+      <div
+        ref={box}
+        className={cx('pe-frame', tall && 'tall')}
+        style={{ aspectRatio: String(aspect) }}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        onWheel={(e) => onChange({ ...value, zoom: clamp(Math.round(zoom - e.deltaY * 0.15), minZoom, 300) })}
+      >
+        <img src={src} alt="" draggable={false} style={imgFrameStyle(value)} onLoad={(e) => setNat({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
+        <span className="pe-frame-hint">Sürükleyerek konumla</span>
+      </div>
+      <div className="pe-frame-opts">
+        <label className="pe-slider">
+          <em>Yakınlaştır %{zoom}</em>
+          <input type="range" min={minZoom} max={300} value={zoom} onChange={(e) => onChange({ ...value, zoom: Number(e.target.value) })} />
+        </label>
+        <div className="pe-nudge">
+          {(
+            [
+              ['Sol', { x: 0 }],
+              ['Orta', { x: 50, y: 50 }],
+              ['Sağ', { x: 100 }],
+              ['Üst', { y: 0 }],
+              ['Alt', { y: 100 }],
+            ] as [string, Framing][]
+          ).map(([l, f]) => (
+            <button key={l} className="btn ghost sm" onClick={() => onChange({ ...value, ...f })}>
+              {l}
+            </button>
+          ))}
+          <button className="btn ghost sm" onClick={() => onChange({ ...value, x: 50, y: 50, zoom: fitZoom })} title="Resmin tamamını göster">
+            Tamamı
+          </button>
+          <button className="btn ghost sm" onClick={() => onChange({ ...value, x: 50, y: 50, zoom: 100 })} title="Alanı doldur">
+            Doldur
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type TabId = 'basic' | 'media' | 'style' | 'more';
+const TABS: [TabId, string, string][] = [
+  ['basic', 'Temel', 'Ad, fotoğraf, durum, hakkımda'],
+  ['media', 'Afiş ve arka plan', 'Resimler, konum ve yükseklik'],
+  ['style', 'Süsler', 'Hazır görünümler, çerçeve, isim stili'],
+  ['more', 'Bağlantılar', 'Bağlantılar, saat, doğum günü'],
+];
+const TAB_OF: Record<string, TabId> = {
+  identity: 'basic',
+  status: 'basic',
+  about: 'basic',
+  banner: 'media',
+  bg: 'media',
+  presets: 'style',
+  avatar: 'style',
+  name: 'style',
+  card: 'style',
+  links: 'more',
+  extra: 'more',
+};
+const TabCtx = createContext<TabId>('basic');
 
 /** Başka bir yerden profil düzenleyicinin belli bir bölümünü açmak için */
 export function focusProfileSection(id: string) {
@@ -93,23 +221,10 @@ export function focusProfileSection(id: string) {
   } catch {}
 }
 
-const JUMP: [string, string][] = [
-  ['presets', 'Hazır'],
-  ['banner', 'Afiş'],
-  ['bg', 'Arka plan'],
-  ['identity', 'Kimlik'],
-  ['status', 'Durum'],
-  ['avatar', 'Avatar'],
-  ['name', 'İsim'],
-  ['card', 'Kart'],
-  ['about', 'Hakkımda'],
-  ['links', 'Bağlantılar'],
-  ['extra', 'Saat ve doğum günü'],
-];
-
-const jumpTo = (id: string) => document.getElementById('pe-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
 function Section({ id, title, sub, children, right }: { id?: string; title: string; sub?: string; children: React.ReactNode; right?: React.ReactNode }) {
+  const tab = useContext(TabCtx);
+  if (id && TAB_OF[id] && TAB_OF[id] !== tab) return null;
   return (
     <section className="pe-sec" id={id ? 'pe-' + id : undefined}>
       <header>
@@ -158,13 +273,14 @@ export function ProfileEditor() {
   const avatarFile = useRef<HTMLInputElement>(null);
   const bannerFile = useRef<HTMLInputElement>(null);
   const bgFile = useRef<HTMLInputElement>(null);
+  const [tab, setTab] = useState<TabId>('basic');
   useEffect(() => {
     let id: string | null = null;
     try {
       id = sessionStorage.getItem('kovan.peFocus');
       sessionStorage.removeItem('kovan.peFocus');
     } catch {}
-    if (id) setTimeout(() => jumpTo(id!), 80);
+    if (id && TAB_OF[id]) setTab(TAB_OF[id]);
   }, []);
   const x = d.extra;
   const setX = (patch: Partial<ProfileExtra>) => setD((o) => ({ ...o, extra: { ...o.extra, ...patch } }));
@@ -216,13 +332,15 @@ export function ProfileEditor() {
           <p className="pe-lead">Kartını, ismini ve avatarını istediğin gibi tasarla. Değişiklikler kaydettiğinde tüm topluluklarında görünür.</p>
         </div>
       </div>
-      <nav className="pe-jump">
-        {JUMP.map(([id, l]) => (
-          <button key={id} onClick={() => jumpTo(id)}>
-            {l}
+      <nav className="pe-tabs">
+        {TABS.map(([id, l, sub]) => (
+          <button key={id} className={cx(tab === id && 'on')} onClick={() => setTab(id)}>
+            <b>{l}</b>
+            <small>{sub}</small>
           </button>
         ))}
       </nav>
+      <TabCtx.Provider value={tab}>
       <div className="pe-grid">
         <div className="pe-form">
           <Section
@@ -267,6 +385,10 @@ export function ProfileEditor() {
               ]}
               onChange={(k) => (k === 'image' && !banner.image ? bannerFile.current?.click() : setBanner({ kind: k }))}
             />
+            <label className="pe-slider pe-height">
+              <em>Afiş yüksekliği {banner.h || BANNER_H.def} px</em>
+              <input type="range" min={BANNER_H.min} max={BANNER_H.max} value={banner.h || BANNER_H.def} onChange={(e) => setBanner({ h: Number(e.target.value) })} />
+            </label>
             <input
               ref={bannerFile}
               hidden
@@ -277,19 +399,21 @@ export function ProfileEditor() {
                 e.target.value = '';
                 if (!f) return;
                 try {
-                  setBanner({ kind: 'image', image: await readImage(f, 680, 240, BANNER_MAX) });
+                  setBanner({ kind: 'image', image: await readImage(f, 1100, 700, BANNER_MAX), x: undefined, y: undefined, zoom: undefined });
                 } catch {
                   toast('Resim okunamadı.', 'err');
                 }
               }}
             />
-            {banner.kind === 'image' ? (
-              <div className="pe-inline">
-                <button className="btn ghost sm" onClick={() => bannerFile.current?.click()}>
-                  <ImagePlus size={14} /> Başka resim seç
-                </button>
-                <span className="note">En iyi sonuç için yatay bir resim seç (680×240).</span>
-              </div>
+            {banner.kind === 'image' && banner.image ? (
+              <>
+                <ImageFramer src={banner.image} value={banner} onChange={(f) => setBanner(f)} aspect={330 / (banner.h || BANNER_H.def)} />
+                <div className="pe-inline">
+                  <button className="btn ghost sm" onClick={() => bannerFile.current?.click()}>
+                    <ImagePlus size={14} /> Başka resim seç
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 <div className="pe-inline">
@@ -331,46 +455,45 @@ export function ProfileEditor() {
                 e.target.value = '';
                 if (!f) return;
                 try {
-                  setX({ bg: { dim: 45, blur: 0, ...x.bg, image: await readImage(f, 600, 840, BG_MAX) } });
+                  setX({ bg: { dim: 45, blur: 0, ...x.bg, image: await readImage(f, 900, 1100, BG_MAX), x: undefined, y: undefined, zoom: undefined } });
                 } catch {
                   toast('Resim okunamadı.', 'err');
                 }
               }}
             />
-            <div className="pe-bg">
-              <button className={cx('pe-bg-pick', x.bg && 'has')} onClick={() => bgFile.current?.click()} style={x.bg ? { backgroundImage: `url(${x.bg.image})` } : undefined}>
-                {!x.bg && (
-                  <>
-                    <ImagePlus size={22} />
-                    <span>Resim seç</span>
-                  </>
-                )}
-              </button>
-              <div className="pe-bg-opts">
-                {x.bg ? (
-                  <>
-                    <label className="pe-slider">
-                      <em>Karartma %{x.bg.dim ?? 45}</em>
-                      <input type="range" min={0} max={85} value={x.bg.dim ?? 45} onChange={(e) => setX({ bg: { ...x.bg!, dim: Number(e.target.value) } })} />
-                    </label>
-                    <label className="pe-slider">
-                      <em>Bulanıklık {x.bg.blur ?? 0} px</em>
-                      <input type="range" min={0} max={16} value={x.bg.blur ?? 0} onChange={(e) => setX({ bg: { ...x.bg!, blur: Number(e.target.value) } })} />
-                    </label>
-                    <div className="btn-row">
-                      <button className="btn ghost sm" onClick={() => bgFile.current?.click()}>
-                        <ImagePlus size={14} /> Değiştir
-                      </button>
-                      <button className="btn ghost sm" onClick={() => setX({ bg: undefined })}>
-                        <Trash2 size={14} /> Kaldır
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <span className="note">Dikey ya da kare bir resim en iyi sonucu verir. Hareketli GIF de seçebilirsin (en fazla ~160 KB).</span>
-                )}
+            {x.bg ? (
+              <div className="pe-bg">
+                <ImageFramer src={x.bg.image} value={x.bg} onChange={(f) => setX({ bg: { ...x.bg!, ...f } })} aspect={330 / 470} tall />
+                <div className="pe-bg-opts">
+                  <label className="pe-slider">
+                    <em>Karartma %{x.bg.dim ?? 45}</em>
+                    <input type="range" min={0} max={85} value={x.bg.dim ?? 45} onChange={(e) => setX({ bg: { ...x.bg!, dim: Number(e.target.value) } })} />
+                  </label>
+                  <label className="pe-slider">
+                    <em>Bulanıklık {x.bg.blur ?? 0} px</em>
+                    <input type="range" min={0} max={16} value={x.bg.blur ?? 0} onChange={(e) => setX({ bg: { ...x.bg!, blur: Number(e.target.value) } })} />
+                  </label>
+                  <div className="btn-row">
+                    <button className="btn ghost sm" onClick={() => bgFile.current?.click()}>
+                      <ImagePlus size={14} /> Değiştir
+                    </button>
+                    <button className="btn ghost sm" onClick={() => setX({ bg: undefined })}>
+                      <Trash2 size={14} /> Kaldır
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="pe-bg">
+                <button className="pe-bg-pick" onClick={() => bgFile.current?.click()}>
+                  <ImagePlus size={22} />
+                  <span>Resim seç</span>
+                </button>
+                <div className="pe-bg-opts">
+                  <span className="note">Herhangi bir resim seç; sonra sürükleyerek hangi kısmının görüneceğini, kaydırıcıyla yakınlığını ayarlarsın. Hareketli GIF de olur (en fazla ~160 KB).</span>
+                </div>
+              </div>
+            )}
           </Section>
 
           <Section id="identity" title="Kimlik">
@@ -651,7 +774,7 @@ export function ProfileEditor() {
             </div>
           </Section>
 
-          <Section title="Ek bilgiler">
+          <Section id="extra" title="Ek bilgiler">
             <div className="pe-switch-row">
               <div>
                 <b>Yerel saatimi göster</b>
@@ -718,6 +841,7 @@ export function ProfileEditor() {
           </div>
         </aside>
       </div>
+      </TabCtx.Provider>
       {dirty && (
         <div className="save-bar">
           <span>Kaydedilmemiş değişikliklerin var</span>

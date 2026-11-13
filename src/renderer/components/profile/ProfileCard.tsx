@@ -8,7 +8,7 @@ import { activeCustom, type ActivityKind, type CardEffect, type ProfileExtra } f
 import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
 import { useStore, openModal, toast, selectCommunity } from '../../lib/store';
 import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
-import { ACTIVITY_LABEL, bannerBackground, bannerClass, cardTheme, linkBrand, linkTitle, nameStyle } from './look';
+import { ACTIVITY_LABEL, bannerBackground, bannerClass, cardTheme, imgFrameStyle, linkBrand, linkTitle, nameStyle } from './look';
 
 export const ACTIVITY_ICON: Record<ActivityKind, React.ComponentType<{ size?: number }>> = {
   playing: Gamepad2,
@@ -75,7 +75,14 @@ export const CardFx = memo(function CardFx({ effect }: { effect?: CardEffect }) 
 export function Banner({ user, profile, className, children }: { user?: Pick<UserPublic, 'color'>; profile?: ProfileExtra; className?: string; children?: React.ReactNode }) {
   const b = profile?.banner;
   return (
-    <div className={cx('pc-banner', bannerClass(b), className)} style={{ background: bannerBackground(b, user?.color || '#f5a524') }}>
+    <div
+      className={cx('pc-banner', bannerClass(b), className)}
+      style={{
+        background: b?.kind === 'image' && b.image ? b.a : bannerBackground(b, user?.color || '#f5a524'),
+        ['--bh' as any]: b?.h ? b.h + 'px' : undefined,
+      }}
+    >
+      {b?.kind === 'image' && b.image && <img className="pc-img" src={b.image} alt="" draggable={false} style={imgFrameStyle(b)} />}
       {children}
     </div>
   );
@@ -304,7 +311,9 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
     >
       {p?.bg && (
         <>
-          <div className="pc-bgimg" style={{ backgroundImage: `url(${p.bg.image})`, filter: p.bg.blur ? `blur(${p.bg.blur}px)` : undefined }} />
+          <div className="pc-bgimg" style={{ filter: p.bg.blur ? `blur(${p.bg.blur}px)` : undefined }}>
+            <img className="pc-img" src={p.bg.image} alt="" draggable={false} style={imgFrameStyle(p.bg)} />
+          </div>
           <div className="pc-bgdim" style={{ opacity: (p.bg.dim ?? 45) / 100 }} />
         </>
       )}

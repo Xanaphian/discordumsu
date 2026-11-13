@@ -4,7 +4,6 @@ import { ThemeQuick } from './Appearance';
 import { cx } from '../lib/util';
 import { useStore, toast } from '../lib/store';
 import { Logo, Tooltip } from './Common';
-import { ServerRail } from './ServerRail';
 import { fmtSize } from '../lib/util';
 
 export function UpdateButton() {
@@ -86,7 +85,6 @@ export function TitleBar() {
         <Logo size={20} />
         <span>kovan</span>
       </div>
-      {onboarded && <ServerRail />}
       <div className="tb-drag" />
       <div className="tb-actions">
         <Tooltip text="Renk teması" side="bottom">

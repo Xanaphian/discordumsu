@@ -11,7 +11,7 @@ export const FRAME_LABEL: Record<AvatarFrame, string> = {
   double: 'Çift halka',
   glow: 'Parıltı',
   rainbow: 'Gökkuşağı',
-  orbit: 'Yörünge',
+  orbit: 'İki ton',
 };
 export const PATTERN_LABEL: Record<BannerPattern, string> = {
   none: 'Yok',
@@ -64,6 +64,12 @@ export function bannerBackground(b: ProfileBanner | undefined, fallback: string)
   if (b.kind === 'image' && b.image) return `center / cover no-repeat url("${b.image}")`;
   if (b.kind === 'gradient') return `linear-gradient(${b.angle ?? 135}deg, ${b.a}, ${b.b || b.a})`;
   return b.a;
+}
+
+/** Konumlanmış resim: object-fit cover + seçilen nokta + yakınlaştırma */
+export function imgFrameStyle(f: { x?: number; y?: number; zoom?: number } | undefined): React.CSSProperties {
+  const x = f?.x ?? 50, y = f?.y ?? 50, z = (f?.zoom ?? 100) / 100;
+  return { objectPosition: `${x}% ${y}%`, transformOrigin: `${x}% ${y}%`, transform: z !== 1 ? `scale(${z})` : undefined };
 }
 
 export function bannerClass(b: ProfileBanner | undefined) {
