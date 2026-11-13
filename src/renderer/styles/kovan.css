@@ -54,6 +54,7 @@
   --r-sm: 9px;
   /* şekil maskeleri (100x100 görünüm kutusu) */
   --m-hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M40.3 6.3Q50 1 59.7 6.3L86.3 20.7Q96 26 96 37L96 63Q96 74 86.3 79.3L59.7 93.7Q50 99 40.3 93.7L13.7 79.3Q4 74 4 63L4 37Q4 26 13.7 20.7Z'/%3E%3C/svg%3E");
+  --m-hex6: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M40.3 6.3Q50 1 59.7 6.3L86.3 20.7Q96 26 96 37L96 63Q96 74 86.3 79.3L59.7 93.7Q50 99 40.3 93.7L13.7 79.3Q4 74 4 63L4 37Q4 26 13.7 20.7Z'/%3E%3C/svg%3E");
   --m-sq: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0C10 0 0 10 0 50S10 100 50 100 100 90 100 50 90 0 50 0Z'/%3E%3C/svg%3E");
   --m-dia: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M40.1 9.9Q50 0 59.9 9.9L90.1 40.1Q100 50 90.1 59.9L59.9 90.1Q50 100 40.1 90.1L9.9 59.9Q0 50 9.9 40.1Z'/%3E%3C/svg%3E");
   --honeycomb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='48' viewBox='0 0 28 48'%3E%3Cpath d='M14 0L28 8V24L14 32L0 24V8ZM14 32V48' fill='none' stroke='white' stroke-width='1'/%3E%3C/svg%3E");
@@ -516,16 +517,19 @@ h2,
   gap: 6px;
   color: var(--text-3);
 }
-.cat-row > span {
+.cat-row > span:not(.tip-wrap) {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.cat-row > span::after {
+.cat-row > span:not(.tip-wrap)::after {
   content: '';
   flex: 1;
   height: 1px;
   background: var(--line);
+}
+.cat-row > .tip-wrap {
+  flex: none;
 }
 .cat-add {
   width: 22px;
@@ -666,9 +670,12 @@ h2,
 }
 .avatar.shape-hex .av-clip,
 .avatar.shape-hex::before,
-.avatar.shape-hex::after {
-  -webkit-mask: var(--m-hex) center / 100% 100% no-repeat;
-  mask: var(--m-hex) center / 100% 100% no-repeat;
+.avatar.shape-hex::after,
+.avatar.shape-auto .av-clip,
+.avatar.shape-auto::before,
+.avatar.shape-auto::after {
+  -webkit-mask: var(--m-hex6) center / 100% 100% no-repeat;
+  mask: var(--m-hex6) center / 100% 100% no-repeat;
 }
 .avatar.shape-squircle .av-clip,
 .avatar.shape-squircle::before,

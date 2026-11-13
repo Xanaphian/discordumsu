@@ -11,7 +11,9 @@ import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, 
 import { enterSpace, exitSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
+import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
+import { focusProfileSection } from './profile/ProfileEditor';
 import { activeCustom } from '../../shared/profile';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName } from '../lib/util';
@@ -37,6 +39,24 @@ const ChannelIcon = ({ type, size = 18, icon }: { type: Channel['type']; size?: 
   type === 'site' && icon ? (
     <img className="ch-site-icon" src={icon} alt="" width={size} height={size} draggable={false} />
   ) : type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
+
+function siteHost(url?: string) {
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+/** Oda satırının altındaki kısa açıklama */
+function roomSub(ch: Channel, occupants: number, viewers: number) {
+  if (ch.type === 'voice') return occupants ? `${occupants} kişi sohbette` : 'Sesli oda · boş';
+  if (ch.type === 'space') return occupants ? `${occupants} kişi dünyada` : '3D dünya · keşfet';
+  const host = siteHost(ch.url);
+  const where = host && host !== ch.name ? host : ch.siteTitle && ch.siteTitle !== ch.name ? ch.siteTitle : 'Site odası';
+  return viewers ? `${where} · ${viewers} kişi geziyor` : `${where} · birlikte gez`;
+}
 
 const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chId: string }) {
   const members = useStore((s) => s.voice[chId]);
@@ -85,6 +105,11 @@ const ChannelRow = memo(function ChannelRow({
   const devMode = useStore((s) => s.settings.devMode);
   const [over, setOver] = useState(false);
   const editCh = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
+  const room = ch.type === 'voice' || ch.type === 'space' || ch.type === 'site';
+  const occupants = useStore((s) => (isVoiceLike(ch.type) ? s.voice[ch.id]?.length || 0 : 0));
+  const viewers = useSite((s) => (ch.type === 'site' ? new Set((s.viewers[ch.id] || []).map((v) => v.userId)).size : 0));
+  const live = useVoice((v) => ch.type === 'voice' && (useStore.getState().voice[ch.id] || []).some((m) => v.speaking[m.userId] && !m.muted));
+  const sub = room ? roomSub(ch, occupants, viewers) : '';
   const click = () => {
     if (ch.type === 'voice' && !inVoice) tryJoinVoice(c, ch);
     selectChannel(c.id, ch.id);
@@ -131,7 +156,17 @@ const ChannelRow = memo(function ChannelRow({
   return (
     <>
       <div
-        className={cx('ch-row', active && 'active', unread && !active && !muted && 'unread', inVoice && 'in-voice', over && 'drop-over', muted && 'muted')}
+        className={cx(
+          'ch-row',
+          room && 'room room-' + ch.type,
+          (occupants > 0 || viewers > 0) && 'occupied',
+          live && 'live',
+          active && 'active',
+          unread && !active && !muted && 'unread',
+          inVoice && 'in-voice',
+          over && 'drop-over',
+          muted && 'muted',
+        )}
         onClick={click}
         onContextMenu={menu}
         draggable={manage}
@@ -152,10 +187,27 @@ const ChannelRow = memo(function ChannelRow({
         }}
       >
         {unread && !active && !muted && <span className="ch-unread-pill" />}
+        {room && <span className="room-art" aria-hidden />}
         <span className="ch-icon">
-          <ChannelIcon type={ch.type} icon={ch.icon} />
+          <ChannelIcon type={ch.type} icon={ch.icon} size={room ? 20 : 18} />
         </span>
-        <span className="ch-name">{ch.name}</span>
+        {room ? (
+          <span className="ch-text">
+            <span className="ch-name">{ch.name}</span>
+            <span className="ch-sub">{sub}</span>
+          </span>
+        ) : (
+          <span className="ch-name">{ch.name}</span>
+        )}
+        {ch.type === 'voice' && occupants > 0 && (
+          <span className="room-eq" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
+        )}
+        {ch.type === 'space' && <span className="room-tag">3D</span>}
+        {ch.type === 'site' && <span className="room-tag">WEB</span>}
         {ch.overwrites?.some((o) => o.id === c.id && o.deny & Perm.VIEW_CHANNEL) && <Lock size={12} className="ch-lock" aria-label="Özel kanal" />}
         {isVoiceLike(ch.type) && ch.userLimit ? <span className="ch-limit">{(useStore.getState().voice[ch.id] || []).length}/{ch.userLimit}</span> : null}
         {mentions > 0 && <span className="badge">{mentions}</span>}
@@ -379,12 +431,13 @@ export function UserPanel() {
   const deaf = useVoice((s) => s.deaf);
   const statusMenu = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openMenu({ clientX: r.left, clientY: r.top - 8 - 7 * 34 - 60 }, [
+    openMenu({ clientX: r.left, clientY: r.top - 8 - 8 * 34 - 60 }, [
       ...STATUSES.map((st) => ({ label: STATUS_LABEL[st], icon: 'status-' + st, checked: me.status === st, onClick: () => setStatus(st) })),
       { sep: true },
       { label: activeCustom(me.extra) ? 'Özel durumu değiştir' : 'Özel durum ayarla', onClick: () => openModal({ type: 'customStatus' }) },
       { label: 'Profilimi görüntüle', onClick: () => openModal({ type: 'profile', uid: me.id }) },
       { label: 'Profili düzenle', onClick: () => openModal({ type: 'settings', tab: 'profile' }) },
+      { label: 'Afiş ve arka plan', onClick: () => (focusProfileSection('banner'), openModal({ type: 'settings', tab: 'profile' })) },
       { label: 'Kimliğini kopyala', onClick: () => copyText(me.id) },
     ]);
   };

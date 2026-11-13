@@ -221,11 +221,11 @@ function createWindow() {
 }
 
 // tema -> pencere zemini (başlık çubuğu ve pencere düğmeleri aynı renkte görünsün)
-const THEME_BG: Record<string, string> = { dark: '#0c0a07', midnight: '#000000', ocean: '#050b11', forest: '#060a07', rose: '#0e080b', light: '#e8e2d6' };
-const themeBg = (theme: string) => THEME_BG[theme] || THEME_BG.dark;
+const THEME_BG: Record<string, string> = { destan: '#05080d', kor: '#0b0706', buzul: '#050a12', zumrut: '#040a08', alaca: '#08060f', dark: '#0c0a07', midnight: '#000000', ocean: '#050b11', forest: '#060a07', rose: '#0e080b', light: '#e8e2d6' };
+const themeBg = (theme: string) => THEME_BG[theme] || THEME_BG.destan;
 
 function overlayFor(theme: string) {
-  return { color: themeBg(theme), symbolColor: theme === 'light' ? '#4a4537' : '#b9b1a3', height: 46 };
+  return { color: themeBg(theme), symbolColor: theme === 'light' ? '#4a4537' : ['destan', 'kor', 'buzul', 'zumrut', 'alaca'].includes(theme) ? '#c9b78c' : '#b9b1a3', height: 46 };
 }
 
 function showWindow() {

@@ -6,10 +6,12 @@ import './styles/app.css';
 import './styles/admin.css';
 import './styles/kovan.css';
 import './styles/profile.css';
+import './styles/rooms.css';
+import './styles/destan.css';
 
 // Yazı tipleri yüklenmeden çizersek mesaj yükseklikleri sonradan değişir ve liste en altta kalmaz.
 const fontsReady = Promise.race([
-  Promise.all(['400 14px "Manrope Variable"', '700 14px "Manrope Variable"', '700 16px "Bricolage Grotesque Variable"'].map((f) => document.fonts.load(f, 'aşğıİç'))),
+  Promise.all(['400 14px "Manrope Variable"', '700 14px "Manrope Variable"', '700 16px "Bricolage Grotesque Variable"', '700 16px "Cinzel Variable"'].map((f) => document.fonts.load(f, 'aşğıİç'))),
   new Promise((r) => setTimeout(r, 1200)),
 ]).catch(() => {});
 

@@ -1,5 +1,7 @@
 import React from 'react';
-import { Download, RefreshCw, RotateCw, CircleAlert, LoaderCircle } from 'lucide-react';
+import { Download, RefreshCw, RotateCw, CircleAlert, LoaderCircle, Palette } from 'lucide-react';
+import { ThemeQuick } from './Appearance';
+import { cx } from '../lib/util';
 import { useStore, toast } from '../lib/store';
 import { Logo, Tooltip } from './Common';
 import { ServerRail } from './ServerRail';
@@ -77,6 +79,7 @@ export function TitleBar() {
     if (u.state === 'error' && u.manual) toast('Güncelleme denetlenemedi: ' + u.message, 'err');
   }, [u]);
   const onboarded = useStore((s) => s.onboarded);
+  const [themes, setThemes] = React.useState(false);
   return (
     <header className="titlebar">
       <div className="tb-brand">
@@ -86,6 +89,12 @@ export function TitleBar() {
       {onboarded && <ServerRail />}
       <div className="tb-drag" />
       <div className="tb-actions">
+        <Tooltip text="Renk teması" side="bottom">
+          <button className={cx('tb-icon', themes && 'on')} onClick={() => setThemes((v) => !v)} aria-label="Renk teması">
+            <Palette size={15} />
+          </button>
+        </Tooltip>
+        {themes && <ThemeQuick onClose={() => setThemes(false)} />}
         <UpdateButton />
       </div>
     </header>
