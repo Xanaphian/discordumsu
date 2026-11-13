@@ -176,6 +176,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
       ...(can(c, me, Perm.MANAGE_COMMUNITY) || can(c, me, Perm.MANAGE_ROLES) || can(c, me, Perm.KICK)
         ? [{ label: 'Topluluk ayarları', icon: 'settings', onClick: () => openModal({ type: 'commSettings', cid: c.id }) }]
         : []),
+      ...(can(c, me, Perm.MANAGE_COMMUNITY) ? [{ label: 'Botlar ve yapay zekâ', icon: 'bot', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'bots' }) }] : []),
       ...(manage
         ? [
             { label: 'Kanal oluştur', icon: 'plus', onClick: () => openModal({ type: 'createChannel', cid: c.id, categoryId: null }) },

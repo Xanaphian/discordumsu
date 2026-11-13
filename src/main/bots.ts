@@ -31,6 +31,7 @@ export interface BotHost {
   react(c: StoredComm, ch: ID, id: ID, uid: ID, emoji: string): boolean;
   typing(c: StoredComm, ch: ID, uid: ID): void;
   status(uid: ID): Status;
+  announcePresence(uid: ID): void;
   pushComm(c: StoredComm): void;
   isManager(c: StoredComm, uid: ID): boolean;
   can(c: StoredComm, uid: ID, perm: number): boolean;
@@ -442,7 +443,9 @@ export class BotManager {
     // "Bot" adlı bir rol varsa ver
     const role = c.roles.find((r) => r.id !== c.id && lower(r.name) === 'bot');
     c.members.push({ userId: id, roles: role ? [role.id] : [], joinedAt: Date.now() });
+    this.bots.set(id, b);
     this.host.pushComm(c);
+    this.host.announcePresence(id);
     this.save();
     return b;
   }

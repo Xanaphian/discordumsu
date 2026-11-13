@@ -655,6 +655,7 @@ export class Hub {
     switch (f.t) {
       case 'join': {
         const c = this.comms.get(f.cid);
+        if (this.bots.isBot(uid)) return this.send(s, { t: 'err', msg: 'Botlar davetle katılamaz.', rid: f.rid });
         if (!c || c.inviteKey !== f.key) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
@@ -1321,6 +1322,7 @@ export class Hub {
       },
       typing: (c, ch, uid) => this.broadcast(c, { t: 'typing', ch, uid }),
       status: (uid) => this.effectiveStatus(uid),
+      announcePresence: (uid) => this.broadcastPresence(uid),
       pushComm: (c) => this.pushComm(c),
       isManager: (c, uid) => can(this.snapshot(c), uid, Perm.MANAGE_COMMUNITY),
       can: (c, uid, perm) => can(this.snapshot(c), uid, perm),

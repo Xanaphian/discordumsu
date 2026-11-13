@@ -3,7 +3,7 @@ import {
   ArrowLeft, Bot, Sparkles, PartyPopper, HandHeart, Code2, Plus, Trash2, Copy, Eye, EyeOff, RefreshCw, LoaderCircle,
   CircleCheck, CircleAlert, Plug, KeyRound, MessageSquareReply,
 } from 'lucide-react';
-import { useStore, request, toast, confirmDialog, botHooks } from '../lib/store';
+import { useStore, request, toast, confirmDialog, botHooks, connFor } from '../lib/store';
 import { Avatar, Toggle } from './Common';
 import { Row } from './Settings';
 import { cx, COLORS, resizeImage, copyText, fmtDay } from '../lib/util';
@@ -251,7 +251,9 @@ function AiPane({ cid, bot }: { cid: string; bot: BotView }) {
     setTesting(true);
     setTest(null);
     try {
-      const r = await request<{ data: string }>(cid, { t: 'bot.test', cid, id: bot.id });
+      const conn = connFor(cid);
+      if (!conn) throw new Error('Sunucuya bağlı değil');
+      const r = await conn.request<{ data: string }>({ t: 'bot.test', cid, id: bot.id }, 90_000);
       setTest({ ok: true, text: r.data });
     } catch (e) {
       setTest({ ok: false, text: (e as Error).message });
@@ -265,7 +267,7 @@ function AiPane({ cid, bot }: { cid: string; bot: BotView }) {
   }, [bot.usage.inTok, bot.usage.outTok]);
   return (
     <div className="bot-pane">
-      <Row title="Yapay zekâyı aç" sub="Bot, anıldığında (@ad), mesajına yanıt verildiğinde ya da !sor komutuyla Claude üzerinden yanıt verir.">
+      <Row title="Yapay zekâyı aç" sub={`Bot, anıldığında (@${bot.user.name}) ya da mesajına yanıt verildiğinde Claude üzerinden yanıt verir${bot.commands.on ? `; ${bot.commands.prefix}sor komutu da çalışır` : ''}.`}>
         <Toggle value={ai.on} onChange={(v) => upd({ on: v })} />
       </Row>
 
@@ -551,7 +553,15 @@ function ConnectPane({ cid, bot, freshToken }: { cid: string; bot: BotView; fres
     if (!token) request<{ data: string }>(cid, { t: 'bot.token', cid, id: bot.id }).then((r) => setToken(r.data), () => {});
   }, [bot.id]);
   const url = `http://${host}/mcp`;
-  const slug = 'kovan-' + (bot.user.name.toLocaleLowerCase('tr').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'bot');
+  const slug =
+    'kovan-' +
+    (bot.user.name
+      .toLocaleLowerCase('tr')
+      .replace(/ı/g, 'i')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'bot');
   const tok = token || '<BELİRTEÇ>';
   const desktopJson = JSON.stringify(
     { mcpServers: { [slug]: { command: info?.exePath || 'Kovan.exe', args: [info?.mcpBridge || 'mcp-bridge.js', '--url', url], env: { ELECTRON_RUN_AS_NODE: '1', KOVAN_TOKEN: tok } } } },
