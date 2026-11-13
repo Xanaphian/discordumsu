@@ -1,10 +1,10 @@
 // Kart mesajları: takım ilanı, anket ve bunları kuran pencereler.
 import React, { useMemo, useState } from 'react';
-import { Swords, ChartNoAxesColumn, Check, Volume2, Gamepad2, Copy, UsersRound, Clock, X, Plus, Minus, CalendarClock } from 'lucide-react';
+import { Swords, ChartNoAxesColumn, Check, Volume2, Gamepad2, UsersRound, Clock, X, Plus, Minus, CalendarClock } from 'lucide-react';
 import { useStore, toggleReaction, sendMessage, toast } from '../lib/store';
 import { useVoice, joinVoice } from '../lib/voice';
 import { Avatar } from './Common';
-import { cx, displayName, hm, fmtTime, copyText } from '../lib/util';
+import { cx, displayName, hm, fmtTime } from '../lib/util';
 import {
   encodeCard, lfgSlots, pollVotes, slotKey, voteKey,
   type LfgCard, type PollCard, type Card,
@@ -13,7 +13,7 @@ import { presets, schedule } from '../lib/later';
 import { useActs } from '../lib/activity';
 import { LFG_GAMES, lfgGameOf, slotsFor, type LfgGame } from '../lib/lfgGames';
 import { BrandLogo } from './profile/Activity';
-import { GAME_ACCOUNT, STEAM_JOIN, accountFor, lolWaitInvite, steamJoin } from '../lib/lfgJoin';
+import { STEAM_JOIN, accountFor, lolWaitInvite, steamJoin } from '../lib/lfgJoin';
 import { isVoiceLike, type Community, type Message, type ID } from '../../shared/protocol';
 
 // ---------------------------------------------------------------------------
@@ -57,8 +57,7 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
     return best;
   }, [c.channels, voice, team.join(','), me]); // eslint-disable-line
   const gk = lfgGameOf(card)?.key;
-  const acc = GAME_ACCOUNT[gk || ''];
-  const authorAcc = accountFor(m.authorId, gk);
+  const canJoinGame = !mineCard && inTeam && !!accountFor(m.authorId, gk) && (gk === 'lol' || STEAM_JOIN.has(gk || ''));
 
   const game = lfgGameOf(card);
   const theme = game?.theme.a ? ({ '--g-a': game.theme.a, '--g-b': game.theme.b, '--g-bg': game.theme.bg, '--g-ink': game.theme.ink || '#111' } as React.CSSProperties) : undefined;
@@ -85,26 +84,75 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
         </span>
       </div>
       {card.n && <div className="xcard-note">{card.n}</div>}
-      <div className="lfg-slots" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {slots.map((u, i) => {
-          const name = roles ? card.s[i] : `${i + 1}. ${game?.slotWord || 'oyuncu'}`;
-          return (
-            <button
-              key={i}
-              className={cx('lfg-slot', u && 'taken', u === me && 'me')}
-              onClick={() => take(i)}
-              disabled={!!u && u !== me}
-              title={u === me ? 'Yerinden çık' : u ? undefined : 'Bu yere geç'}
-            >
-              <span className={cx('lfg-state', u ? 'on' : 'off')}>{u ? 'Dolu' : 'Boş'}</span>
-              {u ? <Avatar user={users[u] || c.users[u]} size={36} /> : <span className="lfg-empty">+</span>}
-              <span className="lfg-role">{name}</span>
-              <span className="lfg-who">{u ? (u === me ? 'Sen' : displayName(c, u, users)) : 'Katıl'}</span>
-            </button>
-          );
-        })}
-      </div>
-      {(teamVc && myVc !== teamVc.id) || (acc && !mineCard) || (gk === 'lol' && mineCard) ? (
+      {game?.look === 'plate' ? (
+        <div className="lfg-plates">
+          {slots.map((u, i) => {
+            const role = roles ? card.s[i] : `${i + 1}. ${game.slotWord}`;
+            const acc = u ? accountFor(u, gk) : undefined;
+            return (
+              <button
+                key={i}
+                className={cx('pl-row', u ? 'taken' : 'open', u === me && 'me')}
+                onClick={() => take(i)}
+                disabled={!!u && u !== me}
+                title={u === me ? 'Yerinden çık' : u ? undefined : 'Bu yere geç'}
+              >
+                <span className="pl-ix">{i + 1}</span>
+                {u ? (
+                  <span className="pl-av">
+                    <Avatar user={users[u] || c.users[u]} size={30} />
+                  </span>
+                ) : (
+                  <span className="pl-av empty">+</span>
+                )}
+                <span className="pl-name">
+                  <b>{u ? (u === me ? 'Sen' : displayName(c, u, users)) : 'Boş yer'}</b>
+                  <small>{u ? (acc && !/^\d{17}$/.test(acc) ? acc : 'Hazır') : 'Katılmak için tıkla'}</small>
+                </span>
+                <span className="pl-rank">
+                  <i />
+                  <i />
+                  <span>{role}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={cx('lfg-banners', !game && 'plain')} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {slots.map((u, i) => {
+            const role = roles ? card.s[i] : `${i + 1}. ${game?.slotWord || 'oyuncu'}`;
+            const rid = u ? accountFor(u, 'lol') : undefined;
+            const [gn, tag] = (rid || '').split('#');
+            return (
+              <button
+                key={i}
+                className={cx('bn', u ? 'taken' : 'open', u === me && 'me')}
+                onClick={() => take(i)}
+                disabled={!!u && u !== me}
+                title={u === me ? 'Yerinden çık' : u ? undefined : 'Bu yere geç'}
+              >
+                <span className="bn-role">{role}</span>
+                <span className="bn-frame">{u ? <Avatar user={users[u] || c.users[u]} size={46} /> : <span className="bn-plus">+</span>}</span>
+                <span className="bn-plate">
+                  {u ? (
+                    <>
+                      <b>{gn || displayName(c, u, users)}</b>
+                      <small>{tag ? '#' + tag : u === me ? 'Sen' : ''}</small>
+                    </>
+                  ) : (
+                    <>
+                      <b>Boş</b>
+                      <small>Katıl</small>
+                    </>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {(teamVc && myVc !== teamVc.id) || canJoinGame || (gk === 'lol' && mineCard) ? (
         <div className="lfg-extra">
           {teamVc && myVc !== teamVc.id && (
             <div className="lfg-row">
@@ -128,30 +176,18 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
               <span className="lfg-row-text">Katılanlara LoL istemcinden kendiliğinden lobi daveti gider. Lobin açık olsun.</span>
             </div>
           )}
-          {acc && !mineCard && (
+          {canJoinGame && (
             <div className="lfg-row">
               <Gamepad2 size={15} />
-              {authorAcc ? (
-                <>
-                  <span className="lfg-row-text">
-                    {acc.label}: <b>{/^\d{17}$/.test(authorAcc) ? displayName(c, m.authorId, users) : authorAcc}</b>
-                  </span>
-                  {gk === 'lol' && inTeam && (
-                    <button className="btn primary sm" onClick={() => lolWaitInvite(m.authorId)}>
-                      Lobiye katıl
-                    </button>
-                  )}
-                  {gk && STEAM_JOIN.has(gk) && (
-                    <button className="btn primary sm" onClick={() => steamJoin(m.authorId)}>
-                      Oyununa katıl
-                    </button>
-                  )}
-                  <button className="btn ghost sm" onClick={() => (copyText(authorAcc), toast('Kopyalandı.', 'ok'))}>
-                    <Copy size={13} /> Kopyala
-                  </button>
-                </>
+              <span className="lfg-row-text">{gk === 'lol' ? 'Takımdasın; LoL davetini bekliyorsan:' : 'Takım hazırlanıyor, ilan sahibinin oyununa gir:'}</span>
+              {gk === 'lol' ? (
+                <button className="btn primary sm" onClick={() => lolWaitInvite(m.authorId)}>
+                  Lobiye katıl
+                </button>
               ) : (
-                <span className="lfg-row-text muted">İlan sahibinin profilinde {acc.label} bağlı değil.</span>
+                <button className="btn primary sm" onClick={() => steamJoin(m.authorId)}>
+                  Oyununa katıl
+                </button>
               )}
             </div>
           )}

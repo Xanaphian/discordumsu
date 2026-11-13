@@ -903,3 +903,260 @@
 .lfg-row .btn {
   flex: none;
 }
+
+/* ---- lobi görünümü: sancaklar (LoL, Dota 2) ---- */
+.lfg-banners {
+  display: grid;
+  gap: 8px;
+  padding: 4px 14px 14px;
+}
+.bn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 6px 30px;
+  border: 0;
+  color: #f2f2f4;
+  font: inherit;
+  cursor: pointer;
+  clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.35));
+  transition: transform 0.18s var(--ease), filter 0.18s;
+}
+.bn::before {
+  /* sancağın kenar çizgisi */
+  content: '';
+  position: absolute;
+  inset: 0;
+  clip-path: inherit;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 25%, transparent) 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1px;
+  pointer-events: none;
+}
+.bn::after {
+  /* üstteki asma çubuğu */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+}
+.bn.open {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.3));
+  color: rgba(255, 255, 255, 0.55);
+}
+.bn.open::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.05) 70%);
+}
+.bn.open::after {
+  background: rgba(255, 255, 255, 0.25);
+}
+.bn:not(:disabled):hover {
+  transform: translateY(-2px);
+  filter: brightness(1.15);
+}
+.bn:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.bn.me {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 38%, transparent), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.3));
+}
+.bn-role {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.bn.open .bn-role {
+  color: rgba(255, 255, 255, 0.5);
+}
+.bn-frame {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--accent), color-mix(in srgb, var(--accent) 30%, #000), var(--accent), color-mix(in srgb, var(--g-b, var(--accent)) 70%, #000), var(--accent));
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.bn-frame > :first-child {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
+}
+.bn.open .bn-frame {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.bn-plus {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.bn:not(:disabled):hover .bn-plus {
+  color: var(--accent);
+}
+.bn-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  line-height: 1.2;
+}
+.bn-plate b {
+  max-width: 100%;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bn-plate small {
+  font-size: 11px;
+  opacity: 0.6;
+  min-height: 13px;
+}
+[data-style='destan'] .bn-plate b {
+  font-family: 'Marcellus', serif;
+  letter-spacing: 0.3px;
+}
+
+/* ---- lobi görünümü: rütbe plakaları (CS2, PUBG, THE FINALS) ---- */
+.lfg-plates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 14px 14px;
+}
+.pl-row {
+  display: grid;
+  grid-template-columns: 18px 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 10px;
+  border: 0;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, rgba(0, 0, 0, 0.3)), rgba(0, 0, 0, 0.25) 60%);
+  color: #f2f2f4;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.15s;
+}
+.pl-row.open {
+  border-left-color: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+}
+.pl-row.me {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, rgba(0, 0, 0, 0.3)), rgba(0, 0, 0, 0.25) 70%);
+}
+.pl-row:not(:disabled):hover {
+  filter: brightness(1.18);
+  transform: translateX(2px);
+}
+.pl-row:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.pl-ix {
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+.pl-av {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.pl-av > * {
+  border-radius: 6px !important;
+}
+.pl-av.empty {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 18px;
+}
+.pl-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.pl-name b {
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pl-name small {
+  font-size: 11.5px;
+  opacity: 0.6;
+}
+.pl-rank {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 108px;
+  height: 26px;
+  padding: 0 12px 0 8px;
+  transform: skewX(-14deg);
+  border: 1px solid var(--accent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 35%, #0b0d12), #0b0d12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.pl-rank i {
+  width: 4px;
+  height: 14px;
+  background: var(--accent);
+  opacity: 0.9;
+}
+.pl-rank i + i {
+  opacity: 0.55;
+  margin-right: 5px;
+}
+.pl-rank span {
+  transform: skewX(14deg);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
+}
+.pl-row.open .pl-rank {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+}
+.pl-row.open .pl-rank i {
+  background: rgba(255, 255, 255, 0.3);
+}
+.pl-row.open .pl-rank span {
+  color: rgba(255, 255, 255, 0.6);
+}
+.lfg-games {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.modal.xdialog:has(.lfg-games) {
+  width: 620px;
+}
