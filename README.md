@@ -8,7 +8,9 @@ Topluluklar, kanallar ve gerçek zamanlı sohbet için hafif bir masaüstü uygu
 - **Mesajlaşma**: gruplanan mesajlar, yanıt, düzenleme, silme, sabitleme, tepkiler, @bahsetme, #kanal bağlantısı,
   markdown (kalın, italik, altı çizili, üstü çizili, spoiler, alıntı, liste, başlık, sözdizimi renkli kod blokları),
   dosya/görsel yükleme (sürükle-bırak, yapıştır), yazıyor göstergesi, arama, gün ayraçları, "YENİ" çizgisi
-- **Üyeler**: roller, renkler, yetkiler, ayrı listelenen roller, çevrimiçi/boşta/rahatsız etmeyin/görünmez durumları, profil kartı
+- **Üyeler**: roller (renk, rozet, sıralama, hiyerarşi, bahsedilebilir roller), 19 ayrı yetki, çevrimiçi/boşta/rahatsız etmeyin/görünmez durumları, profil kartı
+- **Kanal izinleri**: rol ve üye bazında izin ver / reddet / devral, özel kanallar, kategori izinleri, ses kanalı kişi sınırı
+- **Moderasyon**: zaman aşımı, atma, yasaklama, denetim kaydı, otomatik moderasyon (kelime filtresi, bağlantı engeli, bahsetme sınırı, yeni üye bekleme süresi)
 - **Ses**: WebRTC ile eşler arası sesli kanallar, konuşma göstergesi, susturma/sağırlaştırma
 - **Performans**: sanal liste (yalnızca görünen mesajlar çizilir), sayfalı geçmiş yükleme, hafif durum yönetimi
 - **Botlar**: hazır komutlar (zar, anket, yazı-tura…), otomatik yanıtlar, karşılama mesajı

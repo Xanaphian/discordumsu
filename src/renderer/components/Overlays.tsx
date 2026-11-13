@@ -1,10 +1,12 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Check, CircleCheck, CircleAlert, Info } from 'lucide-react';
-import { useStore, MenuItem, recentEmoji, rememberEmoji, meAsUser } from '../lib/store';
+import { Check, CircleCheck, CircleAlert, Info, Plus, X, MoreHorizontal, Clock } from 'lucide-react';
+import { useStore, MenuItem, openModal, openMenu, cmd, recentEmoji, rememberEmoji, meAsUser } from '../lib/store';
 import { ProfileCard } from './profile/ProfileCard';
 import { useClickOutside } from './Common';
-import { cx } from '../lib/util';
+import { cx, fmtDay, memberRoles } from '../lib/util';
 import { EMOJI_CATS, searchEmoji } from '../lib/emoji';
+import { can, canEditRole, isTimedOut, Perm } from '../../shared/protocol';
+import { memberMenu } from './Moderation';
 
 function useFit(ref: React.RefObject<HTMLElement | null>, x: number, y: number, deps: unknown[] = []) {
   const [pos, setPos] = useState({ left: x, top: y, ready: false });
@@ -79,9 +81,70 @@ export function UserPopout() {
   const isMe = p.uid === me.id;
   const u = isMe ? meAsUser(me) : users[p.uid] || c?.users[p.uid];
   const status = isMe ? (me.status === 'invisible' ? 'offline' : me.status) : p.uid === 'kovan-asistan' ? 'online' : presence[p.uid] || 'offline';
+  const member = c?.members.find((x) => x.userId === p.uid);
+  const roles = c && member ? memberRoles(c, member) : [];
+  const rolesNode =
+    c && member && (roles.length > 0 || can(c, me.id, Perm.MANAGE_ROLES)) ? (
+      <section className="pc-sec">
+        <h4>Roller</h4>
+        <div className="role-chips">
+          {roles.map((r) => (
+            <span key={r.id} className="role-chip">
+              <i style={{ background: r.color || 'var(--text-3)' }} />
+              {r.icon && <span className="role-icon">{r.icon}</span>}
+              {r.name}
+              {canEditRole(c, me.id, r) && (
+                <button onClick={() => cmd(c.id, { t: 'member.update', cid: c.id, userId: p.uid, roles: member.roles.filter((x) => x !== r.id) })} aria-label="Rolü kaldır">
+                  <X size={10} />
+                </button>
+              )}
+            </span>
+          ))}
+          {can(c, me.id, Perm.MANAGE_ROLES) && (
+            <button
+              className="role-chip add"
+              title="Rol ver"
+              onClick={(e) => {
+                const avail = c.roles.filter((r) => r.id !== c.id && !member.roles.includes(r.id) && canEditRole(c, me.id, r)).sort((a, b) => b.position - a.position);
+                openMenu(e, [
+                  ...avail.map((r) => ({ label: (r.icon ? r.icon + ' ' : '') + r.name, onClick: () => cmd(c.id, { t: 'member.update', cid: c.id, userId: p.uid, roles: [...member.roles, r.id] }) })),
+                  ...(avail.length ? [{ sep: true }] : [{ label: 'Verilebilecek rol yok', disabled: true }]),
+                  { label: 'Rolleri yönet…', onClick: () => (close(), openModal({ type: 'commSettings', cid: c.id, tab: 'roles' })) },
+                ]);
+              }}
+            >
+              <Plus size={12} />
+            </button>
+          )}
+        </div>
+      </section>
+    ) : null;
   return (
     <div ref={ref} className="popout pc-pop" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}>
-      <ProfileCard uid={p.uid} user={u} status={status} c={c} variant="popout" isMe={isMe} onClose={close} />
+      <ProfileCard
+        uid={p.uid}
+        user={u}
+        status={status}
+        c={c}
+        variant="popout"
+        isMe={isMe}
+        onClose={close}
+        rolesNode={rolesNode}
+        notice={
+          member && isTimedOut(member) ? (
+            <div className="pc-sec timeout-note">
+              <Clock size={13} /> Zaman aşımında · {fmtDay(member.timeoutUntil!)}
+            </div>
+          ) : null
+        }
+        extraActions={
+          c && member ? (
+            <button className="btn sm ghost pc-more" title="Diğer işlemler" onClick={(e) => openMenu(e, memberMenu(c, me.id, p.uid, { noProfile: true }))}>
+              <MoreHorizontal size={16} />
+            </button>
+          ) : null
+        }
+      />
     </div>
   );
 }

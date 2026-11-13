@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
 import { Plus, LogIn, WifiOff, Home } from 'lucide-react';
-import { useStore, selectCommunity, openModal, openMenu, markCommunityRead, updateSettings, leaveCommunity, deleteCommunity, confirmDialog } from '../lib/store';
+import { useStore, selectCommunity, openModal, openMenu, markCommunityRead, updateSettings, leaveCommunity, deleteCommunity, confirmDialog, toggleMuted } from '../lib/store';
 import { CommunityIcon, Tooltip } from './Common';
 import { cx, copyText } from '../lib/util';
 import type { Community } from '../../shared/protocol';
@@ -11,6 +11,7 @@ export function useUnread() {
   const lastIds = useStore((s) => s.lastIds);
   const read = useStore((s) => s.read);
   const mentions = useStore((s) => s.mentions);
+  const mutedIds = useStore((s) => s.settings.mutedIds);
   return useMemo(() => {
     const unreadCh: Record<string, boolean> = {};
     const comm: Record<string, { unread: boolean; mentions: number }> = {};
@@ -21,13 +22,13 @@ export function useUnread() {
         const last = lastIds[ch.id];
         const u = !!last && (!read[ch.id] || last > read[ch.id]);
         unreadCh[ch.id] = u;
-        if (u) unread = true;
+        if (u && !mutedIds.includes(ch.id) && !mutedIds.includes(c.id)) unread = true;
         m += mentions[ch.id] || 0;
       }
       comm[c.id] = { unread, mentions: m };
     }
     return { unreadCh, comm };
-  }, [communities, lastIds, read, mentions]);
+  }, [communities, lastIds, read, mentions, mutedIds]);
 }
 
 const RailItem = memo(function RailItem({
@@ -53,8 +54,11 @@ const RailItem = memo(function RailItem({
     openMenu(e, [
       { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !unread },
       { sep: true },
-      { label: 'Davet et', onClick: () => openModal({ type: 'invite', cid: c.id }) },
-      ...(can(c, me, Perm.MANAGE_COMMUNITY) || can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Topluluk ayarları', onClick: () => openModal({ type: 'commSettings', cid: c.id }) }] : []),
+      ...(c.inviteKey ? [{ label: 'Davet et', onClick: () => openModal({ type: 'invite', cid: c.id }) }] : []),
+      { label: 'Topluluk ayarları', onClick: () => openModal({ type: 'commSettings', cid: c.id }) },
+      ...(can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Roller', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) }] : []),
+      { label: 'Bildirim ayarları', onClick: () => openModal({ type: 'notify', cid: c.id }) },
+      { label: useStore.getState().settings.mutedIds.includes(c.id) ? 'Topluluğun sesini aç' : 'Topluluğu sessize al', onClick: () => toggleMuted(c.id) },
       { sep: true },
       c.ownerId === me
         ? {

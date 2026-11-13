@@ -186,9 +186,15 @@ export interface CardProps {
   onClose?: () => void;
   /** önizlemede gösterilecek sahte isim */
   displayAs?: string;
+  /** rol bölümü yerine gösterilecek içerik (rol verme/alma düğmeleriyle) */
+  rolesNode?: React.ReactNode;
+  /** kartın üstünde gösterilecek uyarı (ör. zaman aşımı) */
+  notice?: React.ReactNode;
+  /** eylem satırına eklenecek düğmeler */
+  extraActions?: React.ReactNode;
 }
 
-export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, displayAs }: CardProps) {
+export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, displayAs, rolesNode, notice, extraActions }: CardProps) {
   const users = useStore((s) => s.users);
   const communities = useStore((s) => s.communities);
   const p = user?.profile;
@@ -274,13 +280,14 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
           </div>
         )}
       </section>
-      {roles.length > 0 && (
+      {rolesNode !== undefined ? rolesNode : roles.length > 0 && (
         <section className="pc-sec">
           <h4>Roller</h4>
           <div className="role-chips">
             {roles.map((r) => (
               <span key={r.id} className="role-chip">
                 <i style={{ background: r.color || 'var(--text-3)' }} />
+                {r.icon && <span className="role-icon">{r.icon}</span>}
                 {r.name}
               </span>
             ))}
@@ -330,6 +337,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
             {status && <span className={cx('pc-status', status)}>{STATUS_LABEL[status]}</span>}
           </div>
         </div>
+        {notice}
         {full && !isMe && mutual.length > 0 ? (
           <>
             <div className="pc-tabs">
@@ -382,6 +390,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
                 <Maximize2 size={14} /> Tam profil
               </button>
             )}
+            {extraActions}
           </div>
         )}
       </div>

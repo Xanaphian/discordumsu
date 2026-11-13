@@ -2,20 +2,20 @@ import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, 
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
-  ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Globe,
+  ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Settings, Bell, BellOff, EyeOff, Globe,
 } from 'lucide-react';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
   openModal, confirmDialog, retryMessage, discardMessage, markRead, uploadFile, hostHttp, toast, updateSettings, request, jumpToMessage,
-  selectChannel, jumpToPresent, plainText,
+  selectChannel, jumpToPresent, plainText, toggleMuted,
 } from '../lib/store';
 import { Avatar, Tooltip } from './Common';
 import { NameText } from './profile/ProfileCard';
 import { EmojiPicker } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
-import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey } from '../lib/util';
+import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles } from '../lib/util';
 import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
-import { can, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
+import { can, canIn, channelPerms, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
 
 const BASE = 1_000_000;
 const GROUP_MS = 7 * 60 * 1000;
@@ -32,6 +32,10 @@ function useMdCtx(c: Community): MdCtx {
       channelName: (id) => c.channels.find((x) => x.id === id)?.name ?? null,
       onUser: (id, e) => useStore.setState({ popout: { uid: id, cid: c.id, x: e.clientX, y: e.clientY } }),
       onChannel: (id) => c.channels.some((x) => x.id === id) && selectChannel(c.id, id),
+      roleInfo: (id) => {
+        const r = c.roles.find((x) => x.id === id);
+        return r ? { name: r.name, color: r.color, mine: !!c.members.find((m) => m.userId === me)?.roles.includes(id) } : null;
+      },
     }),
     [c, users, me],
   );
@@ -40,6 +44,17 @@ function useMdCtx(c: Community): MdCtx {
 // ---------------------------------------------------------------------------
 const AttachmentView = memo(function AttachmentView({ a, base }: { a: Attachment; base: string }) {
   const src = a.url.startsWith('blob:') ? a.url : base + a.url;
+  const inline = useStore((s) => s.settings.inlineMedia);
+  if (!inline && a.mime.startsWith('image/'))
+    return (
+      <div className="att-file clickable" onClick={() => openModal({ type: 'image', src, name: a.name })}>
+        <FileText size={28} />
+        <div className="att-meta">
+          <span className="att-name">{a.name}</span>
+          <span>Görsel · {fmtSize(a.size)} · açmak için tıkla</span>
+        </div>
+      </div>
+    );
   if (a.mime.startsWith('image/')) {
     const maxW = 420, maxH = 320;
     let w = a.w || maxW, h = a.h || 240;
@@ -179,7 +194,14 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
   const name = displayName(c, m.authorId, users);
   const color = roleColor(c, m.authorId);
   const mine = m.authorId === me;
-  const mentioned = m.content.includes(`<@${me}>`) || /@(everyone|here)\b/.test(m.content) || (parent?.authorId === me && !mine);
+  const myRoles = c.members.find((x) => x.userId === me)?.roles;
+  const mentioned =
+    m.content.includes(`<@${me}>`) || /@(everyone|here)\b/.test(m.content) || (parent?.authorId === me && !mine) || !!myRoles?.some((r) => m.content.includes(`<@&${r}>`));
+  const blocked = useStore((s) => s.settings.blocked.includes(m.authorId));
+  const showJoin = useStore((s) => s.settings.showJoinMessages);
+  const showIcons = useStore((s) => s.settings.showRoleIcons);
+  const [reveal, setReveal] = useState(false);
+  const roleIcon = showIcons ? memberRoles(c, c.members.find((x) => x.userId === m.authorId)).find((r) => r.icon)?.icon : undefined;
   const body = useMemo(() => (m.content ? renderMarkdown(m.content, md) : null), [m.content, md]);
   const jumbo = useMemo(() => isEmojiOnly(m.content), [m.content]);
   const base = hostHttp(c.id);
@@ -204,6 +226,24 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
       { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
       ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
     ]);
+
+  if (m.kind === 'join' && !showJoin) return newDay ? <DayDivider ts={m.ts} /> : null;
+  if (blocked && !reveal && !m.kind) {
+    return (
+      <>
+        {newDay && <DayDivider ts={m.ts} />}
+        <div className="msg system blocked-msg">
+          <span className="sys-icon">
+            <EyeOff size={15} />
+          </span>
+          <span>Engellediğin bir kişiden gelen mesaj.</span>
+          <button className="link" onClick={() => setReveal(true)}>
+            Göster
+          </button>
+        </div>
+      </>
+    );
+  }
 
   if (m.kind === 'join') {
     return (
@@ -284,6 +324,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                     {name}
                   </NameText>
                 </span>
+                {roleIcon && <span className="role-icon">{roleIcon}</span>}
                 {m.authorId === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}
                 {(users[m.authorId] || c.users[m.authorId])?.bot && <span className="tag-bot">BOT</span>}
                 {c.ownerId === m.authorId && m.authorId !== 'kovan-asistan' && (
@@ -424,7 +465,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const jumpTo = useStore((s) => s.jumpTo);
   const lastId = useStore((s) => s.lastIds[ch.id]);
   const md = useMdCtx(c);
-  const canManage = can(c, me, Perm.MANAGE_MESSAGES);
+  const canManage = canIn(c, me, ch, Perm.MANAGE_MESSAGES);
   const ref = useRef<VirtuosoHandle>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
@@ -580,7 +621,21 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const [sel, setSel] = useState(0);
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const canSend = ch.type !== 'announce' || can(c, me, Perm.MANAGE_CHANNELS);
+  const cp = channelPerms(c, me, ch);
+  const canSend = (cp & Perm.SEND_MESSAGES) !== 0;
+  const canAttach = (cp & Perm.ATTACH_FILES) !== 0;
+  const emojiConvert = useStore((s) => s.settings.emojiConvert);
+  const myMember = c.members.find((x) => x.userId === me);
+  const lockReason =
+    myMember?.timeoutUntil && myMember.timeoutUntil > Date.now()
+      ? `Zaman aşımındasın. ${fmtTime(myMember.timeoutUntil)} sonrasında tekrar yazabilirsin.`
+      : ch.type === 'announce'
+        ? 'Bu duyuru kanalına yalnızca yöneticiler yazabilir.'
+        : 'Bu kanala mesaj gönderme yetkin yok.';
+  const mentionableRoles = useMemo(
+    () => c.roles.filter((r) => r.id !== c.id && (r.mentionable || (cp & Perm.MENTION_EVERYONE) !== 0)),
+    [c.roles, c.id, cp],
+  );
 
   useEffect(() => {
     setValue(drafts.get(ch.id) || '');
@@ -609,6 +664,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   });
 
   const addFiles = (list: File[]) => {
+    if (!canAttach) return toast('Bu kanalda dosya gönderme yetkin yok.', 'err');
     const next = list.slice(0, 10 - files.length).map((file) => ({ id: Math.random().toString(36).slice(2), file, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined }));
     const tooBig = list.find((f) => f.size > 25 * 1024 * 1024);
     if (tooBig) return toast(`"${tooBig.name}" çok büyük (en fazla 25 MB).`, 'err');
@@ -626,7 +682,9 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
         .filter((x) => x.name.toLocaleLowerCase('tr').includes(q))
         .slice(0, 8)
         .map((x) => ({ key: x.id, label: x.name, insert: `@${x.name} `, icon: <Avatar user={x.user} size={22} /> }));
-      if ('everyone'.startsWith(q) || 'herkes'.startsWith(q)) items.push({ key: 'everyone', label: '@everyone', sub: 'Herkese bildirim', insert: '@everyone ', icon: <span className="sug-at">@</span> });
+      for (const r of mentionableRoles.filter((x) => x.name.toLocaleLowerCase('tr').includes(q)).slice(0, 5))
+        items.push({ key: 'r' + r.id, label: '@' + r.name, sub: 'Rol', insert: `@${r.name} `, icon: <span className="sug-at" style={{ color: r.color || undefined }}>@</span> });
+      if (('everyone'.startsWith(q) || 'herkes'.startsWith(q)) && cp & Perm.MENTION_EVERYONE) items.push({ key: 'everyone', label: '@everyone', sub: 'Herkese bildirim', insert: '@everyone ', icon: <span className="sug-at">@</span> });
       setSug(items.length ? { kind: 'user', start: caret - m[2].length - 1, items } : null);
       setSel(0);
       return;
@@ -668,7 +726,12 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   };
 
   const encode = (text: string) => {
-    let t = replaceShortcodes(text);
+    let t = emojiConvert ? replaceShortcodes(text) : text;
+    // @rol -> <@&id>
+    for (const r of [...mentionableRoles].sort((a, b) => b.name.length - a.name.length)) {
+      const esc = r.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      t = t.replace(new RegExp(`(^|\\s)@${esc}(?=$|[\\s.,!?:;])`, 'g'), `$1<@&${r.id}>`);
+    }
     // @isim -> <@id> (uzun isimler önce)
     const sorted = [...members].sort((a, b) => b.name.length - a.name.length);
     for (const mb of sorted) {
@@ -737,7 +800,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
     return (
       <div className="composer disabled">
         <div className="composer-box">
-          <span className="composer-locked">Bu duyuru kanalına yalnızca yöneticiler yazabilir.</span>
+          <span className="composer-locked">{lockReason}</span>
         </div>
       </div>
     );
@@ -787,11 +850,13 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
         </div>
       )}
       <div className={cx('composer-box', (replyTo || files.length > 0) && 'joined')}>
-        <Tooltip text="Dosya yükle" side="top">
-          <button className="composer-btn" onClick={() => fileInput.current?.click()} aria-label="Dosya yükle">
-            <Plus size={20} />
-          </button>
-        </Tooltip>
+        {canAttach && (
+          <Tooltip text="Dosya yükle" side="top">
+            <button className="composer-btn" onClick={() => fileInput.current?.click()} aria-label="Dosya yükle">
+              <Plus size={20} />
+            </button>
+          </Tooltip>
+        )}
         <input
           ref={fileInput}
           type="file"
@@ -899,6 +964,9 @@ function PinsPopover({ c, ch, onClose }: { c: Community; ch: Channel; onClose: (
 
 export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const membersOpen = useStore((s) => s.settings.membersOpen);
+  const chMuted = useStore((s) => s.settings.mutedIds.includes(ch.id));
+  const me = useStore((s) => s.me.id);
+  const editCh = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const [pins, setPins] = useState(false);
   const [q, setQ] = useState('');
   return (
@@ -914,6 +982,27 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
         </>
       )}
       <div className="head-actions">
+        <Tooltip text={chMuted ? 'Kanalın sesini aç' : 'Bildirim ayarları'} side="bottom">
+          <button
+            className={cx('icon-btn', chMuted && 'active')}
+            onClick={(e) =>
+              openMenu(e, [
+                { label: chMuted ? 'Kanalın sesini aç' : 'Kanalı sessize al', onClick: () => toggleMuted(ch.id) },
+                { label: 'Bildirim ayarları…', onClick: () => openModal({ type: 'notify', cid: c.id, chId: ch.id }) },
+              ])
+            }
+            aria-label="Bildirimler"
+          >
+            {chMuted ? <BellOff size={19} /> : <Bell size={19} />}
+          </button>
+        </Tooltip>
+        {editCh && (
+          <Tooltip text="Kanal ayarları" side="bottom">
+            <button className="icon-btn" onClick={() => openModal({ type: 'editChannel', cid: c.id, chId: ch.id })} aria-label="Kanal ayarları">
+              <Settings size={19} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip text="Sabitlenmiş mesajlar" side="bottom">
           <button className={cx('icon-btn', pins && 'active')} onClick={() => setPins((x) => !x)} aria-label="Sabitlenmiş mesajlar">
             <Pin size={19} />

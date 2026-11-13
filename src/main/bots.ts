@@ -8,7 +8,7 @@ import http from 'node:http';
 import Anthropic from '@anthropic-ai/sdk';
 import { betaTool } from '@anthropic-ai/sdk/helpers/beta/json-schema';
 import {
-  Channel, Community, ID, Message, Perm, ServerFrame, Status, UserPublic, VoiceMember, isVoiceLike, makeId,
+  Channel, Community, ID, Message, Perm, ServerFrame, Status, UserPublic, VoiceMember, canIn, isVoiceLike, makeId,
 } from '../shared/protocol';
 import {
   BotAiConfig, BotClientFrame, BotPatch, BotRule, BotTemplate, BotView, DEFAULT_AI_MODEL, parseBotToken, AI_MODELS,
@@ -124,7 +124,7 @@ const TOOLS: KTool[] = [
     name: 'list_channels',
     description: 'Topluluktaki kanalları listeler (kimlik, ad, tür, konu). Ses kanallarında şu an kimlerin olduğunu da gösterir.',
     schema: { type: 'object', properties: {} },
-    run: (x) => x.mgr.listChannels(x.c),
+    run: (x) => x.mgr.listChannels(x.c, x.bot.id),
   },
   {
     name: 'read_messages',
@@ -139,7 +139,7 @@ const TOOLS: KTool[] = [
       required: ['channel'],
     },
     run: (x, a) => {
-      const ch = x.mgr.resolveChannel(x.c, a.channel ?? x.ch);
+      const ch = x.mgr.resolveChannel(x.c, a.channel ?? x.ch, x.bot.id);
       if (!ch) return 'Kanal bulunamadı. list_channels ile kanalları gör.';
       let list = x.mgr.host.history(ch.id);
       if (a.before) list = list.filter((m) => m.id < a.before);
@@ -160,10 +160,10 @@ const TOOLS: KTool[] = [
     run: (x, a) => {
       const q = lower(String(a.query || '')).trim();
       if (!q) return 'Arama metni boş.';
-      const only = a.channel ? x.mgr.resolveChannel(x.c, a.channel) : null;
+      const only = a.channel ? x.mgr.resolveChannel(x.c, a.channel, x.bot.id) : null;
       const out: Message[] = [];
       for (const ch of x.c.channels) {
-        if (isVoiceLike(ch.type) || (only && only.id !== ch.id)) continue;
+        if (isVoiceLike(ch.type) || (only && only.id !== ch.id) || !x.mgr.sees(x.c, ch, x.bot.id)) continue;
         for (const m of x.mgr.host.history(ch.id)) if (lower(m.content).includes(q)) out.push(m);
       }
       out.sort((a1, b1) => (a1.id < b1.id ? 1 : -1));
@@ -195,9 +195,9 @@ const TOOLS: KTool[] = [
     },
     run: (x, a) => {
       if (x.sent >= 5) return 'Bu istekte çok fazla mesaj gönderildi.';
-      const ch = x.mgr.resolveChannel(x.c, a.channel ?? x.ch);
+      const ch = x.mgr.resolveChannel(x.c, a.channel ?? x.ch, x.bot.id);
       if (!ch || isVoiceLike(ch.type)) return 'Metin kanalı bulunamadı.';
-      if (ch.type === 'announce' && !x.mgr.host.can(x.c, x.bot.id, Perm.MANAGE_CHANNELS)) return 'Bu duyuru kanalına yazma yetkin yok.';
+      if (!canIn(x.c, x.bot.id, ch, Perm.VIEW_CHANNEL | Perm.SEND_MESSAGES)) return 'Bu kanala yazma yetkin yok.';
       const content = clamp(a.content, MAX_CONTENT).trim();
       if (!content) return 'Mesaj boş.';
       x.sent++;
@@ -216,7 +216,7 @@ const TOOLS: KTool[] = [
       required: ['channel', 'message_id', 'content'],
     },
     run: (x, a) => {
-      const ch = x.mgr.resolveChannel(x.c, a.channel);
+      const ch = x.mgr.resolveChannel(x.c, a.channel, x.bot.id);
       if (!ch) return 'Kanal bulunamadı.';
       return x.mgr.host.edit(x.c, ch.id, String(a.message_id), clamp(a.content, MAX_CONTENT).trim()) ? 'Düzenlendi.' : 'Mesaj bulunamadı ya da botun değil.';
     },
@@ -231,7 +231,7 @@ const TOOLS: KTool[] = [
       required: ['message_id', 'emoji'],
     },
     run: (x, a) => {
-      const ch = x.mgr.resolveChannel(x.c, a.channel ?? x.ch);
+      const ch = x.mgr.resolveChannel(x.c, a.channel ?? x.ch, x.bot.id);
       if (!ch) return 'Kanal bulunamadı.';
       return x.mgr.host.react(x.c, ch.id, String(a.message_id), x.bot.id, clamp(a.emoji, 32)) ? 'Tepki eklendi.' : 'Mesaj bulunamadı.';
     },
@@ -559,7 +559,7 @@ export class BotManager {
   onMessage(c: StoredComm, ch: Channel, m: Message) {
     const authorIsBot = this.isBot(m.authorId) || m.authorId === 'kovan-asistan';
     for (const b of this.bots.values()) {
-      if (b.cid !== c.id || b.id === m.authorId) continue;
+      if (b.cid !== c.id || b.id === m.authorId || !this.sees(c, ch, b.id)) continue;
       // API / MCP dinleyicileri için kuyruk
       if (b.api.on) {
         const q = this.queues.get(b.id) || [];
@@ -712,15 +712,21 @@ export class BotManager {
     if (m.editedTs) s += ' (düzenlendi)';
     return s;
   }
-  resolveChannel(c: StoredComm, ref: unknown): Channel | undefined {
+  /** Bot (ya da üye) bu kanalı görebiliyor mu — gizli kanallar botlara da kapalı. */
+  sees(c: StoredComm, ch: Channel, uid: ID) {
+    return canIn(c, uid, ch, Perm.VIEW_CHANNEL);
+  }
+  resolveChannel(c: StoredComm, ref: unknown, uid?: ID): Channel | undefined {
     if (typeof ref !== 'string' || !ref.trim()) return undefined;
     const r = ref.trim().replace(/^<#(.+)>$/, '$1').replace(/^#/, '');
-    return c.channels.find((x) => x.id === r) || c.channels.find((x) => lower(x.name) === lower(r));
+    const list = uid ? c.channels.filter((x) => this.sees(c, x, uid)) : c.channels;
+    return list.find((x) => x.id === r) || list.find((x) => lower(x.name) === lower(r));
   }
-  listChannels(c: StoredComm) {
+  listChannels(c: StoredComm, uid?: ID) {
     const cats = new Map(c.categories.map((x) => [x.id, x.name]));
     const type: Record<string, string> = { text: 'metin', announce: 'duyuru', voice: 'ses', space: '3D oda' };
-    return [...c.channels]
+    return c.channels
+      .filter((x) => !uid || this.sees(c, x, uid))
       .sort((a, b) => (a.categoryId || '').localeCompare(b.categoryId || '') || a.position - b.position)
       .map((ch) => {
         let s = `${ch.id} · #${ch.name} (${type[ch.type] || ch.type})`;
@@ -750,7 +756,7 @@ export class BotManager {
       `Sen: ${this.nameOf(c, b.id)} (<@${b.id}>), bot hesabı`,
       `Üye sayısı: ${c.members.length}`,
       `Roller: ${c.roles.map((r) => r.name).join(', ')}`,
-      `Kanallar:\n${this.listChannels(c)}`,
+      `Kanallar:\n${this.listChannels(c, b.id)}`,
     ]
       .filter(Boolean)
       .join('\n');
@@ -1029,11 +1035,11 @@ export class BotManager {
     const m = req.method;
     if (m === 'GET' && parts[0] === 'me') return this.json(res, 200, { user: this.host.user(b.id)?.pub, community: { id: c.id, name: c.name } });
     if (m === 'GET' && parts[0] === 'channels' && parts.length === 1)
-      return this.json(res, 200, c.channels.map((x) => ({ id: x.id, name: x.name, type: x.type, topic: x.topic || '', categoryId: x.categoryId })));
+      return this.json(res, 200, c.channels.filter((x) => this.sees(c, x, b.id)).map((x) => ({ id: x.id, name: x.name, type: x.type, topic: x.topic || '', categoryId: x.categoryId })));
     if (m === 'GET' && parts[0] === 'members')
       return this.json(res, 200, c.members.map((x) => ({ ...x, user: this.host.user(x.userId)?.pub, status: this.host.status(x.userId) })));
     if (parts[0] === 'channels' && parts[2] === 'messages') {
-      const ch = this.resolveChannel(c, decodeURIComponent(parts[1] || ''));
+      const ch = this.resolveChannel(c, decodeURIComponent(parts[1] || ''), b.id);
       if (!ch || isVoiceLike(ch.type)) return this.json(res, 404, { error: 'Kanal bulunamadı' });
       if (m === 'GET') {
         let list = this.host.history(ch.id);
@@ -1052,7 +1058,7 @@ export class BotManager {
         }
         const content = clamp(body?.content, MAX_CONTENT).trim();
         if (!content) return this.json(res, 400, { error: 'content boş' });
-        if (ch.type === 'announce' && !this.host.can(c, b.id, Perm.MANAGE_CHANNELS)) return this.json(res, 403, { error: 'Duyuru kanalına yazma yetkisi yok' });
+        if (!canIn(c, b.id, ch, Perm.SEND_MESSAGES)) return this.json(res, 403, { error: 'Bu kanala yazma yetkisi yok' });
         return this.json(res, 200, this.host.post(c, ch.id, b.id, content, typeof body.replyTo === 'string' ? body.replyTo : undefined));
       }
     }

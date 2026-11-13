@@ -10,6 +10,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
+  ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
   hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer,
 } from '../shared/protocol';
 import { sanitizeProfile, BIO_MAX } from '../shared/profile';
@@ -148,7 +149,11 @@ interface HubData {
   communities: ID[];
 }
 
-type StoredCommunity = Omit<Community, 'users'>;
+type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number };
+
+const MAX_TIMEOUT_MIN = 28 * 24 * 60;
+const LINK_RE = /(https?:\/\/|www\.)\S+/i;
+const MENTION_RE = /<@&?[\w-]+>|@(everyone|here|herkes)\b/g;
 
 interface Session {
   sid: ID;
@@ -228,11 +233,22 @@ export class Hub {
     this.ensureBot();
   }
 
-  /** v1.1: karşılama lobilerine 3D oda, v1.2: site odası ekle */
   private migrate(c: StoredCommunity) {
     this.migrateSite(c);
-    if (!c.members.some((m) => m.userId === BOT_ID) || c.channels.some((x) => x.type === 'space') || (c as any).m11) return;
-    (c as any).m11 = 1;
+    this.migrate11(c);
+    // v1.4: ayrıntılı yetkiler. Eskiden herkesin yapabildiği temel işler @herkes rolüne yazılır.
+    if ((c.pv || 0) < 2) {
+      c.pv = 2;
+      if (c.roles[0]) c.roles[0].perms |= DEFAULT_EVERYONE;
+      if (c.joinMessages === undefined) c.joinMessages = true;
+      this.saveComm(c.id);
+    }
+  }
+
+  /** v1.1: karşılama lobilerine 3D oda ekle */
+  private migrate11(c: StoredCommunity) {
+    if (!c.members.some((m) => m.userId === BOT_ID) || c.channels.some((x) => x.type === 'space') || c.m11) return;
+    c.m11 = 1;
     const cat: Category = { id: makeId(), name: '3D Odalar', position: c.categories.length };
     c.categories.push(cat);
     const ch: Channel = { id: makeId(), name: 'Kovan Meydanı', type: 'space', categoryId: cat.id, position: 0, topic: 'Avatarınla dolaş, yakındakilerle sesli konuş' };
@@ -575,19 +591,33 @@ export class Hub {
     for (const s of this.memberSessions(c, except)) this.sendRaw(s, data);
   }
 
-  private snapshot(c: StoredCommunity): Community {
+  /** Kullanıcıya özel topluluk görüntüsü: göremediği kanallar ve yönetim verileri çıkarılır. */
+  private snapshot(c: StoredCommunity, uid?: ID): Community {
     const users: Record<ID, UserPublic> = {};
     for (const m of c.members) {
       const u = this.data.users[m.userId];
       if (u) users[m.userId] = u.pub;
     }
-    return { ...c, users };
+    const { bans: _b, audit: _a, m11: _m, ...rest } = c;
+    const out: Community = { ...rest, users };
+    if (uid) {
+      out.channels = c.channels.filter((ch) => this.canView(c, uid, ch));
+      if (!(memberPerms(c, uid) & (Perm.CREATE_INVITE | Perm.MANAGE_COMMUNITY)) || c.invitesPaused) {
+        if (!(memberPerms(c, uid) & Perm.MANAGE_COMMUNITY)) delete out.inviteKey;
+      }
+    }
+    return out;
   }
 
-  private lastIdsFor(c: StoredCommunity): Record<ID, ID> {
+  private canView(c: StoredCommunity, uid: ID, ch: Channel): boolean {
+    return (channelPerms(c, uid, ch) & Perm.VIEW_CHANNEL) !== 0;
+  }
+
+  private lastIdsFor(c: StoredCommunity, uid?: ID): Record<ID, ID> {
     const out: Record<ID, ID> = {};
     for (const ch of c.channels) {
       if (isVoiceLike(ch.type)) continue;
+      if (uid && !this.canView(c, uid, ch)) continue;
       const l = this.log(ch.id).last();
       if (l) out[ch.id] = l;
     }
@@ -596,7 +626,86 @@ export class Hub {
 
   private pushComm(c: StoredCommunity) {
     this.saveComm(c.id);
-    this.broadcast(c, { t: 'comm', c: this.snapshot(c) });
+    for (const s of this.memberSessions(c)) this.send(s, { t: 'comm', c: this.snapshot(c, s.userId!), lastIds: this.lastIdsFor(c, s.userId!) });
+  }
+
+  /** Sadece kanalı görebilen üyelere gönder */
+  private broadcastChan(c: StoredCommunity, ch: Channel, f: ServerFrame, except?: Session) {
+    const data = JSON.stringify(f);
+    for (const s of this.memberSessions(c, except)) if (this.canView(c, s.userId!, ch)) this.sendRaw(s, data);
+  }
+
+  private audit(c: StoredCommunity, by: ID, a: string, t?: string, d?: string) {
+    const list = (c.audit ||= []);
+    const e: AuditEntry = { id: makeId(), ts: Date.now(), by, a };
+    if (t) e.t = t.slice(0, 80);
+    if (d) e.d = d.slice(0, 300);
+    list.push(e);
+    if (list.length > 300) list.splice(0, list.length - 300);
+  }
+
+  private userName(c: StoredCommunity, uid: ID): string {
+    return c.members.find((m) => m.userId === uid)?.nick || this.data.users[uid]?.pub.name || 'bilinmeyen';
+  }
+
+  /** Yasaklı kelime, bağlantı, bahsetme sınırı ve yeni üye bekleme süresi */
+  private automodCheck(c: StoredCommunity, uid: ID, content: string, isNew: boolean): string | null {
+    const am = c.automod;
+    if (!am) return null;
+    const m = c.members.find((x) => x.userId === uid);
+    if (isNew && am.newMemberWait > 0 && m && Date.now() - m.joinedAt < am.newMemberWait * 60000) {
+      const left = Math.ceil((am.newMemberWait * 60000 - (Date.now() - m.joinedAt)) / 60000);
+      return `Yeni üyeler topluluğa katıldıktan ${am.newMemberWait} dakika sonra yazabilir (${left} dk kaldı).`;
+    }
+    const low = content.toLocaleLowerCase('tr');
+    if (am.words.some((w) => w && low.includes(w))) return 'Mesajın topluluğun kelime filtresine takıldı.';
+    if (am.blockLinks && LINK_RE.test(content)) return 'Bu toplulukta bağlantı paylaşımı kapalı.';
+    if (am.maxMentions > 0 && (content.match(MENTION_RE)?.length || 0) > am.maxMentions) return `Bir mesajda en fazla ${am.maxMentions} bahsetme yapabilirsin.`;
+    return null;
+  }
+
+  /** @everyone ve bahsedilemeyen rol etiketlerini etkisizleştir */
+  private sanitizeMentions(c: StoredCommunity, content: string, cp: number): string {
+    if (cp & Perm.MENTION_EVERYONE) return content;
+    return content
+      .replace(/@(everyone|here|herkes)\b/g, '@\u200b$1')
+      .replace(/<@&([\w-]+)>/g, (all, id) => {
+        const r = c.roles.find((x) => x.id === id);
+        return r && r.mentionable ? all : '@' + (r?.name || 'rol');
+      });
+  }
+
+  /** İzin üzerine yazmalarını temizler. Kişi sahip olmadığı yetkiyi değiştiremez. */
+  private cleanOverwrites(c: StoredCommunity, list: unknown, old: Overwrite[] | undefined, actorPerms: number): Overwrite[] | string {
+    if (!Array.isArray(list)) return old || [];
+    const out: Overwrite[] = [];
+    const seen = new Set<string>();
+    for (const o of list.slice(0, 100)) {
+      if (!o || typeof o.id !== 'string' || seen.has(o.id)) continue;
+      const type: Overwrite['type'] = o.type === 'member' ? 'member' : 'role';
+      if (type === 'role' && !c.roles.some((r) => r.id === o.id)) continue;
+      if (type === 'member' && !c.members.some((m) => m.userId === o.id)) continue;
+      const allow = (Number(o.allow) | 0) & CHANNEL_PERMS;
+      const deny = (Number(o.deny) | 0) & CHANNEL_PERMS & ~allow;
+      if (!allow && !deny && o.id !== c.id) continue;
+      const prev = old?.find((x) => x.id === o.id);
+      const changed = (allow ^ (prev?.allow || 0)) | (deny ^ (prev?.deny || 0));
+      if (changed & ~actorPerms) return 'Sahip olmadığın bir yetkiyi değiştiremezsin.';
+      seen.add(o.id);
+      out.push({ id: o.id, type, allow, deny });
+    }
+    for (const prev of old || []) if (!seen.has(prev.id) && (prev.allow | prev.deny) & ~actorPerms) return 'Sahip olmadığın bir yetkiyi kaldıramazsın.';
+    return out;
+  }
+
+  /** Üyeyi topluluktan çıkarır ve oturumlarına bildirir */
+  private evict(c: StoredCommunity, userId: ID) {
+    c.members = c.members.filter((m) => m.userId !== userId);
+    for (const x of this.userSessions.get(userId) || []) {
+      if (x.voice && this.chanToComm.get(x.voice.ch) === c.id) this.leaveVoice(x);
+      if (x.space && this.chanToComm.get(x.space) === c.id) this.leaveSpace(x);
+      this.send(x, { t: 'comm.del', cid: c.id });
+    }
   }
 
   private effectiveStatus(uid: ID): Status {
@@ -641,7 +750,7 @@ export class Hub {
     const web: Record<ID, WebViewer[]> = {};
     for (const c of comms) {
       for (const m of c.members) presence[m.userId] = m.userId === BOT_ID ? 'online' : this.effectiveStatus(m.userId);
-      Object.assign(lastIds, this.lastIdsFor(c));
+      Object.assign(lastIds, this.lastIdsFor(c, uid));
       for (const ch of c.channels) {
         const room = this.voiceRooms.get(ch.id);
         if (room && room.size) voice[ch.id] = [...room.values()];
@@ -654,7 +763,7 @@ export class Hub {
       hubId: this.data.hubId,
       hubName: this.ownerName,
       me: uid,
-      communities: comms.map((c) => this.snapshot(c)),
+      communities: comms.map((c) => this.snapshot(c, uid)),
       presence,
       lastIds,
       voice,
@@ -668,13 +777,13 @@ export class Hub {
     const c = cid ? this.comms.get(cid) : undefined;
     if (!c || !s.userId || !c.members.some((m) => m.userId === s.userId)) return null;
     const channel = c.channels.find((x) => x.id === ch);
-    return channel ? { c, channel } : null;
+    return channel && this.canView(c, s.userId, channel) ? { c, channel } : null;
   }
 
   private commFor(s: Session, cid: ID, perm = 0): StoredCommunity | null {
     const c = this.comms.get(cid);
     if (!c || !s.userId || !c.members.some((m) => m.userId === s.userId)) return null;
-    if (perm && !can(this.snapshot(c), s.userId, perm)) {
+    if (perm && !can(c, s.userId, perm)) {
       this.send(s, { t: 'err', msg: 'Bunun için yetkin yok.' });
       return null;
     }
@@ -695,42 +804,60 @@ export class Hub {
         if (this.bots.isBot(uid)) return this.send(s, { t: 'err', msg: 'Botlar davetle katılamaz.', rid: f.rid });
         if (!c || c.inviteKey !== f.key) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
+          if (c.bans?.some((b) => b.userId === uid)) return this.send(s, { t: 'err', msg: 'Bu topluluktan yasaklandın.', rid: f.rid });
+          if (c.invitesPaused) return this.send(s, { t: 'err', msg: 'Bu topluluk şu an yeni üye kabul etmiyor.', rid: f.rid });
           c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
-          const first = c.channels.find((x) => !isVoiceLike(x.type));
-          if (first) {
+          const sys = c.systemChannelId ? c.channels.find((x) => x.id === c.systemChannelId && !isVoiceLike(x.type)) : undefined;
+          const first = sys || c.channels.find((x) => !isVoiceLike(x.type) && this.canView(c, uid, x));
+          if (first && c.joinMessages !== false) {
             const m: Message = { id: makeId(), channelId: first.id, authorId: uid, content: '', ts: Date.now(), kind: 'join' };
             this.log(first.id).add(m);
             this.pushComm(c);
-            this.broadcast(c, { t: 'msg', m });
+            this.broadcastChan(c, first, { t: 'msg', m });
           } else this.pushComm(c);
           this.broadcastPresence(uid);
           this.bots.onJoin(c, uid);
         }
         for (const x of this.userSessions.get(uid) || [s])
           for (const m of c.members) this.send(x, { t: 'presence', uid: m.userId, status: m.userId === BOT_ID ? 'online' : this.effectiveStatus(m.userId) });
-        this.send(s, { t: 'comm', c: this.snapshot(c), lastIds: this.lastIdsFor(c) });
+        this.send(s, { t: 'comm', c: this.snapshot(c, uid), lastIds: this.lastIdsFor(c, uid) });
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: c.id });
         return;
       }
       case 'send': {
         const r = this.commOfChannel(s, f.ch);
         if (!r || isVoiceLike(r.channel.type)) return;
-        if (r.channel.type === 'announce' && !can(this.snapshot(r.c), uid, Perm.MANAGE_CHANNELS))
-          return this.send(s, { t: 'err', msg: 'Bu kanala sadece yöneticiler yazabilir.', nonce: f.nonce });
-        const content = clampStr(f.content, MAX_CONTENT).trim();
+        const cp = channelPerms(r.c, uid, r.channel);
+        const mem = r.c.members.find((m) => m.userId === uid);
+        if (!(cp & Perm.SEND_MESSAGES)) {
+          const msg =
+            mem?.timeoutUntil && mem.timeoutUntil > Date.now()
+              ? `Zaman aşımındasın: ${Math.ceil((mem.timeoutUntil - Date.now()) / 60000)} dakika daha yazamazsın.`
+              : r.channel.type === 'announce'
+                ? 'Bu kanala sadece yöneticiler yazabilir.'
+                : 'Bu kanala mesaj gönderme yetkin yok.';
+          return this.send(s, { t: 'err', msg, nonce: f.nonce });
+        }
+        let content = clampStr(f.content, MAX_CONTENT).trim();
         const atts = Array.isArray(f.attachments) ? f.attachments.slice(0, 10).filter((a) => a && typeof a.url === 'string' && a.url.startsWith('/f/')) : [];
         if (!content && !atts.length) return;
-        if (r.channel.slowmode && !can(this.snapshot(r.c), uid, Perm.MANAGE_MESSAGES)) {
-          const last = s.lastSend[f.ch] || 0;
-          if (Date.now() - last < r.channel.slowmode * 1000)
-            return this.send(s, { t: 'err', msg: `Yavaş mod açık: ${r.channel.slowmode} sn bekle.`, nonce: f.nonce });
+        if (atts.length && !(cp & Perm.ATTACH_FILES)) return this.send(s, { t: 'err', msg: 'Bu kanalda dosya gönderme yetkin yok.', nonce: f.nonce });
+        if (!(cp & Perm.MANAGE_MESSAGES)) {
+          if (r.channel.slowmode) {
+            const last = s.lastSend[f.ch] || 0;
+            if (Date.now() - last < r.channel.slowmode * 1000)
+              return this.send(s, { t: 'err', msg: `Yavaş mod açık: ${r.channel.slowmode} sn bekle.`, nonce: f.nonce });
+          }
+          const am = this.automodCheck(r.c, uid, content, true);
+          if (am) return this.send(s, { t: 'err', msg: am, nonce: f.nonce });
         }
+        content = this.sanitizeMentions(r.c, content, cp);
         s.lastSend[f.ch] = Date.now();
         const m: Message = { id: makeId(), channelId: f.ch, authorId: uid, content, ts: Date.now() };
         if (f.replyTo && this.log(f.ch).byId.has(f.replyTo)) m.replyTo = f.replyTo;
         if (atts.length) m.attachments = atts.map((a) => ({ id: clampStr(a.id, 20), name: clampStr(a.name, 120), size: Number(a.size) || 0, mime: clampStr(a.mime, 100), url: clampStr(a.url, 300), w: a.w, h: a.h }));
         this.log(f.ch).add(m);
-        this.broadcast(r.c, { t: 'msg', m }, s);
+        this.broadcastChan(r.c, r.channel, { t: 'msg', m }, s);
         this.send(s, { t: 'msg', m, nonce: f.nonce });
         this.bots.onMessage(r.c, r.channel, m);
         return;
@@ -739,21 +866,31 @@ export class Hub {
         const r = this.commOfChannel(s, f.ch);
         const m = r && this.log(f.ch).byId.get(f.id);
         if (!r || !m || m.authorId !== uid) return;
-        const content = clampStr(f.content, MAX_CONTENT).trim();
+        let content = clampStr(f.content, MAX_CONTENT).trim();
         if (!content && !m.attachments?.length) return;
+        const cp = channelPerms(r.c, uid, r.channel);
+        if (!(cp & Perm.MANAGE_MESSAGES)) {
+          const am = this.automodCheck(r.c, uid, content, false);
+          if (am) return this.send(s, { t: 'err', msg: am });
+        }
+        content = this.sanitizeMentions(r.c, content, cp);
         m.content = content;
         m.editedTs = Date.now();
         this.log(f.ch).update(m);
-        this.broadcast(r.c, { t: 'msg.upd', m });
+        this.broadcastChan(r.c, r.channel, { t: 'msg.upd', m });
         return;
       }
       case 'del': {
         const r = this.commOfChannel(s, f.ch);
         const m = r && this.log(f.ch).byId.get(f.id);
         if (!r || !m) return;
-        if (m.authorId !== uid && !can(this.snapshot(r.c), uid, Perm.MANAGE_MESSAGES)) return;
+        if (m.authorId !== uid) {
+          if (!(channelPerms(r.c, uid, r.channel) & Perm.MANAGE_MESSAGES)) return;
+          this.audit(r.c, uid, 'msg.delete', this.userName(r.c, m.authorId), '#' + r.channel.name);
+          this.saveComm(r.c.id);
+        }
         this.log(f.ch).remove(f.id);
-        this.broadcast(r.c, { t: 'msg.del', ch: f.ch, id: f.id });
+        this.broadcastChan(r.c, r.channel, { t: 'msg.del', ch: f.ch, id: f.id });
         return;
       }
       case 'react': {
@@ -761,6 +898,7 @@ export class Hub {
         const m = r && this.log(f.ch).byId.get(f.id);
         const e = clampStr(f.e, 32);
         if (!r || !m || !e) return;
+        if (f.on && !(channelPerms(r.c, uid, r.channel) & Perm.ADD_REACTIONS)) return this.send(s, { t: 'err', msg: 'Bu kanalda tepki ekleme yetkin yok.' });
         m.reactions ||= {};
         const arr = m.reactions[e] || [];
         if (f.on) {
@@ -773,16 +911,16 @@ export class Hub {
           else delete m.reactions[e];
         }
         this.log(f.ch).update(m);
-        this.broadcast(r.c, { t: 'msg.upd', m });
+        this.broadcastChan(r.c, r.channel, { t: 'msg.upd', m });
         return;
       }
       case 'pin': {
         const r = this.commOfChannel(s, f.ch);
         const m = r && this.log(f.ch).byId.get(f.id);
-        if (!r || !m || !can(this.snapshot(r.c), uid, Perm.MANAGE_MESSAGES)) return;
+        if (!r || !m || !(channelPerms(r.c, uid, r.channel) & Perm.MANAGE_MESSAGES)) return;
         m.pinned = !!f.on;
         this.log(f.ch).update(m);
-        this.broadcast(r.c, { t: 'msg.upd', m });
+        this.broadcastChan(r.c, r.channel, { t: 'msg.upd', m });
         return;
       }
       case 'hist': {
@@ -802,7 +940,7 @@ export class Hub {
         const out: Message[] = [];
         if (c && q) {
           for (const ch of c.channels) {
-            if (isVoiceLike(ch.type)) continue;
+            if (isVoiceLike(ch.type) || !this.canView(c, uid, ch)) continue;
             const L = this.log(ch.id).list;
             for (let i = L.length - 1; i >= 0 && out.length < 400; i--) {
               if (L[i].content.toLocaleLowerCase('tr').includes(q)) out.push(L[i]);
@@ -814,7 +952,7 @@ export class Hub {
       }
       case 'typing': {
         const r = this.commOfChannel(s, f.ch);
-        if (r) this.broadcast(r.c, { t: 'typing', ch: f.ch, uid }, s);
+        if (r) this.broadcastChan(r.c, r.channel, { t: 'typing', ch: f.ch, uid }, s);
         return;
       }
       case 'presence': {
@@ -837,20 +975,46 @@ export class Hub {
       case 'comm.create': {
         if (!s.loopback) return this.send(s, { t: 'err', msg: 'Bu kovanda topluluk oluşturamazsın.', rid: f.rid });
         const c = this.createCommunity(uid, cleanName(f.name, 48) || 'Yeni Topluluk', f.color, f.icon, f.template);
-        this.send(s, { t: 'comm', c: this.snapshot(c), lastIds: this.lastIdsFor(c) });
+        this.send(s, { t: 'comm', c: this.snapshot(c, uid), lastIds: this.lastIdsFor(c, uid) });
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: c.id });
         return;
       }
       case 'comm.update': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_COMMUNITY);
         if (!c) return;
-        if (f.name !== undefined) c.name = cleanName(f.name, 48) || c.name;
-        if (f.description !== undefined) c.description = clampStr(f.description, 300);
-        if (f.color !== undefined && /^#[0-9a-f]{6}$/i.test(f.color)) c.color = f.color;
+        const changed: string[] = [];
+        if (f.name !== undefined) {
+          const n = cleanName(f.name, 48) || c.name;
+          if (n !== c.name) changed.push(`ad: ${n}`);
+          c.name = n;
+        }
+        if (f.description !== undefined) (c.description = clampStr(f.description, 300)), changed.push('açıklama');
+        if (f.color !== undefined && /^#[0-9a-f]{6}$/i.test(f.color)) (c.color = f.color), changed.push('renk');
         if (f.icon !== undefined) {
           if (f.icon === null) delete c.icon;
           else if (typeof f.icon === 'string' && f.icon.startsWith('data:image/') && f.icon.length < 400_000) c.icon = f.icon;
+          changed.push('simge');
         }
+        if (f.systemChannelId !== undefined) {
+          c.systemChannelId = f.systemChannelId && c.channels.some((x) => x.id === f.systemChannelId && !isVoiceLike(x.type)) ? f.systemChannelId : null;
+          changed.push('sistem kanalı');
+        }
+        if (f.joinMessages !== undefined) (c.joinMessages = !!f.joinMessages), changed.push(`katılma mesajları ${f.joinMessages ? 'açık' : 'kapalı'}`);
+        if (f.invitesPaused !== undefined) (c.invitesPaused = !!f.invitesPaused), changed.push(f.invitesPaused ? 'davetler durduruldu' : 'davetler açıldı');
+        if (f.automod !== undefined) {
+          const a = f.automod as Partial<AutoMod>;
+          c.automod = {
+            words: (Array.isArray(a?.words) ? a.words : [])
+              .map((w) => clampStr(w, 40).toLocaleLowerCase('tr').trim())
+              .filter(Boolean)
+              .slice(0, 200),
+            blockLinks: !!a?.blockLinks,
+            maxMentions: Math.max(0, Math.min(50, Math.floor(Number(a?.maxMentions) || 0))),
+            newMemberWait: Math.max(0, Math.min(1440, Math.floor(Number(a?.newMemberWait) || 0))),
+          };
+          changed.push('otomatik moderasyon');
+        }
+        if (changed.length) this.audit(c, uid, 'comm.update', c.name, changed.join(', '));
         this.pushComm(c);
         return;
       }
@@ -858,6 +1022,7 @@ export class Hub {
         const c = this.commFor(s, f.cid, Perm.MANAGE_COMMUNITY);
         if (!c) return;
         c.inviteKey = crypto.randomBytes(9).toString('base64url');
+        this.audit(c, uid, 'invite.reset');
         this.pushComm(c);
         return;
       }
@@ -888,7 +1053,9 @@ export class Hub {
       case 'chan.create': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_CHANNELS);
         if (!c || c.channels.length >= 200) return;
-        const type: ChannelType = isVoiceLike(f.type) || f.type === 'announce' || f.type === 'site' ? f.type : 'text';
+        const src = f.clone ? c.channels.find((x) => x.id === f.clone) : undefined;
+        const want = src ? src.type : f.type;
+        const type: ChannelType = isVoiceLike(want) || want === 'announce' || want === 'site' ? want : 'text';
         const catId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
         const ch: Channel = {
           id: makeId(),
@@ -897,22 +1064,66 @@ export class Hub {
           categoryId: catId,
           position: Math.max(-1, ...c.channels.filter((x) => x.categoryId === catId).map((x) => x.position)) + 1,
         };
-        if (type === 'site') ch.url = cleanSiteUrl(f.url) || DEFAULT_SITE_URL;
+        if (src) {
+          if (src.topic) ch.topic = src.topic;
+          if (src.slowmode) ch.slowmode = src.slowmode;
+          if (src.userLimit) ch.userLimit = src.userLimit;
+          if (src.overwrites?.length) ch.overwrites = src.overwrites.map((o) => ({ ...o }));
+        } else if (f.private) {
+          ch.overwrites = [
+            { id: c.id, type: 'role', allow: 0, deny: Perm.VIEW_CHANNEL },
+            { id: uid, type: 'member', allow: Perm.VIEW_CHANNEL, deny: 0 },
+          ];
+        }
+        if (type === 'site') ch.url = cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL;
         c.channels.push(ch);
         this.chanToComm.set(ch.id, c.id);
+        this.audit(c, uid, 'chan.create', (hasFreeName(type) ? '' : '#') + ch.name, src ? 'kopya' : f.private ? 'özel kanal' : undefined);
         this.pushComm(c);
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: ch.id });
         return;
       }
       case 'chan.update': {
-        const c = this.commFor(s, f.cid, Perm.MANAGE_CHANNELS);
+        const c = this.commFor(s, f.cid);
         const ch = c?.channels.find((x) => x.id === f.id);
         if (!c || !ch) return;
-        if (f.name !== undefined) ch.name = hasFreeName(ch.type) ? cleanName(f.name, 48) || ch.name : channelSlug(f.name);
-        if (f.url !== undefined && ch.type === 'site') ch.url = cleanSiteUrl(f.url) || ch.url || DEFAULT_SITE_URL;
-        if (f.topic !== undefined) ch.topic = clampStr(f.topic, 512);
-        if (f.slowmode !== undefined) ch.slowmode = Math.max(0, Math.min(3600, Number(f.slowmode) || 0));
+        const cp = channelPerms(c, uid, ch);
+        if (!(cp & Perm.MANAGE_CHANNELS)) return this.send(s, { t: 'err', msg: 'Bu kanalı düzenleme yetkin yok.' });
+        const changed: string[] = [];
+        if (f.overwrites !== undefined) {
+          if (!(cp & Perm.MANAGE_ROLES)) return this.send(s, { t: 'err', msg: 'Kanal izinlerini değiştirmek için "Rolleri yönet" yetkisi gerekir.' });
+          const ow = this.cleanOverwrites(c, f.overwrites, ch.overwrites, cp);
+          if (typeof ow === 'string') return this.send(s, { t: 'err', msg: ow });
+          ch.overwrites = ow;
+          changed.push('izinler');
+        }
+        if (f.name !== undefined) {
+          const n = hasFreeName(ch.type) ? cleanName(f.name, 48) || ch.name : channelSlug(f.name);
+          if (n !== ch.name) changed.push(`ad: ${ch.name} → ${n}`);
+          ch.name = n;
+        }
+        if (f.topic !== undefined && f.topic !== (ch.topic || '')) (ch.topic = clampStr(f.topic, 512)), changed.push('konu');
+        if (f.slowmode !== undefined) {
+          const v = Math.max(0, Math.min(21600, Number(f.slowmode) || 0));
+          if (v !== (ch.slowmode || 0)) changed.push(`yavaş mod: ${v ? v + ' sn' : 'kapalı'}`);
+          ch.slowmode = v;
+        }
+        if (f.userLimit !== undefined && isVoiceLike(ch.type)) {
+          const v = Math.max(0, Math.min(99, Math.floor(Number(f.userLimit) || 0)));
+          if (v !== (ch.userLimit || 0)) changed.push(`kişi sınırı: ${v || 'sınırsız'}`);
+          ch.userLimit = v;
+        }
+        if (f.type !== undefined && f.type !== ch.type && (f.type === 'text' || f.type === 'announce') && (ch.type === 'text' || ch.type === 'announce')) {
+          ch.type = f.type;
+          changed.push(f.type === 'announce' ? 'duyuru kanalına çevrildi' : 'metin kanalına çevrildi');
+        }
+        if (f.url !== undefined && ch.type === 'site') {
+          const u = cleanSiteUrl(f.url) || ch.url || DEFAULT_SITE_URL;
+          if (u !== ch.url) changed.push(`adres: ${u}`);
+          ch.url = u;
+        }
         if (f.categoryId !== undefined) ch.categoryId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
+        if (changed.length) this.audit(c, uid, 'chan.update', (hasFreeName(ch.type) ? '' : '#') + ch.name, changed.join(', '));
         this.pushComm(c);
         return;
       }
@@ -931,19 +1142,25 @@ export class Hub {
       case 'chan.delete': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_CHANNELS);
         if (!c) return;
+        const ch = c.channels.find((x) => x.id === f.id);
+        if (!ch) return;
         c.channels = c.channels.filter((x) => x.id !== f.id);
+        if (c.systemChannelId === f.id) c.systemChannelId = null;
         for (const x of this.sessions) if (x.web === f.id) x.web = null;
         this.webRooms.delete(f.id);
         this.chanToComm.delete(f.id);
         this.logs.delete(f.id);
         fsp.unlink(path.join(this.dir, 'messages', f.id + '.ndjson')).catch(() => {});
+        this.audit(c, uid, 'chan.delete', (hasFreeName(ch.type) ? '' : '#') + ch.name);
         this.pushComm(c);
         return;
       }
       case 'cat.create': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_CHANNELS);
         if (!c || c.categories.length >= 50) return;
-        c.categories.push({ id: makeId(), name: cleanName(f.name, 40) || 'Kategori', position: c.categories.length });
+        const cat: Category = { id: makeId(), name: cleanName(f.name, 40) || 'Kategori', position: c.categories.length };
+        c.categories.push(cat);
+        this.audit(c, uid, 'cat.create', cat.name);
         this.pushComm(c);
         return;
       }
@@ -951,81 +1168,231 @@ export class Hub {
         const c = this.commFor(s, f.cid, Perm.MANAGE_CHANNELS);
         const cat = c?.categories.find((x) => x.id === f.id);
         if (!c || !cat) return;
-        cat.name = cleanName(f.name, 40) || cat.name;
+        const changed: string[] = [];
+        if (f.overwrites !== undefined) {
+          const ap = memberPerms(c, uid);
+          if (!(ap & Perm.MANAGE_ROLES)) return this.send(s, { t: 'err', msg: 'Kategori izinlerini değiştirmek için "Rolleri yönet" yetkisi gerekir.' });
+          const ow = this.cleanOverwrites(c, f.overwrites, cat.overwrites, ap);
+          if (typeof ow === 'string') return this.send(s, { t: 'err', msg: ow });
+          cat.overwrites = ow;
+          changed.push('izinler');
+        }
+        if (f.name !== undefined) {
+          const n = cleanName(f.name, 40) || cat.name;
+          if (n !== cat.name) changed.push(`ad: ${n}`);
+          cat.name = n;
+        }
+        if (changed.length) this.audit(c, uid, 'cat.update', cat.name, changed.join(', '));
         this.pushComm(c);
         return;
       }
       case 'cat.delete': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_CHANNELS);
         if (!c) return;
+        const cat = c.categories.find((x) => x.id === f.id);
         c.categories = c.categories.filter((x) => x.id !== f.id);
         for (const ch of c.channels) if (ch.categoryId === f.id) ch.categoryId = null;
+        if (cat) this.audit(c, uid, 'cat.delete', cat.name);
         this.pushComm(c);
         return;
       }
       case 'role.create': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_ROLES);
         if (!c || c.roles.length >= 50) return;
+        const ap = memberPerms(c, uid);
+        // yeni rol en alta (@herkes'in hemen üstüne) eklenir
+        for (const x of c.roles) if (x.id !== c.id) x.position += 1;
         const r: Role = {
           id: makeId(),
           name: cleanName(f.name, 32) || 'yeni rol',
           color: /^#[0-9a-f]{6}$/i.test(f.color) ? f.color : '',
-          perms: Number(f.perms) & 0xff,
+          perms: (Number(f.perms) & ALL_PERMS) & ap,
           hoist: !!f.hoist,
-          position: Math.max(0, ...c.roles.map((x) => x.position)) + 1,
+          position: 1,
         };
+        if (f.mentionable) r.mentionable = true;
+        const icon = clampStr(f.icon, 16).trim();
+        if (icon) r.icon = icon;
         c.roles.push(r);
+        this.normalizeRoles(c);
+        this.audit(c, uid, 'role.create', r.name);
         this.pushComm(c);
+        if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: r.id });
         return;
       }
       case 'role.update': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_ROLES);
         const r = c?.roles.find((x) => x.id === f.id);
         if (!c || !r) return;
-        if (f.name !== undefined && r.id !== c.id) r.name = cleanName(f.name, 32) || r.name;
-        if (f.color !== undefined) r.color = /^#[0-9a-f]{6}$/i.test(f.color) ? f.color : '';
-        if (f.perms !== undefined) r.perms = Number(f.perms) & 0xff;
-        if (f.hoist !== undefined && r.id !== c.id) r.hoist = !!f.hoist;
+        if (!canEditRole(c, uid, r)) return this.send(s, { t: 'err', msg: 'Bu rol senin en yüksek rolünle aynı seviyede ya da üstünde; düzenleyemezsin.' });
+        const changed: string[] = [];
+        if (f.name !== undefined && r.id !== c.id) {
+          const n = cleanName(f.name, 32) || r.name;
+          if (n !== r.name) changed.push(`ad: ${r.name} → ${n}`);
+          r.name = n;
+        }
+        if (f.color !== undefined) (r.color = /^#[0-9a-f]{6}$/i.test(f.color) ? f.color : ''), changed.push('renk');
+        if (f.perms !== undefined) {
+          const next = Number(f.perms) & ALL_PERMS;
+          const diff = next ^ r.perms;
+          if (diff & ~memberPerms(c, uid)) return this.send(s, { t: 'err', msg: 'Sahip olmadığın bir yetkiyi verip alamazsın.' });
+          if (diff) changed.push('yetkiler');
+          r.perms = next;
+        }
+        if (f.hoist !== undefined && r.id !== c.id) (r.hoist = !!f.hoist), changed.push(f.hoist ? 'ayrı gösteriliyor' : 'ayrı gösterilmiyor');
+        if (f.mentionable !== undefined && r.id !== c.id) {
+          if (f.mentionable) r.mentionable = true;
+          else delete r.mentionable;
+          changed.push(f.mentionable ? 'bahsedilebilir' : 'bahsedilemez');
+        }
+        if (f.icon !== undefined && r.id !== c.id) {
+          const icon = clampStr(f.icon, 16).trim();
+          if (icon) r.icon = icon;
+          else delete r.icon;
+          changed.push('rozet');
+        }
+        if (changed.length) this.audit(c, uid, 'role.update', r.name, changed.join(', '));
+        this.pushComm(c);
+        return;
+      }
+      case 'role.move': {
+        const c = this.commFor(s, f.cid, Perm.MANAGE_ROLES);
+        const r = c?.roles.find((x) => x.id === f.id);
+        if (!c || !r || r.id === c.id) return;
+        this.normalizeRoles(c);
+        const list = c.roles.filter((x) => x.id !== c.id).sort((a, b) => a.position - b.position);
+        const i = list.indexOf(r);
+        const j = i + (f.dir > 0 ? 1 : -1);
+        const other = list[j];
+        if (!other) return;
+        if (!canEditRole(c, uid, r) || !canEditRole(c, uid, other)) return this.send(s, { t: 'err', msg: 'Kendi en yüksek rolünün üstüne rol taşıyamazsın.' });
+        [r.position, other.position] = [other.position, r.position];
+        this.audit(c, uid, 'role.move', r.name, f.dir > 0 ? 'yukarı' : 'aşağı');
         this.pushComm(c);
         return;
       }
       case 'role.delete': {
         const c = this.commFor(s, f.cid, Perm.MANAGE_ROLES);
-        if (!c || f.id === c.id) return;
+        const r = c?.roles.find((x) => x.id === f.id);
+        if (!c || !r || f.id === c.id) return;
+        if (!canEditRole(c, uid, r)) return this.send(s, { t: 'err', msg: 'Bu rolü silemezsin: senin en yüksek rolünle aynı seviyede ya da üstünde.' });
         c.roles = c.roles.filter((x) => x.id !== f.id);
         for (const m of c.members) m.roles = m.roles.filter((x) => x !== f.id);
+        for (const ch of c.channels) if (ch.overwrites) ch.overwrites = ch.overwrites.filter((o) => o.id !== f.id);
+        for (const cat of c.categories) if (cat.overwrites) cat.overwrites = cat.overwrites.filter((o) => o.id !== f.id);
+        this.normalizeRoles(c);
+        this.audit(c, uid, 'role.delete', r.name);
         this.pushComm(c);
         return;
       }
       case 'member.update': {
         const c = this.comms.get(f.cid);
         const m = c?.members.find((x) => x.userId === f.userId);
-        if (!c || !m) return;
+        if (!c || !m || !c.members.some((x) => x.userId === uid)) return;
         if (f.roles !== undefined) {
           if (!this.commFor(s, f.cid, Perm.MANAGE_ROLES)) return;
-          m.roles = f.roles.filter((r) => c.roles.some((x) => x.id === r && x.id !== c.id));
+          const next = (Array.isArray(f.roles) ? f.roles : []).filter((r, i, a) => a.indexOf(r) === i && c.roles.some((x) => x.id === r && x.id !== c.id));
+          const added = next.filter((r) => !m.roles.includes(r));
+          const removed = m.roles.filter((r) => !next.includes(r));
+          for (const id of [...added, ...removed]) {
+            const role = c.roles.find((x) => x.id === id);
+            if (role && !canEditRole(c, uid, role)) return this.send(s, { t: 'err', msg: `"${role.name}" rolünü veremezsin: senin en yüksek rolünle aynı seviyede ya da üstünde.` });
+          }
+          m.roles = next;
+          const names = (ids: ID[]) => ids.map((id) => c.roles.find((x) => x.id === id)?.name).filter(Boolean).join(', ');
+          if (added.length || removed.length)
+            this.audit(c, uid, 'member.roles', this.userName(c, f.userId), [added.length && `+ ${names(added)}`, removed.length && `- ${names(removed)}`].filter(Boolean).join(' · '));
         }
         if (f.nick !== undefined) {
-          if (f.userId !== uid && !this.commFor(s, f.cid, Perm.MANAGE_ROLES)) return;
+          if (f.userId === uid) {
+            if (!can(c, uid, Perm.CHANGE_NICKNAME) && !can(c, uid, Perm.MANAGE_NICKNAMES)) return this.send(s, { t: 'err', msg: 'Takma adını değiştirme yetkin yok.' });
+          } else {
+            if (!can(c, uid, Perm.MANAGE_NICKNAMES) && !can(c, uid, Perm.MANAGE_ROLES)) return this.send(s, { t: 'err', msg: 'Bunun için yetkin yok.' });
+            if (!outranks(c, uid, f.userId)) return this.send(s, { t: 'err', msg: 'Senden yüksek ya da eşit roldeki birinin takma adını değiştiremezsin.' });
+          }
           const n = f.nick === null ? '' : cleanName(f.nick, 32);
           if (n) m.nick = n;
           else delete m.nick;
+          if (f.userId !== uid) this.audit(c, uid, 'member.nick', this.data.users[f.userId]?.pub.name || '', n || 'kaldırıldı');
         }
         this.pushComm(c);
         return;
       }
       case 'member.kick': {
         const c = this.commFor(s, f.cid, Perm.KICK);
-        if (!c || f.userId === c.ownerId || f.userId === uid) return;
-        c.members = c.members.filter((m) => m.userId !== f.userId);
-        for (const x of this.userSessions.get(f.userId) || []) this.send(x, { t: 'comm.del', cid: c.id });
+        if (!c || !c.members.some((m) => m.userId === f.userId)) return;
+        if (!outranks(c, uid, f.userId)) return this.send(s, { t: 'err', msg: 'Senden yüksek ya da eşit roldeki birini atamazsın.' });
+        this.audit(c, uid, 'member.kick', this.userName(c, f.userId), clampStr(f.reason, 200) || undefined);
+        this.evict(c, f.userId);
         this.pushComm(c);
         this.bots.onKick(c, f.userId);
         return;
       }
+      case 'member.ban': {
+        const c = this.commFor(s, f.cid, Perm.BAN);
+        if (!c || f.userId === BOT_ID) return;
+        if (c.members.some((m) => m.userId === f.userId) ? !outranks(c, uid, f.userId) : f.userId === c.ownerId || f.userId === uid)
+          return this.send(s, { t: 'err', msg: 'Senden yüksek ya da eşit roldeki birini yasaklayamazsın.' });
+        const name = this.userName(c, f.userId);
+        const reason = clampStr(f.reason, 200).trim();
+        c.bans = (c.bans || []).filter((b) => b.userId !== f.userId);
+        c.bans.push({ userId: f.userId, name, by: uid, ts: Date.now(), ...(reason ? { reason } : {}) });
+        if (c.bans.length > 1000) c.bans.splice(0, c.bans.length - 1000);
+        const hours = Math.max(0, Math.min(168, Number(f.purgeHours) || 0));
+        let purged = 0;
+        if (hours) {
+          const since = Date.now() - hours * 3600_000;
+          for (const ch of c.channels) {
+            if (isVoiceLike(ch.type)) continue;
+            const log = this.log(ch.id);
+            for (const m of log.list.filter((x) => x.authorId === f.userId && x.ts >= since)) {
+              log.remove(m.id);
+              purged++;
+              this.broadcastChan(c, ch, { t: 'msg.del', ch: ch.id, id: m.id });
+            }
+          }
+        }
+        this.audit(c, uid, 'member.ban', name, [reason, purged ? `${purged} mesaj silindi` : ''].filter(Boolean).join(' · ') || undefined);
+        if (c.members.some((m) => m.userId === f.userId)) this.evict(c, f.userId);
+        this.pushComm(c);
+        return;
+      }
+      case 'member.unban': {
+        const c = this.commFor(s, f.cid, Perm.BAN);
+        const b = c?.bans?.find((x) => x.userId === f.userId);
+        if (!c || !b) return;
+        c.bans = c.bans!.filter((x) => x.userId !== f.userId);
+        this.audit(c, uid, 'member.unban', b.name);
+        this.saveComm(c.id);
+        return;
+      }
+      case 'member.timeout': {
+        const c = this.commFor(s, f.cid, Perm.TIMEOUT);
+        const m = c?.members.find((x) => x.userId === f.userId);
+        if (!c || !m) return;
+        if (!outranks(c, uid, f.userId) || can(c, f.userId, Perm.ADMIN))
+          return this.send(s, { t: 'err', msg: 'Bu üyeye zaman aşımı uygulayamazsın.' });
+        const min = Math.max(0, Math.min(MAX_TIMEOUT_MIN, Math.floor(Number(f.minutes) || 0)));
+        if (min) m.timeoutUntil = Date.now() + min * 60000;
+        else delete m.timeoutUntil;
+        const reason = clampStr(f.reason, 200).trim();
+        this.audit(c, uid, 'member.timeout', this.userName(c, f.userId), [min ? `${min} dk` : 'kaldırıldı', reason].filter(Boolean).join(' · '));
+        this.pushComm(c);
+        return;
+      }
+      case 'mod.list': {
+        const c = this.commFor(s, f.cid);
+        if (!c) return;
+        const p = memberPerms(c, uid);
+        const bans = p & (Perm.BAN | Perm.KICK) ? [...(c.bans || [])].reverse() : [];
+        const audit = p & Perm.VIEW_AUDIT_LOG ? [...(c.audit || [])].reverse() : [];
+        return this.send(s, { t: 'ok', rid: f.rid, data: { bans, audit } });
+      }
       case 'sp.join': {
         const r = this.commOfChannel(s, f.ch);
         if (!r || r.channel.type !== 'space') return;
+        const deny = this.voiceDenied(r.c, r.channel, uid, s.space === f.ch);
+        if (deny) return this.send(s, { t: 'err', msg: deny });
         if (s.space) this.leaveSpace(s);
         s.space = f.ch;
         let room = this.spaceRooms.get(f.ch);
@@ -1115,11 +1482,15 @@ export class Hub {
       case 'vc.join': {
         const r = this.commOfChannel(s, f.ch);
         if (!r || !isVoiceLike(r.channel.type)) return;
+        const deny = r.channel.type === 'voice' ? this.voiceDenied(r.c, r.channel, uid, s.voice?.ch === f.ch) : null;
+        if (deny) return this.send(s, { t: 'err', msg: deny });
+        // konuşma yetkisi yoksa susturulmuş katılır
+        const muted = !!f.muted || !(channelPerms(r.c, uid, r.channel) & Perm.SPEAK);
         if (s.voice) this.leaveVoice(s);
-        s.voice = { ch: f.ch, muted: !!f.muted, deaf: !!f.deaf };
+        s.voice = { ch: f.ch, muted, deaf: !!f.deaf };
         let room = this.voiceRooms.get(f.ch);
         if (!room) this.voiceRooms.set(f.ch, (room = new Map()));
-        room.set(s.sid, { userId: uid, muted: !!f.muted, deaf: !!f.deaf, sessionId: s.sid });
+        room.set(s.sid, { userId: uid, muted, deaf: !!f.deaf, sessionId: s.sid });
         this.send(s, { t: 'vc.you', sessionId: s.sid });
         this.broadcast(r.c, { t: 'vc', ch: f.ch, members: [...room.values()] });
         return;
@@ -1128,7 +1499,8 @@ export class Hub {
         return this.leaveVoice(s);
       case 'vc.state': {
         if (!s.voice) return;
-        s.voice.muted = !!f.muted;
+        const vr = this.commOfChannel(s, s.voice.ch);
+        s.voice.muted = !!f.muted || (!!vr && !(channelPerms(vr.c, uid, vr.channel) & Perm.SPEAK));
         s.voice.deaf = !!f.deaf;
         const room = this.voiceRooms.get(s.voice.ch);
         const vm = room?.get(s.sid);
@@ -1157,6 +1529,31 @@ export class Hub {
         return;
       }
     }
+  }
+
+  /** Ses / 3D oda katılım denetimi: bağlanma yetkisi ve kişi sınırı */
+  private voiceDenied(c: StoredCommunity, ch: Channel, uid: ID, already: boolean): string | null {
+    const cp = channelPerms(c, uid, ch);
+    if (!(cp & Perm.CONNECT)) {
+      const m = c.members.find((x) => x.userId === uid);
+      return m?.timeoutUntil && m.timeoutUntil > Date.now() ? 'Zaman aşımındayken sesli kanallara katılamazsın.' : 'Bu kanala bağlanma yetkin yok.';
+    }
+    if (!already && ch.userLimit && !(cp & Perm.MANAGE_CHANNELS)) {
+      const users = new Set<ID>();
+      const room = ch.type === 'space' ? this.spaceRooms.get(ch.id) : this.voiceRooms.get(ch.id);
+      if (room) for (const v of room.values()) users.add('av' in v ? v.av.userId : v.userId);
+      users.delete(uid);
+      if (users.size >= ch.userLimit) return `Kanal dolu (${ch.userLimit} kişi sınırı).`;
+    }
+    return null;
+  }
+
+  /** Rol konumlarını 0..n aralığında sıkıştırır; @herkes her zaman 0 */
+  private normalizeRoles(c: StoredCommunity) {
+    const rest = c.roles.filter((r) => r.id !== c.id).sort((a, b) => a.position - b.position);
+    rest.forEach((r, i) => (r.position = i + 1));
+    const ev = c.roles.find((r) => r.id === c.id);
+    if (ev) ev.position = 0;
   }
 
   private sidOfUserIn(room: Map<ID, { s: Session; av: SpaceAvatar }>, uid: ID): ID | null {
@@ -1258,8 +1655,16 @@ export class Hub {
   private createCommunity(ownerId: ID, name: string, color: string, icon: string | undefined, template: 'default' | 'lobby' = 'default'): StoredCommunity {
     const id = makeId();
     const roles: Role[] = [
-      { id, name: '@herkes', color: '', perms: 0, hoist: false, position: 0 },
-      { id: makeId(), name: 'Moderatör', color: '#3ecf8e', perms: Perm.MANAGE_MESSAGES | Perm.KICK | Perm.MANAGE_CHANNELS, hoist: true, position: 2 },
+      { id, name: '@herkes', color: '', perms: DEFAULT_EVERYONE, hoist: false, position: 0 },
+      {
+        id: makeId(),
+        name: 'Moderatör',
+        color: '#3ecf8e',
+        perms: Perm.MANAGE_MESSAGES | Perm.KICK | Perm.MANAGE_CHANNELS | Perm.TIMEOUT | Perm.MANAGE_NICKNAMES | Perm.VIEW_AUDIT_LOG | Perm.MENTION_EVERYONE,
+        hoist: true,
+        mentionable: true,
+        position: 2,
+      },
     ];
     const categories: Category[] = [];
     const channels: Channel[] = [];
@@ -1310,6 +1715,8 @@ export class Hub {
       channels,
       members,
       inviteKey: crypto.randomBytes(9).toString('base64url'),
+      pv: 2,
+      joinMessages: true,
     };
     if (icon && icon.startsWith('data:image/') && icon.length < 400_000) c.icon = icon;
     this.comms.set(id, c);
@@ -1337,6 +1744,11 @@ export class Hub {
   private botHost(): BotHost {
     const hub = this;
     const msgs = (ch: ID) => this.log(ch);
+    // gizli kanallar sızmasın: yalnızca kanalı görebilen üyelere gönder
+    const toChan = (c: StoredCommunity, ch: ID, f: ServerFrame) => {
+      const channel = c.channels.find((x) => x.id === ch);
+      if (channel) this.broadcastChan(c, channel, f);
+    };
     return {
       get dir() {
         return hub.dir;
@@ -1367,7 +1779,7 @@ export class Hub {
         const m: Message = { id: makeId(), channelId: ch, authorId, content: clampStr(content, MAX_CONTENT), ts: Date.now() };
         if (replyTo && msgs(ch).byId.has(replyTo)) m.replyTo = replyTo;
         msgs(ch).add(m);
-        this.broadcast(c, { t: 'msg', m });
+        toChan(c, ch, { t: 'msg', m });
         const channel = c.channels.find((x) => x.id === ch);
         if (channel) this.bots.onMessage(c, channel, m);
         return m;
@@ -1378,7 +1790,7 @@ export class Hub {
         m.content = content;
         m.editedTs = Date.now();
         msgs(ch).update(m);
-        this.broadcast(c, { t: 'msg.upd', m });
+        toChan(c, ch, { t: 'msg.upd', m });
         return true;
       },
       react: (c, ch, id, uid, e) => {
@@ -1390,19 +1802,18 @@ export class Hub {
         if (!m.reactions[e] && Object.keys(m.reactions).length >= 20) return false;
         m.reactions[e] = [...arr, uid];
         msgs(ch).update(m);
-        this.broadcast(c, { t: 'msg.upd', m });
+        toChan(c, ch, { t: 'msg.upd', m });
         return true;
       },
-      typing: (c, ch, uid) => this.broadcast(c, { t: 'typing', ch, uid }),
+      typing: (c, ch, uid) => toChan(c, ch, { t: 'typing', ch, uid }),
       status: (uid) => this.effectiveStatus(uid),
       announcePresence: (uid) => this.broadcastPresence(uid),
       pushComm: (c) => this.pushComm(c),
-      isManager: (c, uid) => can(this.snapshot(c), uid, Perm.MANAGE_COMMUNITY),
-      can: (c, uid, perm) => can(this.snapshot(c), uid, perm),
+      isManager: (c, uid) => can(c, uid, Perm.MANAGE_COMMUNITY),
+      can: (c, uid, perm) => can(c, uid, perm),
       sendToManagers: (c, f) => {
-        const snap = this.snapshot(c);
         const data = JSON.stringify(f);
-        for (const s of this.memberSessions(c)) if (s.userId && can(snap, s.userId, Perm.MANAGE_COMMUNITY)) this.sendRaw(s, data);
+        for (const s of this.memberSessions(c)) if (s.userId && can(c, s.userId, Perm.MANAGE_COMMUNITY)) this.sendRaw(s, data);
       },
       voice: (ch) => [...(this.voiceRooms.get(ch)?.values() || [])],
     };

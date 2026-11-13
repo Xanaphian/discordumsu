@@ -1,0 +1,615 @@
+/* ==========================================================================
+   Kovan — roller, kanal izinleri, moderasyon ve ek ayar ekranları
+   ========================================================================== */
+
+/* ---- ortak küçük parçalar ---- */
+.mini-select {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-rail);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.mini-select:focus {
+  border-color: var(--accent-line);
+}
+.perm-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 10px;
+  flex-wrap: wrap;
+}
+.input-icon.grow {
+  flex: 1;
+  min-width: 180px;
+  width: auto;
+  min-height: 34px;
+}
+.input-icon.grow input {
+  min-height: 32px;
+  font-size: 14px;
+}
+.chip-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip-opt {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.chip-opt:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.chip-opt.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+.chip-opt:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.h-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.h-icon svg {
+  color: var(--text-3);
+}
+.set-row.compact {
+  padding: 10px 0 2px;
+  border-bottom: 0;
+}
+.mini-title {
+  margin: 18px 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.radio-list.dim {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.lc-row.clickable {
+  width: 100%;
+  text-align: left;
+  color: inherit;
+}
+.lc-row.clickable:hover {
+  background: var(--bg-hover);
+}
+.set-row-title svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--text-3);
+}
+
+/* ---- rol rozeti ---- */
+.role-icon {
+  display: inline-block;
+  margin: 0 3px;
+  font-size: 0.95em;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+/* ---- rol listesi ---- */
+.role-item {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+.role-item .ri-lock {
+  color: var(--text-4);
+  flex: none;
+}
+.ri-move {
+  display: none;
+  flex: none;
+  gap: 1px;
+}
+.role-item:hover .ri-move,
+.role-item.on .ri-move {
+  display: inline-flex;
+}
+.ri-move button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: var(--text-3);
+}
+.ri-move button:hover:not(:disabled) {
+  background: var(--bg-active);
+  color: var(--text);
+}
+.ri-move button:disabled {
+  opacity: 0.3;
+}
+.role-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 60px 20px;
+  border: 1px dashed var(--line-2);
+  border-radius: 12px;
+  color: var(--text-3);
+  text-align: center;
+}
+.role-empty b {
+  color: var(--text);
+  font-size: 16px;
+}
+.role-empty span {
+  font-size: 13.5px;
+  max-width: 300px;
+}
+
+/* ---- rol düzenleyici ---- */
+.re-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.re-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  min-width: 0;
+}
+.re-title b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.re-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: none;
+}
+.re-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+.subtabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.subtabs button {
+  position: relative;
+  padding: 9px 12px;
+  color: var(--text-3);
+  font-weight: 700;
+  font-size: 14px;
+}
+.subtabs button:hover {
+  color: var(--text);
+}
+.subtabs button.on {
+  color: var(--text);
+}
+.subtabs button.on::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.subtabs small {
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--text-3);
+  font-size: 11px;
+}
+.icon-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.icon-input {
+  width: 52px !important;
+  min-height: 34px !important;
+  text-align: center;
+  font-size: 18px !important;
+  padding: 0 !important;
+}
+.icon-opt {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  font-size: 18px;
+  display: grid;
+  place-items: center;
+}
+.icon-opt:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.icon-opt.on {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.role-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg-side);
+  border: 1px solid var(--line);
+}
+.rp-label {
+  margin-right: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.rp-name {
+  font-weight: 700;
+  margin-right: 6px;
+}
+.add-members {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.role-chip.add {
+  cursor: pointer;
+  padding: 2px 6px;
+  color: var(--text-3);
+}
+.role-chip.add:hover {
+  color: var(--text);
+  background: var(--bg-active);
+}
+
+/* ---- üye yönetimi ---- */
+.member-row .role-chips {
+  max-width: 45%;
+  justify-content: flex-end;
+}
+.timeout-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--yellow) 18%, transparent);
+  color: var(--yellow);
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+.timeout-icon {
+  margin-left: 4px;
+  color: var(--yellow);
+  flex: none;
+}
+.tag-blocked {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--red) 20%, transparent);
+  color: var(--red);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+.members-roles-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 16px);
+  margin: 12px 8px 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--line-2);
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+}
+.members-roles-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.popout .timeout-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--yellow);
+  font-size: 13px;
+  font-weight: 600;
+}
+.mod-target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--bg-side);
+}
+.mod-target div {
+  display: flex;
+  flex-direction: column;
+}
+.mod-target span {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.audit-line {
+  font-size: 14px;
+  color: var(--text-2);
+}
+.audit-line b {
+  color: var(--text);
+}
+
+/* ---- kanal izinleri ---- */
+.ow-private {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin: 8px 0 16px;
+  border-radius: 12px;
+  background: var(--bg-side);
+  border: 1px solid var(--line);
+}
+.ow-private > svg {
+  color: var(--accent);
+  flex: none;
+}
+.ow-private div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ow-private span {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.ow-layout {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+.ow-targets {
+  width: 210px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 10px;
+}
+.ow-targets-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-3);
+}
+.ow-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--text-2);
+  text-align: left;
+}
+.ow-target span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ow-target small {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--text-3);
+  font-size: 11px;
+}
+.ow-target:hover {
+  background: var(--bg-hover);
+}
+.ow-target.on {
+  background: var(--bg-active);
+  color: var(--text);
+}
+.ow-add {
+  margin-bottom: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--bg-float);
+  box-shadow: var(--shadow);
+}
+.ow-add .input-icon {
+  min-height: 32px;
+  margin-bottom: 6px;
+}
+.ow-add .input-icon input {
+  min-height: 30px;
+  font-size: 13.5px;
+}
+.ow-add-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.ow-add-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--text-2);
+  text-align: left;
+  font-size: 13.5px;
+}
+.ow-add-list button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ow-add-title {
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.ow-perms {
+  flex: 1;
+  min-width: 0;
+}
+.ow-perms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  font-size: 16px;
+}
+.ow-group h3 {
+  margin-top: 18px !important;
+}
+
+/* üç durumlu seçici */
+.tri {
+  display: inline-flex;
+  flex: none;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+}
+.tri-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 28px;
+  color: var(--text-4);
+  transition: background 0.12s, color 0.12s;
+}
+.tri-btn + .tri-btn {
+  border-left: 1px solid var(--line-2);
+}
+.tri-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-2);
+}
+.tri-btn.on {
+  background: var(--bg-active);
+  color: var(--text);
+}
+.tri-btn.deny.on {
+  background: var(--red);
+  color: #fff;
+}
+.tri-btn.allow.on {
+  background: var(--green);
+  color: #08140e;
+}
+.tri.disabled {
+  opacity: 0.5;
+}
+
+/* ---- kanal listesi ---- */
+.ch-row.muted .ch-name,
+.ch-row.muted .ch-icon {
+  opacity: 0.45;
+}
+.ch-lock {
+  flex: none;
+  margin-left: 2px;
+  color: var(--text-4);
+}
+.ch-limit {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ---- sohbet ---- */
+.md-mention.role {
+  --role: var(--blue);
+  background: color-mix(in srgb, var(--role) 20%, transparent);
+  color: color-mix(in srgb, var(--role) 85%, var(--text));
+}
+.md-mention.role.me {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role) 60%, transparent);
+}
+.blocked-msg {
+  color: var(--text-3);
+  font-style: italic;
+}
+.blocked-msg .link {
+  margin-left: 8px;
+  font-style: normal;
+}
+.att-file.clickable {
+  cursor: pointer;
+}
+
+@media (max-width: 980px) {
+  .ow-layout {
+    flex-direction: column;
+  }
+  .ow-targets {
+    width: 100%;
+    position: static;
+  }
+  .member-row .role-chips {
+    display: none;
+  }
+}
