@@ -91,7 +91,7 @@ export function NotifyExtras() {
   const ids = [...new Set([...Object.keys(s.notifyOverrides), ...s.mutedIds])];
   const describe = (id: string) => {
     const c = communities[id];
-    if (c) return { title: c.name, sub: 'Topluluk', cid: c.id };
+    if (c) return { title: c.dm ? '@' + c.name : c.name, sub: c.dm ? 'Özel mesaj' : 'Topluluk', cid: c.id };
     for (const x of Object.values(communities)) {
       const ch = x.channels.find((y) => y.id === id);
       if (ch) return { title: '#' + ch.name, sub: x.name, cid: x.id };

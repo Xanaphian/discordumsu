@@ -214,6 +214,33 @@ export interface Community {
   joinMessages?: boolean; // false ise katılma mesajı gönderilmez
   invitesPaused?: boolean; // yeni katılımlar durduruldu
   automod?: AutoMod;
+  /** sadece istemcide: özel mesaj sohbetini temsil eden sanal topluluk (karşı tarafın kimliği) */
+  dm?: ID;
+  /** sadece istemcide: DM'in son mesaj kimliği / açılma anı (sıralama için) */
+  dmLast?: ID;
+}
+
+/** Özel mesaj (DM) kanalı: iki kullanıcı arasında, ortak bir topluluğun kovanında tutulur */
+export interface DmInfo {
+  ch: ID; // 'd_<küçük kimlik>_<büyük kimlik>'
+  peer: UserPublic;
+  lastId?: ID;
+}
+
+/** Arkadaşlık: ok = arkadaş, out = senin gönderdiğin istek, in = sana gelen istek */
+export type FriendState = 'ok' | 'out' | 'in';
+export interface FriendInfo {
+  user: UserPublic;
+  state: FriendState;
+  ts: number;
+}
+
+export const isDmChannel = (ch: string) => ch.startsWith('d_');
+export const dmChannelId = (a: ID, b: ID) => (a < b ? `d_${a}_${b}` : `d_${b}_${a}`);
+export function dmPeerOf(ch: ID, me: ID): ID | null {
+  const m = /^d_([\w-]+)_([\w-]+)$/.exec(ch);
+  if (!m) return null;
+  return m[1] === me ? m[2] : m[2] === me ? m[1] : null;
 }
 
 export interface Attachment {
@@ -309,12 +336,20 @@ export type ClientFrame =
   | { t: 'sp.look'; look: AvatarLook }
   | { t: 'web.at'; ch: ID; url: string; title: string }
   | { t: 'web.leave' }
+  | { t: 'dm.open'; to: ID; rid: string }
+  | { t: 'friend.req'; to: ID; rid?: string }
+  | { t: 'friend.accept'; to: ID }
+  | { t: 'friend.remove'; to: ID }
+  | { t: 'friend.code'; reset?: boolean; rid: string }
   | { t: 'ping' }
   | BotClientFrame;
 
 // ---- Sunucu -> İstemci ----
 export type ServerFrame =
-  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; v: number }
+  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; v: number }
+  | { t: 'dm'; dm: DmInfo }
+  | { t: 'friend'; f: FriendInfo }
+  | { t: 'friend.del'; uid: ID }
   | { t: 'msg'; m: Message; nonce?: string }
   | { t: 'msg.upd'; m: Message }
   | { t: 'msg.del'; ch: ID; id: ID }

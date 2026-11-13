@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useState } from 'react';
 import { Plus, LogIn, WifiOff, Home } from 'lucide-react';
-import { useStore, selectCommunity, openModal, openMenu, markCommunityRead, updateSettings, leaveCommunity, deleteCommunity, confirmDialog, toggleMuted } from '../lib/store';
-import { CommunityIcon, Tooltip } from './Common';
+import { useStore, selectCommunity, openModal, openMenu, markCommunityRead, updateSettings, leaveCommunity, deleteCommunity, confirmDialog, toggleMuted, dmList, closeDm, pendingIn, isDmHidden, hiddenDms } from '../lib/store';
+import { Avatar, CommunityIcon, Tooltip } from './Common';
 import { cx, copyText } from '../lib/util';
 import type { Community } from '../../shared/protocol';
 import { can, Perm, isVoiceLike } from '../../shared/protocol';
@@ -117,6 +117,30 @@ const RailItem = memo(function RailItem({
   );
 });
 
+/** Rail'de, okunmamış mesajı olan özel sohbet (Discord'daki gibi Ana Sayfa'nın altında) */
+const DmRailItem = memo(function DmRailItem({ c, active, mentions }: { c: Community; active: boolean; mentions: number }) {
+  const user = useStore((s) => s.users[c.dm!] || c.users[c.dm!]);
+  const status = useStore((s) => s.presence[c.dm!]);
+  const name = user?.name || c.name;
+  const menu = (e: React.MouseEvent) =>
+    openMenu(e, [
+      { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !mentions },
+      { label: 'Profil', onClick: () => useStore.setState({ popout: { uid: c.dm!, cid: c.id, x: e.clientX + 20, y: e.clientY } }) },
+      { sep: true },
+      { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
+    ]);
+  return (
+    <Tooltip text={name} side="right">
+      <button className={cx('pt-btn pt-dm', active && 'on', mentions > 0 && 'unread')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} aria-label={name}>
+        <span className="pt-hex">
+          <Avatar user={user} size={46} status={status} plain shape="circle" />
+        </span>
+        {mentions > 0 && <span className="badge pt-badge">{mentions > 99 ? '99+' : mentions}</span>}
+      </button>
+    </Tooltip>
+  );
+});
+
 /** Soldaki dikey topluluk listesi (1.9'da üst çubuktan geri taşındı) */
 export function ServerRail() {
   const current = useStore((s) => s.current);
@@ -126,11 +150,19 @@ export function ServerRail() {
   const conns = useStore((s) => s.conns);
   const { comm } = useUnread();
   const [drag, setDrag] = useState<string | null>(null);
+  const friends = useStore((s) => s.friends);
   const list = useMemo(() => {
-    const ids = order.filter((id) => communities[id]);
-    for (const id of Object.keys(communities)) if (!ids.includes(id)) ids.push(id);
+    const ids = order.filter((id) => communities[id] && !communities[id].dm);
+    for (const id of Object.keys(communities)) if (!ids.includes(id) && !communities[id].dm) ids.push(id);
     return ids.map((id) => communities[id]);
   }, [order, communities]);
+  // okunmamış özel mesajlar (ve açık olan sohbet) en üstte, en son yazan en üstte
+  const dms = useMemo(() => {
+    const hidden = hiddenDms();
+    return dmList(communities).filter((c) => (comm[c.id]?.mentions || current === c.id) && !isDmHidden(c, hidden)).slice(0, 6);
+  }, [communities, comm, current]);
+  const requests = pendingIn(friends);
+  const homeOn = current === 'home' || !!communities[current]?.dm;
 
   const drop = (target: string) => {
     if (!drag || drag === target) return;
@@ -142,13 +174,17 @@ export function ServerRail() {
 
   return (
     <nav className="petek rail-v">
-      <Tooltip text="Ana Sayfa" side="right">
-        <button className={cx('pt-btn pt-home', current === 'home' && 'on')} onClick={() => selectCommunity('home')} aria-label="Ana Sayfa">
+      <Tooltip text={requests ? `Ana Sayfa · ${requests} arkadaşlık isteği` : 'Ana Sayfa ve özel mesajlar'} side="right">
+        <button className={cx('pt-btn pt-home', homeOn && 'on')} onClick={() => selectCommunity('home')} aria-label="Ana Sayfa">
           <span className="pt-hex">
             <Home size={16} />
           </span>
+          {requests > 0 && <span className="badge pt-badge">{requests}</span>}
         </button>
       </Tooltip>
+      {dms.map((c) => (
+        <DmRailItem key={c.id} c={c} active={current === c.id} mentions={comm[c.id]?.mentions || 0} />
+      ))}
       <span className="pt-sep" />
       <div className="pt-list">
         {list.map((c) => (

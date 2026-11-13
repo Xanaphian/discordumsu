@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import {
   type AvatarLook,
   Attachment, ChannelType, ClientFrame, Community, ID, Message, ServerFrame, Status, UserPublic, VoiceMember,
-  decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite,
-  type AuditEntry, type Ban,
+  decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite, Perm,
+  type AuditEntry, type Ban, type DmInfo, type FriendInfo,
 } from '../../shared/protocol';
 import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
 import { HostConn, probeHost, ConnStatus } from './net';
@@ -268,6 +268,10 @@ export interface State {
   update: UpdateState;
   focused: boolean;
   jumpTo: { ch: ID; id: ID; at: number } | null;
+  /** arkadaşlar: tüm kovanlardan birleşik liste */
+  friends: Record<ID, FriendInfo & { host: string }>;
+  /** Ana Sayfa'da açık sekme */
+  homeTab: 'home' | 'online' | 'all' | 'pending' | 'add';
 }
 
 const conns = new Map<string, HostConn>();
@@ -311,6 +315,8 @@ export const useStore = create<State>(() => ({
   update: { state: 'idle' },
   focused: document.hasFocus(),
   jumpTo: null,
+  friends: {},
+  homeTab: 'home',
 }));
 
 const S = () => useStore.getState();
@@ -399,6 +405,7 @@ export async function boot() {
   window.kovan.update.onStatus((u) => set({ update: u as UpdateState }));
   window.kovan.onInvite((code) => set({ modal: { type: 'join', code } }));
   window.kovan.onNotifyClick((tag) => {
+    if (tag === 'friends') return setHomeTab('pending');
     const cid = S().chanComm[tag];
     if (cid) selectChannel(cid, tag);
   });
@@ -496,6 +503,179 @@ function removeCommunity(cid: ID) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// özel mesajlar: her DM, tek kanallı sanal bir topluluk olarak tutulur; böylece
+// sohbet ekranı, okunmamış sayacı ve bildirimler olduğu gibi çalışır.
+export const dmCid = (peer: ID) => 'dm_' + peer;
+const DM_PERMS = Perm.VIEW_CHANNEL | Perm.SEND_MESSAGES | Perm.ATTACH_FILES | Perm.ADD_REACTIONS;
+
+function dmCommunity(d: DmInfo): Community {
+  const st = S();
+  const meId = st.me.id;
+  const meUser: UserPublic = st.users[meId] || { id: meId, name: st.me.name, color: st.me.color, avatar: st.me.avatar };
+  const cid = dmCid(d.peer.id);
+  return {
+    id: cid,
+    name: d.peer.name,
+    color: d.peer.color,
+    icon: d.peer.avatar,
+    ownerId: '',
+    createdAt: 0,
+    roles: [{ id: cid, name: '@herkes', color: '', perms: DM_PERMS, hoist: false, position: 0 }],
+    categories: [],
+    channels: [{ id: d.ch, name: d.peer.name, type: 'text', categoryId: null, position: 0 }],
+    members: [
+      { userId: meId, roles: [], joinedAt: 0 },
+      { userId: d.peer.id, roles: [], joinedAt: 0 },
+    ],
+    users: { [meId]: meUser, [d.peer.id]: d.peer },
+    pv: 2,
+    dm: d.peer.id,
+    dmLast: d.lastId || st.communities[cid]?.dmLast || '',
+  };
+}
+
+function upsertDm(host: string, d: DmInfo) {
+  const cid = dmCid(d.peer.id);
+  const prev = S().communities[cid];
+  // aynı kişiyle iki farklı kovanda DM varsa en son konuşulanı göster
+  if (prev && S().commHost[cid] !== host && (prev.dmLast || '') > (d.lastId || '')) return;
+  const c = dmCommunity(d);
+  set((s) => ({
+    communities: { ...s.communities, [cid]: c },
+    commHost: { ...s.commHost, [cid]: host },
+    chanComm: { ...s.chanComm, [d.ch]: cid },
+    chanByComm: { ...s.chanByComm, [cid]: d.ch },
+    users: { ...s.users, [d.peer.id]: s.users[d.peer.id] || d.peer },
+    lastIds: d.lastId ? { ...s.lastIds, [d.ch]: d.lastId } : s.lastIds,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// arkadaşlar
+const STATE_RANK = { ok: 2, in: 1, out: 0 } as const;
+/** Aynı kişiyle birden çok kovanda kayıt varsa en güçlüsü (arkadaş > gelen > giden) kalır */
+function mergeFriend(friends: State['friends'], host: string, fi: FriendInfo) {
+  const cur = friends[fi.user.id];
+  if (cur && cur.host !== host && STATE_RANK[cur.state] > STATE_RANK[fi.state]) return;
+  friends[fi.user.id] = { ...fi, host };
+}
+
+export const pendingIn = (friends: State['friends']) => Object.values(friends).filter((x) => x.state === 'in').length;
+
+/** Bu kişiyle ortak topluluğu olan, şu an bağlı bir kovan (en küçük kimlikli olan, iki taraf da aynısını seçsin) */
+function sharedHost(uid: ID): string | null {
+  const st = S();
+  const hosts = new Map<string, string>();
+  for (const c of realCommunities(st.communities)) {
+    if (!c.members.some((m) => m.userId === uid)) continue;
+    const h = st.commHost[c.id];
+    const conn = h && st.conns[h];
+    if (conn && conn.status === 'online') hosts.set(h, conn.hubId || h);
+  }
+  if (!hosts.size) return null;
+  return [...hosts.entries()].sort((a, b) => (a[1] < b[1] ? -1 : 1))[0][0];
+}
+
+/** Eski sürüm kovanlar yeni çerçevelere hiç cevap vermez: zaman aşımını anlaşılır bir mesaja çevir */
+const oldHubMsg = (e: any) =>
+  e?.message === 'Zaman aşımı' ? "Ortak topluluğunuzu barındıran kişinin Kovan'ı eski sürümde. Özel mesaj ve arkadaşlık için onun da 1.10'a güncellemesi gerekiyor." : '';
+
+export async function addFriend(uid: ID) {
+  const f = S().friends[uid];
+  if (f?.state === 'in') return acceptFriend(uid);
+  if (f) return;
+  const host = sharedHost(uid);
+  if (!host) return toast('Bu kişiyle şu an açık ortak bir topluluğun yok. Onun arkadaş kodunu kullanabilirsin.', 'err');
+  try {
+    await conns.get(host)!.request({ t: 'friend.req', to: uid });
+    toast(`${S().users[uid]?.name || 'Kişi'} adlı kişiye arkadaşlık isteği gönderildi.`, 'ok');
+  } catch (e: any) {
+    toast(oldHubMsg(e) || e?.message || 'İstek gönderilemedi.', 'err');
+  }
+}
+
+export function acceptFriend(uid: ID) {
+  const f = S().friends[uid];
+  if (f) conns.get(f.host)?.send({ t: 'friend.accept', to: uid });
+}
+
+export function removeFriend(uid: ID) {
+  const f = S().friends[uid];
+  if (f) conns.get(f.host)?.send({ t: 'friend.remove', to: uid });
+}
+
+/** Kendi kovanındaki arkadaş kodun: "adres/kod" biçiminde */
+export async function myFriendCode(reset = false, hostPick?: string): Promise<string> {
+  const local = localHost();
+  const conn = conns.get(local);
+  if (!conn) throw new Error('Kendi kovanın henüz açılmadı.');
+  await waitOnline(local);
+  const r = await conn.request<{ data: string }>({ t: 'friend.code', reset, rid: '' });
+  const opts = hostOptions(local);
+  const want = hostPick || S().settings.inviteHost;
+  const h = opts.find((o) => o.host === want)?.host || opts[0]?.host || local;
+  return `${encodeHostToken(h)}/${r.data}`;
+}
+
+/** Gerçek topluluklar (özel mesajlar hariç) */
+export const realCommunities = (communities: Record<ID, Community>) => Object.values(communities).filter((c) => !c.dm);
+
+/** Özel mesaj sohbetleri, en son yazışılan en üstte */
+export const dmList = (communities: Record<ID, Community>) =>
+  Object.values(communities)
+    .filter((c) => c.dm)
+    .sort((a, b) => ((b.dmLast || '') > (a.dmLast || '') ? 1 : -1));
+
+/** Biriyle özel mesajlaşmayı açar (gerekirse ortak bir topluluğun kovanında oluşturur) */
+export async function openDm(uid: ID) {
+  const st = S();
+  if (!uid || uid === st.me.id) return;
+  const cid = dmCid(uid);
+  const hidden = hiddenDms();
+  if (cid in hidden) {
+    delete hidden[cid];
+    localStorage.setItem('kovan.dmHidden', JSON.stringify(hidden));
+  }
+  if (st.communities[cid]) {
+    set({ modal: null, popout: null, menu: null });
+    return selectCommunity(cid);
+  }
+  // önce arkadaşlığın tutulduğu kovan, yoksa ortak topluluğun kovanı
+  const fr = st.friends[uid];
+  const host = fr?.state === 'ok' && st.conns[fr.host]?.status === 'online' ? fr.host : sharedHost(uid);
+  if (!host) return toast('Bu kişiyle şu an açık ortak bir topluluğun yok ya da arkadaşlığınızın tutulduğu kovan kapalı, mesaj gönderilemiyor.', 'err');
+  try {
+    const r = await conns.get(host)!.request<{ data: DmInfo }>({ t: 'dm.open', to: uid, rid: '' });
+    if (r?.data) upsertDm(host, r.data);
+    set({ modal: null, popout: null, menu: null });
+    selectCommunity(cid);
+  } catch (e: any) {
+    toast(oldHubMsg(e) || e?.message || 'Özel mesaj açılamadı.', 'err');
+  }
+}
+
+export function closeDm(cid: ID) {
+  // listeden gizler; yeni mesaj gelirse yeniden görünür
+  set((s) => ({ current: s.current === cid ? 'home' : s.current }));
+  const ch = S().chanByComm[cid];
+  if (ch) markRead(ch);
+  const hidden = { ...hiddenDms(), [cid]: S().communities[cid]?.dmLast || '' };
+  localStorage.setItem('kovan.dmHidden', JSON.stringify(hidden));
+  set((s) => ({ communities: { ...s.communities } }));
+}
+
+export function hiddenDms(): Record<ID, string> {
+  try {
+    return JSON.parse(localStorage.getItem('kovan.dmHidden') || '{}');
+  } catch {
+    return {};
+  }
+}
+
+export const isDmHidden = (c: Community, hidden = hiddenDms()) => c.id in hidden && (c.dmLast || '') <= hidden[c.id];
+
+
 export function sortedChannels(c: Community) {
   const catPos = new Map(c.categories.map((x) => [x.id, x.position]));
   return [...c.channels].sort((a, b) => {
@@ -550,9 +730,24 @@ function onFrame(host: string, f: ServerFrame) {
       }));
       siteHooks.onFrame?.(f);
       // bu sunucudan gelen eski toplulukları temizle
-      const ids = new Set(f.communities.map((c) => c.id));
+      const dms = f.dms || [];
+      const ids = new Set([...f.communities.map((c) => c.id), ...dms.map((d) => dmCid(d.peer.id))]);
       for (const [cid, h] of Object.entries(S().commHost)) if (h === host && !ids.has(cid)) removeCommunity(cid);
       for (const c of f.communities) upsertCommunity(host, c);
+      set((s) => {
+        const friends = { ...s.friends };
+        for (const [id, x] of Object.entries(friends)) if (x.host === host) delete friends[id];
+        for (const fi of f.friends || []) mergeFriend(friends, host, fi);
+        return { friends, users: { ...s.users, ...Object.fromEntries((f.friends || []).map((x) => [x.user.id, s.users[x.user.id] || x.user])) } };
+      });
+      for (const d of dms) {
+        upsertDm(host, d);
+        if (S().chans[d.ch]?.loaded) refreshChannel(d.ch);
+        // kapalıyken gelen özel mesajlar: en az bir okunmamış say (sol listede ve rozette görünsün)
+        const st = S();
+        if (d.lastId && d.lastId > (st.read[d.ch] || '') && !st.mentions[d.ch] && !isViewing(d.ch)) set((s) => ({ mentions: { ...s.mentions, [d.ch]: 1 } }));
+      }
+      updateBadge();
       // açık kanalların eksik mesajlarını tazele
       for (const c of f.communities)
         for (const ch of c.channels) {
@@ -568,7 +763,7 @@ function onFrame(host: string, f: ServerFrame) {
         });
       }
       if (S().current === 'home') {
-        const order = S().settings.railOrder.filter((x) => S().communities[x]);
+        const order = S().settings.railOrder.filter((x) => S().communities[x] && !S().communities[x].dm);
         if (order.length && !sessionStorage.getItem('kovan.started')) {
           sessionStorage.setItem('kovan.started', '1');
           selectCommunity(order[0]);
@@ -578,6 +773,29 @@ function onFrame(host: string, f: ServerFrame) {
     }
     case 'comm':
       upsertCommunity(host, f.c, f.lastIds);
+      return;
+    case 'dm':
+      upsertDm(host, f.dm);
+      return;
+    case 'friend': {
+      const prev = S().friends[f.f.user.id];
+      set((s) => {
+        const friends = { ...s.friends };
+        mergeFriend(friends, host, f.f);
+        return { friends, users: { ...s.users, [f.f.user.id]: s.users[f.f.user.id] || f.f.user } };
+      });
+      const now = S().friends[f.f.user.id];
+      if (now?.state === 'in' && prev?.state !== 'in') {
+        if (S().settings.sounds) playSound('mention');
+        window.kovan.notify({ title: 'Arkadaşlık isteği', body: `${f.f.user.name} seni arkadaş olarak eklemek istiyor.`, tag: 'friends', silent: true });
+        updateBadge();
+      } else if (now?.state === 'ok' && prev?.state === 'out') toast(`${f.f.user.name} arkadaşlık isteğini kabul etti.`, 'ok');
+      updateBadge();
+      return;
+    }
+    case 'friend.del':
+      set((s) => (s.friends[f.uid]?.host === host ? { friends: omit(s.friends, f.uid) } : {}));
+      updateBadge();
       return;
     case 'comm.del': {
       const c = S().communities[f.cid];
@@ -603,7 +821,9 @@ function onFrame(host: string, f: ServerFrame) {
           chans = { ...chans, [m.channelId]: { ...ch, items } };
         }
         const typing = s.typing[m.channelId]?.[m.authorId] ? { ...s.typing, [m.channelId]: omit(s.typing[m.channelId], m.authorId) } : s.typing;
-        return { chans, typing, lastIds: { ...s.lastIds, [m.channelId]: m.id } };
+        // özel mesajda sohbeti listenin en üstüne taşımak için son mesajı işaretle
+        const communities = c?.dm ? { ...s.communities, [c.id]: { ...s.communities[c.id], dmLast: m.id } } : s.communities;
+        return { chans, typing, communities, lastIds: { ...s.lastIds, [m.channelId]: m.id } };
       });
       if (m.authorId === st.me.id) {
         markRead(m.channelId);
@@ -613,7 +833,7 @@ function onFrame(host: string, f: ServerFrame) {
         markRead(m.channelId);
         return;
       }
-      const mentioned = mentionsMe(m, c);
+      const mentioned = !!c?.dm || mentionsMe(m, c);
       if (mentioned) set((s) => ({ mentions: { ...s.mentions, [m.channelId]: (s.mentions[m.channelId] || 0) + 1 } }));
       updateBadge();
       notifyFor(m, c, mentioned);
@@ -745,18 +965,24 @@ function notifyFor(m: Message, c: Community | undefined, mentioned: boolean) {
   const ch = c?.channels.find((x) => x.id === m.channelId);
   const author = c?.members.find((x) => x.userId === m.authorId)?.nick || S().users[m.authorId]?.name || 'Biri';
   if (m.kind === 'join') return;
+  if (c?.dm && settings.blocked.includes(c.dm)) return;
   const body = !settings.notifyPreview ? 'Yeni mesaj' : plainText(m.content, c) || (m.attachments?.length ? `📎 ${m.attachments.length} dosya` : '');
   if (settings.sounds) playSound(mentioned ? 'mention' : 'message');
-  window.kovan.notify({ title: `${author} (#${ch?.name || 'kanal'}, ${c?.name || ''})`, body, tag: m.channelId, silent: true });
+  const title = c?.dm ? `${author} (özel mesaj)` : `${author} (#${ch?.name || 'kanal'}, ${c?.name || ''})`;
+  window.kovan.notify({ title, body, tag: m.channelId, silent: true });
 }
 
 function updateBadge() {
-  const total = Object.values(S().mentions).reduce((a, b) => a + b, 0);
+  const total = Object.values(S().mentions).reduce((a, b) => a + b, 0) + pendingIn(S().friends);
   window.kovan.badge(total);
 }
 
 // ---------------------------------------------------------------------------
 // gezinme
+export function setHomeTab(tab: State['homeTab']) {
+  set({ homeTab: tab, current: 'home' });
+}
+
 export function selectCommunity(cid: ID | 'home') {
   set({ current: cid, editing: null });
   if (cid !== 'home') {
@@ -1003,9 +1229,12 @@ export interface InviteHostOption {
 
 /** Davette kullanılabilecek adresler; ilki önerilen */
 export function inviteHostOptions(cid: ID): InviteHostOption[] {
+  const host = S().commHost[cid];
+  return host ? hostOptions(host) : [];
+}
+
+export function hostOptions(host: string): InviteHostOption[] {
   const s = S();
-  const host = s.commHost[cid];
-  if (!host) return [];
   if (host !== localHost()) return [{ host, label: 'Topluluğun sunucusu' }];
   const port = s.info?.hubPort || 47820;
   const out: InviteHostOption[] = [];
@@ -1054,6 +1283,13 @@ async function joinShort(host: string | null, code: string): Promise<ID> {
     saveHosts();
     await waitOnline(h);
     const r = await conn.request<{ data: ID }>({ t: 'join', code });
+    if (r.data.startsWith('@')) {
+      // arkadaş kodu: arkadaş eklendi, sohbeti aç
+      const uid = r.data.slice(1);
+      toast(`${S().users[uid]?.name || 'Kişi'} artık arkadaşın.`, 'ok');
+      openDm(uid);
+      return r.data;
+    }
     selectCommunity(r.data);
     return r.data;
   };

@@ -2,7 +2,7 @@ import React, { memo, useMemo } from 'react';
 import { Clock, Shield } from 'lucide-react';
 import { useStore, openMenu, openModal } from '../lib/store';
 import { Avatar } from './Common';
-import { NameText, ACTIVITY_ICON } from './profile/ProfileCard';
+import { NameText, ACTIVITY_ICON, ProfileCard } from './profile/ProfileCard';
 import { activeCustom } from '../../shared/profile';
 import { cx, displayName, roleColor, memberRoles } from '../lib/util';
 import { can, isTimedOut, Perm, type Community, type Status, type UserPublic } from '../../shared/protocol';
@@ -114,6 +114,18 @@ export function MemberList({ c }: { c: Community }) {
           ))}
         </div>
       ))}
+    </aside>
+  );
+}
+
+/** Özel sohbette sağdaki karşı taraf profili (üye listesi yerine) */
+export function DmProfile({ c }: { c: Community }) {
+  const uid = c.dm!;
+  const user = useStore((s) => s.users[uid] || c.users[uid]);
+  const status = useStore((s) => s.presence[uid]) || 'offline';
+  return (
+    <aside className="members dm-profile scroll-thin">
+      <ProfileCard uid={uid} user={user} status={status} c={c} variant="popout" />
     </aside>
   );
 }

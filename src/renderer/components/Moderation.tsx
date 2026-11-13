@@ -1,7 +1,7 @@
 // Üye yönetimi menüsü, moderasyon pencereleri ve bildirim ayarları
 import React, { useState } from 'react';
 import { X, BellOff, Bell, AtSign } from 'lucide-react';
-import { useStore, cmd, openModal, toast, updateSettings, setNotifyOverride, toggleMuted, type MenuItem, type NotifyLevel } from '../lib/store';
+import { useStore, cmd, openModal, toast, updateSettings, setNotifyOverride, toggleMuted, openDm, addFriend, acceptFriend, removeFriend, confirmDialog, type MenuItem, type NotifyLevel } from '../lib/store';
 import { Modal } from './Modals';
 import { Avatar, Toggle } from './Common';
 import { cx, copyText, displayName, fmtTime } from '../lib/util';
@@ -17,6 +17,14 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
   const items: MenuItem[] = [];
   if (!opts.noProfile) items.push({ label: 'Profil', onClick: () => useStore.setState({ popout: { uid, cid: c.id, x: opts.at?.x ?? 400, y: opts.at?.y ?? 200 } }) });
   const self = uid === me;
+  if (!self && !st.users[uid]?.bot && uid !== 'kovan-asistan') {
+    const fr = st.friends[uid];
+    items.push({ label: 'Mesaj gönder', onClick: () => openDm(uid) });
+    if (!fr) items.push({ label: 'Arkadaş ekle', onClick: () => addFriend(uid) });
+    else if (fr.state === 'in') items.push({ label: 'Arkadaşlık isteğini kabul et', onClick: () => acceptFriend(uid) });
+    else if (fr.state === 'out') items.push({ label: 'İsteği geri çek', onClick: () => removeFriend(uid) });
+    else items.push({ label: 'Arkadaşlıktan çıkar', danger: true, onClick: () => confirmDialog(`${name} arkadaşlıktan çıkarılsın mı?`, 'Ortak topluluğunuz varsa yine yazışabilirsiniz.', () => removeFriend(uid), 'Çıkar') });
+  }
   if ((self && (can(c, me, Perm.CHANGE_NICKNAME) || can(c, me, Perm.MANAGE_NICKNAMES))) || (!self && (can(c, me, Perm.MANAGE_NICKNAMES) || can(c, me, Perm.MANAGE_ROLES)) && outranks(c, me, uid)))
     items.push({ label: self ? 'Takma adını değiştir' : 'Takma adı değiştir', onClick: () => openModal({ type: 'moderate', cid: c.id, uid, action: 'nick' }) });
   if (can(c, me, Perm.MANAGE_ROLES) && m) {

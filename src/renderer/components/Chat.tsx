@@ -3,14 +3,15 @@ import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
   ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Settings, Bell, BellOff, EyeOff, Globe,
-  Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Dices, Coins, Braces,
+  Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Dices, Coins, Braces, UserRound,
 } from 'lucide-react';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
   openModal, confirmDialog, retryMessage, discardMessage, markRead, uploadFile, hostHttp, toast, updateSettings, request, jumpToMessage,
-  selectChannel, jumpToPresent, plainText, toggleMuted,
+  selectChannel, jumpToPresent, plainText, toggleMuted, addFriend, acceptFriend,
 } from '../lib/store';
-import { Avatar, Tooltip } from './Common';
+import { activeCustom } from '../../shared/profile';
+import { Avatar, Tooltip, STATUS_LABEL } from './Common';
 import { NameText } from './profile/ProfileCard';
 import { EmojiPicker } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
@@ -439,13 +440,14 @@ function DayDivider({ ts }: { ts: number }) {
 }
 
 // ---------------------------------------------------------------------------
-function ChannelStart({ ch, loading, more }: { ch: Channel; loading: boolean; more: boolean }) {
+function ChannelStart({ c, ch, loading, more }: { c?: Community; ch: Channel; loading: boolean; more: boolean }) {
   if (more || loading)
     return (
       <div className="list-loading">
         <LoaderCircle size={20} className="spin" />
       </div>
     );
+  if (c?.dm) return <DmStart c={c} />;
   return (
     <div className="ch-start">
       <div className="ch-start-icon">{ch.type === 'announce' ? <Megaphone size={36} /> : ch.type === 'site' ? (ch.icon ? <img src={ch.icon} alt="" width={40} height={40} className="ch-site-icon" /> : <Globe size={38} />) : <Hash size={40} />}</div>
@@ -453,6 +455,36 @@ function ChannelStart({ ch, loading, more }: { ch: Channel; loading: boolean; mo
       <p>
         {ch.type === 'site' ? 'Odanın sohbeti burada; sohbetteki site bağlantıları doğrudan odada açılır.' : `Bu, #${ch.name} kanalının başlangıcı.`} {ch.topic}
       </p>
+    </div>
+  );
+}
+
+function DmStart({ c }: { c: Community }) {
+  const uid = c.dm!;
+  const user = useStore((s) => s.users[uid] || c.users[uid]);
+  const fr = useStore((s) => s.friends[uid]);
+  return (
+    <div className="ch-start dm-start">
+      <Avatar user={user} size={80} />
+      <h1>{user?.name || c.name}</h1>
+      <p>
+        <b>{user?.name || c.name}</b> ile özel mesajlaşmanın başlangıcı. Burada yazdıklarınızı yalnızca ikiniz görürsünüz.
+      </p>
+      <div className="btn-row">
+        {fr?.state === 'ok' ? (
+          <span className="fr-tag">Arkadaşsınız</span>
+        ) : fr?.state === 'in' ? (
+          <button className="btn sm primary" onClick={() => acceptFriend(uid)}>
+            Arkadaşlık isteğini kabul et
+          </button>
+        ) : fr?.state === 'out' ? (
+          <span className="fr-tag">Arkadaşlık isteği gönderildi</span>
+        ) : (
+          <button className="btn sm primary" onClick={() => addFriend(uid)}>
+            Arkadaş ekle
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -533,7 +565,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
         increaseViewportBy={{ top: 600, bottom: 400 }}
         computeItemKey={(_i, m) => m.nonce || m.id}
         components={{
-          Header: () => <ChannelStart ch={ch} loading={st.loading} more={st.more} />,
+          Header: () => <ChannelStart c={c} ch={ch} loading={st.loading} more={st.more} />,
           Footer: () => <div style={{ height: 18 }} />,
         }}
         itemContent={(index, m) => {
@@ -1089,7 +1121,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
           value={value}
           rows={1}
           spellCheck={false}
-          placeholder={ch.type === 'site' ? `${ch.name} odasına mesaj gönder` : `#${ch.name} kanalına mesaj gönder`}
+          placeholder={c.dm ? `@${useStore.getState().users[c.dm]?.name || ch.name} kişisine mesaj gönder` : ch.type === 'site' ? `${ch.name} odasına mesaj gönder` : `#${ch.name} kanalına mesaj gönder`}
           onChange={(e) => {
             setValue(e.target.value);
             computeSuggest(e.target.value, e.target.selectionStart);
@@ -1201,6 +1233,46 @@ function PinsPopover({ c, ch, onClose }: { c: Community; ch: Channel; onClose: (
   );
 }
 
+/** Özel sohbet başlığı: karşı tarafın avatarı, adı ve durumu */
+function DmHeader({ c, ch, pins, setPins }: { c: Community; ch: Channel; pins: boolean; setPins: React.Dispatch<React.SetStateAction<boolean>> }) {
+  const uid = c.dm!;
+  const user = useStore((s) => s.users[uid] || c.users[uid]);
+  const status = useStore((s) => s.presence[uid]) || 'offline';
+  const membersOpen = useStore((s) => s.settings.membersOpen);
+  const chMuted = useStore((s) => s.settings.mutedIds.includes(c.id));
+  const custom = activeCustom(user?.profile);
+  const pop = (e: React.MouseEvent) => useStore.setState({ popout: { uid, cid: c.id, x: e.clientX, y: e.clientY + 16 } });
+  return (
+    <div className="chat-header dm-head">
+      <span className="dm-head-av" onClick={pop}>
+        <Avatar user={user} size={28} status={status} plain />
+      </span>
+      <h2 className="dm-head-name" onClick={pop}>
+        {user?.name || c.name}
+      </h2>
+      <span className="dm-head-status">{custom?.text ? `${custom.emoji ? custom.emoji + ' ' : ''}${custom.text}` : STATUS_LABEL[status]}</span>
+      <div className="head-actions">
+        <Tooltip text={chMuted ? 'Bildirimleri aç' : 'Sessize al'} side="bottom">
+          <button className={cx('icon-btn', chMuted && 'active')} onClick={() => toggleMuted(c.id)} aria-label="Bildirimler">
+            {chMuted ? <BellOff size={19} /> : <Bell size={19} />}
+          </button>
+        </Tooltip>
+        <Tooltip text="Sabitlenmiş mesajlar" side="bottom">
+          <button className={cx('icon-btn', pins && 'active')} onClick={() => setPins((x) => !x)} aria-label="Sabitlenmiş mesajlar">
+            <Pin size={19} />
+          </button>
+        </Tooltip>
+        <Tooltip text={membersOpen ? 'Profili gizle' : 'Profili göster'} side="bottom">
+          <button className={cx('icon-btn', membersOpen && 'active')} onClick={() => updateSettings({ membersOpen: !membersOpen })} aria-label="Profil">
+            <UserRound size={19} />
+          </button>
+        </Tooltip>
+        {pins && <PinsPopover c={c} ch={ch} onClose={() => setPins(false)} />}
+      </div>
+    </div>
+  );
+}
+
 export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const membersOpen = useStore((s) => s.settings.membersOpen);
   const chMuted = useStore((s) => s.settings.mutedIds.includes(ch.id));
@@ -1208,6 +1280,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const editCh = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const [pins, setPins] = useState(false);
   const [q, setQ] = useState('');
+  if (c.dm) return <DmHeader c={c} ch={ch} pins={pins} setPins={setPins} />;
   return (
     <div className="chat-header">
       <span className="ch-head-icon">{ch.type === 'announce' ? <Megaphone size={22} /> : <Hash size={22} />}</span>

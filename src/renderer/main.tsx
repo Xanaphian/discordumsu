@@ -8,6 +8,7 @@ import './styles/kovan.css';
 import './styles/profile.css';
 import './styles/rooms.css';
 import './styles/destan.css';
+import './styles/social.css';
 
 // Yazı tipleri yüklenmeden çizersek mesaj yükseklikleri sonradan değişir ve liste en altta kalmaz.
 const fontsReady = Promise.race([

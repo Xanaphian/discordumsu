@@ -5,7 +5,7 @@ import { TitleBar } from './components/TitleBar';
 import { ServerRail } from './components/ServerRail';
 import { Sidebar } from './components/Sidebar';
 import { ChatView, PickerHost } from './components/Chat';
-import { MemberList } from './components/Members';
+import { MemberList, DmProfile } from './components/Members';
 import { Modals } from './components/Modals';
 import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
 import { HomeView, Onboarding } from './components/Views';
@@ -115,6 +115,13 @@ function Main() {
           <p>Soldan bir kanal oluşturabilir ya da bir ses kanalına katılabilirsin.</p>
         </div>
       </section>
+    );
+  if (c.dm)
+    return (
+      <>
+        <ChatView c={c} ch={ch} />
+        {membersOpen && <DmProfile c={c} />}
+      </>
     );
   return (
     <>
