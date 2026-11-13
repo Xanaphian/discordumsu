@@ -15,6 +15,7 @@ import { can, Perm, type Role, type Community } from '../../shared/protocol';
 export const close = () => openModal(null);
 // Sohbet / Gizlilik / Gelişmiş sekmeleri ayrı dosyada (MoreSettings.tsx)
 import { ChatTab, PrivacyTab, AdvancedTab, NotifyExtras } from './MoreSettings';
+import { StreamerTab } from './YayinciModu';
 
 export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: string; label: string; group?: string; danger?: boolean }[]; tab: string; setTab: (t: string) => void; children: React.ReactNode; footer?: React.ReactNode }) {
   useEffect(() => {
@@ -333,6 +334,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
     { id: 'activity', label: 'Etkinlik', group: 'Kullanıcı Ayarları' },
     { id: 'connection', label: 'Bağlantı', group: 'Kullanıcı Ayarları' },
     { id: 'privacy', label: 'Gizlilik ve Güvenlik', group: 'Kullanıcı Ayarları' },
+    { id: 'streamer', label: 'Yayıncı modu', group: 'Uygulama Ayarları' },
     { id: 'appearance', label: 'Görünüm', group: 'Uygulama Ayarları' },
     { id: 'notifications', label: 'Bildirimler', group: 'Uygulama Ayarları' },
     { id: 'voice', label: 'Ses ve Görüntü', group: 'Uygulama Ayarları' },
@@ -367,6 +369,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       {tab === 'updates' && <UpdatesTab />}
       {tab === 'chat' && <ChatTab />}
       {tab === 'privacy' && <PrivacyTab />}
+      {tab === 'streamer' && <StreamerTab />}
       {tab === 'advanced' && <AdvancedTab />}
     </Shell>
   );

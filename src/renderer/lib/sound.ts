@@ -15,7 +15,11 @@ const TONES: Record<Kind, [number, number, number][]> = {
   ring: [[659, 0, 0.16], [784, 0.17, 0.16], [659, 0.5, 0.16], [784, 0.67, 0.16]],
 };
 
+/** yayıncı modu ya da ayrı pencere sesleri susturabilir */
+export const soundGate = { muted: false };
+
 export function playSound(kind: Kind, volume = 0.12) {
+  if (soundGate.muted) return;
   try {
     ctx ||= new AudioContext();
     if (ctx.state === 'suspended') ctx.resume();

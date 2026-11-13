@@ -26,6 +26,8 @@ import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
 import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles, memberOf } from '../lib/util';
 import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
 import { can, canIn, channelPerms, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
+import { LinkPreviews } from './BaglantiOnizleme';
+import { PopoutButton } from './AyriPencere';
 
 const BASE = 1_000_000;
 const GROUP_MS = 7 * 60 * 1000;
@@ -427,6 +429,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 ))}
               </div>
             )}
+            {!isEditing && <LinkPreviews content={m.content} />}
             <Reactions m={m} me={me} />
             {m.failed && (
               <div className="msg-failed">
@@ -1423,6 +1426,7 @@ function DmHeader({ c, ch, pins, setPins }: { c: Community; ch: Channel; pins: b
             <Pin size={19} />
           </button>
         </Tooltip>
+        <PopoutButton c={c} ch={ch} />
         <Tooltip text={membersOpen ? 'Profili gizle' : 'Profili göster'} side="bottom">
           <button className={cx('icon-btn', membersOpen && 'active')} onClick={() => updateSettings({ membersOpen: !membersOpen })} aria-label="Profil">
             <UserRound size={19} />
@@ -1487,6 +1491,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
             <Bookmark size={19} />
           </button>
         </Tooltip>
+        <PopoutButton c={c} ch={ch} />
         <Tooltip text={membersOpen ? 'Üye listesini gizle' : 'Üye listesini göster'} side="bottom">
           <button className={cx('icon-btn', membersOpen && 'active')} onClick={() => updateSettings({ membersOpen: !membersOpen })} aria-label="Üye listesi">
             <Users size={19} />

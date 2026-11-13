@@ -1,6 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
+import { App, PopoutRoot } from './App';
+import { IS_POPOUT } from './lib/popout';
+import './lib/yayinci';
 import { boot } from './lib/store';
 import './lib/activity';
 import './styles/app.css';
@@ -19,6 +21,7 @@ import './styles/performans.css';
 import './styles/duzeltmeler.css';
 import './styles/medya.css';
 import './styles/farklar.css';
+import './styles/root-ozellikleri.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
 const booting = boot().catch((e) => console.error('Açılış hatası', e));
@@ -31,6 +34,6 @@ const fontsReady = Promise.race([
 ]).catch(() => {});
 
 fontsReady.then(() => {
-  createRoot(document.getElementById('root')!).render(<App />);
+  createRoot(document.getElementById('root')!).render(IS_POPOUT ? <PopoutRoot /> : <App />);
   return booting;
 });

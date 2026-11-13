@@ -3,8 +3,9 @@ import {
   type AvatarLook,
   Attachment, ChannelType, ClientFrame, Community, ID, Message, ServerFrame, Status, UserPublic, VoiceMember,
   decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite, Perm,
-  type AuditEntry, type Ban, type DmInfo, type FriendInfo,
+  type AuditEntry, type Ban, type DmInfo, type FriendInfo, type DmPrivacy,
 } from '../../shared/protocol';
+import { IS_POPOUT } from './popout';
 import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
 import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
@@ -103,6 +104,17 @@ export interface Settings {
   customGames: { exe: string; name: string }[];
   /** gösterilmeyecek oyunlar (görünen ad) */
   hiddenGames: string[];
+  // v1.26: yayıncı modu, özel mesaj gizliliği ve sabitleme
+  /** off = kapalı, auto = OBS açılınca, on = hep açık */
+  streamerMode: 'off' | 'auto' | 'on';
+  streamerHideNotifs: boolean;
+  streamerHideInvites: boolean;
+  streamerHidePersonal: boolean;
+  streamerMuteSounds: boolean;
+  /** kimler yeni özel mesaj yazabilir */
+  dmPrivacy: DmPrivacy;
+  /** listenin üstüne sabitlenen özel mesajlar (sanal topluluk kimliği) */
+  pinnedDms: ID[];
   /** görünüm göçü: 2 = Destan teması varsayılan oldu (v1.7), 3 = site altını (v1.14), 4 = site temaları (v1.16) */
   lookRev: number;
 }
@@ -193,6 +205,13 @@ export const DEFAULT_SETTINGS: Settings = {
   actRecent: true,
   customGames: [],
   hiddenGames: [],
+  streamerMode: 'auto',
+  streamerHideNotifs: true,
+  streamerHideInvites: true,
+  streamerHidePersonal: true,
+  streamerMuteSounds: false,
+  dmPrivacy: 'all',
+  pinnedDms: [],
   lookRev: 4,
 };
 
@@ -227,7 +246,8 @@ export type Modal =
   | { type: 'screenShare' }
   | { type: 'search'; cid: ID; q?: string }
   | { type: 'profile'; uid: ID; cid?: ID }
-  | { type: 'customStatus' };
+  | { type: 'customStatus' }
+  | { type: 'selfRoles'; cid: ID };
 
 export interface MenuItem {
   label?: string;
@@ -508,8 +528,11 @@ export async function boot() {
       }
     }, 10 * 60 * 1000);
   };
-  for (const ev of ['mousemove', 'keydown', 'mousedown']) window.addEventListener(ev, debounce(activity, 1000), { passive: true });
-  activity();
+  // ayrı pencere boşta durumunu yönetmez (ana pencere yönetir)
+  if (!IS_POPOUT) {
+    for (const ev of ['mousemove', 'keydown', 'mousedown']) window.addEventListener(ev, debounce(activity, 1000), { passive: true });
+    activity();
+  }
 
   if (S().onboarded) connectAll(cfg.hosts || []);
   const pending = await window.kovan.pendingInvite();
@@ -729,7 +752,14 @@ export async function openDm(uid: ID) {
   }
 }
 
+/** Özel mesajı listenin üstüne sabitler / sabitlemeyi kaldırır (v1.26) */
+export function togglePinDm(cid: ID) {
+  const list = S().settings.pinnedDms;
+  updateSettings({ pinnedDms: list.includes(cid) ? list.filter((x) => x !== cid) : [...list, cid] });
+}
+
 export function closeDm(cid: ID) {
+  if (S().settings.pinnedDms.includes(cid)) togglePinDm(cid);
   // listeden gizler; yeni mesaj gelirse yeniden görünür
   set((s) => ({ current: s.current === cid ? 'home' : s.current }));
   const ch = S().chanByComm[cid];
@@ -808,6 +838,8 @@ function onFrame(host: string, f: ServerFrame) {
       }));
       siteHooks.onFrame?.(f);
       actHooks.onReady?.(host, f);
+      // özel mesaj gizliliği her bağlantıda bildirilir (eski sunucular yok sayar)
+      conns.get(host)?.send({ t: 'privacy', dms: S().settings.dmPrivacy });
       // bu sunucudan gelen eski toplulukları temizle
       const dms = f.dms || [];
       const ids = new Set([...f.communities.map((c) => c.id), ...dms.map((d) => dmCid(d.peer.id))]);

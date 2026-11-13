@@ -16,6 +16,7 @@ import { Toggle } from './Common';
 import { joinVoice } from '../lib/voice';
 import { ScreenPickerModal } from './Media';
 import { ProfileModal, CustomStatusModal } from './profile/ProfileModal';
+import { SelfRolesModal } from './RolSec';
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
   useEffect(() => {
@@ -536,5 +537,7 @@ export function Modals() {
       return <ProfileModal uid={m.uid} cid={m.cid} />;
     case 'customStatus':
       return <CustomStatusModal />;
+    case 'selfRoles':
+      return <SelfRolesModal cid={m.cid} />;
   }
 }

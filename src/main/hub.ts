@@ -12,7 +12,7 @@ import {
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
   hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
-  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo,
+  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN,
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
@@ -157,6 +157,8 @@ interface HubData {
   friendCodes?: Record<string, ID>;
   /** merkezi sunucuya taşınan topluluklar: topluluk -> sunucu adresi */
   moved?: Record<ID, string>;
+  /** özel mesaj gizliliği: yalnız arkadaşlarından yeni mesaj alan kullanıcılar */
+  dmFriendsOnly?: Record<ID, 1>;
 }
 
 /** Bir topluluğun taşınma paketi (yerel kovan → merkezi sunucu) */
@@ -978,7 +980,16 @@ export class Hub {
   }
 
   private canMessage(a: ID, b: ID) {
-    return !!this.data.friends?.[dmChannelId(a, b)]?.ok || this.shareCommunity(a, b);
+    return !this.dmBlockReason(a, b);
+  }
+
+  /** a, b'ye özel mesaj yazamıyorsa nedeni (arkadaşlık, ortak topluluk ve b'nin gizlilik ayarı) */
+  private dmBlockReason(a: ID, b: ID): string | null {
+    const friends = !!this.data.friends?.[dmChannelId(a, b)]?.ok;
+    if (friends) return null;
+    if (this.data.dmFriendsOnly?.[b]) return 'Bu kişi yalnızca arkadaşlarından özel mesaj alıyor. Önce arkadaşlık isteği gönder.';
+    if (!this.shareCommunity(a, b)) return 'Bu kişiyle ortak bir topluluğun olmadığı için mesajlaşamazsın.';
+    return null;
   }
 
   /** Arkadaşları, istek bekleyenleri ve DM yazışanları (varlık/profil güncellemeleri için) */
@@ -1090,6 +1101,15 @@ export class Hub {
       case 'friend.code':
         this.send(s, { t: 'ok', rid: f.rid, data: this.friendCodeOf(uid, !!f.reset) });
         return true;
+      case 'privacy': {
+        const on = f.dms === 'friends';
+        if (on === !!this.data.dmFriendsOnly?.[uid]) return true;
+        this.data.dmFriendsOnly ||= {};
+        if (on) this.data.dmFriendsOnly[uid] = 1;
+        else delete this.data.dmFriendsOnly[uid];
+        this.saveHub();
+        return true;
+      }
     }
     return false;
   }
@@ -1120,7 +1140,9 @@ export class Hub {
     if (f.t === 'dm.open') {
       const ch = dmChannelId(uid, String(f.to || ''));
       if (!this.dmAllowed(uid, ch)) {
-        this.send(s, { t: 'err', msg: 'Bu kişiyle ortak bir topluluğun olmadığı için mesajlaşamazsın.', rid: f.rid });
+        const to = String(f.to || '');
+        const why = this.data.users[to] && to !== uid ? this.dmBlockReason(uid, to) : null;
+        this.send(s, { t: 'err', msg: why || 'Bu kişiyle ortak bir topluluğun olmadığı için mesajlaşamazsın.', rid: f.rid });
         return true;
       }
       this.dmTouch(ch, '');
@@ -1138,8 +1160,10 @@ export class Hub {
     const L = this.log(ch);
     switch (f.t) {
       case 'send': {
-        if (!this.canMessage(uid, peer))
-          return this.send(s, { t: 'err', msg: 'Bu kişiyle artık ortak bir topluluğunuz yok ve arkadaş değilsiniz, mesaj gönderemezsin.', nonce: f.nonce }), true;
+        if (!this.canMessage(uid, peer)) {
+          const why = this.data.dmFriendsOnly?.[peer] ? this.dmBlockReason(uid, peer)! : 'Bu kişiyle artık ortak bir topluluğunuz yok ve arkadaş değilsiniz, mesaj gönderemezsin.';
+          return this.send(s, { t: 'err', msg: why, nonce: f.nonce }), true;
+        }
         if (Date.now() - (s.lastSend[ch] || 0) < 80) return this.send(s, { t: 'err', msg: 'Biraz yavaş yaz.', nonce: f.nonce }), true;
         s.lastSend[ch] = Date.now();
         const content = clampStr(f.content, MAX_CONTENT).trim();
@@ -1701,6 +1725,7 @@ export class Hub {
           position: 1,
         };
         if (f.mentionable) r.mentionable = true;
+        if (f.selfAssign && !(r.perms & SELF_ROLE_FORBIDDEN)) r.selfAssign = true;
         const icon = clampStr(f.icon, 16).trim();
         if (icon) r.icon = icon;
         c.roles.push(r);
@@ -1741,6 +1766,15 @@ export class Hub {
           else delete r.icon;
           changed.push('rozet');
         }
+        if (f.selfAssign !== undefined && r.id !== c.id) {
+          if (f.selfAssign && r.perms & SELF_ROLE_FORBIDDEN)
+            return this.send(s, { t: 'err', msg: 'Yönetim yetkisi olan bir rolü üyeler kendisi alamaz. Önce bu rolden yönetim yetkilerini kaldır.' });
+          if (f.selfAssign) r.selfAssign = true;
+          else delete r.selfAssign;
+          changed.push(f.selfAssign ? 'üyeler kendisi alabilir' : 'üyeler kendisi alamaz');
+        }
+        // yönetim yetkisi verilen rol artık kendine verilemez
+        if (r.selfAssign && r.perms & SELF_ROLE_FORBIDDEN) delete r.selfAssign;
         if (changed.length) this.audit(c, uid, 'role.update', r.name, changed.join(', '));
         this.pushComm(c);
         return;
@@ -1773,6 +1807,25 @@ export class Hub {
         this.normalizeRoles(c);
         this.audit(c, uid, 'role.delete', r.name);
         this.pushComm(c);
+        return;
+      }
+      case 'role.self': {
+        const c = this.comms.get(f.cid);
+        const r = c?.roles.find((x) => x.id === f.id);
+        const m = c?.members.find((x) => x.userId === uid);
+        const fail = (msg: string) => this.send(s, { t: 'err', msg, rid: f.rid });
+        if (!c || !r || !m || r.id === c.id) return fail('Rol bulunamadı.');
+        if (!r.selfAssign || r.perms & SELF_ROLE_FORBIDDEN) return fail('Bu rolü kendine veremezsin.');
+        const has = m.roles.includes(r.id);
+        if (f.on && !has) m.roles.push(r.id);
+        else if (!f.on && has) m.roles = m.roles.filter((x) => x !== r.id);
+        else {
+          if (f.rid) this.send(s, { t: 'ok', rid: f.rid });
+          return;
+        }
+        this.audit(c, uid, 'member.selfrole', this.userName(c, uid), `${f.on ? '+' : '-'} ${r.name}`);
+        this.pushComm(c);
+        if (f.rid) this.send(s, { t: 'ok', rid: f.rid });
         return;
       }
       case 'member.update': {
