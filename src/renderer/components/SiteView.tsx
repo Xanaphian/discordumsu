@@ -147,7 +147,6 @@ export function SiteView({ c, ch }: { c: Community; ch: Channel }) {
   const [nav, setNav] = useState({ back: false, fwd: false });
   const [err, setErr] = useState<{ code: number; desc: string; url: string } | null>(null);
   const [addr, setAddr] = useState<string | null>(null);
-  const [chatOpen, setChatOpen] = useState(loadChatOpen);
   const follow = useSite((s) => s.follow[ch.id]);
   const viewers = useSite((s) => s.viewers[ch.id]);
   const pending = useSite((s) => s.pending[ch.id]);
@@ -287,39 +286,6 @@ export function SiteView({ c, ch }: { c: Community; ch: Channel }) {
     if (norm(leader.url) !== norm(curUrl.current)) go(leader.url, true);
   }, [follow, leader?.url]);
 
-  const toggleChat = () => {
-    setChatOpen((v) => {
-      try {
-        localStorage.setItem('kovan.siteChat', v ? '0' : '1');
-      } catch {
-        /* */
-      }
-      return !v;
-    });
-  };
-
-  const share = () => {
-    const u = curUrl.current || url;
-    if (!u) return;
-    const label = pageLabel(u, title).replace(/[[\]]/g, '');
-    sendMessage(ch.id, `📄 [${label}](${u})`);
-    if (!chatOpen) toggleChat();
-  };
-
-  const submitAddr = () => {
-    const raw = (addr || '').trim();
-    setAddr(null);
-    if (!raw) return;
-    const target = raw.startsWith('/') ? origin + raw : cleanSiteUrl(raw);
-    if (!target) return toast('Geçersiz adres.', 'err');
-    go(target);
-  };
-
-  const quickMenu = (e: React.MouseEvent) => {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openMenu({ clientX: r.left, clientY: r.bottom + 6 }, XANAPHIAN_LINKS.map((l) => ({ label: l.label, onClick: () => go(origin + l.path) })));
-  };
-
   const viewerMenu = (e: React.MouseEvent, uid: ID, vurl: string) => {
     const following = follow === uid;
     openMenu(e, [
@@ -330,84 +296,11 @@ export function SiteView({ c, ch }: { c: Community; ch: Channel }) {
     ]);
   };
 
-  const p = prettyUrl(url || home);
   const manage = can(c, me, Perm.MANAGE_CHANNELS);
 
   return (
     <section className="site-view">
       <div className="site-main">
-        <div className="chat-header site-header">
-          <div className="site-nav">
-            <Tooltip text="Geri" side="bottom">
-              <button className="icon-btn" disabled={!nav.back} onClick={() => (stopFollow(), wv.current?.goBack())} aria-label="Geri">
-                <ArrowLeft size={18} />
-              </button>
-            </Tooltip>
-            <Tooltip text="İleri" side="bottom">
-              <button className="icon-btn" disabled={!nav.fwd} onClick={() => (stopFollow(), wv.current?.goForward())} aria-label="İleri">
-                <ArrowRight size={18} />
-              </button>
-            </Tooltip>
-            <Tooltip text={loading ? 'Durdur' : 'Yenile'} side="bottom">
-              <button className="icon-btn" onClick={() => (loading ? wv.current?.stop() : (setErr(null), wv.current?.reload()))} aria-label={loading ? 'Durdur' : 'Yenile'}>
-                {loading ? <X size={18} /> : <RotateCw size={17} />}
-              </button>
-            </Tooltip>
-            <Tooltip text="Odanın ana sayfası" side="bottom">
-              <button className="icon-btn" onClick={() => go(home)} aria-label="Ana sayfa">
-                <Home size={17} />
-              </button>
-            </Tooltip>
-          </div>
-          <div className={cx('site-addr', loading && 'loading')} onClick={() => addr === null && setAddr(url || home)}>
-            {addr === null ? (
-              <>
-                {loading ? <LoaderCircle size={14} className="spin" /> : <Globe size={14} />}
-                <span className="site-host">{p.host}</span>
-                <span className="site-path">{p.path}</span>
-              </>
-            ) : (
-              <input
-                autoFocus
-                value={addr}
-                onChange={(e) => setAddr(e.target.value)}
-                onFocus={(e) => e.target.select()}
-                onBlur={() => setAddr(null)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') submitAddr();
-                  if (e.key === 'Escape') setAddr(null);
-                }}
-              />
-            )}
-          </div>
-          {xana && (
-            <>
-              <ChampSearch onPick={(slug) => go(`${origin}/sampiyon/${slug}`)} />
-              <Tooltip text="Site menüsü" side="bottom">
-                <button className="icon-btn" onClick={quickMenu} aria-label="Site menüsü">
-                  <Compass size={18} />
-                </button>
-              </Tooltip>
-            </>
-          )}
-          <div className="head-actions">
-            <Tooltip text="Bu sayfayı sohbete paylaş" side="bottom">
-              <button className="icon-btn" onClick={share} aria-label="Paylaş">
-                <Share2 size={17} />
-              </button>
-            </Tooltip>
-            <Tooltip text="Tarayıcıda aç" side="bottom">
-              <button className="icon-btn" onClick={() => window.kovan.openExternal(curUrl.current || home)} aria-label="Tarayıcıda aç">
-                <ExternalLink size={17} />
-              </button>
-            </Tooltip>
-            <Tooltip text={chatOpen ? 'Sohbeti gizle' : 'Sohbeti göster'} side="bottom">
-              <button className={cx('icon-btn', chatOpen && 'active')} onClick={toggleChat} aria-label="Sohbet">
-                <MessageSquare size={18} />
-              </button>
-            </Tooltip>
-          </div>
-        </div>
         {leader && (
           <div className="site-follow-bar">
             <Avatar user={users[leader.userId]} size={20} />
@@ -439,49 +332,47 @@ export function SiteView({ c, ch }: { c: Community; ch: Channel }) {
           )}
         </div>
       </div>
-      {chatOpen && (
-        <aside className="site-aside">
-          <div className="site-people">
-            <div className="site-people-head">
-              <span>Odada</span>
-              <b>{others.length + 1}</b>
-              {manage && (
-                <button className="link sm" onClick={() => openModal({ type: 'editChannel', cid: c.id, chId: ch.id })}>
-                  Odayı düzenle
-                </button>
-              )}
+      <aside className="site-aside">
+        <div className="site-people">
+          <div className="site-people-head">
+            <span>Odada</span>
+            <b>{others.length + 1}</b>
+            {manage && (
+              <button className="link sm" onClick={() => openModal({ type: 'editChannel', cid: c.id, chId: ch.id })}>
+                Odayı düzenle
+              </button>
+            )}
+          </div>
+          <div className="site-person me">
+            <Avatar user={users[me]} size={24} />
+            <div className="site-person-text">
+              <b>Sen</b>
+              <span>{pageLabel(url || home, title)}</span>
             </div>
-            <div className="site-person me">
-              <Avatar user={users[me]} size={24} />
+          </div>
+          {others.map((v) => (
+            <div
+              key={v.sessionId}
+              className={cx('site-person', follow === v.userId && 'following')}
+              onClick={(e) => viewerMenu(e, v.userId, v.url)}
+              onContextMenu={(e) => viewerMenu(e, v.userId, v.url)}
+              title="Takip et, sayfasına git"
+            >
+              <Avatar user={users[v.userId]} size={24} />
               <div className="site-person-text">
-                <b>Sen</b>
-                <span>{pageLabel(url || home, title)}</span>
+                <b>{displayName(c, v.userId, users)}</b>
+                <span>{pageLabel(v.url, v.title)}</span>
               </div>
+              {follow === v.userId ? <Eye size={15} className="site-eye on" /> : norm(v.url) === norm(url) ? <span className="site-same">aynı sayfa</span> : null}
             </div>
-            {others.map((v) => (
-              <div
-                key={v.sessionId}
-                className={cx('site-person', follow === v.userId && 'following')}
-                onClick={(e) => viewerMenu(e, v.userId, v.url)}
-                onContextMenu={(e) => viewerMenu(e, v.userId, v.url)}
-                title="Takip et, sayfasına git"
-              >
-                <Avatar user={users[v.userId]} size={24} />
-                <div className="site-person-text">
-                  <b>{displayName(c, v.userId, users)}</b>
-                  <span>{pageLabel(v.url, v.title)}</span>
-                </div>
-                {follow === v.userId ? <Eye size={15} className="site-eye on" /> : norm(v.url) === norm(url) ? <span className="site-same">aynı sayfa</span> : null}
-              </div>
-            ))}
-            {!others.length && <div className="site-alone">Şu an odada yalnızsın. Davet ettiğin arkadaşların buraya girince burada görünür.</div>}
-          </div>
-          <div className="site-chat chat">
-            <MessageList c={c} ch={ch} />
-            <Composer key={ch.id} c={c} ch={ch} />
-          </div>
-        </aside>
-      )}
+          ))}
+          {!others.length && <div className="site-alone">Şu an odada yalnızsın. Davet ettiğin arkadaşların buraya girince burada görünür.</div>}
+        </div>
+        <div className="site-chat chat">
+          <MessageList c={c} ch={ch} />
+          <Composer key={ch.id} c={c} ch={ch} />
+        </div>
+      </aside>
     </section>
   );
 }
