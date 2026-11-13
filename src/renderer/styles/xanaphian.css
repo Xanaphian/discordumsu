@@ -447,3 +447,374 @@ html[data-style] {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
+
+/* ==========================================================================
+   1.15: xanaphian.com bileşenleri birebir
+   Değerler sitenin Gece temasından ölçüldü (getComputedStyle):
+   - paneller köşesiz, üstten ışıklı degrade, beyaz %7 kenar, üst kenar %16
+   - ikincil düğme: zemin altın %9 + gece, 1px altın %52 kenar, 10px köşe, altın %10 hale,
+     yazı 12px 500 büyük harf .16em, renk altın %55 + krem
+   - ana düğme: altın degrade, gece mavisi yazı, 13px 700 .16em, 9px köşe
+   - açılır menü: gece %96, altın %16 kenar, solda 2px altın %42, köşesiz
+   - liste satırı: seçili altın %10 zemin + solda 3px altın
+   - arama kutusu: zemin altın %4 + gece, 1px altın %52 kenar, 12px köşe
+   Diğer Xanaphian temaları (Kor, Buzul...) aynı kalıbı kendi metal rengiyle alır.
+   ========================================================================== */
+[data-style='destan'] {
+  --x-btn-bg: color-mix(in srgb, var(--orn) 9%, var(--bg-app));
+  --x-btn-bg-hi: color-mix(in srgb, var(--orn) 15%, var(--bg-app));
+  --x-btn-line: color-mix(in srgb, var(--orn) 52%, transparent);
+  --x-btn-ink: color-mix(in srgb, var(--orn) 55%, var(--orn-hi));
+  --x-glow: 0 0 6px color-mix(in srgb, var(--orn) 10%, transparent);
+  --x-field: color-mix(in srgb, var(--orn) 4%, var(--bg-app));
+  --x-pop: color-mix(in srgb, var(--bg-app) 96%, transparent);
+  --x-panel: linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 96%, #fff 4%), var(--bg-chat) 320px);
+  --x-panel-line: rgba(255, 255, 255, 0.07);
+  --x-panel-top: rgba(255, 255, 255, 0.16);
+  --x-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 44px -22px rgba(0, 0, 0, 0.95), 0 3px 8px rgba(0, 0, 0, 0.45);
+  --text-2: #c3cddd;
+}
+[data-style='destan'] .app {
+  font-weight: 500;
+}
+
+/* ---- üst çubuk: sitenin üst şeridi ---- */
+[data-style='destan'] .titlebar {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 92%, #fff 3%), var(--bg-chat));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.85);
+}
+
+/* ---- paneller: köşesiz, üstten ışıklı ---- */
+[data-style='destan'] .sidebar,
+[data-style='destan'] .content > *,
+[data-style='destan'] .home-hero,
+[data-style='destan'] .comm-card,
+[data-style='destan'] .tip-card,
+[data-style='destan'] .user-panel,
+[data-style='destan'] .voice-panel,
+[data-style='destan'] .settings {
+  border-radius: 0 !important;
+  border: 1px solid var(--x-panel-line);
+  border-top-color: var(--x-panel-top);
+  box-shadow: var(--x-panel-shadow);
+}
+[data-style='destan'] .sidebar,
+[data-style='destan'] .content > *,
+[data-style='destan'] .tip-card,
+[data-style='destan'] .comm-card,
+[data-style='destan'] .settings {
+  background: var(--x-panel);
+}
+[data-style='destan'] .user-panel,
+[data-style='destan'] .voice-panel {
+  background: color-mix(in srgb, var(--orn) 5%, var(--bg-app));
+  border-color: color-mix(in srgb, var(--orn) 22%, transparent);
+  box-shadow: none;
+}
+[data-style='destan'] .up-me,
+[data-style='destan'] .conn-row {
+  border-radius: 0;
+}
+
+/* ---- açılır pencereler ve menüler: sitenin açılır menüsü ---- */
+[data-style='destan'] .modal,
+[data-style='destan'] .pcard,
+[data-style='destan'] .popover,
+[data-style='destan'] .ctx-menu,
+[data-style='destan'] .emoji-picker,
+[data-style='destan'] .tq,
+[data-style='destan'] .toast {
+  border-radius: 0 !important;
+  border: 1px solid color-mix(in srgb, var(--orn) 22%, transparent);
+  box-shadow: 0 24px 58px -22px rgba(0, 0, 0, 0.95), 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+[data-style='destan'] .modal {
+  background: var(--x-panel);
+  border-top-color: color-mix(in srgb, var(--orn) 40%, transparent);
+}
+[data-style='destan'] .ctx-menu,
+[data-style='destan'] .popover,
+[data-style='destan'] .tq,
+[data-style='destan'] .toast {
+  background: var(--x-pop);
+  backdrop-filter: blur(6px);
+}
+[data-style='destan'] .ctx-menu {
+  border-left: 2px solid color-mix(in srgb, var(--orn) 42%, transparent);
+  padding: 7px 0;
+}
+[data-style='destan'] .ctx-menu button,
+[data-style='destan'] .ctx-menu .ctx-item {
+  border-radius: 0;
+}
+[data-style='destan'] .tip {
+  border-radius: 2px;
+  background: var(--x-pop);
+  border: 1px solid color-mix(in srgb, var(--orn) 22%, transparent);
+  color: var(--text);
+}
+
+/* ---- düğmeler ---- */
+[data-style='destan'] .btn {
+  height: 40px;
+  padding: 0 15px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+}
+[data-style='destan'] .btn.sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  border-radius: 8px;
+}
+[data-style='destan'] .btn.lg {
+  height: 45px;
+  padding: 0 18px;
+  font-size: 12.5px;
+}
+[data-style='destan'] .btn.ghost,
+[data-style='destan'] .btn:not(.primary):not(.success):not(.danger):not(.ghost) {
+  background: var(--x-btn-bg);
+  color: var(--x-btn-ink);
+  border: 1px solid var(--x-btn-line);
+  box-shadow: var(--x-glow);
+}
+[data-style='destan'] .btn.ghost:hover:not(:disabled),
+[data-style='destan'] .btn:not(.primary):not(.success):not(.danger):not(.ghost):hover:not(:disabled) {
+  background: var(--x-btn-bg-hi);
+  color: var(--orn-hi);
+  border-color: color-mix(in srgb, var(--orn) 85%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--orn) 22%, transparent);
+}
+[data-style='destan'] .btn.primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #fff 8%), var(--accent));
+  color: var(--bg-app);
+  border: 0;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none;
+}
+[data-style='destan'] .btn.sm.primary {
+  font-size: 11.5px;
+  border-radius: 8px;
+}
+[data-style='destan'] .btn.primary:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+[data-style='destan'] .btn.danger {
+  background: color-mix(in srgb, var(--red) 14%, var(--bg-app));
+  color: #ffb4b0;
+  border: 1px solid color-mix(in srgb, var(--red) 60%, transparent);
+}
+[data-style='destan'] .btn.danger:hover:not(:disabled) {
+  background: var(--red);
+  color: #fff;
+}
+[data-style='destan'] .btn.success {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #fff 8%), var(--accent));
+  color: var(--bg-app);
+  font-weight: 700;
+}
+[data-style='destan'] .members-roles-btn {
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--x-btn-line);
+  background: var(--x-btn-bg);
+  color: var(--x-btn-ink);
+  box-shadow: var(--x-glow);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+[data-style='destan'] .members-roles-btn:hover {
+  color: var(--orn-hi);
+  border-color: color-mix(in srgb, var(--orn) 85%, transparent);
+}
+/* simge düğmeleri: sitenin altın tonlu simgeleri */
+[data-style='destan'] .icon-btn {
+  color: var(--x-btn-ink);
+  border-radius: 8px;
+}
+[data-style='destan'] .icon-btn:hover,
+[data-style='destan'] .icon-btn.active {
+  color: var(--orn-hi);
+  background: color-mix(in srgb, var(--orn) 12%, transparent);
+}
+
+/* ---- yazı alanları: sitenin arama kutusu ---- */
+[data-style='destan'] .field input:not([type='range']):not([type='color']),
+[data-style='destan'] .field textarea,
+[data-style='destan'] .field select,
+[data-style='destan'] .filter-input,
+[data-style='destan'] .copy-row input,
+[data-style='destan'] .input-icon,
+[data-style='destan'] .search-box input {
+  background: var(--x-field);
+  border: 1px solid color-mix(in srgb, var(--orn) 30%, transparent);
+  border-radius: 10px;
+  color: var(--text);
+}
+[data-style='destan'] .field input:focus,
+[data-style='destan'] .field textarea:focus,
+[data-style='destan'] .field select:focus,
+[data-style='destan'] .copy-row input:focus,
+[data-style='destan'] .input-icon:focus-within,
+[data-style='destan'] .search-box input:focus {
+  border-color: var(--x-btn-line);
+  box-shadow: var(--x-glow);
+}
+[data-style='destan'] .composer-box {
+  border-radius: 12px;
+  background: var(--x-field);
+  border: 1px solid var(--x-btn-line);
+  box-shadow: var(--x-glow);
+}
+[data-style='destan'] .composer-box:focus-within {
+  border-color: color-mix(in srgb, var(--orn) 80%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--orn) 18%, transparent);
+}
+
+/* ---- listeler: seçili satır altın zemin + solda 3px altın ---- */
+[data-style='destan'] .ch-row,
+[data-style='destan'] .sn-item,
+[data-style='destan'] .member {
+  border-radius: 0 !important;
+  box-shadow: inset 3px 0 0 transparent;
+}
+[data-style='destan'] .ch-row:hover,
+[data-style='destan'] .sn-item:hover,
+[data-style='destan'] .member:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+[data-style='destan'] .ch-row.active,
+[data-style='destan'] .ch-row:not(.room).active,
+[data-style='destan'] .ch-row.room.in-voice,
+[data-style='destan'] .sn-item.active,
+[data-style='destan'] .sn-item.on {
+  background: color-mix(in srgb, var(--orn) 10%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--orn) !important;
+  border-color: transparent !important;
+  color: var(--text);
+}
+[data-style='destan'] .ch-row .ch-icon {
+  background: transparent;
+  color: var(--text-3);
+}
+[data-style='destan'] .ch-row.active .ch-icon {
+  color: var(--orn);
+}
+
+/* ---- sekmeler: sitenin "Oynanma / Kazanma" sekmeleri ---- */
+[data-style='destan'] .fr-tab {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  border-radius: 8px;
+}
+[data-style='destan'] .fr-tab.on {
+  color: var(--text);
+  background: color-mix(in srgb, var(--orn) 12%, transparent);
+  box-shadow: inset 0 -2px 0 var(--orn);
+}
+[data-style='destan'] .fr-tab.add {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #fff 8%), var(--accent));
+  color: var(--bg-app);
+  font-weight: 700;
+}
+
+/* ---- sol şerit: sitenin çerçeveli düğmeleri ---- */
+[data-style='destan'] .rail-v .pt-hex {
+  border-radius: 10px !important;
+}
+[data-style='destan'] .shell .rail-v .pt-home .pt-hex,
+[data-style='destan'] .shell .rail-v .pt-act .pt-hex {
+  background: var(--x-btn-bg);
+  color: var(--x-btn-ink);
+  box-shadow: inset 0 0 0 1px var(--x-btn-line), var(--x-glow);
+}
+[data-style='destan'] .shell .rail-v .pt-act:hover .pt-hex,
+[data-style='destan'] .shell .rail-v .pt-home:hover .pt-hex {
+  background: var(--x-btn-bg-hi);
+  color: var(--orn-hi);
+  box-shadow: inset 0 0 0 1px var(--orn), 0 0 10px color-mix(in srgb, var(--orn) 22%, transparent);
+}
+[data-style='destan'] .shell .rail-v .pt-home.on .pt-hex {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #fff 8%), var(--accent));
+  color: var(--bg-app);
+  box-shadow: none;
+}
+[data-style='destan'] .shell .rail-v .pt-btn.on .pt-hex {
+  box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 3px var(--orn);
+}
+[data-style='destan'] .rail-v .pt-btn::before {
+  border-radius: 0;
+  width: 3px;
+  left: -6px;
+}
+
+/* ---- mesajlar: köşeleri sitedeki gibi sakin ---- */
+[data-style='destan'][data-msgstyle='petek'] .msg-body:not(.jumbo),
+[data-style='destan'][data-msgstyle='balon'] .msg-body:not(.jumbo),
+[data-style='destan'] [data-msgstyle='petek'] .msg-body:not(.jumbo),
+[data-style='destan'] [data-msgstyle='balon'] .msg-body:not(.jumbo) {
+  border-radius: 2px 10px 10px 10px;
+  background: color-mix(in srgb, var(--bg-elev) 75%, transparent);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+/* ---- etiketler ve rozetler ---- */
+[data-style='destan'] .cat-row > span:not(.tip-wrap),
+[data-style='destan'] .member-group-title,
+[data-style='destan'] .sn-group,
+[data-style='destan'] .fr-count {
+  font-weight: 500;
+  color: var(--text-3);
+}
+[data-style='destan'] .home-hero h1,
+[data-style='destan'] .chat-header h2,
+[data-style='destan'] .home-h,
+[data-style='destan'] .settings-content h1 {
+  color: var(--orn-hi);
+}
+/* kaydırma çubuğu: ince, altın tonlu */
+[data-style='destan'] ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--orn) 26%, transparent);
+  border-radius: 0;
+}
+/* ayarlar, tema kartları ve küçük kutular da köşesiz */
+[data-style='destan'] .ap-theme,
+[data-style='destan'] .pc-sec,
+[data-style='destan'] .dm-empty,
+[data-style='destan'] .settings-close,
+[data-style='destan'] .tip-card,
+[data-style='destan'] .save-bar {
+  border-radius: 2px !important;
+}
+[data-style='destan'] .ap-theme.on {
+  border-color: var(--orn);
+  background: color-mix(in srgb, var(--orn) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--orn);
+}
+[data-style='destan'] .settings-close {
+  background: var(--x-btn-bg);
+  color: var(--x-btn-ink);
+  box-shadow: inset 0 0 0 1px var(--x-btn-line), var(--x-glow);
+}
+[data-style='destan'] .pc-sec {
+  border-color: rgba(255, 255, 255, 0.07);
+}
+/* ana sayfa düğmeleri tek satırda */
+[data-style='destan'] .home-hero .btn-row {
+  flex-wrap: nowrap;
+}
+[data-style='destan'] .home-hero .btn.lg {
+  padding: 0 14px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+}

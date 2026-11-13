@@ -351,7 +351,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       footer={
         <>
           <div className="sn-sep" />
-          <button className="sn-item danger" onClick={() => confirmDialog('Kovan kapatılsın mı?', 'Uygulama tamamen kapanır; senin barındırdığın topluluklara kimse bağlanamaz.', () => window.kovan.quit(), 'Kapat')}>
+          <button className="sn-item danger" onClick={() => confirmDialog('Xanaphian kapatılsın mı?', 'Uygulama tamamen kapanır; yeniden açana kadar mesaj bildirimi almazsın.', () => window.kovan.quit(), 'Kapat')}>
             Uygulamadan çık
           </button>
           <div className="sn-version">Xanaphian v{version}</div>
