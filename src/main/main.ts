@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, session, screen, desktopCapturer, powerSaveBlocker, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, session, screen, desktopCapturer, powerSaveBlocker, safeStorage, net } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -292,6 +292,83 @@ const openOutside = (url: string) => {
   if (/^https?:\/\//i.test(url)) shell.openExternal(url);
 };
 
+// ---------- site odası başlığı ve simgesi ----------
+const ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', hellip: '…', middot: '·', bull: '•',
+  laquo: '«', raquo: '»', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', copy: '©', reg: '®', trade: '™', vert: '|', verbar: '|',
+};
+const decodeEntities = (s: string) =>
+  s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e: string) =>
+    e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : ENTITIES[e.toLowerCase()] ?? m,
+  );
+const attr = (tag: string, name: string) => tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'))?.slice(1).find((x) => x !== undefined);
+
+async function fetchLimited(url: string, accept: string, max: number): Promise<{ buf: Buffer; type: string; url: string } | null> {
+  const res = await net.fetch(url, { headers: { accept }, signal: AbortSignal.timeout(12_000) } as any);
+  if (!res.ok) return null;
+  const len = Number(res.headers.get('content-length') || 0);
+  if (len > max) return null;
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > max) return null;
+  return { buf, type: (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase(), url: res.url || url };
+}
+
+/** Sitenin <title>'ını ve simgesini (favicon) getirir; simge 64 px PNG data URL'e küçültülür */
+async function fetchSiteMeta(pageUrl: string): Promise<{ title?: string; icon?: string } | null> {
+  const page = await fetchLimited(pageUrl, 'text/html,application/xhtml+xml', 2_000_000).catch(() => null);
+  let title = '';
+  const cands: { href: string; score: number }[] = [];
+  const base = page?.url || pageUrl;
+  if (page && /html/.test(page.type || 'text/html')) {
+    const html = page.buf.toString('utf8').slice(0, 400_000);
+    const head = html.split(/<\/head>/i)[0];
+    title = decodeEntities(head.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/\s+/g, ' ').trim();
+    if (!title) title = decodeEntities(attr(head.match(/<meta[^>]+property=["']og:site_name["'][^>]*>/i)?.[0] || '', 'content') || '').trim();
+    for (const tag of head.match(/<link\b[^>]*>/gi) || []) {
+      const rel = (attr(tag, 'rel') || '').toLowerCase();
+      if (!/\bicon\b/.test(rel) || /mask-icon/.test(rel)) continue;
+      const href = attr(tag, 'href');
+      if (!href) continue;
+      const size = Number((attr(tag, 'sizes') || '').match(/(\d+)/)?.[1] || 0);
+      const type = (attr(tag, 'type') || '').toLowerCase();
+      let score = size ? Math.abs(size - 64) : 40;
+      if (/png|svg/.test(type) || /\.(png|svg)(\?|$)/i.test(href)) score -= 8;
+      if (/apple-touch/.test(rel)) score += 20;
+      cands.push({ href, score });
+    }
+  }
+  cands.sort((a, b) => a.score - b.score);
+  cands.push({ href: '/favicon.ico', score: 999 });
+  let icon: string | undefined;
+  for (const cnd of cands.slice(0, 5)) {
+    let abs: string;
+    try {
+      abs = new URL(cnd.href, base).toString();
+    } catch {
+      continue;
+    }
+    if (abs.startsWith('data:image/')) {
+      if (abs.length <= 60_000) icon = abs;
+      if (icon) break;
+      continue;
+    }
+    if (!/^https?:/i.test(abs)) continue;
+    const r = await fetchLimited(abs, 'image/*', 1_000_000).catch(() => null);
+    if (!r || !r.buf.length) continue;
+    const img = nativeImage.createFromBuffer(r.buf);
+    if (!img.isEmpty()) {
+      const sz = img.getSize();
+      icon = (sz.width > 64 ? img.resize({ width: 64, quality: 'best' }) : img).toDataURL();
+    } else if ((r.type.startsWith('image/') || /\.ico(\?|$)/i.test(abs)) && r.buf.length <= 60_000) {
+      const mime = r.type.startsWith('image/') ? r.type : 'image/x-icon';
+      icon = `data:${mime};base64,${r.buf.toString('base64')}`;
+    }
+    if (icon) break;
+  }
+  if (!title && !icon) return null;
+  return { title: title || undefined, icon };
+}
+
 app.on('web-contents-created', (_e, wc) => {
   if (wc.getType() === 'window') {
     // yalnızca güvenli, önyüklemesiz site görünümleri eklenebilir
@@ -359,6 +436,9 @@ app.whenReady().then(async () => {
     console.error('Hub başlatılamadı', e);
   }
   hub.ownerName = config.profile.name || 'Kovan';
+  hub.siteMeta = fetchSiteMeta;
+  setTimeout(() => hub.refreshAllSiteMeta(), 4000);
+  setInterval(() => hub.refreshAllSiteMeta(), 6 * 3600_000);
   registerIpc();
   createWindow();
   createTray();

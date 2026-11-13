@@ -4931,3 +4931,20 @@ input[type='range'] {
     display: none;
   }
 }
+
+.ch-site-icon {
+  display: block;
+  border-radius: 4px;
+  object-fit: contain;
+}
+.ch-row .ch-icon:has(> .ch-site-icon),
+.ch-row.active .ch-icon:has(> .ch-site-icon),
+.ch-row:hover .ch-icon:has(> .ch-site-icon) {
+  -webkit-mask: none;
+  mask: none;
+  background: transparent;
+}
+.ch-icon > .ch-site-icon {
+  width: 18px;
+  height: 18px;
+}

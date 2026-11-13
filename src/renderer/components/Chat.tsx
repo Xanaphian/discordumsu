@@ -447,7 +447,7 @@ function ChannelStart({ ch, loading, more }: { ch: Channel; loading: boolean; mo
     );
   return (
     <div className="ch-start">
-      <div className="ch-start-icon">{ch.type === 'announce' ? <Megaphone size={36} /> : ch.type === 'site' ? <Globe size={38} /> : <Hash size={40} />}</div>
+      <div className="ch-start-icon">{ch.type === 'announce' ? <Megaphone size={36} /> : ch.type === 'site' ? (ch.icon ? <img src={ch.icon} alt="" width={40} height={40} className="ch-site-icon" /> : <Globe size={38} />) : <Hash size={40} />}</div>
       <h1>{ch.type === 'site' ? `${ch.name} odasına hoş geldin!` : `#${ch.name} kanalına hoş geldin!`}</h1>
       <p>
         {ch.type === 'site' ? 'Odanın sohbeti burada; sohbetteki site bağlantıları doğrudan odada açılır.' : `Bu, #${ch.name} kanalının başlangıcı.`} {ch.topic}
