@@ -83,7 +83,7 @@ export function cardTheme(p: ProfileExtra | undefined): { style: React.CSSProper
   if (!t) return null;
   const lum = (luminance(t.a) + luminance(t.b)) / 2;
   return {
-    style: { ['--pc-a' as any]: t.a, ['--pc-b' as any]: t.b },
+    style: { ['--pc-a' as any]: t.a, ['--pc-b' as any]: t.b, ...(t.c ? { ['--pc-c' as any]: t.c } : {}) },
     tone: lum > 0.45 ? 'light' : 'dark',
   };
 }

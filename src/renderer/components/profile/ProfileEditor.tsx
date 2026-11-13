@@ -11,6 +11,8 @@ import {
 import {
   ACTIVITY_VERB, EFFECT_LABEL, FRAME_LABEL, NAME_FONT_LABEL, NAME_FX_LABEL, PATTERN_LABEL, PRESETS, SHAPE_LABEL, bannerBackground, imgFrameStyle, linkBrand,
 } from './look';
+import { ToneEditor, TONE_PRESETS } from './Tones';
+import { AccountsEditor } from './Accounts';
 import { NameText, ProfileCard } from './ProfileCard';
 
 interface Draft {
@@ -197,7 +199,7 @@ const TABS: [TabId, string, string][] = [
   ['basic', 'Temel', 'Ad, fotoğraf, durum, hakkımda'],
   ['media', 'Afiş ve arka plan', 'Resimler, konum ve yükseklik'],
   ['style', 'Süsler', 'Hazır görünümler, çerçeve, isim stili'],
-  ['more', 'Bağlantılar', 'Bağlantılar, saat, doğum günü'],
+  ['more', 'Hesaplar', 'Bağlı hesaplar, bağlantılar, saat'],
 ];
 const TAB_OF: Record<string, TabId> = {
   identity: 'basic',
@@ -209,6 +211,7 @@ const TAB_OF: Record<string, TabId> = {
   avatar: 'style',
   name: 'style',
   card: 'style',
+  accounts: 'more',
   links: 'more',
   extra: 'more',
 };
@@ -691,16 +694,11 @@ export function ProfileEditor() {
 
           <Section
             id="card"
-            title="Kart teması"
-            sub="Profil kartının arka planı. Kapalıyken uygulamanın temasını kullanır."
-            right={<Toggle value={!!x.theme} onChange={(v) => setX({ theme: v ? { a: '#2b1d07', b: '#120d06' } : undefined })} />}
+            title="Profil renkleri"
+            sub="Kartının renklerini ton ton ayarla: üst, alt ve vurgu rengi. Kapalıyken uygulamanın temasını kullanır."
+            right={<Toggle value={!!x.theme} onChange={(v) => setX({ theme: v ? { ...TONE_PRESETS[0].t } : undefined })} />}
           >
-            {x.theme && (
-              <div className="pe-inline">
-                <ColorPick value={x.theme.a} onChange={(a) => setX({ theme: { ...x.theme!, a } })} label="Üst" />
-                <ColorPick value={x.theme.b} onChange={(b) => setX({ theme: { ...x.theme!, b } })} label="Alt" />
-              </div>
-            )}
+            {x.theme && <ToneEditor value={x.theme} onChange={(theme) => setX({ theme })} />}
             <div className="field">
               <span>Kart efekti</span>
               <div className="pe-tiles">
@@ -747,6 +745,14 @@ export function ProfileEditor() {
                 )}
               </div>
             </div>
+          </Section>
+
+          <Section
+            id="accounts"
+            title="Bağlı hesaplar"
+            sub="Oyun ve yayın hesaplarını profiline ekle. Kick ya da Twitch bağlarsan yayın açtığında profilinde görünür. Oynadığın oyun hesap bağlamadan da görünür."
+          >
+            <AccountsEditor value={x.accounts || []} onChange={(accounts) => setX({ accounts: accounts.length ? accounts : undefined })} />
           </Section>
 
           <Section id="links" title="Bağlantılar" sub="En fazla 5 bağlantı. GitHub, Instagram, YouTube, Twitch, Spotify, Steam gibi siteler tanınır.">

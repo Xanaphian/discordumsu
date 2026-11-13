@@ -14,7 +14,7 @@ import {
   hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
   DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo,
 } from '../shared/protocol';
-import { sanitizeProfile, sanitizeCommunityProfile, BIO_MAX } from '../shared/profile';
+import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
 
 const MAX_CONTENT = 4000;
@@ -223,6 +223,8 @@ export class Hub {
   private logs = new Map<ID, ChannelLog>();
   private sessions = new Set<Session>();
   private userSessions = new Map<ID, Set<Session>>();
+  /** kullanıcıların anlık etkinlikleri (oyun, müzik, yayın); bellekte tutulur */
+  private acts = new Map<ID, LiveActivity[]>();
   private voiceRooms = new Map<ID, Map<ID, VoiceMember>>();
   private spaceRooms = new Map<ID, Map<ID, { s: Session; av: SpaceAvatar }>>();
   private booths = new Map<ID, Booth[]>();
@@ -682,6 +684,7 @@ export class Hub {
       set?.delete(s);
       if (!set || set.size === 0) {
         this.userSessions.delete(s.userId);
+        this.acts.delete(s.userId);
         this.broadcastPresence(s.userId);
       }
     }
@@ -838,9 +841,19 @@ export class Hub {
     return st === 'invisible' ? 'offline' : st;
   }
 
-  private broadcastPresence(uid: ID) {
+  /** Görünür etkinlikler: çevrimdışı / görünmez kullanıcınınki gösterilmez */
+  private actsOf(uid: ID, status = this.effectiveStatus(uid)): LiveActivity[] {
+    return status === 'offline' ? [] : this.acts.get(uid) || [];
+  }
+
+  private presenceFrame(uid: ID): ServerFrame {
+    if (uid === BOT_ID) return { t: 'presence', uid, status: 'online' };
     const status = this.effectiveStatus(uid);
-    const data = JSON.stringify({ t: 'presence', uid, status } satisfies ServerFrame);
+    return { t: 'presence', uid, status, acts: this.actsOf(uid, status) };
+  }
+
+  private broadcastPresence(uid: ID) {
+    const data = JSON.stringify(this.presenceFrame(uid));
     const sent = new Set<Session>();
     for (const c of this.comms.values()) {
       if (!c.members.some((m) => m.userId === uid)) continue;
@@ -882,6 +895,11 @@ export class Hub {
       }
     }
     for (const p of this.contactsOf(uid)) presence[p] = this.effectiveStatus(p);
+    const acts: Record<ID, LiveActivity[]> = {};
+    for (const p of Object.keys(presence)) {
+      const a = this.actsOf(p, presence[p]);
+      if (a.length) acts[p] = a;
+    }
     for (const d of this.dmsFor(uid)) {
       const room = this.voiceRooms.get(d.ch);
       if (room && room.size) voice[d.ch] = [...room.values()];
@@ -898,6 +916,7 @@ export class Hub {
       web,
       dms: this.dmsFor(uid),
       friends: this.friendsFor(uid),
+      acts,
       v: PROTOCOL_VERSION,
     });
   }
@@ -980,7 +999,7 @@ export class Hub {
       for (const x of this.userSessions.get(u) || []) {
         if (fi) {
           this.send(x, { t: 'friend', f: fi });
-          this.send(x, { t: 'presence', uid: other, status: this.effectiveStatus(other) });
+          this.send(x, this.presenceFrame(other));
         } else this.send(x, { t: 'friend.del', uid: other });
       }
     }
@@ -1227,7 +1246,7 @@ export class Hub {
           this.bots.onJoin(c, uid);
         }
         for (const x of this.userSessions.get(uid) || [s])
-          for (const m of c.members) this.send(x, { t: 'presence', uid: m.userId, status: m.userId === BOT_ID ? 'online' : this.effectiveStatus(m.userId) });
+          for (const m of c.members) this.send(x, this.presenceFrame(m.userId));
         this.send(s, { t: 'comm', c: this.snapshot(c, uid), lastIds: this.lastIdsFor(c, uid) });
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: c.id });
         return;
@@ -1366,6 +1385,16 @@ export class Hub {
       case 'presence': {
         if (!['online', 'idle', 'dnd', 'invisible'].includes(f.status)) return;
         s.status = f.status;
+        this.broadcastPresence(uid);
+        return;
+      }
+      case 'activity': {
+        if (this.data.users[uid]?.pub.bot) return;
+        const acts = sanitizeActivities(f.acts);
+        const prev = this.acts.get(uid);
+        if (JSON.stringify(prev || []) === JSON.stringify(acts)) return;
+        if (acts.length) this.acts.set(uid, acts);
+        else this.acts.delete(uid);
         this.broadcastPresence(uid);
         return;
       }

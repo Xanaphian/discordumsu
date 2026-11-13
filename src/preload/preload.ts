@@ -32,6 +32,11 @@ const api = {
     configure: (cfg: { enabled: boolean; code: string }) => ipcRenderer.invoke('ptt:config', cfg) as Promise<boolean>,
     onChange: (cb: (down: boolean) => void) => on('ptt', cb),
   },
+  activity: {
+    configure: (c: unknown) => ipcRenderer.invoke('act:config', c),
+    apps: () => ipcRenderer.invoke('act:apps'),
+    onUpdate: (cb: (s: any) => void) => on('act:update', cb),
+  },
   platform: process.platform,
   update: {
     check: () => ipcRenderer.invoke('upd:check'),

@@ -7,6 +7,7 @@ import { VoiceTab } from './VoiceSettings';
 import { Avatar, CommunityIcon, Toggle, Logo, STATUS_LABEL } from './Common';
 import { ProfileEditor } from './profile/ProfileEditor';
 import { AppearanceTab } from './Appearance';
+import { ActivityTab } from './ActivitySettings';
 import { cx, COLORS, resizeImage, copyText, fmtSize, fmtDay, displayName, modKey } from '../lib/util';
 import { playSound } from '../lib/sound';
 import { can, Perm, type Role, type Community } from '../../shared/protocol';
@@ -332,6 +333,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
   const [tab, setTab] = useState(initial || 'profile');
   const nav = [
     { id: 'profile', label: 'Profilim', group: 'Kullanıcı Ayarları' },
+    { id: 'activity', label: 'Etkinlik', group: 'Kullanıcı Ayarları' },
     { id: 'connection', label: 'Bağlantı', group: 'Kullanıcı Ayarları' },
     { id: 'privacy', label: 'Gizlilik ve Güvenlik', group: 'Kullanıcı Ayarları' },
     { id: 'appearance', label: 'Görünüm', group: 'Uygulama Ayarları' },
@@ -359,6 +361,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       }
     >
       {tab === 'profile' && <ProfileTab />}
+      {tab === 'activity' && <ActivityTab />}
       {tab === 'appearance' && <AppearanceTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'voice' && <VoiceTab />}

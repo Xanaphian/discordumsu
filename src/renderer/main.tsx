@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { boot } from './lib/store';
+import './lib/activity';
 import './styles/app.css';
 import './styles/admin.css';
 import './styles/kovan.css';
@@ -12,6 +13,7 @@ import './styles/social.css';
 import './styles/xanaphian.css';
 import './styles/temalar.css';
 import './styles/sunucu-profili.css';
+import './styles/etkinlik.css';
 
 // Yazı tipleri yüklenmeden çizersek mesaj yükseklikleri sonradan değişir ve liste en altta kalmaz.
 const fontsReady = Promise.race([

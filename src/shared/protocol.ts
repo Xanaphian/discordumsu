@@ -1,5 +1,5 @@
 // Kovan ağ protokolü: istemci <-> kovan sunucusu (hub) arasında JSON çerçeveler.
-import type { ProfileExtra, CommunityProfile } from './profile';
+import type { LiveActivity, ProfileExtra, CommunityProfile } from './profile';
 import type { BotClientFrame, BotServerFrame } from './bots';
 
 export type ID = string;
@@ -302,6 +302,8 @@ export type ClientFrame =
   | { t: 'search'; cid: ID; q: string; rid: string }
   | { t: 'typing'; ch: ID }
   | { t: 'presence'; status: Status }
+  /** anlık etkinlik (oyun, müzik, yayın); boş dizi temizler */
+  | { t: 'activity'; acts: LiveActivity[] }
   | { t: 'profile'; user: UserPublic }
   | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; rid?: string }
   | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod }
@@ -348,7 +350,7 @@ export type ClientFrame =
 
 // ---- Sunucu -> İstemci ----
 export type ServerFrame =
-  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; v: number }
+  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; acts?: Record<ID, LiveActivity[]>; v: number }
   | { t: 'dm'; dm: DmInfo }
   | { t: 'friend'; f: FriendInfo }
   | { t: 'friend.del'; uid: ID }
@@ -359,7 +361,7 @@ export type ServerFrame =
   | { t: 'pins'; rid: string; ch: ID; msgs: Message[] }
   | { t: 'search'; rid: string; msgs: Message[] }
   | { t: 'typing'; ch: ID; uid: ID }
-  | { t: 'presence'; uid: ID; status: Status }
+  | { t: 'presence'; uid: ID; status: Status; acts?: LiveActivity[] }
   | { t: 'user'; u: UserPublic }
   | { t: 'comm'; c: Community; lastIds?: Record<ID, ID> }
   | { t: 'comm.del'; cid: ID }

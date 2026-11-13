@@ -4,6 +4,8 @@ import { useStore, openMenu, openModal } from '../lib/store';
 import { Avatar } from './Common';
 import { NameText, ACTIVITY_ICON, ProfileCard } from './profile/ProfileCard';
 import { activeCustom } from '../../shared/profile';
+import { useActsOf } from '../lib/activity';
+import { ActivityLine } from './profile/Activity';
 import { cx, displayName, roleColor, memberRoles } from '../lib/util';
 import { can, isTimedOut, Perm, type Community, type Status, type UserPublic } from '../../shared/protocol';
 import { memberMenu } from './Moderation';
@@ -41,7 +43,9 @@ const Row = memo(function Row({ c, uid, user, status, name, color, me }: { c: Co
 });
 
 function MemberSub({ user }: { user: UserPublic | undefined }) {
+  const live = useActsOf(user?.id);
   const cs = activeCustom(user?.profile);
+  if (live.length) return <ActivityLine uid={user!.id} className="member-sub" />;
   if (cs)
     return (
       <span className="member-sub cs">
