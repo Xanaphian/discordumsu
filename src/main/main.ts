@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { Hub } from './hub';
 import { initActivity, configureActivity, getActivity, runningApps, stopActivity, type ActivityConfig } from './activity';
 import { Updater } from './updater';
+import { lolState, lolInvite, lolAccept, steamJoin } from './gamejoin';
 import { DEFAULT_PORT, makeId } from '../shared/protocol';
 
 const isDev = !app.isPackaged;
@@ -512,6 +513,10 @@ function registerIpc() {
   ipcMain.handle('cfg:get', () => config);
   ipcMain.handle('act:config', (_e, c: ActivityConfig) => (configureActivity(c), getActivity()));
   ipcMain.handle('act:apps', () => runningApps());
+  ipcMain.handle('game:lol-state', () => lolState());
+  ipcMain.handle('game:lol-invite', (_e, riotId: string) => lolInvite(String(riotId).slice(0, 48)));
+  ipcMain.handle('game:lol-accept', (_e, from: string) => lolAccept(String(from).slice(0, 48)));
+  ipcMain.handle('game:steam-join', (_e, id: string) => steamJoin(String(id).slice(0, 120)));
   ipcMain.handle('cfg:set', (_e, patch: Partial<Config>) => {
     config = {
       ...config,

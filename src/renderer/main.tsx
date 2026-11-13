@@ -18,6 +18,7 @@ import './styles/marka.css';
 import './styles/performans.css';
 import './styles/duzeltmeler.css';
 import './styles/medya.css';
+import './styles/farklar.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
 const booting = boot().catch((e) => console.error('Açılış hatası', e));

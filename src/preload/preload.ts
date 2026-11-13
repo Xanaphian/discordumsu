@@ -37,6 +37,12 @@ const api = {
     apps: () => ipcRenderer.invoke('act:apps'),
     onUpdate: (cb: (s: any) => void) => on('act:update', cb),
   },
+  game: {
+    lolState: () => ipcRenderer.invoke('game:lol-state') as Promise<{ running: boolean; me?: string; lobby: boolean }>,
+    lolInvite: (riotId: string) => ipcRenderer.invoke('game:lol-invite', riotId) as Promise<{ ok: boolean; error?: string }>,
+    lolAccept: (from: string) => ipcRenderer.invoke('game:lol-accept', from) as Promise<{ ok: boolean; error?: string }>,
+    steamJoin: (id: string) => ipcRenderer.invoke('game:steam-join', id) as Promise<boolean>,
+  },
   platform: process.platform,
   update: {
     check: () => ipcRenderer.invoke('upd:check'),
