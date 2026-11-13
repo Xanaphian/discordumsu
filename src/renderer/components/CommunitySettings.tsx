@@ -5,6 +5,7 @@ import { Avatar, CommunityIcon, Toggle } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtDay, displayName } from '../lib/util';
 import { can, Perm, type Role } from '../../shared/protocol';
 import { Shell, Row, close } from './Settings';
+import { BotsTab } from './Bots';
 
 const PERMS: { bit: number; label: string; sub: string }[] = [
   { bit: Perm.ADMIN, label: 'Yönetici', sub: 'Tüm yetkiler. Dikkatli ver.' },
@@ -79,6 +80,7 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
     ...(can(c, me, Perm.MANAGE_ROLES) ? [{ id: 'roles', label: 'Roller', group: c.name }] : []),
     { id: 'members', label: 'Üyeler', group: 'Kullanıcı Yönetimi' },
     { id: 'invites', label: 'Davetler', group: 'Kullanıcı Yönetimi' },
+    ...(manage ? [{ id: 'bots', label: 'Botlar ve Yapay Zekâ', group: 'Entegrasyonlar' }] : []),
     ...(c.ownerId === me ? [{ id: 'delete', label: 'Topluluğu sil', danger: true }] : []),
   ];
   const cur = nav.some((n) => n.id === tab) ? tab : nav[0].id;
@@ -86,6 +88,7 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
   const role = c.roles.find((r) => r.id === roleId) || null;
   return (
     <Shell nav={nav} tab={cur} setTab={setTab}>
+      {cur === 'bots' && <BotsTab cid={cid} />}
       {cur === 'overview' && (
         <>
           <h1>Topluluk Genel Bakışı</h1>

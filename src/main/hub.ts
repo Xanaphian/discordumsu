@@ -12,6 +12,7 @@ import {
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer,
 } from '../shared/protocol';
+import { BotManager, type BotHost } from './bots';
 
 const MAX_CONTENT = 4000;
 const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -192,9 +193,13 @@ export class Hub {
   private heartbeat: NodeJS.Timeout | null = null;
   port = 0;
   ownerName = 'Kovan';
+  /** Bot API anahtarlarını şifrelemek için (main.ts safeStorage ile ayarlar) */
+  crypt: BotHost['crypt'] = null;
+  readonly bots: BotManager;
 
   constructor(baseDir: string) {
     this.dir = path.join(baseDir, 'hub');
+    this.bots = new BotManager(this.botHost());
   }
 
   // ---------- kalıcılık ----------
@@ -317,6 +322,7 @@ export class Hub {
   // ---------- başlatma ----------
   async start(preferredPort: number): Promise<number> {
     this.load();
+    this.bots.load();
     this.server = http.createServer((req, res) => this.handleHttp(req, res));
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: { threshold: 1024 } });
     this.server.on('upgrade', (req, socket, head) => {
@@ -384,6 +390,7 @@ export class Hub {
       }
     }
     this.saveTimers.clear();
+    this.bots.flush();
     for (const s of this.sessions) s.ws.close(1001);
     this.server?.close();
   }
@@ -403,7 +410,7 @@ export class Hub {
   // ---------- HTTP ----------
   private cors(res: http.ServerResponse) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'content-type, x-kovan-user, x-kovan-secret, x-kovan-name, x-kovan-w, x-kovan-h');
+    res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization, mcp-protocol-version, mcp-session-id, x-kovan-user, x-kovan-secret, x-kovan-name, x-kovan-w, x-kovan-h');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   }
 
@@ -414,6 +421,7 @@ export class Hub {
       res.writeHead(204).end();
       return;
     }
+    if (this.bots.handleHttp(req, res, url)) return;
     if (req.method === 'GET' && url.pathname === '/info') {
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ app: 'kovan', hubId: this.data.hubId, v: PROTOCOL_VERSION }));
       return;
@@ -591,6 +599,7 @@ export class Hub {
   }
 
   private effectiveStatus(uid: ID): Status {
+    if (this.bots.isBot(uid)) return 'online';
     const set = this.userSessions.get(uid);
     if (!set || set.size === 0) return 'offline';
     let st: Status = 'invisible';
@@ -677,10 +686,12 @@ export class Hub {
     if (f.t === 'hello') return this.onHello(s, f);
     if (!s.userId) return this.send(s, { t: 'err', msg: 'Önce kimlik doğrulaması gerekli.' });
     const uid = s.userId;
+    if (f.t.startsWith('bot.')) return this.bots.handleFrame(uid, f as Extract<ClientFrame, { t: `bot.${string}` }>, (x) => this.send(s, x));
 
     switch (f.t) {
       case 'join': {
         const c = this.comms.get(f.cid);
+        if (this.bots.isBot(uid)) return this.send(s, { t: 'err', msg: 'Botlar davetle katılamaz.', rid: f.rid });
         if (!c || c.inviteKey !== f.key) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
@@ -692,6 +703,7 @@ export class Hub {
             this.broadcast(c, { t: 'msg', m });
           } else this.pushComm(c);
           this.broadcastPresence(uid);
+          this.bots.onJoin(c, uid);
         }
         for (const x of this.userSessions.get(uid) || [s])
           for (const m of c.members) this.send(x, { t: 'presence', uid: m.userId, status: m.userId === BOT_ID ? 'online' : this.effectiveStatus(m.userId) });
@@ -719,6 +731,7 @@ export class Hub {
         this.log(f.ch).add(m);
         this.broadcast(r.c, { t: 'msg', m }, s);
         this.send(s, { t: 'msg', m, nonce: f.nonce });
+        this.bots.onMessage(r.c, r.channel, m);
         return;
       }
       case 'edit': {
@@ -811,6 +824,7 @@ export class Hub {
       }
       case 'profile': {
         const u = this.data.users[uid];
+        if (u.pub.bot) return;
         u.pub = this.sanitizeUser(f.user, uid);
         this.saveHub();
         const data = JSON.stringify({ t: 'user', u: u.pub } satisfies ServerFrame);
@@ -858,6 +872,7 @@ export class Hub {
           fsp.unlink(path.join(this.dir, 'messages', ch.id + '.ndjson')).catch(() => {});
         }
         fsp.unlink(path.join(this.dir, 'communities', c.id + '.json')).catch(() => {});
+        this.bots.onCommDeleted(c.id);
         this.saveHub();
         return;
       }
@@ -1004,6 +1019,7 @@ export class Hub {
         c.members = c.members.filter((m) => m.userId !== f.userId);
         for (const x of this.userSessions.get(f.userId) || []) this.send(x, { t: 'comm.del', cid: c.id });
         this.pushComm(c);
+        this.bots.onKick(c, f.userId);
         return;
       }
       case 'sp.join': {
@@ -1216,7 +1232,8 @@ export class Hub {
       this.send(s, { t: 'err', msg: 'Kimlik doğrulanamadı.' });
       return void s.ws.close(4001, 'auth');
     }
-    const pub = this.sanitizeUser(f.user, id);
+    // bot hesapları (belirteçle bağlanan bot programları) profillerini değiştiremez
+    const pub = existing?.pub.bot ? existing.pub : this.sanitizeUser(f.user, id);
     const changed = !existing || JSON.stringify(existing.pub) !== JSON.stringify(pub);
     this.data.users[id] = { pub, secretHash: sha(secret) };
     if (changed) this.saveHub();
@@ -1311,6 +1328,81 @@ export class Hub {
     const base = Date.now();
     const log = this.log(ch);
     texts.forEach((content, i) => log.add({ id: makeId(base + i), channelId: ch, authorId: BOT_ID, content, ts: base + i }));
+  }
+
+  // ---------- botların kullandığı arayüz (bots.ts) ----------
+  private botHost(): BotHost {
+    const hub = this;
+    const msgs = (ch: ID) => this.log(ch);
+    return {
+      get dir() {
+        return hub.dir;
+      },
+      get crypt() {
+        return hub.crypt;
+      },
+      comm: (cid) => this.comms.get(cid),
+      commOfChan: (ch) => {
+        const cid = this.chanToComm.get(ch);
+        return cid ? this.comms.get(cid) : undefined;
+      },
+      user: (uid) => this.data.users[uid],
+      setUser: (uid, pub, secretHash) => {
+        this.data.users[uid] = { pub, secretHash };
+        this.saveHub();
+        const data = JSON.stringify({ t: 'user', u: pub } satisfies ServerFrame);
+        const sent = new Set<Session>();
+        for (const c of this.userComms(uid)) for (const x of this.memberSessions(c)) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
+      },
+      deleteUser: (uid) => {
+        delete this.data.users[uid];
+        for (const x of this.userSessions.get(uid) || []) x.ws.close(4001, 'auth');
+        this.saveHub();
+      },
+      history: (ch) => msgs(ch).list,
+      post: (c, ch, authorId, content, replyTo) => {
+        const m: Message = { id: makeId(), channelId: ch, authorId, content: clampStr(content, MAX_CONTENT), ts: Date.now() };
+        if (replyTo && msgs(ch).byId.has(replyTo)) m.replyTo = replyTo;
+        msgs(ch).add(m);
+        this.broadcast(c, { t: 'msg', m });
+        const channel = c.channels.find((x) => x.id === ch);
+        if (channel) this.bots.onMessage(c, channel, m);
+        return m;
+      },
+      edit: (c, ch, id, content) => {
+        const m = msgs(ch).byId.get(id);
+        if (!m || !content || !this.bots.isBot(m.authorId)) return false;
+        m.content = content;
+        m.editedTs = Date.now();
+        msgs(ch).update(m);
+        this.broadcast(c, { t: 'msg.upd', m });
+        return true;
+      },
+      react: (c, ch, id, uid, e) => {
+        const m = msgs(ch).byId.get(id);
+        if (!m || !e) return false;
+        m.reactions ||= {};
+        const arr = m.reactions[e] || [];
+        if (arr.includes(uid)) return true;
+        if (!m.reactions[e] && Object.keys(m.reactions).length >= 20) return false;
+        m.reactions[e] = [...arr, uid];
+        msgs(ch).update(m);
+        this.broadcast(c, { t: 'msg.upd', m });
+        return true;
+      },
+      typing: (c, ch, uid) => this.broadcast(c, { t: 'typing', ch, uid }),
+      status: (uid) => this.effectiveStatus(uid),
+      announcePresence: (uid) => this.broadcastPresence(uid),
+      pushComm: (c) => this.pushComm(c),
+      isManager: (c, uid) => can(this.snapshot(c), uid, Perm.MANAGE_COMMUNITY),
+      can: (c, uid, perm) => can(this.snapshot(c), uid, perm),
+      sendToManagers: (c, f) => {
+        const snap = this.snapshot(c);
+        const data = JSON.stringify(f);
+        for (const s of this.memberSessions(c)) if (s.userId && can(snap, s.userId, Perm.MANAGE_COMMUNITY)) this.sendRaw(s, data);
+      },
+      voice: (ch) => [...(this.voiceRooms.get(ch)?.values() || [])],
+    };
   }
 
   hasCommunities() {

@@ -281,6 +281,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                   {name}
                 </span>
                 {m.authorId === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}
+                {(users[m.authorId] || c.users[m.authorId])?.bot && <span className="tag-bot">BOT</span>}
                 {c.ownerId === m.authorId && m.authorId !== 'kovan-asistan' && (
                   <Tooltip text="Topluluk sahibi" side="top">
                     <span className="owner-crown">♛</span>

@@ -9,6 +9,8 @@ files:
   - package.json
   - "!**/*.map"
 asar: true
+asarUnpack:
+  - dist/main/mcp-bridge.js
 compression: normal
 electronLanguages:
   - tr
