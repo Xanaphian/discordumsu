@@ -1,18 +1,34 @@
 import React, { memo, useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, WifiOff, Bell, Video, VideoOff, MonitorUp, MonitorX,
+  Signal, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
-  updateSettings,
+  updateSettings, toggleMuted, toast,
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
 import { enterSpace, exitSpace } from '../lib/space';
 import { Avatar, STATUS_LABEL, Tooltip } from './Common';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName } from '../lib/util';
-import { can, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
+import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
+
+/** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi */
+export function voiceBlocked(c: Community, ch: Channel, me: string): string | null {
+  if (!canIn(c, me, ch, Perm.CONNECT)) return 'Bu kanala bağlanma yetkin yok.';
+  if (ch.userLimit && !canIn(c, me, ch, Perm.MANAGE_CHANNELS)) {
+    const n = new Set((useStore.getState().voice[ch.id] || []).map((m) => m.userId).filter((u) => u !== me)).size;
+    if (n >= ch.userLimit) return `Kanal dolu (${ch.userLimit} kişi sınırı).`;
+  }
+  return null;
+}
+
+function tryJoinVoice(c: Community, ch: Channel) {
+  const why = voiceBlocked(c, ch, useStore.getState().me.id);
+  if (why) return void toast(why, 'err');
+  joinVoice(c.id, ch.id);
+}
 
 const ChannelIcon = ({ type, size = 18 }: { type: Channel['type']; size?: number }) =>
   type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
@@ -59,9 +75,13 @@ const ChannelRow = memo(function ChannelRow({
   onDropOn: (ch: Channel) => void;
 }) {
   const inVoice = useVoice((s) => s.ch === ch.id);
+  const me = useStore((s) => s.me.id);
+  const muted = useStore((s) => s.settings.mutedIds.includes(ch.id));
+  const devMode = useStore((s) => s.settings.devMode);
   const [over, setOver] = useState(false);
+  const editCh = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const click = () => {
-    if (ch.type === 'voice') joinVoice(c.id, ch.id);
+    if (ch.type === 'voice' && !inVoice) tryJoinVoice(c, ch);
     selectChannel(c.id, ch.id);
   };
   const menu = (e: React.MouseEvent) =>
@@ -77,16 +97,24 @@ const ChannelRow = memo(function ChannelRow({
                     if (ch.type === 'space') {
                       selectChannel(c.id, ch.id);
                       enterSpace(c.id, ch.id);
-                    } else joinVoice(c.id, ch.id);
+                    } else tryJoinVoice(c, ch);
                   },
                 },
           ]
         : []),
+      ...(!isVoiceLike(ch.type)
+        ? [
+            { label: muted ? 'Kanalın sesini aç' : 'Kanalı sessize al', onClick: () => toggleMuted(ch.id) },
+            { label: 'Bildirim ayarları', onClick: () => openModal({ type: 'notify', cid: c.id, chId: ch.id }) },
+          ]
+        : []),
       { label: 'Kanalı etiket olarak kopyala', onClick: () => copyText(`<#${ch.id}>`) },
-      ...(manage
+      ...(devMode ? [{ label: 'Kanal kimliğini kopyala', onClick: () => copyText(ch.id) }] : []),
+      ...(editCh
         ? [
             { sep: true },
             { label: 'Kanalı düzenle', onClick: () => openModal({ type: 'editChannel', cid: c.id, chId: ch.id }) },
+            ...(canIn(c, me, ch, Perm.MANAGE_ROLES) ? [{ label: 'İzinleri düzenle', onClick: () => openModal({ type: 'editChannel', cid: c.id, chId: ch.id, tab: 'perms' }) }] : []),
             {
               label: 'Kanalı sil',
               danger: true,
@@ -98,7 +126,7 @@ const ChannelRow = memo(function ChannelRow({
   return (
     <>
       <div
-        className={cx('ch-row', active && 'active', unread && !active && 'unread', inVoice && 'in-voice', over && 'drop-over')}
+        className={cx('ch-row', active && 'active', unread && !active && !muted && 'unread', inVoice && 'in-voice', over && 'drop-over', muted && 'muted')}
         onClick={click}
         onContextMenu={menu}
         draggable={manage}
@@ -118,13 +146,15 @@ const ChannelRow = memo(function ChannelRow({
           onDropOn(ch);
         }}
       >
-        {unread && !active && <span className="ch-unread-pill" />}
+        {unread && !active && !muted && <span className="ch-unread-pill" />}
         <span className="ch-icon">
           <ChannelIcon type={ch.type} />
         </span>
         <span className="ch-name">{ch.name}</span>
+        {ch.overwrites?.some((o) => o.id === c.id && o.deny & Perm.VIEW_CHANNEL) && <Lock size={12} className="ch-lock" aria-label="Özel kanal" />}
+        {isVoiceLike(ch.type) && ch.userLimit ? <span className="ch-limit">{(useStore.getState().voice[ch.id] || []).length}/{ch.userLimit}</span> : null}
         {mentions > 0 && <span className="badge">{mentions}</span>}
-        {manage && (
+        {editCh && (
           <button
             className="ch-gear"
             onClick={(e) => {
@@ -150,6 +180,8 @@ export function ChannelSidebar({ c }: { c: Community }) {
   const connStatus = useStore((s) => s.conns[s.commHost[c.id]]?.status);
   const { unreadCh } = useUnread();
   const manage = can(c, me, Perm.MANAGE_CHANNELS);
+  const commMuted = useStore((s) => s.settings.mutedIds.includes(c.id));
+  const devMode = useStore((s) => s.settings.devMode);
   const [drag, setDrag] = useState<string | null>(null);
 
   const groups = useMemo(() => {
@@ -172,10 +204,11 @@ export function ChannelSidebar({ c }: { c: Community }) {
   const headerMenu = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     openMenu({ clientX: r.left + 8, clientY: r.bottom + 4 }, [
-      { label: 'Davet et', icon: 'invite', onClick: () => openModal({ type: 'invite', cid: c.id }) },
-      ...(can(c, me, Perm.MANAGE_COMMUNITY) || can(c, me, Perm.MANAGE_ROLES) || can(c, me, Perm.KICK)
-        ? [{ label: 'Topluluk ayarları', icon: 'settings', onClick: () => openModal({ type: 'commSettings', cid: c.id }) }]
-        : []),
+      ...(c.inviteKey ? [{ label: 'Davet et', icon: 'invite', onClick: () => openModal({ type: 'invite', cid: c.id }) }] : []),
+      { label: 'Topluluk ayarları', icon: 'settings', onClick: () => openModal({ type: 'commSettings', cid: c.id }) },
+      ...(can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Roller', icon: 'roles', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) }] : []),
+      { label: 'Üyeler', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'members' }) },
+      ...(can(c, me, Perm.VIEW_AUDIT_LOG) ? [{ label: 'Denetim kaydı', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'audit' }) }] : []),
       ...(manage
         ? [
             { label: 'Kanal oluştur', icon: 'plus', onClick: () => openModal({ type: 'createChannel', cid: c.id, categoryId: null }) },
@@ -183,7 +216,13 @@ export function ChannelSidebar({ c }: { c: Community }) {
           ]
         : []),
       { sep: true },
+      { label: 'Bildirim ayarları', onClick: () => openModal({ type: 'notify', cid: c.id }) },
+      { label: commMuted ? 'Topluluğun sesini aç' : 'Topluluğu sessize al', onClick: () => toggleMuted(c.id) },
+      ...(can(c, me, Perm.CHANGE_NICKNAME) || can(c, me, Perm.MANAGE_NICKNAMES)
+        ? [{ label: 'Takma adını değiştir', onClick: () => openModal({ type: 'moderate', cid: c.id, uid: me, action: 'nick' }) }]
+        : []),
       { label: 'Tümünü okundu işaretle', icon: 'check', onClick: () => markCommunityRead(c.id) },
+      ...(devMode ? [{ label: 'Topluluk kimliğini kopyala', onClick: () => copyText(c.id) }] : []),
       { sep: true },
       c.ownerId === me
         ? { label: 'Topluluğu sil', danger: true, onClick: () => confirmDialog(`"${c.name}" silinsin mi?`, 'Tüm kanallar ve mesajlar kalıcı olarak silinir.', () => deleteCommunity(c.id), 'Sil') }
@@ -225,6 +264,8 @@ export function ChannelSidebar({ c }: { c: Community }) {
                         label: 'Kategoriyi yeniden adlandır',
                         onClick: () => openModal({ type: 'createCategory', cid: c.id, catId: cat.id }),
                       },
+                      { label: 'Kategoriyi düzenle', onClick: () => openModal({ type: 'editCategory', cid: c.id, catId: cat.id }) },
+                      ...(can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Kategori izinleri', onClick: () => openModal({ type: 'editCategory', cid: c.id, catId: cat.id, tab: 'perms' }) }] : []),
                       { sep: true },
                       { label: 'Kategoriyi sil', danger: true, onClick: () => confirmDialog(`"${cat.name}" kategorisi silinsin mi?`, 'Kanallar silinmez, kategorisiz kalır.', () => cmd(c.id, { t: 'cat.delete', cid: c.id, id: cat.id }), 'Sil') },
                     ])

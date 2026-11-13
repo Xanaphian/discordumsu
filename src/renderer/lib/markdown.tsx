@@ -1,6 +1,7 @@
 // Hafif ve güvenli (innerHTML kullanmayan) mesaj biçimlendirici.
 import React, { ReactNode, useState } from 'react';
 import { highlight } from './highlight';
+import { useStore, confirmDialog } from './store';
 
 export interface MdCtx {
   userName: (id: string) => string | null;
@@ -9,6 +10,8 @@ export interface MdCtx {
   onUser?: (id: string, e: React.MouseEvent) => void;
   onChannel?: (id: string) => void;
   meId: string;
+  /** <@&rol> etiketleri için ad, renk ve benim bu rolde olup olmadığım */
+  roleInfo?: (id: string) => { name: string; color: string; mine: boolean } | null;
 }
 
 type Rule = { re: RegExp; render: (m: RegExpExecArray, ctx: MdCtx, key: number) => ReactNode };
@@ -16,7 +19,9 @@ type Rule = { re: RegExp; render: (m: RegExpExecArray, ctx: MdCtx, key: number) 
 const URL_RE = /^https?:\/\/[^\s<]+[^\s<.,:;"')\]!?*_~|]/;
 
 function Spoiler({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+  const [clicked, setOpen] = useState(false);
+  const always = useStore((s) => s.settings.spoilers === 'always');
+  const open = clicked || always;
   return (
     <span className={open ? 'md-spoiler open' : 'md-spoiler'} onClick={(e) => (e.stopPropagation(), setOpen(true))}>
       {children}
@@ -32,7 +37,9 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
       title={href}
       onClick={(e) => {
         e.preventDefault();
-        window.kovan.openExternal(href);
+        if (useStore.getState().settings.confirmLinks)
+          confirmDialog('Bağlantı açılsın mı?', `Tarayıcında şu adres açılacak:\n${href}`, () => window.kovan.openExternal(href), 'Aç', false);
+        else window.kovan.openExternal(href);
       }}
     >
       {children}
@@ -58,6 +65,17 @@ const inlineRules: Rule[] = [
     ),
   },
   { re: URL_RE, render: (m, _c, k) => <Link key={k} href={m[0]}>{m[0]}</Link> },
+  {
+    re: /^<@&([\w-]+)>/,
+    render: (m, c, k) => {
+      const r = c.roleInfo?.(m[1]);
+      return (
+        <span key={k} className={'md-mention role' + (r?.mine ? ' me' : '')} style={r?.color ? ({ '--role': r.color } as React.CSSProperties) : undefined}>
+          @{r?.name ?? 'silinmiş-rol'}
+        </span>
+      );
+    },
+  },
   {
     re: /^<@([\w-]+)>/,
     render: (m, c, k) => {
