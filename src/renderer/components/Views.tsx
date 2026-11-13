@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Plus, LogIn, Users, Zap, Shield, Keyboard, ArrowRight } from 'lucide-react';
+import { Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Plus, LogIn, Users, Zap, Globe, Keyboard, ArrowRight } from 'lucide-react';
 import { useStore, openModal, selectCommunity, finishOnboarding, realCommunities, setHomeTab } from '../lib/store';
 import { FriendsView } from './Friends';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf } from '../lib/voice';
@@ -24,7 +24,9 @@ function HomeStart() {
       <div className="home-inner">
         <div className="home-hero">
           <div className="hh-text">
-            <h1>Merhaba, {me.name} 👋</h1>
+            <h1>
+              Merhaba, <em>{me.name}</em>
+            </h1>
             <p>Toplulukların, özel mesajların ve arkadaşların bir arada. Kendi topluluğunu kur ya da bir davetle katıl.</p>
             <div className="btn-row">
               <button className="btn primary lg" onClick={() => openModal({ type: 'createCommunity' })}>
@@ -76,17 +78,17 @@ function HomeStart() {
           <div className="tip-card">
             <Users size={20} />
             <b>Davet kodu</b>
-            <span>Topluluk adına tıkla → Davet et. Kodu arkadaşına gönder.</span>
+            <span>Topluluk adına tıkla, Davet et'i seç ve kodu arkadaşına gönder.</span>
           </div>
           <div className="tip-card">
             <Zap size={20} />
             <b>Tek tuşla güncelleme</b>
-            <span>Yeni sürüm çıkınca üst çubukta yeşil Güncelle düğmesi belirir.</span>
+            <span>Yeni sürüm çıkınca üst çubukta Güncelle düğmesi belirir.</span>
           </div>
           <div className="tip-card">
-            <Shield size={20} />
-            <b>Veriler sende</b>
-            <span>Toplulukların ve mesajların barındıran bilgisayarda saklanır, araya bulut girmez.</span>
+            <Globe size={20} />
+            <b>Her yerden erişim</b>
+            <span>Toplulukların ve mesajların Xanaphian sunucusunda durur; bilgisayarın kapalıyken de arkadaşların yazabilir.</span>
           </div>
         </div>
       </div>

@@ -25,28 +25,29 @@
 
 /* ---------------- tema renkleri ---------------- */
 [data-theme='destan'] {
-  --bg-app: #05080d;
-  --bg-rail: #05080d;
-  --bg-side: #0a1018;
-  --bg-chat: #0c131d;
-  --bg-elev: #121c29;
-  --bg-elev-2: #192637;
-  --bg-input: #080e16;
-  --bg-float: #0b121b;
-  --bg-hover: rgba(200, 220, 255, 0.045);
-  --bg-active: rgba(201, 163, 90, 0.1);
-  --line: rgba(196, 160, 92, 0.15);
-  --line-2: rgba(196, 160, 92, 0.27);
-  --text: #efe6d2;
-  --text-2: #c4b89d;
-  --text-3: #8e8571;
-  --text-4: #5f5a4c;
-  --code-bg: #060a10;
-  --orn-hi: #f3dca2;
-  --orn: #c9a35a;
-  --orn-lo: #6f5226;
-  --arc: #5fd0c8;
-  --glow: 95, 208, 200;
+  /* 1.14: xanaphian.com "Gece" teması — gece mavisi zemin, altın vurgu, krem yazı */
+  --bg-app: #0a1226;
+  --bg-rail: #0a1226;
+  --bg-side: #0f1a34;
+  --bg-chat: #0e1830;
+  --bg-elev: #15223f;
+  --bg-elev-2: #1c2b4c;
+  --bg-input: #0a1329;
+  --bg-float: #0f1a34;
+  --bg-hover: rgba(190, 210, 255, 0.055);
+  --bg-active: rgba(200, 170, 110, 0.11);
+  --line: rgba(200, 170, 110, 0.16);
+  --line-2: rgba(200, 170, 110, 0.28);
+  --text: #f0e6d2;
+  --text-2: #cdd4e2;
+  --text-3: #a9b6cc;
+  --text-4: #6f7d96;
+  --code-bg: #08101f;
+  --orn-hi: #f0e6d2;
+  --orn: #c8aa6e;
+  --orn-lo: #785a28;
+  --arc: #0ac8b9;
+  --glow: 10, 200, 185;
   color-scheme: dark;
 }
 [data-theme='kor'] {

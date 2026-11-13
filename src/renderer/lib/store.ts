@@ -85,13 +85,14 @@ export interface Settings {
   msgStyle: 'petek' | 'balon' | 'duz';
   layout: 'float' | 'flush';
   backdrop: boolean;
-  /** görünüm göçü: 2 = Destan teması varsayılan oldu (v1.7) */
+  /** görünüm göçü: 2 = Destan teması varsayılan oldu (v1.7), 3 = site altını (v1.14) */
   lookRev: number;
 }
 
 export type NotifyLevel = 'all' | 'mentions' | 'none';
 
-export const DESTAN_GOLD = '#c9a35a';
+/** xanaphian.com altını */
+export const DESTAN_GOLD = '#c8aa6e';
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'destan',
@@ -154,7 +155,7 @@ export const DEFAULT_SETTINGS: Settings = {
   msgStyle: 'petek',
   layout: 'float',
   backdrop: true,
-  lookRev: 2,
+  lookRev: 3,
 };
 
 export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string };
@@ -411,6 +412,12 @@ export async function boot() {
     settings.theme = 'destan';
     if (!cfg.settings.accent || cfg.settings.accent === '#f5a524') settings.accent = DESTAN_GOLD;
     settings.lookRev = 2;
+    window.kovan.setConfig({ settings });
+  }
+  if (settings.lookRev < 3) {
+    // v1.14: eski Destan altını sitedeki altına döner (kullanıcının kendi seçtiği renge dokunulmaz)
+    if (settings.accent.toLowerCase() === '#c9a35a') settings.accent = DESTAN_GOLD;
+    settings.lookRev = 3;
     window.kovan.setConfig({ settings });
   }
   set({
@@ -782,7 +789,7 @@ function onFrame(host: string, f: ServerFrame) {
       // (eski sürümde yerel lobisi kurulmuş kişilere ikinci bir lobi açılmaz; onlar taşıyabilir)
       if (conn?.home && f.communities.length === 0 && !localStorage.getItem('kovan.seeded')) {
         localStorage.setItem('kovan.seeded', '1');
-        conns.get(host)?.request({ t: 'comm.create', name: `${S().me.name || 'Benim'} Topluluğu`, color: '#c9a35a', template: 'lobby' }).then((r: any) => {
+        conns.get(host)?.request({ t: 'comm.create', name: `${S().me.name || 'Benim'} Topluluğu`, color: '#c8aa6e', template: 'lobby' }).then((r: any) => {
           if (r?.data) selectCommunity(r.data);
         });
       }
