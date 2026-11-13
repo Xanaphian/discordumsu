@@ -11,7 +11,7 @@ import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
-  hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost,
+  hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
 } from '../shared/protocol';
 import { sanitizeProfile, BIO_MAX } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
@@ -236,7 +236,20 @@ export class Hub {
     this.ensureBot();
   }
 
+  /** Hub içinde benzersiz 7 karakterlik kısa davet kodu */
+  private newInviteCode(): string {
+    for (;;) {
+      const code = makeShortCode((n) => crypto.randomBytes(n));
+      if (![...this.comms.values()].some((x) => x.inviteCode === code)) return code;
+    }
+  }
+
   private migrate(c: StoredCommunity) {
+    // v1.7: kısa davet kodu
+    if (!c.inviteCode) {
+      c.inviteCode = this.newInviteCode();
+      this.saveComm(c.id);
+    }
     this.migrateSite(c);
     this.migrate11(c);
     // v1.4: ayrıntılı yetkiler. Eskiden herkesin yapabildiği temel işler @herkes rolüne yazılır.
@@ -606,7 +619,10 @@ export class Hub {
     if (uid) {
       out.channels = c.channels.filter((ch) => this.canView(c, uid, ch));
       if (!(memberPerms(c, uid) & (Perm.CREATE_INVITE | Perm.MANAGE_COMMUNITY)) || c.invitesPaused) {
-        if (!(memberPerms(c, uid) & Perm.MANAGE_COMMUNITY)) delete out.inviteKey;
+        if (!(memberPerms(c, uid) & Perm.MANAGE_COMMUNITY)) {
+          delete out.inviteKey;
+          delete out.inviteCode;
+        }
       }
     }
     return out;
@@ -803,9 +819,10 @@ export class Hub {
 
     switch (f.t) {
       case 'join': {
-        const c = this.comms.get(f.cid);
+        const code = typeof f.code === 'string' ? f.code.toLowerCase() : '';
+        const c = code ? [...this.comms.values()].find((x) => x.inviteCode === code) : f.cid ? this.comms.get(f.cid) : undefined;
         if (this.bots.isBot(uid)) return this.send(s, { t: 'err', msg: 'Botlar davetle katılamaz.', rid: f.rid });
-        if (!c || c.inviteKey !== f.key) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
+        if (!c || (!code && c.inviteKey !== f.key)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           if (c.bans?.some((b) => b.userId === uid)) return this.send(s, { t: 'err', msg: 'Bu topluluktan yasaklandın.', rid: f.rid });
           if (c.invitesPaused) return this.send(s, { t: 'err', msg: 'Bu topluluk şu an yeni üye kabul etmiyor.', rid: f.rid });
@@ -1026,6 +1043,7 @@ export class Hub {
         const c = this.commFor(s, f.cid, Perm.MANAGE_COMMUNITY);
         if (!c) return;
         c.inviteKey = crypto.randomBytes(9).toString('base64url');
+        c.inviteCode = this.newInviteCode();
         this.audit(c, uid, 'invite.reset');
         this.pushComm(c);
         return;
@@ -1763,6 +1781,7 @@ export class Hub {
       channels,
       members,
       inviteKey: crypto.randomBytes(9).toString('base64url'),
+      inviteCode: this.newInviteCode(),
       pv: 2,
       joinMessages: true,
     };

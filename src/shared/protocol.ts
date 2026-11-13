@@ -208,6 +208,7 @@ export interface Community {
   members: Member[];
   users: Record<ID, UserPublic>;
   inviteKey?: string; // sadece yönetebilenlere gönderilir
+  inviteCode?: string; // kısa davet kodu (7 karakter), inviteKey ile aynı kurallar
   pv?: number; // yetki sürümü; 2 = ayrıntılı yetkiler (v1.2)
   systemChannelId?: ID | null; // katılma mesajlarının gideceği kanal
   joinMessages?: boolean; // false ise katılma mesajı gönderilmez
@@ -261,7 +262,7 @@ export interface VoiceMember {
 // ---- İstemci -> Sunucu ----
 export type ClientFrame =
   | { t: 'hello'; user: UserPublic; secret: string; status: Status; v: number }
-  | { t: 'join'; cid: ID; key: string; rid?: string }
+  | { t: 'join'; cid?: ID; key?: string; code?: string; rid?: string }
   | { t: 'send'; ch: ID; nonce: string; content: string; replyTo?: ID; attachments?: Attachment[] }
   | { t: 'edit'; ch: ID; id: ID; content: string }
   | { t: 'del'; ch: ID; id: ID }
@@ -353,6 +354,71 @@ export function makeId(ts = Date.now()): ID {
 
 export function idTime(id: ID): number {
   return parseInt(id.slice(0, 9), 36);
+}
+
+// ---- kısa davetler: "adres/kod", ör. "2ld8x1k/s3gas25" ----
+// adres kısmı ya IPv4 + bağlantı noktasının 36 tabanında sıkıştırılmış hâli (7-8 karakter)
+// ya da açık bir alan adıdır ("kovan.ornek.com/s3gas25"). Kod kısmını sunucu kendisi üretir.
+export const SHORT_CODE_RE = /^[a-z0-9]{7}$/;
+const PORT_SPAN = 16;
+
+export function makeShortCode(rand: (n: number) => Uint8Array): string {
+  const b = rand(7);
+  let s = '';
+  for (let i = 0; i < 7; i++) s += (b[i] % 36).toString(36);
+  return s;
+}
+
+/** "ip:port" → kısa adres parçası */
+export function encodeHostToken(host: string, defaultPort = DEFAULT_PORT): string {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?::(\d+))?$/.exec(host.trim());
+  if (m) {
+    const parts = m.slice(1, 5).map(Number);
+    const port = m[5] ? Number(m[5]) : defaultPort;
+    const off = port - defaultPort;
+    if (parts.every((x) => x <= 255) && off >= 0 && off < PORT_SPAN) {
+      const ip = ((parts[0] * 256 + parts[1]) * 256 + parts[2]) * 256 + parts[3];
+      return (ip * PORT_SPAN + off).toString(36);
+    }
+    return host.trim(); // farklı bağlantı noktası: olduğu gibi
+  }
+  // alan adı: varsayılan bağlantı noktasıysa kısalt
+  return host.trim().toLowerCase().replace(new RegExp(`:${defaultPort}$`), '');
+}
+
+/** kısa adres parçası → "ip:port" */
+export function decodeHostToken(tok: string, defaultPort = DEFAULT_PORT): string | null {
+  const t = tok.trim().toLowerCase();
+  if (!t) return null;
+  if (t.includes('.') || t.includes(':')) return t.includes(':') ? t : `${t}:${defaultPort}`;
+  if (!/^[0-9a-z]{1,8}$/.test(t)) return null;
+  const n = parseInt(t, 36);
+  if (!Number.isFinite(n) || n >= 2 ** 32 * PORT_SPAN) return null;
+  const off = n % PORT_SPAN;
+  let ip = Math.floor(n / PORT_SPAN);
+  const parts: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    parts.unshift(ip % 256);
+    ip = Math.floor(ip / 256);
+  }
+  return `${parts.join('.')}:${defaultPort + off}`;
+}
+
+export interface ShortInvite {
+  host: string | null; // çözülmüş "ip:port" (yalnızca kod verildiyse null)
+  code: string;
+}
+
+/** "2ld8x1k/s3gas25", "kovan://invite/2ld8x1k/s3gas25" ya da yalnızca "s3gas25" */
+export function parseShortInvite(input: string): ShortInvite | null {
+  const s = input.trim().replace(/^kovan:\/\/(invite|davet)\//i, '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  if (/^KVN-/i.test(s)) return null;
+  const i = s.lastIndexOf('/');
+  const code = (i >= 0 ? s.slice(i + 1) : s).toLowerCase();
+  if (!SHORT_CODE_RE.test(code)) return null;
+  if (i < 0) return { host: null, code };
+  // çözülemeyen ön ek (ör. bir ad) yalnızca kod gibi davranır: bağlı sunucularda aranır
+  return { host: decodeHostToken(s.slice(0, i)), code };
 }
 
 export interface InviteData {

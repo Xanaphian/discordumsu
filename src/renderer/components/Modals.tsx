@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Hash, Volume2, Megaphone, Box, Globe, Copy, Check, ImagePlus, LoaderCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
 import {
-  useStore, openModal, createCommunity, joinByInvite, makeInvite, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
+  useStore, openModal, createCommunity, joinByInvite, makeInvite, updateSettings, inviteHostOptions, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
 } from '../lib/store';
 import { CommunityIcon, Avatar } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtTime, displayName } from '../lib/util';
@@ -118,11 +118,11 @@ function JoinModal({ code: initial }: { code?: string }) {
       <div className="modal-body">
         <label className="field">
           <span>Davet kodu</span>
-          <input autoFocus placeholder="KVN-..." value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} className={cx(err && 'invalid')} />
+          <input autoFocus placeholder="ör. 2ld8x1k/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} className={cx(err && 'invalid')} />
         </label>
         {err && <div className="field-err">{err}</div>}
         <div className="hint-card">
-          <b>Nasıl çalışır?</b> Davet kodu, topluluğu barındıran bilgisayarın adresini içerir. Aynı ağdaysanız (ev, okul, LAN) doğrudan bağlanırsın. Farklı ağlar için barındıran kişinin
+          <b>Nasıl çalışır?</b> Davet kodunun "/" işaretinden önceki kısmı, topluluğu barındıran bilgisayarın kısaltılmış adresidir. Aynı ağdaysanız (ev, okul, LAN) doğrudan bağlanırsın. Farklı ağlar için barındıran kişinin
           modemde <code>{useStore.getState().info?.hubPort}</code> portunu yönlendirip Ayarlar → Bağlantı'ya dış IP'sini yazması gerekir.
         </div>
       </div>
@@ -143,8 +143,10 @@ function InviteModal({ cid }: { cid: string }) {
   const me = useStore((s) => s.me.id);
   const info = useStore((s) => s.info);
   const publicAddress = useStore((s) => s.settings.publicAddress);
+  const inviteHost = useStore((s) => s.settings.inviteHost);
   const [copied, setCopied] = useState(false);
-  const code = useMemo(() => makeInvite(cid), [cid, c?.inviteKey, publicAddress]); // eslint-disable-line
+  const opts = useMemo(() => inviteHostOptions(cid), [cid, publicAddress, info]); // eslint-disable-line
+  const code = useMemo(() => makeInvite(cid), [cid, c?.inviteKey, c?.inviteCode, publicAddress, inviteHost, info]); // eslint-disable-line
   const local = useStore((s) => s.commHost[cid] === `127.0.0.1:${s.info?.hubPort}`);
   if (!c) return null;
   return (
@@ -167,6 +169,18 @@ function InviteModal({ cid }: { cid: string }) {
             </button>
           </div>
         </label>
+        {c.inviteCode && opts.length > 1 && (
+          <label className="field">
+            <span>Bu kod hangi ağ için?</span>
+            <select value={opts.some((o) => o.host === inviteHost) ? inviteHost : opts[0].host} onChange={(e) => updateSettings({ inviteHost: e.target.value })}>
+              {opts.map((o) => (
+                <option key={o.host} value={o.host}>
+                  {o.label} · {o.host}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {local && (
           <div className="hint-card">
             Bu topluluk senin bilgisayarında çalışıyor. Ağdaki adreslerin: <b>{info?.lan.map((x) => `${x}:${info.hubPort}`).join(', ') || 'bulunamadı'}</b>
