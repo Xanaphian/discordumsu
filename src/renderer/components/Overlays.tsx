@@ -1,10 +1,10 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, CircleCheck, CircleAlert, Info } from 'lucide-react';
-import { useStore, MenuItem, openModal, recentEmoji, rememberEmoji } from '../lib/store';
-import { Avatar, STATUS_LABEL, useClickOutside } from './Common';
-import { cx, displayName, fmtDay, memberRoles, copyText } from '../lib/util';
+import { useStore, MenuItem, recentEmoji, rememberEmoji, meAsUser } from '../lib/store';
+import { ProfileCard } from './profile/ProfileCard';
+import { useClickOutside } from './Common';
+import { cx } from '../lib/util';
 import { EMOJI_CATS, searchEmoji } from '../lib/emoji';
-import { idTime } from '../../shared/protocol';
 
 function useFit(ref: React.RefObject<HTMLElement | null>, x: number, y: number, deps: unknown[] = []) {
   const [pos, setPos] = useState({ left: x, top: y, ready: false });
@@ -76,64 +76,12 @@ export function UserPopout() {
   useClickOutside(ref, close, !!p);
   const pos = useFit(ref, (p?.x || 0) + 12, (p?.y || 0) - 40, [p]);
   if (!p) return null;
-  const u = p.uid === me.id ? me : users[p.uid] || c?.users[p.uid];
-  const status = p.uid === me.id ? (me.status === 'invisible' ? 'offline' : me.status) : p.uid === 'kovan-asistan' ? 'online' : presence[p.uid] || 'offline';
-  const member = c?.members.find((x) => x.userId === p.uid);
-  const roles = c && member ? memberRoles(c, member) : [];
+  const isMe = p.uid === me.id;
+  const u = isMe ? meAsUser(me) : users[p.uid] || c?.users[p.uid];
+  const status = isMe ? (me.status === 'invisible' ? 'offline' : me.status) : p.uid === 'kovan-asistan' ? 'online' : presence[p.uid] || 'offline';
   return (
-    <div ref={ref} className="popout" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}>
-      <div className="popout-banner" style={{ background: `linear-gradient(135deg, ${u?.color || '#f5a524'}, color-mix(in srgb, ${u?.color || '#f5a524'} 40%, #000))` }} />
-      <div className="popout-avatar">
-        <Avatar user={u} size={80} status={status} />
-      </div>
-      <div className="popout-body">
-        <div className="popout-name">{c ? displayName(c, p.uid, users) : u?.name}</div>
-        <div className="popout-user">
-          {u?.name} · {STATUS_LABEL[status]}
-        </div>
-        {u?.bio && (
-          <div className="popout-section">
-            <div className="popout-label">Hakkında</div>
-            <div className="popout-bio">{u.bio}</div>
-          </div>
-        )}
-        {member && (
-          <div className="popout-section">
-            <div className="popout-label">Katılma tarihi</div>
-            <div>{fmtDay(member.joinedAt)}</div>
-          </div>
-        )}
-        {p.uid !== 'kovan-asistan' && /^[0-9a-z]{14}$/.test(p.uid) && (
-          <div className="popout-section">
-            <div className="popout-label">Kovan'a katıldı</div>
-            <div>{fmtDay(idTime(p.uid))}</div>
-          </div>
-        )}
-        {roles.length > 0 && (
-          <div className="popout-section">
-            <div className="popout-label">Roller</div>
-            <div className="role-chips">
-              {roles.map((r) => (
-                <span key={r.id} className="role-chip">
-                  <i style={{ background: r.color || 'var(--text-3)' }} />
-                  {r.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="popout-actions">
-          {p.uid === me.id ? (
-            <button className="btn sm" onClick={() => (close(), openModal({ type: 'settings', tab: 'profile' }))}>
-              Profili düzenle
-            </button>
-          ) : (
-            <button className="btn sm ghost" onClick={() => (copyText(p.uid), close())}>
-              Kimliği kopyala
-            </button>
-          )}
-        </div>
-      </div>
+    <div ref={ref} className="popout pc-pop" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}>
+      <ProfileCard uid={p.uid} user={u} status={status} c={c} variant="popout" isMe={isMe} onClose={close} />
     </div>
   );
 }

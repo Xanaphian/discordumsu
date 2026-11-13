@@ -1,4 +1,5 @@
 // Kovan ağ protokolü: istemci <-> kovan sunucusu (hub) arasında JSON çerçeveler.
+import type { ProfileExtra } from './profile';
 
 export type ID = string;
 
@@ -10,6 +11,7 @@ export interface UserPublic {
   color: string;
   avatar?: string; // küçük data URL
   bio?: string;
+  profile?: ProfileExtra; // gelişmiş profil (afiş, durum, bağlantılar…)
 }
 
 export const Perm = {

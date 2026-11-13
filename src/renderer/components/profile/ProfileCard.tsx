@@ -1,0 +1,388 @@
+import React, { memo, useEffect, useMemo, useState } from 'react';
+import {
+  Gamepad2, Headphones, Tv, Briefcase, BookOpen, Clock, Cake, Globe, Crown, Pencil, Copy, Maximize2, AtSign, Sparkles, Hexagon,
+} from 'lucide-react';
+import type { Community, Status, UserPublic } from '../../../shared/protocol';
+import { idTime } from '../../../shared/protocol';
+import { activeCustom, type ActivityKind, type CardEffect, type ProfileExtra } from '../../../shared/profile';
+import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
+import { useStore, openModal, toast, selectCommunity } from '../../lib/store';
+import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
+import { ACTIVITY_LABEL, bannerBackground, bannerClass, cardTheme, linkBrand, linkTitle, nameStyle } from './look';
+
+export const ACTIVITY_ICON: Record<ActivityKind, React.ComponentType<{ size?: number }>> = {
+  playing: Gamepad2,
+  listening: Headphones,
+  watching: Tv,
+  working: Briefcase,
+  reading: BookOpen,
+};
+
+/** Profil ayarlarına göre biçimlenmiş isim (degrade, ışıltı, yazı tipi) */
+export const NameText = memo(function NameText({
+  profile,
+  color,
+  children,
+  className,
+  onClick,
+}: {
+  profile?: ProfileExtra;
+  color?: string;
+  children: React.ReactNode;
+  className?: string;
+  onClick?: (e: React.MouseEvent) => void;
+}) {
+  const ns = nameStyle(profile, color);
+  return (
+    <span className={cx(ns.className, className)} style={ns.style} onClick={onClick}>
+      {children}
+    </span>
+  );
+});
+
+const FX_COUNT: Record<CardEffect, number> = { none: 0, sparkle: 14, bees: 4, snow: 22, aurora: 3, hearts: 9 };
+
+/** Kart üzerinde dolaşan süs efekti */
+export const CardFx = memo(function CardFx({ effect }: { effect?: CardEffect }) {
+  const items = useMemo(() => {
+    if (!effect || effect === 'none') return [];
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    return Array.from({ length: FX_COUNT[effect] }, (_, i) => ({
+      i,
+      x: rnd() * 100,
+      y: rnd() * 100,
+      d: rnd() * 6,
+      s: 0.6 + rnd() * 0.8,
+      t: 4 + rnd() * 6,
+    }));
+  }, [effect]);
+  if (!items.length) return null;
+  return (
+    <div className={cx('card-fx', 'fx-' + effect)} aria-hidden>
+      {items.map((p) => (
+        <i
+          key={p.i}
+          style={{ left: p.x + '%', top: p.y + '%', animationDelay: -p.d + 's', animationDuration: p.t + 's', ['--s' as any]: p.s }}
+        >
+          {effect === 'bees' ? '🐝' : effect === 'hearts' ? '♥' : effect === 'sparkle' ? '✦' : ''}
+        </i>
+      ))}
+    </div>
+  );
+});
+
+export function Banner({ user, profile, className, children }: { user?: Pick<UserPublic, 'color'>; profile?: ProfileExtra; className?: string; children?: React.ReactNode }) {
+  const b = profile?.banner;
+  return (
+    <div className={cx('pc-banner', bannerClass(b), className)} style={{ background: bannerBackground(b, user?.color || '#f5a524') }}>
+      {children}
+    </div>
+  );
+}
+
+function tzNow(tz: number) {
+  const d = new Date(Date.now() + tz * 60000);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+function tzDiff(tz: number) {
+  const mine = -new Date().getTimezoneOffset();
+  const diff = Math.round((tz - mine) / 60);
+  if (!diff) return 'seninle aynı saat diliminde';
+  return diff > 0 ? `senden ${diff} saat ileride` : `senden ${-diff} saat geride`;
+}
+
+function useMinuteTick(on: boolean) {
+  const [, setT] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const id = setInterval(() => setT((x) => x + 1), 30_000);
+    return () => clearInterval(id);
+  }, [on]);
+}
+
+export function isBirthday(p?: ProfileExtra) {
+  if (!p?.birthday) return false;
+  const d = new Date();
+  return p.birthday === `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+export const fmtBirthday = (b: string) => `${Number(b.slice(3))} ${MONTHS[Number(b.slice(0, 2)) - 1]}`;
+
+interface Badge {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+}
+
+function useBadges(uid: string, c: Community | undefined, profile?: ProfileExtra): Badge[] {
+  const ownsAny = useStore((s) => Object.values(s.communities).some((x) => x.ownerId === uid && x.members.length > 1));
+  const out: Badge[] = [];
+  if (uid === 'kovan-asistan') out.push({ id: 'bot', label: 'Kovan Asistanı', icon: <Sparkles size={14} /> });
+  if (c?.ownerId === uid) out.push({ id: 'owner', label: 'Topluluk sahibi', icon: <Crown size={14} /> });
+  else if (ownsAny) out.push({ id: 'founder', label: 'Kovan kurucusu', icon: <Crown size={14} /> });
+  if (/^[0-9a-z]{14}$/.test(uid) && idTime(uid) < Date.UTC(2027, 0, 1)) out.push({ id: 'early', label: 'Erken arı (2026)', icon: <Hexagon size={14} /> });
+  if (isBirthday(profile)) out.push({ id: 'bday', label: 'Bugün doğum günü!', icon: <Cake size={14} /> });
+  return out;
+}
+
+export function CustomStatusBubble({ profile }: { profile?: ProfileExtra }) {
+  const cs = activeCustom(profile);
+  if (!cs) return null;
+  return (
+    <div className="pc-bubble">
+      {cs.emoji && <span className="pc-bubble-emoji">{cs.emoji}</span>}
+      {cs.text && <span>{cs.text}</span>}
+    </div>
+  );
+}
+
+export function ActivityRow({ profile }: { profile?: ProfileExtra }) {
+  const a = profile?.activity;
+  if (!a) return null;
+  const Icon = ACTIVITY_ICON[a.kind];
+  return (
+    <div className="pc-activity">
+      <span className="pc-act-icon">
+        <Icon size={18} />
+      </span>
+      <div>
+        <b>{a.text}</b>
+        <span>{ACTIVITY_LABEL[a.kind]}</span>
+      </div>
+    </div>
+  );
+}
+
+export function LinkList({ profile }: { profile?: ProfileExtra }) {
+  if (!profile?.links?.length) return null;
+  return (
+    <div className="pc-links">
+      {profile.links.map((l, i) => {
+        const brand = linkBrand(l.url);
+        return (
+          <button key={i} className="pc-link" onClick={() => window.kovan.openExternal(l.url)} title={l.url}>
+            <span className="pc-link-ic" style={brand ? { background: brand.bg } : undefined}>
+              {brand ? brand.tag : <Globe size={13} />}
+            </span>
+            <span className="pc-link-t">{linkTitle(l)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export interface CardProps {
+  uid: string;
+  user: UserPublic | undefined;
+  status?: Status;
+  c?: Community;
+  variant: 'popout' | 'full' | 'preview';
+  isMe?: boolean;
+  onClose?: () => void;
+  /** önizlemede gösterilecek sahte isim */
+  displayAs?: string;
+}
+
+export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, displayAs }: CardProps) {
+  const users = useStore((s) => s.users);
+  const communities = useStore((s) => s.communities);
+  const p = user?.profile;
+  const theme = cardTheme(p);
+  const badges = useBadges(uid, c, p);
+  const [tab, setTab] = useState<'about' | 'mutual'>('about');
+  useMinuteTick(p?.tz !== undefined);
+  const member = c?.members.find((x) => x.userId === uid);
+  const roles = c && member ? memberRoles(c, member) : [];
+  const shownName = displayAs ?? (c ? displayName(c, uid, users) : user?.name || 'İsimsiz');
+  const color = c ? roleColor(c, uid) : '';
+  const mutual = useMemo(
+    () => (variant === 'full' && !isMe ? Object.values(communities).filter((x) => x.members.some((m) => m.userId === uid)) : []),
+    [variant, isMe, communities, uid],
+  );
+  const full = variant === 'full';
+  const avatarSize = full ? 116 : 84;
+
+  const about = (
+    <>
+      {user?.bio && (
+        <section className="pc-sec">
+          <h4>Hakkında</h4>
+          <div className="pc-bio">{user.bio}</div>
+        </section>
+      )}
+      {p?.activity && (
+        <section className="pc-sec">
+          <h4>Şu an</h4>
+          <ActivityRow profile={p} />
+        </section>
+      )}
+      {!!p?.tags?.length && (
+        <section className="pc-sec">
+          <h4>İlgi alanları</h4>
+          <div className="pc-tags">
+            {p.tags.map((t) => (
+              <span key={t} className="pc-tag">
+                {t}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+      {!!p?.links?.length && (
+        <section className="pc-sec">
+          <h4>Bağlantılar</h4>
+          <LinkList profile={p} />
+        </section>
+      )}
+      {(p?.tz !== undefined || p?.birthday) && (
+        <section className="pc-sec pc-facts">
+          {p?.tz !== undefined && (
+            <div className="pc-fact">
+              <Clock size={14} />
+              <span>
+                Yerel saat <b>{tzNow(p.tz)}</b>
+                {!isMe && <em> · {tzDiff(p.tz)}</em>}
+              </span>
+            </div>
+          )}
+          {p?.birthday && (
+            <div className="pc-fact">
+              <Cake size={14} />
+              <span>
+                Doğum günü <b>{fmtBirthday(p.birthday)}</b>
+              </span>
+            </div>
+          )}
+        </section>
+      )}
+      <section className="pc-sec pc-dates">
+        {/^[0-9a-z]{14}$/.test(uid) && (
+          <div>
+            <h4>Kovan'a katıldı</h4>
+            <span>{fmtDay(idTime(uid))}</span>
+          </div>
+        )}
+        {member && (
+          <div>
+            <h4>Topluluğa katıldı</h4>
+            <span>{fmtDay(member.joinedAt)}</span>
+          </div>
+        )}
+      </section>
+      {roles.length > 0 && (
+        <section className="pc-sec">
+          <h4>Roller</h4>
+          <div className="role-chips">
+            {roles.map((r) => (
+              <span key={r.id} className="role-chip">
+                <i style={{ background: r.color || 'var(--text-3)' }} />
+                {r.name}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      className={cx('pcard', 'pcard-' + variant, theme && 'themed', theme && 'tone-' + theme.tone)}
+      style={theme?.style}
+    >
+      <Banner user={user} profile={p} className={full ? 'tall' : ''}>
+        {badges.length > 0 && (
+          <div className="pc-badges">
+            {badges.map((b) => (
+              <Tooltip key={b.id} text={b.label} side="bottom">
+                <span className={cx('pc-badge', 'b-' + b.id)}>{b.icon}</span>
+              </Tooltip>
+            ))}
+          </div>
+        )}
+      </Banner>
+      <CardFx effect={p?.effect} />
+      <div className="pc-head">
+        <div className="pc-avatar">
+          <Avatar user={user} size={avatarSize} status={status} />
+        </div>
+        <CustomStatusBubble profile={p} />
+      </div>
+      <div className="pc-body">
+        <div className="pc-namebox">
+          <NameText profile={p} color={color || undefined} className="pc-name">
+            {shownName}
+          </NameText>
+          <div className="pc-sub">
+            {shownName !== user?.name && user?.name && <span>{user.name}</span>}
+            {p?.pronouns && (
+              <span className="pc-pron">
+                <AtSign size={11} />
+                {p.pronouns}
+              </span>
+            )}
+            {status && <span className={cx('pc-status', status)}>{STATUS_LABEL[status]}</span>}
+          </div>
+        </div>
+        {full && !isMe && mutual.length > 0 ? (
+          <>
+            <div className="pc-tabs">
+              <button className={cx(tab === 'about' && 'on')} onClick={() => setTab('about')}>
+                Hakkında
+              </button>
+              <button className={cx(tab === 'mutual' && 'on')} onClick={() => setTab('mutual')}>
+                Ortak topluluklar · {mutual.length}
+              </button>
+            </div>
+            {tab === 'about' ? (
+              about
+            ) : (
+              <div className="pc-mutual">
+                {mutual.map((m) => (
+                  <button
+                    key={m.id}
+                    className="pc-mutual-row"
+                    onClick={() => {
+                      onClose?.();
+                      selectCommunity(m.id);
+                    }}
+                  >
+                    <span className="pc-mutual-ic" style={{ background: m.color }}>
+                      {m.icon ? <img src={m.icon} alt="" /> : m.name.slice(0, 2).toLocaleUpperCase('tr')}
+                    </span>
+                    <span>{m.name}</span>
+                    <em>{m.members.length} üye</em>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          about
+        )}
+        {variant !== 'preview' && (
+          <div className="pc-actions">
+            {isMe ? (
+              <button className="btn sm primary" onClick={() => (onClose?.(), openModal({ type: 'settings', tab: 'profile' }))}>
+                <Pencil size={14} /> Profili düzenle
+              </button>
+            ) : (
+              <button className="btn sm ghost" onClick={() => (copyText(uid), toast('Kimlik kopyalandı', 'ok'), onClose?.())}>
+                <Copy size={14} /> Kimliği kopyala
+              </button>
+            )}
+            {variant === 'popout' && (
+              <button className="btn sm ghost" onClick={() => (onClose?.(), openModal({ type: 'profile', uid, cid: c?.id }))}>
+                <Maximize2 size={14} /> Tam profil
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

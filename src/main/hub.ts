@@ -11,6 +11,7 @@ import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
 } from '../shared/protocol';
+import { sanitizeProfile, BIO_MAX } from '../shared/profile';
 
 const MAX_CONTENT = 4000;
 const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -1130,7 +1131,9 @@ export class Hub {
       color: /^#[0-9a-f]{6}$/i.test(u?.color) ? u.color : '#f5a524',
     };
     if (typeof u?.avatar === 'string' && u.avatar.startsWith('data:image/') && u.avatar.length < 200_000) out.avatar = u.avatar;
-    if (u?.bio) out.bio = clampStr(u.bio, 190);
+    if (u?.bio) out.bio = clampStr(u.bio, BIO_MAX);
+    const profile = sanitizeProfile(u?.profile);
+    if (profile) out.profile = profile;
     return out;
   }
 

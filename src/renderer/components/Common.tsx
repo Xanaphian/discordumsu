@@ -1,5 +1,6 @@
 import React, { memo, ReactNode, useEffect, useRef } from 'react';
 import type { Community, Status, UserPublic } from '../../shared/protocol';
+import type { AvatarShape, ProfileExtra } from '../../shared/profile';
 import { cx, initials } from '../lib/util';
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -10,29 +11,43 @@ export const STATUS_LABEL: Record<Status, string> = {
   offline: 'Çevrimdışı',
 };
 
+type AvatarUser = Pick<UserPublic, 'name' | 'color' | 'avatar'> & { profile?: ProfileExtra; extra?: ProfileExtra };
+
 export const Avatar = memo(function Avatar({
   user,
   size = 40,
   status,
   speaking,
   onClick,
+  shape,
+  plain,
 }: {
-  user: Pick<UserPublic, 'name' | 'color' | 'avatar'> | undefined;
+  user: AvatarUser | undefined;
   size?: number;
   status?: Status;
   speaking?: boolean;
   onClick?: (e: React.MouseEvent) => void;
+  /** profil ayarı yerine bu şekli kullan */
+  shape?: AvatarShape;
+  /** çerçeve ve efektleri gösterme */
+  plain?: boolean;
 }) {
   const name = user?.name || '?';
+  const prof = user?.profile ?? user?.extra;
+  const sh = shape || prof?.shape || 'hex';
+  const frame = !plain && size >= 28 ? prof?.frame : undefined;
+  const style = { width: size, height: size, ['--av-c' as any]: prof?.frameColor || user?.color || '#f5a524' };
   return (
-    <div className={cx('avatar', speaking && 'speaking', onClick && 'clickable')} style={{ width: size, height: size }} onClick={onClick}>
-      {user?.avatar ? (
-        <img src={user.avatar} alt="" draggable={false} loading="lazy" decoding="async" />
-      ) : (
-        <div className="avatar-fallback" style={{ background: user?.color || '#555', fontSize: size * 0.38 }}>
-          {initials(name)}
-        </div>
-      )}
+    <div className={cx('avatar', 'shape-' + sh, frame && 'frame-' + frame, speaking && 'speaking', onClick && 'clickable')} style={style} onClick={onClick}>
+      <div className="av-clip">
+        {user?.avatar ? (
+          <img src={user.avatar} alt="" draggable={false} loading="lazy" decoding="async" />
+        ) : (
+          <div className="avatar-fallback" style={{ background: user?.color || '#555', fontSize: size * 0.36 }}>
+            {initials(name)}
+          </div>
+        )}
+      </div>
       {status && <span className={cx('status-dot', status)} style={{ width: Math.max(10, size * 0.32), height: Math.max(10, size * 0.32) }} />}
     </div>
   );
