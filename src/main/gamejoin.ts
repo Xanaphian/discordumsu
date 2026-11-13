@@ -108,6 +108,7 @@ export interface LolState {
 }
 
 export async function lolState(): Promise<LolState> {
+  if (process.env.KOVAN_FAKE_LOBBY) return { running: true, lobby: process.env.KOVAN_FAKE_LOBBY === '1', me: 'Xanaphian#TR1' };
   const l = await lcu();
   if (!l) return { running: false, lobby: false };
   const me = await req(l, 'GET', '/lol-summoner/v1/current-summoner');

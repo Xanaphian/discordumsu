@@ -1,5 +1,5 @@
 // Kart mesajları: takım ilanı, anket ve bunları kuran pencereler.
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Swords, ChartNoAxesColumn, Check, Volume2, Gamepad2, UsersRound, Clock, X, Plus, Minus, CalendarClock } from 'lucide-react';
 import { useStore, toggleReaction, sendMessage, toast } from '../lib/store';
 import { useVoice, joinVoice } from '../lib/voice';
@@ -11,7 +11,7 @@ import {
 } from '../lib/cards';
 import { presets, schedule } from '../lib/later';
 import { useActs } from '../lib/activity';
-import { LFG_GAMES, lfgGameOf, slotsFor, type LfgGame } from '../lib/lfgGames';
+import { LFG_GAMES, lfgGameOf, slotsFor } from '../lib/lfgGames';
 import { BrandLogo } from './profile/Activity';
 import { STEAM_JOIN, accountFor, lolWaitInvite, steamJoin } from '../lib/lfgJoin';
 import { isVoiceLike, type Community, type Message, type ID } from '../../shared/protocol';
@@ -308,46 +308,72 @@ function Dialog({ title, sub, onClose, children, foot, className, style }: { tit
 }
 
 export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
+  // Takım yalnız açık oyundan ve (LoL'de) kurulmuş lobiden kurulur
   const playing = useActs((s) => s.detected?.game?.name);
-  const start = playing ? lfgGameOf({ g: playing }) : undefined;
-  const [game, setGame] = useState<LfgGame | null>(start || null);
-  const [custom, setCustom] = useState('');
-  const [modeIx, setModeIx] = useState(0);
-  const [count, setCount] = useState(4);
+  const sharing = useStore((s) => s.settings.actShare && s.settings.actGames);
+  const live = playing ? lfgGameOf({ g: playing }) : undefined;
+  const [lobby, setLobby] = useState<boolean | null>(null);
+  const [tries, setTries] = useState(0);
+  const game = live && (live.key !== 'lol' || lobby) ? live : null;
+  const [modeIx, setModeIx] = useState(live?.key === 'lol' ? 1 : 0);
+  const [count, setCount] = useState(live?.size || 4);
   const [n, setN] = useState('');
   const [own, setOwn] = useState<number | null>(null);
 
-  const pick = (g: LfgGame) => {
-    setGame(g);
-    setModeIx(g.key === 'lol' ? 1 : 0);
-    setCount(g.size || 4);
-    setOwn(null);
-  };
+  useEffect(() => {
+    if (live?.key !== 'lol') return;
+    setLobby(null);
+    (window as any).kovan?.game
+      ?.lolState()
+      .then((x: { lobby: boolean }) => setLobby(!!x?.lobby))
+      .catch(() => setLobby(false));
+  }, [live?.key, tries]);
 
-  if (!game)
+  if (!game) {
+    const waitingLol = live?.key === 'lol';
     return (
-      <Dialog title="Takım kur" sub="Hangi oyun için takım arıyorsun?" onClose={onClose} foot={<button className="btn ghost" onClick={onClose}>Vazgeç</button>}>
-        <div className="lfg-games">
-          {LFG_GAMES.map((g) => (
-            <button
-              key={g.key}
-              className="lfg-game"
-              style={g.theme.a ? ({ '--g-a': g.theme.a, '--g-bg': g.theme.bg } as React.CSSProperties) : undefined}
-              onClick={() => pick(g)}
-            >
-              {g.brand ? <BrandLogo k={g.brand} size={44} /> : <span className="lfg-game-other"><Plus size={22} /></span>}
-              <span>{g.name}</span>
+      <Dialog
+        title="Takım kur"
+        sub={
+          waitingLol
+            ? lobby === null
+              ? 'LoL lobin kontrol ediliyor…'
+              : 'LoL açık ama bir lobide değilsin. İstemcide lobi kur, sonra tekrar dene.'
+            : 'Takım, oynadığın oyundan kurulur. Aşağıdaki oyunlardan birini aç (LoL\'de bir lobi kur), bu pencere o oyuna göre açılır.'
+        }
+        onClose={onClose}
+        foot={
+          <>
+            <button className="btn ghost" onClick={onClose}>
+              Kapat
             </button>
+            {waitingLol && (
+              <button className="btn primary" onClick={() => setTries(tries + 1)} disabled={lobby === null}>
+                Tekrar dene
+              </button>
+            )}
+          </>
+        }
+      >
+        <div className="lfg-games locked">
+          {LFG_GAMES.map((g) => (
+            <div key={g.key} className={cx('lfg-game', live?.key === g.key && 'live')} style={{ '--g-a': g.theme.a, '--g-bg': g.theme.bg } as React.CSSProperties}>
+              {g.brand && <BrandLogo k={g.brand} size={44} />}
+              <span>{g.name}</span>
+              <small>{live?.key === g.key ? (g.key === 'lol' ? 'Açık · lobi yok' : 'Açık') : 'Kapalı'}</small>
+            </div>
           ))}
         </div>
+        {!sharing && <div className="lfg-hint">Oyunun görünmesi için Ayarlar → Etkinlik'te oyun paylaşımı açık olmalı.</div>}
       </Dialog>
     );
+  }
 
   const mode = game.modes[modeIx];
   const slots = slotsFor(game, mode, count);
   const named = slots.some((x) => x);
   const fixedSize = !!mode?.size || (named && !mode?.size);
-  const name = game.key === 'diger' ? custom.trim() : game.name;
+  const name = game.name;
   const theme = game.theme.a ? ({ '--g-a': game.theme.a, '--g-b': game.theme.b, '--g-bg': game.theme.bg, '--g-ink': game.theme.ink || '#111' } as React.CSSProperties) : undefined;
 
   const send = () => {
@@ -367,10 +393,10 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
       style={theme}
       foot={
         <>
-          <button className="btn ghost" onClick={() => setGame(null)}>
-            Oyunu değiştir
+          <button className="btn ghost" onClick={onClose}>
+            Vazgeç
           </button>
-          <button className="btn primary lfg-send" onClick={send} disabled={game.key === 'diger' && !name}>
+          <button className="btn primary lfg-send" onClick={send}>
             İlanı paylaş
           </button>
         </>
@@ -379,11 +405,7 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
       <div className="lfg-hero">
         {game.brand ? <BrandLogo k={game.brand} size={52} /> : <span className="lfg-game-other"><Swords size={24} /></span>}
         <div>
-          {game.key === 'diger' ? (
-            <input className="lfg-custom" value={custom} onChange={(e) => setCustom(e.target.value)} maxLength={48} placeholder="Oyunun adı" autoFocus />
-          ) : (
-            <b>{game.name}</b>
-          )}
+          <b>{game.name}</b>
           <small>{named ? `${slots.length} ${game.slotWord.toLocaleLowerCase('tr')} · kendi yerini seç` : `${slots.length} kişilik takım`}</small>
         </div>
       </div>
