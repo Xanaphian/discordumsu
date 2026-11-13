@@ -86,6 +86,21 @@ export interface Settings {
   msgStyle: 'petek' | 'balon' | 'duz';
   layout: 'float' | 'flush';
   backdrop: boolean;
+  // etkinlik (v1.18)
+  /** anlık etkinliğimi paylaş (ana anahtar) */
+  actShare: boolean;
+  actGames: boolean;
+  actMusic: boolean;
+  /** tarayıcıda çalan müzik/videolar */
+  actBrowser: boolean;
+  /** Kick / Twitch'te yayındayken göster */
+  actStream: boolean;
+  /** profilde son 30 günün etkinliği */
+  actRecent: boolean;
+  /** elle eklenen oyunlar: süreç adı -> görünen ad */
+  customGames: { exe: string; name: string }[];
+  /** gösterilmeyecek oyunlar (görünen ad) */
+  hiddenGames: string[];
   /** görünüm göçü: 2 = Destan teması varsayılan oldu (v1.7), 3 = site altını (v1.14), 4 = site temaları (v1.16) */
   lookRev: number;
 }
@@ -168,6 +183,14 @@ export const DEFAULT_SETTINGS: Settings = {
   msgStyle: 'petek',
   layout: 'float',
   backdrop: true,
+  actShare: true,
+  actGames: true,
+  actMusic: true,
+  actBrowser: false,
+  actStream: true,
+  actRecent: true,
+  customGames: [],
+  hiddenGames: [],
   lookRev: 4,
 };
 
@@ -776,6 +799,7 @@ function onFrame(host: string, f: ServerFrame) {
         voice: { ...s.voice, ...f.voice },
       }));
       siteHooks.onFrame?.(f);
+      actHooks.onReady?.(host, f);
       // bu sunucudan gelen eski toplulukları temizle
       const dms = f.dms || [];
       const ids = new Set([...f.communities.map((c) => c.id), ...dms.map((d) => dmCid(d.peer.id))]);
@@ -919,6 +943,7 @@ function onFrame(host: string, f: ServerFrame) {
       return;
     case 'presence':
       set((s) => ({ presence: { ...s.presence, [f.uid]: f.status } }));
+      actHooks.onPresence?.(f);
       return;
     case 'user':
       set((s) => {
@@ -1016,6 +1041,14 @@ function callWatch(c: Community, ch: ID, before: VoiceMember[], now: VoiceMember
 export const botHooks = new Set<(f: Extract<ServerFrame, { t: 'bots' }>) => void>();
 export const spaceHooks: { onFrame?: (host: string, f: ServerFrame) => void } = {};
 export const siteHooks: { onFrame?: (f: ServerFrame) => void } = {};
+/** anlık etkinlik (lib/activity.ts) */
+export const actHooks: {
+  onReady?: (host: string, f: Extract<ServerFrame, { t: 'ready' }>) => void;
+  onPresence?: (f: Extract<ServerFrame, { t: 'presence' }>) => void;
+} = {};
+/** Tüm bağlı sunuculara çerçeve gönderir */
+export const sendAll = (f: ClientFrame) => conns.forEach((c) => c.send(f));
+export const sendHost = (host: string, f: ClientFrame) => conns.get(host)?.send(f);
 
 export const voiceHooks: {
   onRoom?: (host: string, ch: ID, members: VoiceMember[]) => void;

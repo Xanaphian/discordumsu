@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { Hub } from './hub';
+import { initActivity, configureActivity, getActivity, runningApps, stopActivity, type ActivityConfig } from './activity';
 import { Updater } from './updater';
 import { DEFAULT_PORT, makeId } from '../shared/protocol';
 
@@ -444,6 +445,7 @@ app.whenReady().then(async () => {
   setTimeout(() => hub.refreshAllSiteMeta(), 4000);
   setInterval(() => hub.refreshAllSiteMeta(), 6 * 3600_000);
   registerIpc();
+  initActivity((st) => win?.webContents.send('act:update', st));
   createWindow();
   createTray();
   updater = new Updater(() => win, isDev);
@@ -456,6 +458,7 @@ app.on('before-quit', () => {
 });
 app.on('will-quit', () => {
   if (saveTimer) saveConfig(true);
+  stopActivity();
   hub.stop();
 });
 app.on('window-all-closed', () => {
@@ -507,6 +510,8 @@ function registerIpc() {
   }));
   ipcMain.handle('mcp:claude-desktop', (_e, a: { name: string; url: string; token: string }) => installClaudeDesktop(a));
   ipcMain.handle('cfg:get', () => config);
+  ipcMain.handle('act:config', (_e, c: ActivityConfig) => (configureActivity(c), getActivity()));
+  ipcMain.handle('act:apps', () => runningApps());
   ipcMain.handle('cfg:set', (_e, patch: Partial<Config>) => {
     config = {
       ...config,
@@ -585,6 +590,8 @@ function registerIpc() {
   });
   ipcMain.on('open-external', (_e, url: string) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    // Spotify'da şarkıyı aç (yalnız arama adresi)
+    else if (/^spotify:search:[^\s]{1,300}$/i.test(url)) shell.openExternal(url).catch(() => shell.openExternal('https://open.spotify.com/search/' + url.slice(15)));
   });
   ipcMain.on('app:quit', () => {
     quitting = true;

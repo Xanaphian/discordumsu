@@ -15,6 +15,8 @@ import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
 import { focusProfileSection } from './profile/ProfileEditor';
 import { activeCustom } from '../../shared/profile';
+import { useActsOf } from '../lib/activity';
+import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName } from '../lib/util';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
@@ -424,17 +426,27 @@ export function VoicePanel() {
 }
 
 const STATUSES: Status[] = ['online', 'idle', 'dnd', 'invisible'];
+/** durum menüsünde daha açıklayıcı adlar */
+const STATUS_MENU: Partial<Record<Status, string>> = {
+  dnd: 'Rahatsız Etmeyin (bildirimler susar)',
+  invisible: 'Görünmez (çevrimdışı görün)',
+};
 
 export function UserPanel() {
   const me = useStore((s) => s.me);
   const muted = useVoice((s) => s.muted);
   const deaf = useVoice((s) => s.deaf);
+  const myLive = useActsOf(me.id).length > 0;
+  const actShare = useStore((s) => s.settings.actShare);
   const statusMenu = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openMenu({ clientX: r.left, clientY: r.top - 8 - 8 * 34 - 60 }, [
-      ...STATUSES.map((st) => ({ label: STATUS_LABEL[st], icon: 'status-' + st, checked: me.status === st, onClick: () => setStatus(st) })),
+    openMenu({ clientX: r.left, clientY: r.top - 8 - 10 * 34 - 70 }, [
+      ...STATUSES.map((st) => ({ label: STATUS_MENU[st] || STATUS_LABEL[st], icon: 'status-' + st, checked: me.status === st, onClick: () => setStatus(st) })),
       { sep: true },
       { label: activeCustom(me.extra) ? 'Özel durumu değiştir' : 'Özel durum ayarla', onClick: () => openModal({ type: 'customStatus' }) },
+      { label: 'Etkinliğimi paylaş', checked: actShare, onClick: () => updateSettings({ actShare: !actShare }) },
+      { label: 'Etkinlik ayarları', onClick: () => openModal({ type: 'settings', tab: 'activity' }) },
+      { sep: true },
       { label: 'Profilimi görüntüle', onClick: () => openModal({ type: 'profile', uid: me.id }) },
       { label: 'Profili düzenle', onClick: () => openModal({ type: 'settings', tab: 'profile' }) },
       { label: 'Afiş ve arka plan', onClick: () => (focusProfileSection('banner'), openModal({ type: 'settings', tab: 'profile' })) },
@@ -451,7 +463,9 @@ export function UserPanel() {
             {me.name}
           </NameText>
           <div className="up-status">
-            {activeCustom(me.extra) ? (
+            {myLive && me.status !== 'invisible' ? (
+              <ActivityLine uid={me.id} />
+            ) : activeCustom(me.extra) ? (
               <>
                 {activeCustom(me.extra)!.emoji} {activeCustom(me.extra)!.text}
               </>
@@ -487,6 +501,7 @@ export function Sidebar() {
     <aside className="sidebar">
       {current === 'home' || !c || c.dm ? <HomeSidebar /> : <ChannelSidebar c={c} />}
       <VoicePanel />
+      <ListenAlongBar />
       <UserPanel />
     </aside>
   );
@@ -497,6 +512,7 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
   const user = useStore((s) => s.users[c.dm!] || c.users[c.dm!]);
   const status = useStore((s) => s.presence[c.dm!]);
   const custom = activeCustom(user?.profile);
+  const live = useActsOf(c.dm).length > 0;
   const menu = (e: React.MouseEvent) =>
     openMenu(e, [
       { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !unread },
@@ -510,7 +526,7 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
       <Avatar user={user} size={32} status={status || 'offline'} />
       <span className="dm-text">
         <span className="ch-name">{user?.name || c.name}</span>
-        {custom?.text ? <span className="ch-sub">{custom.emoji ? custom.emoji + ' ' : ''}{custom.text}</span> : null}
+        {live ? <ActivityLine uid={c.dm!} className="ch-sub" /> : custom?.text ? <span className="ch-sub">{custom.emoji ? custom.emoji + ' ' : ''}{custom.text}</span> : null}
       </span>
       {mentions > 0 ? (
         <span className="badge">{mentions}</span>

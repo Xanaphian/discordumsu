@@ -5,7 +5,7 @@ import { cx, initials } from '../lib/util';
 
 export const STATUS_LABEL: Record<Status, string> = {
   online: 'Çevrimiçi',
-  idle: 'Boşta',
+  idle: 'Uzakta',
   dnd: 'Rahatsız Etmeyin',
   invisible: 'Görünmez',
   offline: 'Çevrimdışı',

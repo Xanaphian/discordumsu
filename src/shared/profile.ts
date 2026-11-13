@@ -48,13 +48,66 @@ export interface ProfileLink {
   url: string;
 }
 
+/** Profile bağlanan hesaplar (adres, servis ve ada göre istemcide kurulur) */
+export type AccountService =
+  | 'riot' | 'steam' | 'epic' | 'battlenet' | 'xbox' | 'psn' | 'kick' | 'twitch' | 'youtube' | 'spotify' | 'github' | 'x' | 'instagram' | 'tiktok' | 'reddit';
+export const ACCOUNT_SERVICES: AccountService[] = [
+  'riot', 'steam', 'epic', 'battlenet', 'xbox', 'psn', 'kick', 'twitch', 'youtube', 'spotify', 'github', 'x', 'instagram', 'tiktok', 'reddit',
+];
+export const RIOT_REGIONS = ['tr', 'euw', 'eune', 'na', 'kr', 'br', 'lan', 'las', 'oce', 'ru', 'jp'] as const;
+export type RiotRegion = (typeof RIOT_REGIONS)[number];
+
+export interface LinkedAccount {
+  svc: AccountService;
+  name: string;
+  /** yalnız Riot için: bölge */
+  region?: RiotRegion;
+}
+
+/** Son 30 günde oynanan / dinlenen / yayın yapılanlar (profilde "Etkinlik" sekmesi) */
+export interface RecentActivity {
+  kind: 'playing' | 'listening' | 'streaming';
+  name: string;
+  /** son görülme */
+  ts: number;
+  /** toplam dakika (son 30 gün) */
+  mins?: number;
+  /** üst üste oynanan gün sayısı */
+  streak?: number;
+}
+
+/** Anlık etkinlik: oyun, müzik, yayın. Profile kaydedilmez, yalnız çevrimiçiyken yayılır. */
+export type LiveKind = 'playing' | 'listening' | 'streaming' | 'watching';
+export interface LiveActivity {
+  kind: LiveKind;
+  /** oyun adı, "Spotify", "Kick" … */
+  name: string;
+  /** şarkı adı, yayın başlığı, şampiyon … */
+  details?: string;
+  /** sanatçı, kategori, oyun kipi … */
+  state?: string;
+  start?: number;
+  end?: number;
+  /** albüm kapağı / yayın görseli (küçük data URL) */
+  art?: string;
+  /** oyunun kendi simgesi (küçük data URL) */
+  icon?: string;
+  url?: string;
+  /** kaynak: spotify, kick, twitch, browser, app, game */
+  src?: string;
+  viewers?: number;
+}
+
 export interface ProfileExtra {
   pronouns?: string;
+  accounts?: LinkedAccount[];
+  recent?: RecentActivity[];
   custom?: { emoji?: string; text?: string; until?: number };
   activity?: { kind: ActivityKind; text: string };
   banner?: ProfileBanner;
   bg?: ProfileBg;
-  theme?: { a: string; b: string };
+  /** kart renkleri: a üst, b alt, c vurgu (başlıklar, düğmeler) */
+  theme?: { a: string; b: string; c?: string };
   shape?: AvatarShape;
   frame?: AvatarFrame;
   frameColor?: string;
@@ -196,7 +249,39 @@ export function sanitizeProfile(p: unknown): ProfileExtra | undefined {
   }
   if (x.theme && typeof x.theme === 'object') {
     const a = col(x.theme.a), b = col(x.theme.b);
-    if (a && b) out.theme = { a, b };
+    const c = col(x.theme.c);
+    if (a && b) out.theme = c ? { a, b, c } : { a, b };
+  }
+  if (Array.isArray(x.accounts)) {
+    const seen = new Set<string>();
+    const acc: LinkedAccount[] = [];
+    for (const a of x.accounts.slice(0, 16)) {
+      const svc = pick(a?.svc, ACCOUNT_SERVICES);
+      const name = str(a?.name, 48).replace(/^@+/, svc === 'riot' || svc === 'battlenet' ? '' : '');
+      if (!svc || !name || seen.has(svc + ':' + name.toLowerCase())) continue;
+      seen.add(svc + ':' + name.toLowerCase());
+      const one: LinkedAccount = { svc, name };
+      const region = svc === 'riot' ? pick(a?.region, RIOT_REGIONS) : undefined;
+      if (region) one.region = region;
+      acc.push(one);
+      if (acc.length >= 12) break;
+    }
+    if (acc.length) out.accounts = acc;
+  }
+  if (Array.isArray(x.recent)) {
+    const rec: RecentActivity[] = [];
+    for (const r of x.recent.slice(0, 12)) {
+      const kind = pick(r?.kind, ['playing', 'listening', 'streaming'] as const);
+      const name = str(r?.name, 64);
+      const ts = typeof r?.ts === 'number' && isFinite(r.ts) ? Math.floor(r.ts) : 0;
+      if (!kind || !name || !ts) continue;
+      const one: RecentActivity = { kind, name, ts };
+      if (typeof r.mins === 'number' && isFinite(r.mins) && r.mins > 0) one.mins = Math.min(99999, Math.round(r.mins));
+      if (typeof r.streak === 'number' && isFinite(r.streak) && r.streak > 1) one.streak = Math.min(999, Math.round(r.streak));
+      rec.push(one);
+      if (rec.length >= 8) break;
+    }
+    if (rec.length) out.recent = rec;
   }
   const shape = pick(x.shape, SHAPES);
   if (shape) out.shape = shape;
@@ -237,4 +322,41 @@ export function activeCustom(p?: ProfileExtra, now = Date.now()) {
   const c = p?.custom;
   if (!c || (c.until && c.until < now)) return undefined;
   return c;
+}
+
+export const LIVE_KINDS: LiveKind[] = ['playing', 'listening', 'streaming', 'watching'];
+const ART_MAX = 24_000;
+const ICON_MAX = 12_000;
+
+/** Anlık etkinlik listesini doğrular (en çok 3) */
+export function sanitizeActivities(v: unknown): LiveActivity[] {
+  if (!Array.isArray(v)) return [];
+  const out: LiveActivity[] = [];
+  for (const a of v.slice(0, 4)) {
+    if (!a || typeof a !== 'object') continue;
+    const kind = pick((a as any).kind, LIVE_KINDS);
+    const name = str((a as any).name, 64);
+    if (!kind || !name) continue;
+    const x = a as Record<string, any>;
+    const one: LiveActivity = { kind, name };
+    const details = str(x.details, 128);
+    if (details) one.details = details;
+    const state = str(x.state, 128);
+    if (state) one.state = state;
+    const num = (n: unknown) => (typeof n === 'number' && isFinite(n) && n > 0 ? Math.floor(n) : undefined);
+    const start = num(x.start), end = num(x.end);
+    if (start) one.start = start;
+    if (end && (!start || end > start)) one.end = end;
+    if (typeof x.art === 'string' && x.art.length <= ART_MAX && IMG.test(x.art)) one.art = x.art;
+    if (typeof x.icon === 'string' && x.icon.length <= ICON_MAX && IMG.test(x.icon)) one.icon = x.icon;
+    const url = safeUrl(x.url);
+    if (url) one.url = url;
+    const src = str(x.src, 16).toLowerCase();
+    if (/^[a-z0-9]+$/.test(src)) one.src = src;
+    const viewers = num(x.viewers);
+    if (viewers !== undefined) one.viewers = Math.min(viewers, 10_000_000);
+    out.push(one);
+    if (out.length >= 3) break;
+  }
+  return out;
 }

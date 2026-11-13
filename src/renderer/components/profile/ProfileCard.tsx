@@ -10,6 +10,8 @@ import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
 import { useStore, openModal, toast, selectCommunity, openDm, addFriend, acceptFriend } from '../../lib/store';
 import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
 import { ACTIVITY_LABEL, bannerBackground, bannerClass, cardTheme, imgFrameStyle, linkBrand, linkTitle, nameStyle } from './look';
+import { ActivityCards, AccountList, PrivateNote, RecentList } from './Activity';
+import { useActsOf } from '../../lib/activity';
 
 export const ACTIVITY_ICON: Record<ActivityKind, React.ComponentType<{ size?: number }>> = {
   playing: Gamepad2,
@@ -240,7 +242,9 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
   const p = user?.profile;
   const theme = cardTheme(p);
   const badges = useBadges(uid, c, p, user?.bot);
-  const [tab, setTab] = useState<'about' | 'mutual'>('about');
+  const [tab, setTab] = useState<'about' | 'activity' | 'mutual'>('about');
+  const acts = useActsOf(uid);
+  const liveSvcs = acts.filter((a) => a.kind === 'streaming').map((a) => a.src || '');
   useMinuteTick(p?.tz !== undefined);
   const member = c?.members.find((x) => x.userId === uid);
   const roles = c && member ? memberRoles(c, member) : [];
@@ -261,11 +265,17 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
           <div className="pc-bio">{user.bio}</div>
         </section>
       )}
-      {p?.activity && (
-        <section className="pc-sec">
-          <h4>Şu an</h4>
-          <ActivityRow profile={p} />
+      {acts.length > 0 ? (
+        <section className="pc-sec pc-sec-acts">
+          <ActivityCards uid={uid} compact={variant === 'preview'} />
         </section>
+      ) : (
+        p?.activity && (
+          <section className="pc-sec">
+            <h4>Şu an</h4>
+            <ActivityRow profile={p} />
+          </section>
+        )
       )}
       {!!p?.tags?.length && (
         <section className="pc-sec">
@@ -277,6 +287,12 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
               </span>
             ))}
           </div>
+        </section>
+      )}
+      {!!p?.accounts?.length && (
+        <section className="pc-sec">
+          <h4>Bağlı hesaplar</h4>
+          <AccountList profile={p} liveSvcs={liveSvcs} chips={variant !== 'full'} />
         </section>
       )}
       {!!p?.links?.length && (
@@ -320,6 +336,11 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
           </div>
         )}
       </section>}
+      {variant !== 'preview' && !isMe && !user?.bot && uid !== 'kovan-asistan' && (
+        <section className="pc-sec">
+          <PrivateNote uid={uid} />
+        </section>
+      )}
       {rolesNode !== undefined ? rolesNode : roles.length > 0 && (
         <section className="pc-sec">
           <h4>Roller</h4>
@@ -386,18 +407,41 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
           </div>
         </div>
         {notice}
-        {full && !isMe && mutual.length > 0 ? (
+        {full ? (
           <>
             <div className="pc-tabs">
               <button className={cx(tab === 'about' && 'on')} onClick={() => setTab('about')}>
                 Hakkında
               </button>
-              <button className={cx(tab === 'mutual' && 'on')} onClick={() => setTab('mutual')}>
-                Ortak topluluklar · {mutual.length}
+              <button className={cx(tab === 'activity' && 'on')} onClick={() => setTab('activity')}>
+                Etkinlik
+                {acts.length > 0 && <i className="pc-tab-dot" />}
               </button>
+              {!isMe && mutual.length > 0 && (
+                <button className={cx(tab === 'mutual' && 'on')} onClick={() => setTab('mutual')}>
+                  Ortak topluluklar · {mutual.length}
+                </button>
+              )}
             </div>
             {tab === 'about' ? (
               about
+            ) : tab === 'activity' ? (
+              <>
+                {acts.length > 0 && (
+                  <section className="pc-sec pc-sec-acts">
+                    <h4>Şu an</h4>
+                    <ActivityCards uid={uid} />
+                  </section>
+                )}
+                <section className="pc-sec">
+                  <h4>Son etkinlik</h4>
+                  <p className="pc-sec-sub">Son 30 günde oynadıkları, dinledikleri ve yayınları.</p>
+                  <RecentList
+                    profile={p}
+                    empty={<div className="pc-empty">{isMe ? 'Henüz kaydedilmiş etkinliğin yok. Bir oyun açtığında ya da müzik dinlediğinde burada görünür.' : 'Son 30 günde paylaşılmış bir etkinlik yok.'}</div>}
+                  />
+                </section>
+              </>
             ) : (
               <div className="pc-mutual">
                 {mutual.map((m) => (
