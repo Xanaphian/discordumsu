@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, session, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, session, screen, desktopCapturer, powerSaveBlocker } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -9,10 +9,79 @@ import { DEFAULT_PORT, makeId } from '../shared/protocol';
 const isDev = !app.isPackaged;
 app.setAppUserModelId('com.xanaphian.kovan');
 
+// WebRTC: donanım hızlandırmalı kodlama/çözme ve ekran yakalama iyileştirmeleri
+app.commandLine.appendSwitch('enable-features', 'AllowWgcScreenCapturer,AllowWgcWindowCapturer,WebRtcUseMinMaxVEADimensions');
+app.commandLine.appendSwitch('force_high_performance_gpu');
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
 }
+
+let pendingCapture: { id: string; audio: boolean } | null = null;
+let powerBlock: number | null = null;
+
+// ---------- genel bas-konuş (oyun içindeyken bile çalışır) ----------
+let hook: any = null;
+let pttTarget: { kind: 'key'; code: number } | { kind: 'mouse'; button: number } | null = null;
+let pttDown = false;
+let hookRunning = false;
+function codeToUio(code: string): { kind: 'key'; code: number } | { kind: 'mouse'; button: number } | null {
+  const m = /^Mouse(\d)$/.exec(code);
+  if (m) return { kind: 'mouse', button: +m[1] };
+  const K = hook?.UiohookKey as Record<string, number> | undefined;
+  if (!K) return null;
+  const map: Record<string, string> = {
+    ControlLeft: 'Ctrl', ControlRight: 'CtrlRight', ShiftLeft: 'Shift', ShiftRight: 'ShiftRight', AltLeft: 'Alt', AltRight: 'AltRight',
+    MetaLeft: 'Meta', MetaRight: 'MetaRight', IntlBackslash: 'Backslash',
+  };
+  const name = map[code] ?? code.replace(/^Key/, '').replace(/^Digit/, '');
+  return K[name] !== undefined ? { kind: 'key', code: K[name] } : null;
+}
+function setPtt(on: boolean) {
+  if (pttDown === on) return;
+  pttDown = on;
+  win?.webContents.send('ptt', on);
+}
+function configurePtt(cfg: { enabled: boolean; code: string }): boolean {
+  try {
+    if (!cfg.enabled) {
+      pttTarget = null;
+      setPtt(false);
+      // kanca boşta CPU harcamasın: görüşme/bas-konuş yokken durdur
+      if (hookRunning) {
+        hook.uIOhook.stop();
+        hookRunning = false;
+      }
+      return true;
+    }
+    if (!hook) {
+      hook = require('uiohook-napi');
+      const u = hook.uIOhook;
+      u.on('keydown', (e: any) => pttTarget?.kind === 'key' && e.keycode === pttTarget.code && setPtt(true));
+      u.on('keyup', (e: any) => pttTarget?.kind === 'key' && e.keycode === pttTarget.code && setPtt(false));
+      u.on('mousedown', (e: any) => pttTarget?.kind === 'mouse' && e.button === pttTarget.button && setPtt(true));
+      u.on('mouseup', (e: any) => pttTarget?.kind === 'mouse' && e.button === pttTarget.button && setPtt(false));
+    }
+    if (!hookRunning) {
+      hook.uIOhook.start();
+      hookRunning = true;
+    }
+    pttTarget = codeToUio(cfg.code);
+    return !!pttTarget;
+  } catch (e) {
+    console.error('Genel bas-konuş başlatılamadı', e);
+    hook = null;
+    return false;
+  }
+}
+app.on('will-quit', () => {
+  try {
+    hook?.uIOhook.stop();
+  } catch {
+    /* zaten durmuş */
+  }
+});
 
 // ---------- yapılandırma ----------
 interface Config {
@@ -129,6 +198,17 @@ function createWindow() {
   };
   win.on('resize', persist);
   win.on('move', persist);
+  // çökme koruması: görüntü işlemi çökerse sayfayı yeniden yükle (döngüye girmesin)
+  let crashes: number[] = [];
+  win.webContents.on('render-process-gone', (_e, d) => {
+    if (d.reason === 'clean-exit') return;
+    const now = Date.now();
+    crashes = crashes.filter((t) => now - t < 60_000);
+    crashes.push(now);
+    console.error('Arayüz çöktü:', d.reason);
+    if (crashes.length <= 3) setTimeout(() => win?.webContents.reload(), 500);
+  });
+  win.webContents.on('unresponsive', () => console.warn('Arayüz yanıt vermiyor'));
   win.on('close', (e) => {
     if (!quitting && config.settings.closeToTray !== false) {
       e.preventDefault();
@@ -245,7 +325,20 @@ app.on('web-contents-created', (_e, wc) => {
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
-    cb(['media', 'notifications', 'clipboard-sanitized-write', 'fullscreen'].includes(permission));
+    cb(['media', 'display-capture', 'notifications', 'clipboard-sanitized-write', 'fullscreen'].includes(permission));
+  });
+  session.defaultSession.setDisplayMediaRequestHandler(async (_req, cb) => {
+    const sel = pendingCapture;
+    pendingCapture = null;
+    if (!sel) return cb({});
+    try {
+      const srcs = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 0, height: 0 } });
+      const src = srcs.find((s) => s.id === sel.id);
+      if (!src) return cb({});
+      cb(sel.audio && process.platform === 'win32' ? { video: src, audio: 'loopback' } : { video: src });
+    } catch {
+      cb({});
+    }
   });
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => ['media', 'notifications', 'clipboard-sanitized-write'].includes(permission));
   // site odası oturumu: kamera, mikrofon, konum vb. hiçbir izin verilmez
@@ -329,6 +422,38 @@ function registerIpc() {
     notif.show();
     win?.flashFrame(true);
   });
+  // ---- ekran paylaşımı ----
+  ipcMain.handle('cap:sources', async () => {
+    const srcs = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 400, height: 225 }, fetchWindowIcons: true });
+    const displays = screen.getAllDisplays();
+    return srcs
+      .filter((s) => s.name !== 'Kovan' || s.id.startsWith('screen'))
+      .map((s) => {
+        const d = displays.find((x) => String(x.id) === s.display_id);
+        return {
+          id: s.id,
+          name: s.name,
+          kind: s.id.startsWith('screen') ? 'screen' : 'window',
+          thumb: s.thumbnail.isEmpty() ? '' : s.thumbnail.toDataURL(),
+          icon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : '',
+          size: d ? { w: Math.round(d.size.width * d.scaleFactor), h: Math.round(d.size.height * d.scaleFactor) } : null,
+        };
+      });
+  });
+  ipcMain.handle('cap:select', (_e, sel: { id: string; audio: boolean } | null) => {
+    pendingCapture = sel;
+  });
+  ipcMain.handle('ptt:config', (_e, cfg: { enabled: boolean; code: string }) => configurePtt(cfg));
+  ipcMain.on('win:in-call', (_e, on: boolean) => {
+    // görüşmedeyken pencere arka planda/küçültülmüşken bile ses ve görüntü takılmasın
+    win?.webContents.setBackgroundThrottling(!on);
+    if (on) powerBlock ??= powerSaveBlocker.start('prevent-app-suspension');
+    else if (powerBlock !== null) {
+      powerSaveBlocker.stop(powerBlock);
+      powerBlock = null;
+    }
+  });
+
   ipcMain.on('badge', (_e, count: number) => {
     if (process.platform === 'win32') {
       if (count > 0 && !win?.isFocused()) win?.flashFrame(true);

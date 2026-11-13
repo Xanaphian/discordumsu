@@ -1,13 +1,13 @@
 import React, { memo, useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, WifiOff, Bell, Globe,
+  Signal, WifiOff, Bell, Video, VideoOff, MonitorUp, MonitorX, Globe,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
   updateSettings,
 } from '../lib/store';
-import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf } from '../lib/voice';
+import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
 import { enterSpace, exitSpace } from '../lib/space';
 import { Avatar, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
@@ -30,6 +30,8 @@ const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chI
           <Avatar user={users[m.userId]} size={22} speaking={!!speaking[m.userId] && !m.muted} />
           <span className="vc-name">{displayName(c, m.userId, users)}</span>
           <span className="vc-flags">
+            {m.cam ? <Video size={13} className="cam" /> : null}
+            {m.screen ? <span className="live-badge">CANLI</span> : null}
             {m.deaf ? <HeadphoneOff size={13} /> : m.muted ? <MicOff size={13} /> : null}
           </span>
         </div>
@@ -291,6 +293,20 @@ export function VoicePanel() {
           {ch?.name} / {c.name}
         </div>
       </div>
+      {ch?.type === 'voice' && (
+        <>
+          <Tooltip text={v.cam ? 'Kamerayı kapat' : 'Kamerayı aç'} side="top">
+            <button className={cx('icon-btn', v.cam && 'on')} onClick={toggleCamera} aria-label="Kamera">
+              {v.cam ? <Video size={18} /> : <VideoOff size={18} />}
+            </button>
+          </Tooltip>
+          <Tooltip text={v.screen ? 'Yayını durdur' : 'Ekran paylaş'} side="top">
+            <button className={cx('icon-btn', v.screen && 'live')} onClick={() => (v.screen ? stopScreen() : openModal({ type: 'screenShare' }))} aria-label="Ekran paylaş">
+              {v.screen ? <MonitorX size={18} /> : <MonitorUp size={18} />}
+            </button>
+          </Tooltip>
+        </>
+      )}
       <Tooltip text="Bağlantıyı kes" side="top">
         <button className="icon-btn danger" onClick={() => leaveVoice()} aria-label="Bağlantıyı kes">
           <PhoneOff size={18} />

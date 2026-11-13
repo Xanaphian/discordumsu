@@ -10,6 +10,7 @@ import { can, Perm, isVoiceLike, hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, ty
 import { UserSettings } from './Settings';
 import { CommunitySettings } from './CommunitySettings';
 import { joinVoice } from '../lib/voice';
+import { ScreenPickerModal } from './Media';
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
   useEffect(() => {
@@ -536,6 +537,8 @@ export function Modals() {
       return <ConfirmModal m={m} />;
     case 'image':
       return <ImageModal src={m.src} name={m.name} />;
+    case 'screenShare':
+      return <ScreenPickerModal />;
     case 'quick':
       return <QuickSwitcher />;
     case 'search':

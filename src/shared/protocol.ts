@@ -160,11 +160,23 @@ export interface Message {
   kind?: 'join' | 'pin' | 'channel';
 }
 
+export interface MediaIds {
+  mic?: string;
+  cam?: string;
+  screen?: string;
+}
+
 export interface VoiceMember {
   userId: ID;
   muted: boolean;
   deaf: boolean;
   sessionId: ID;
+  /** kamera açık */
+  cam?: boolean;
+  /** ekran paylaşıyor (ör. "1080p60") */
+  screen?: string | null;
+  /** hangi WebRTC akışı hangisi */
+  streams?: MediaIds;
 }
 
 // ---- İstemci -> Sunucu ----
@@ -201,7 +213,7 @@ export type ClientFrame =
   | { t: 'member.kick'; cid: ID; userId: ID }
   | { t: 'vc.join'; ch: ID; muted: boolean; deaf: boolean }
   | { t: 'vc.leave' }
-  | { t: 'vc.state'; muted: boolean; deaf: boolean }
+  | { t: 'vc.state'; muted: boolean; deaf: boolean; cam?: boolean; screen?: string | null; streams?: MediaIds }
   | { t: 'vc.signal'; to: ID; data: unknown }
   | { t: 'sp.join'; ch: ID; look: AvatarLook }
   | { t: 'sp.leave' }
