@@ -22,7 +22,36 @@ export const Perm = {
   KICK: 16,
   MANAGE_COMMUNITY: 32,
   MENTION_EVERYONE: 64,
+  // v1.2: ayrıntılı yetkiler
+  VIEW_CHANNEL: 1 << 7,
+  SEND_MESSAGES: 1 << 8,
+  ATTACH_FILES: 1 << 9,
+  ADD_REACTIONS: 1 << 10,
+  CONNECT: 1 << 11,
+  SPEAK: 1 << 12,
+  CHANGE_NICKNAME: 1 << 13,
+  MANAGE_NICKNAMES: 1 << 14,
+  CREATE_INVITE: 1 << 15,
+  BAN: 1 << 16,
+  TIMEOUT: 1 << 17,
+  VIEW_AUDIT_LOG: 1 << 18,
+  // 1 << 20 ve üstü başka özellikler için ayrıldı
 } as const;
+
+/** Sahip ve yöneticilerin sahip olduğu tüm yetkiler */
+export const ALL_PERMS = 0x7fffffff;
+
+/** Yeni topluluklarda @herkes rolünün varsayılan yetkileri */
+export const DEFAULT_EVERYONE =
+  Perm.VIEW_CHANNEL | Perm.SEND_MESSAGES | Perm.ATTACH_FILES | Perm.ADD_REACTIONS | Perm.CONNECT | Perm.SPEAK | Perm.CHANGE_NICKNAME | Perm.CREATE_INVITE;
+
+/** Kanal düzeyinde anlamı olan yetkiler (izin üzerine yazmalarında kullanılır) */
+export const CHANNEL_PERMS =
+  Perm.VIEW_CHANNEL | Perm.MANAGE_CHANNELS | Perm.MANAGE_ROLES | Perm.SEND_MESSAGES | Perm.ATTACH_FILES | Perm.ADD_REACTIONS | Perm.MENTION_EVERYONE |
+  Perm.MANAGE_MESSAGES | Perm.CONNECT | Perm.SPEAK | Perm.CREATE_INVITE;
+
+/** Zaman aşımındaki üyeden geri alınan yetkiler */
+export const TIMEOUT_STRIP = Perm.SEND_MESSAGES | Perm.ADD_REACTIONS | Perm.CONNECT | Perm.SPEAK;
 
 export interface Role {
   id: ID;
@@ -31,6 +60,16 @@ export interface Role {
   perms: number;
   hoist: boolean; // üye listesinde ayrı grup
   position: number; // büyük olan üstte
+  mentionable?: boolean; // herkes @rol ile bahsedebilir
+  icon?: string; // rol rozeti (emoji)
+}
+
+/** Kanal / kategori izin üzerine yazması. id === topluluk id ise @herkes. */
+export interface Overwrite {
+  id: ID;
+  type: 'role' | 'member';
+  allow: number;
+  deny: number;
 }
 
 export interface Member {
@@ -38,6 +77,7 @@ export interface Member {
   nick?: string;
   roles: ID[];
   joinedAt: number;
+  timeoutUntil?: number; // zaman aşımı bitişi (ms)
 }
 
 export type ChannelType = 'text' | 'voice' | 'announce' | 'space' | 'site';
@@ -113,6 +153,8 @@ export interface Channel {
   topic?: string;
   position: number;
   slowmode?: number;
+  overwrites?: Overwrite[];
+  userLimit?: number; // ses / 3D oda kişi sınırı (0 = sınırsız)
   url?: string; // site odası: açılış adresi
 }
 
@@ -120,6 +162,31 @@ export interface Category {
   id: ID;
   name: string;
   position: number;
+  overwrites?: Overwrite[];
+}
+
+export interface AutoMod {
+  words: string[]; // yasaklı kelimeler (küçük harf)
+  blockLinks: boolean; // yöneticiler dışında bağlantı paylaşımı kapalı
+  maxMentions: number; // mesaj başına en fazla bahsetme (0 = sınırsız)
+  newMemberWait: number; // yeni üyeler kaç dakika sonra yazabilir (0 = hemen)
+}
+
+export interface Ban {
+  userId: ID;
+  name: string;
+  by: ID;
+  reason?: string;
+  ts: number;
+}
+
+export interface AuditEntry {
+  id: ID;
+  ts: number;
+  by: ID;
+  a: string; // eylem: 'role.update', 'member.ban', ...
+  t?: string; // hedefin görünen adı
+  d?: string; // ayrıntı
 }
 
 export interface Community {
@@ -136,6 +203,11 @@ export interface Community {
   members: Member[];
   users: Record<ID, UserPublic>;
   inviteKey?: string; // sadece yönetebilenlere gönderilir
+  pv?: number; // yetki sürümü; 2 = ayrıntılı yetkiler (v1.2)
+  systemChannelId?: ID | null; // katılma mesajlarının gideceği kanal
+  joinMessages?: boolean; // false ise katılma mesajı gönderilmez
+  invitesPaused?: boolean; // yeni katılımlar durduruldu
+  automod?: AutoMod;
 }
 
 export interface Attachment {
@@ -197,22 +269,27 @@ export type ClientFrame =
   | { t: 'presence'; status: Status }
   | { t: 'profile'; user: UserPublic }
   | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; rid?: string }
-  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; color?: string }
+  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod }
   | { t: 'comm.delete'; cid: ID }
   | { t: 'comm.leave'; cid: ID }
   | { t: 'comm.invite.reset'; cid: ID }
-  | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; url?: string; rid?: string }
-  | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string }
+  | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; url?: string; rid?: string; private?: boolean; clone?: ID }
+  | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string; overwrites?: Overwrite[]; userLimit?: number; type?: ChannelType }
   | { t: 'chan.delete'; cid: ID; id: ID }
   | { t: 'chan.move'; cid: ID; id: ID; categoryId: ID | null; index: number }
   | { t: 'cat.create'; cid: ID; name: string }
-  | { t: 'cat.update'; cid: ID; id: ID; name: string }
+  | { t: 'cat.update'; cid: ID; id: ID; name?: string; overwrites?: Overwrite[] }
   | { t: 'cat.delete'; cid: ID; id: ID }
-  | { t: 'role.create'; cid: ID; name: string; color: string; perms: number; hoist: boolean }
-  | { t: 'role.update'; cid: ID; id: ID; name?: string; color?: string; perms?: number; hoist?: boolean }
+  | { t: 'role.create'; cid: ID; name: string; color: string; perms: number; hoist: boolean; mentionable?: boolean; icon?: string; rid?: string }
+  | { t: 'role.update'; cid: ID; id: ID; name?: string; color?: string; perms?: number; hoist?: boolean; mentionable?: boolean; icon?: string }
+  | { t: 'role.move'; cid: ID; id: ID; dir: 1 | -1 }
   | { t: 'role.delete'; cid: ID; id: ID }
   | { t: 'member.update'; cid: ID; userId: ID; roles?: ID[]; nick?: string | null }
-  | { t: 'member.kick'; cid: ID; userId: ID }
+  | { t: 'member.kick'; cid: ID; userId: ID; reason?: string }
+  | { t: 'member.ban'; cid: ID; userId: ID; reason?: string; purgeHours?: number }
+  | { t: 'member.unban'; cid: ID; userId: ID }
+  | { t: 'member.timeout'; cid: ID; userId: ID; minutes: number; reason?: string }
+  | { t: 'mod.list'; cid: ID; rid: string }
   | { t: 'vc.join'; ch: ID; muted: boolean; deaf: boolean }
   | { t: 'vc.leave' }
   | { t: 'vc.state'; muted: boolean; deaf: boolean; cam?: boolean; screen?: string | null; streams?: MediaIds }
@@ -298,16 +375,90 @@ export function decodeInvite(code: string): InviteData | null {
   }
 }
 
-export function memberPerms(c: Community, userId: ID): number {
-  if (c.ownerId === userId) return 0xffff;
+/** Yetki hesabı için topluluğun gereken kısmı (sunucu kullanıcı listesi olmadan da çağırır) */
+export type PermSource = Pick<Community, 'id' | 'ownerId' | 'roles' | 'members' | 'categories' | 'pv'>;
+
+export function memberPerms(c: PermSource, userId: ID): number {
+  if (c.ownerId === userId) return ALL_PERMS;
   const m = c.members.find((x) => x.userId === userId);
   if (!m) return 0;
   let p = c.roles[0]?.perms ?? 0;
+  // v1.2 öncesi kovanlar: temel yetkiler herkese açıktı
+  if (!c.pv) p |= DEFAULT_EVERYONE;
   for (const r of c.roles) if (m.roles.includes(r.id)) p |= r.perms;
-  if (p & Perm.ADMIN) return 0xffff;
+  if (p & Perm.ADMIN) return ALL_PERMS;
+  if (m.timeoutUntil && m.timeoutUntil > Date.now()) p &= ~TIMEOUT_STRIP;
   return p;
 }
 
-export function can(c: Community, userId: ID, perm: number): boolean {
+export function can(c: PermSource, userId: ID, perm: number): boolean {
   return (memberPerms(c, userId) & perm) === perm;
+}
+
+function applyOverwrites(p: number, list: Overwrite[] | undefined, c: PermSource, m: Member): { p: number; sendAllowed: boolean } {
+  if (!list?.length) return { p, sendAllowed: false };
+  let sendAllowed = false;
+  const ev = list.find((o) => o.id === c.id);
+  if (ev) {
+    p = (p & ~ev.deny) | ev.allow;
+    if (ev.allow & Perm.SEND_MESSAGES) sendAllowed = true;
+  }
+  let allow = 0, deny = 0;
+  for (const o of list) if (o.type === 'role' && o.id !== c.id && m.roles.includes(o.id)) (allow |= o.allow), (deny |= o.deny);
+  p = (p & ~deny) | allow;
+  if (allow & Perm.SEND_MESSAGES) sendAllowed = true;
+  const mo = list.find((o) => o.type === 'member' && o.id === m.userId);
+  if (mo) {
+    p = (p & ~mo.deny) | mo.allow;
+    if (mo.allow & Perm.SEND_MESSAGES) sendAllowed = true;
+  }
+  return { p, sendAllowed };
+}
+
+/** Bir kanaldaki etkin yetkiler: rol yetkileri + kategori ve kanal üzerine yazmaları. */
+export function channelPerms(c: PermSource, userId: ID, ch: Pick<Channel, 'type' | 'categoryId' | 'overwrites'>): number {
+  const base = memberPerms(c, userId);
+  if (base === ALL_PERMS) return ALL_PERMS;
+  const m = c.members.find((x) => x.userId === userId);
+  if (!m) return 0;
+  const cat = ch.categoryId ? c.categories.find((x) => x.id === ch.categoryId) : undefined;
+  const a = applyOverwrites(base, cat?.overwrites, c, m);
+  const b = applyOverwrites(a.p, ch.overwrites, c, m);
+  let p = b.p;
+  if (m.timeoutUntil && m.timeoutUntil > Date.now()) p &= ~TIMEOUT_STRIP;
+  if (!(p & Perm.VIEW_CHANNEL)) return 0;
+  // duyuru kanalına kanal yöneticileri ya da açıkça izin verilenler yazar
+  if (ch.type === 'announce' && !(p & Perm.MANAGE_CHANNELS) && !(a.sendAllowed || b.sendAllowed)) p &= ~Perm.SEND_MESSAGES;
+  return p;
+}
+
+export function canIn(c: PermSource, userId: ID, ch: Pick<Channel, 'type' | 'categoryId' | 'overwrites'>, perm: number): boolean {
+  return (channelPerms(c, userId, ch) & perm) === perm;
+}
+
+/** Üyenin en yüksek rol konumu (sahip için sonsuz) */
+export function topPosition(c: PermSource, userId: ID): number {
+  if (c.ownerId === userId) return Infinity;
+  const m = c.members.find((x) => x.userId === userId);
+  if (!m) return -1;
+  let top = 0;
+  for (const r of c.roles) if (m.roles.includes(r.id) && r.position > top) top = r.position;
+  return top;
+}
+
+/** actor, target üyesi üzerinde işlem yapabilir mi (rol hiyerarşisi) */
+export function outranks(c: PermSource, actor: ID, target: ID): boolean {
+  if (target === c.ownerId || actor === target) return false;
+  return topPosition(c, actor) > topPosition(c, target);
+}
+
+/** actor bu rolü düzenleyebilir / verebilir mi */
+export function canEditRole(c: PermSource, actor: ID, role: Pick<Role, 'id' | 'position'>): boolean {
+  if (!can(c, actor, Perm.MANAGE_ROLES)) return false;
+  if (c.ownerId === actor) return true;
+  return role.id === c.id || role.position < topPosition(c, actor);
+}
+
+export function isTimedOut(m: Pick<Member, 'timeoutUntil'> | undefined): boolean {
+  return !!m?.timeoutUntil && m.timeoutUntil > Date.now();
 }

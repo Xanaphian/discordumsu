@@ -3,6 +3,7 @@ import {
   type AvatarLook,
   Attachment, ChannelType, ClientFrame, Community, ID, Message, ServerFrame, Status, UserPublic, VoiceMember,
   decodeInvite, encodeInvite, makeId, isVoiceLike,
+  type AuditEntry, type Ban,
 } from '../../shared/protocol';
 import { HostConn, probeHost, ConnStatus } from './net';
 import { debounce } from './util';
@@ -63,7 +64,23 @@ export interface Settings {
   screenHint: 'motion' | 'detail';
   screenAudio: boolean;
   videoCodec: 'auto' | 'h264' | 'vp9' | 'vp8' | 'av1';
+  // sohbet, gizlilik, bildirim istisnaları (v1.3)
+  notifyOverrides: Record<ID, NotifyLevel>; // topluluk ya da kanal kimliği -> seviye
+  mutedIds: ID[]; // sessize alınan topluluk / kanallar
+  suppressEveryone: ID[]; // @everyone/@here bildirimi bastırılan topluluklar
+  notifyPreview: boolean; // bildirimde mesaj içeriğini göster
+  sendTyping: boolean;
+  blocked: ID[];
+  devMode: boolean;
+  confirmLinks: boolean;
+  spoilers: 'click' | 'always';
+  emojiConvert: boolean;
+  showJoinMessages: boolean;
+  inlineMedia: boolean;
+  showRoleIcons: boolean;
 }
+
+export type NotifyLevel = 'all' | 'mentions' | 'none';
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
@@ -108,6 +125,19 @@ export const DEFAULT_SETTINGS: Settings = {
   screenHint: 'motion',
   screenAudio: false,
   videoCodec: 'auto',
+  notifyOverrides: {},
+  mutedIds: [],
+  suppressEveryone: [],
+  notifyPreview: true,
+  sendTyping: true,
+  blocked: [],
+  devMode: false,
+  confirmLinks: false,
+  spoilers: 'click',
+  emojiConvert: true,
+  showJoinMessages: true,
+  inlineMedia: true,
+  showRoleIcons: true,
 };
 
 export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string };
@@ -129,7 +159,10 @@ export type Modal =
   | { type: 'settings'; tab?: string }
   | { type: 'commSettings'; cid: ID; tab?: string }
   | { type: 'createChannel'; cid: ID; categoryId: ID | null; kind?: ChannelType }
-  | { type: 'editChannel'; cid: ID; chId: ID }
+  | { type: 'editChannel'; cid: ID; chId: ID; tab?: string }
+  | { type: 'editCategory'; cid: ID; catId: ID; tab?: string }
+  | { type: 'notify'; cid: ID; chId?: ID }
+  | { type: 'moderate'; cid: ID; uid: ID; action: 'kick' | 'ban' | 'timeout' | 'nick' }
   | { type: 'createCategory'; cid: ID; catId?: ID }
   | { type: 'confirm'; title: string; body: string; confirmText?: string; danger?: boolean; onConfirm: () => void }
   | { type: 'image'; src: string; name: string }
@@ -454,7 +487,11 @@ export function sortedChannels(c: Community) {
 function mentionsMe(m: Message, c: Community | undefined): boolean {
   const me = S().me.id;
   if (m.content.includes(`<@${me}>`)) return true;
-  if (/@(everyone|here)\b/.test(m.content) && c) return true;
+  if (/@(everyone|here)\b/.test(m.content) && c && !S().settings.suppressEveryone.includes(c.id)) return true;
+  if (c && m.content.includes('<@&')) {
+    const mine = c.members.find((x) => x.userId === me)?.roles || [];
+    if (mine.some((r) => m.content.includes(`<@&${r}>`))) return true;
+  }
   if (m.replyTo) {
     const parent = S().chans[m.channelId]?.items.find((x) => x.id === m.replyTo);
     if (parent?.authorId === me) return true;
@@ -470,6 +507,7 @@ function isViewing(ch: ID) {
 export function plainText(content: string, c?: Community) {
   const users = S().users;
   return content
+    .replace(/<@&([\w-]+)>/g, (_, id) => '@' + (c?.roles.find((r) => r.id === id)?.name || 'rol'))
     .replace(/<@([\w-]+)>/g, (_, id) => '@' + (users[id]?.name || 'biri'))
     .replace(/<#(\w+)>/g, (_, id) => '#' + (c?.channels.find((x) => x.id === id)?.name || 'kanal'))
     .replace(/```[\s\S]*?```/g, '[kod]')
@@ -651,14 +689,39 @@ const omit = <T extends object>(o: T, k: string): T => {
   return c;
 };
 
+/** Kanal > topluluk > genel sırasıyla bildirim seviyesi */
+export function notifyLevel(cid: ID | undefined, ch: ID): NotifyLevel {
+  const { settings } = S();
+  if (settings.mutedIds.includes(ch) || (cid && settings.mutedIds.includes(cid))) return 'none';
+  return settings.notifyOverrides[ch] || (cid && settings.notifyOverrides[cid]) || settings.notify;
+}
+
+export function isMuted(id: ID) {
+  return S().settings.mutedIds.includes(id);
+}
+
+export function toggleMuted(id: ID) {
+  const list = S().settings.mutedIds;
+  updateSettings({ mutedIds: list.includes(id) ? list.filter((x) => x !== id) : [...list, id] });
+}
+
+export function setNotifyOverride(id: ID, level: NotifyLevel | null) {
+  const o = { ...S().settings.notifyOverrides };
+  if (level) o[id] = level;
+  else delete o[id];
+  updateSettings({ notifyOverrides: o });
+}
+
 function notifyFor(m: Message, c: Community | undefined, mentioned: boolean) {
   const { settings, me } = S();
-  if (me.status === 'dnd' || settings.notify === 'none') return;
-  if (settings.notify === 'mentions' && !mentioned) return;
+  const level = notifyLevel(c?.id, m.channelId);
+  if (me.status === 'dnd' || level === 'none') return;
+  if (level === 'mentions' && !mentioned) return;
+  if (settings.blocked.includes(m.authorId)) return;
   const ch = c?.channels.find((x) => x.id === m.channelId);
   const author = c?.members.find((x) => x.userId === m.authorId)?.nick || S().users[m.authorId]?.name || 'Biri';
   if (m.kind === 'join') return;
-  const body = plainText(m.content, c) || (m.attachments?.length ? `📎 ${m.attachments.length} dosya` : '');
+  const body = !settings.notifyPreview ? 'Yeni mesaj' : plainText(m.content, c) || (m.attachments?.length ? `📎 ${m.attachments.length} dosya` : '');
   if (settings.sounds) playSound(mentioned ? 'mention' : 'message');
   window.kovan.notify({ title: `${author} (#${ch?.name || 'kanal'}, ${c?.name || ''})`, body, tag: m.channelId, silent: true });
 }
@@ -841,6 +904,7 @@ export function recentEmoji(): string[] {
 
 let lastTyping = 0;
 export function sendTyping(ch: ID) {
+  if (!S().settings.sendTyping) return;
   const now = Date.now();
   if (now - lastTyping < 4000) return;
   lastTyping = now;
@@ -969,6 +1033,16 @@ export function leaveCommunity(cid: ID) {
 
 export function deleteCommunity(cid: ID) {
   cmd(cid, { t: 'comm.delete', cid });
+}
+
+export interface ModData {
+  bans: Ban[];
+  audit: AuditEntry[];
+}
+
+export async function loadModData(cid: ID): Promise<ModData> {
+  const r = await request<{ data: ModData }>(cid, { t: 'mod.list', cid, rid: '' });
+  return r.data || { bans: [], audit: [] };
 }
 
 export function forgetHost(host: string) {

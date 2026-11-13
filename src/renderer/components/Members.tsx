@@ -1,47 +1,32 @@
 import React, { memo, useMemo } from 'react';
-import { useStore, openMenu, cmd, confirmDialog } from '../lib/store';
+import { Clock, Shield } from 'lucide-react';
+import { useStore, openMenu, openModal } from '../lib/store';
 import { Avatar } from './Common';
-import { cx, displayName, roleColor, copyText, memberRoles } from '../lib/util';
-import { can, Perm, type Community, type Status, type UserPublic } from '../../shared/protocol';
+import { cx, displayName, roleColor, memberRoles } from '../lib/util';
+import { can, isTimedOut, Perm, type Community, type Status, type UserPublic } from '../../shared/protocol';
+import { memberMenu } from './Moderation';
 
 const Row = memo(function Row({ c, uid, user, status, name, color, me }: { c: Community; uid: string; user: UserPublic | undefined; status: Status; name: string; color: string; me: string }) {
   const offline = status === 'offline';
   const menu = (e: React.MouseEvent) => {
-    const items = [
-      { label: 'Profil', onClick: () => useStore.setState({ popout: { uid, cid: c.id, x: e.clientX, y: e.clientY } }) },
-      { label: 'Bahset', onClick: () => insertMention(name) },
-      { label: 'Kullanıcı kimliğini kopyala', onClick: () => copyText(uid) },
-    ];
-    if (can(c, me, Perm.MANAGE_ROLES)) {
-      const m = c.members.find((x) => x.userId === uid);
-      const roles = c.roles.filter((r) => r.id !== c.id).sort((a, b) => b.position - a.position);
-      if (roles.length) items.push({ sep: true } as any);
-      for (const r of roles) {
-        const has = !!m?.roles.includes(r.id);
-        items.push({
-          label: r.name,
-          checked: has,
-          onClick: () => cmd(c.id, { t: 'member.update', cid: c.id, userId: uid, roles: has ? m!.roles.filter((x) => x !== r.id) : [...(m?.roles || []), r.id] }),
-        } as any);
-      }
-    }
-    if (can(c, me, Perm.KICK) && uid !== me && uid !== c.ownerId) {
-      items.push({ sep: true } as any);
-      items.push({
-        label: `${name} kişisini at`,
-        danger: true,
-        onClick: () => confirmDialog(`${name} atılsın mı?`, 'Davetle tekrar katılabilir.', () => cmd(c.id, { t: 'member.kick', cid: c.id, userId: uid }), 'At'),
-      } as any);
-    }
+    const items = memberMenu(c, me, uid, { at: { x: e.clientX - 300, y: e.clientY } });
+    items.splice(1, 0, { label: 'Bahset', onClick: () => insertMention(name) });
     openMenu(e, items);
   };
+  const mem = c.members.find((x) => x.userId === uid);
+  const showIcons = useStore((s) => s.settings.showRoleIcons);
+  const icon = showIcons ? memberRoles(c, mem).find((r) => r.icon)?.icon : undefined;
+  const blocked = useStore((s) => s.settings.blocked.includes(uid));
   return (
     <div className={cx('member', offline && 'offline')} onClick={(e) => useStore.setState({ popout: { uid, cid: c.id, x: e.clientX - 300, y: e.clientY } })} onContextMenu={menu}>
       <Avatar user={user} size={34} status={status} />
       <div className="member-text">
         <span className="member-name" style={{ color: color || undefined }}>
           {name}
+          {icon && <span className="role-icon">{icon}</span>}
           {c.ownerId === uid && <span className="owner-crown" title="Topluluk sahibi">♛</span>}
+          {isTimedOut(mem) && <Clock size={12} className="timeout-icon" aria-label="Zaman aşımında" />}
+          {blocked && <span className="tag-blocked">ENGELLİ</span>}
           {uid === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}
           {user?.bot && <span className="tag-bot">BOT</span>}
         </span>
@@ -86,8 +71,14 @@ export function MemberList({ c }: { c: Community }) {
     return [...g.values()].filter((x) => x.list.length);
   }, [c, users, presence, me, myStatus]);
 
+  const manageRoles = can(c, me, Perm.MANAGE_ROLES);
   return (
     <aside className="members scroll-thin">
+      {manageRoles && (
+        <button className="members-roles-btn" onClick={() => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' })}>
+          <Shield size={14} /> Rolleri yönet
+        </button>
+      )}
       {groups.map((g) => (
         <div key={g.title} className="member-group">
           <div className="member-group-title">

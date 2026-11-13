@@ -9,6 +9,9 @@ import { renderMarkdown } from '../lib/markdown';
 import { can, Perm, isVoiceLike, hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, type ChannelType, type Message } from '../../shared/protocol';
 import { UserSettings } from './Settings';
 import { CommunitySettings } from './CommunitySettings';
+import { ChannelSettings, CategorySettings } from './ChannelSettings';
+import { ModerateModal, NotifyModal } from './Moderation';
+import { Toggle } from './Common';
 import { joinVoice } from '../lib/voice';
 import { ScreenPickerModal } from './Media';
 
@@ -202,15 +205,17 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
   const [name, setName] = useState('');
   const [url, setUrl] = useState(DEFAULT_SITE_URL);
   const [cat, setCat] = useState<string | null>(categoryId);
+  const [priv, setPriv] = useState(false);
   if (!c) return null;
   const urlOk = type !== 'site' || !!cleanSiteUrl(url);
   const submit = async () => {
     if (!name.trim() || !urlOk) return;
     try {
-      const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name, type, categoryId: cat, ...(type === 'site' ? { url: cleanSiteUrl(url)! } : {}) });
+      const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name, type, categoryId: cat, private: priv, ...(type === 'site' ? { url: cleanSiteUrl(url)! } : {}) });
       close();
-      if (type === 'voice') joinVoice(cid, r.data);
+      if (type === 'voice' && !priv) joinVoice(cid, r.data);
       selectChannel(cid, r.data);
+      if (priv) openModal({ type: 'editChannel', cid, chId: r.data, tab: 'perms' });
     } catch (e) {
       toast((e as Error).message, 'err');
     }
@@ -259,6 +264,13 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
             ))}
           </select>
         </label>
+        <div className="set-row compact">
+          <div className="set-row-text">
+            <div className="set-row-title">Özel kanal</div>
+            <div className="set-row-sub">Sadece seçtiğin roller ve üyeler görebilir. Kimin göreceğini sonra kanal ayarları → İzinler'den seçersin.</div>
+          </div>
+          <Toggle value={priv} onChange={setPriv} />
+        </div>
       </div>
       <div className="modal-foot">
         <button className="btn ghost" onClick={close}>
@@ -266,61 +278,6 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
         </button>
         <button className="btn primary" disabled={!name.trim() || !urlOk} onClick={submit}>
           Kanal oluştur
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-function EditChannelModal({ cid, chId }: { cid: string; chId: string }) {
-  const c = useStore((s) => s.communities[cid]);
-  const ch = c?.channels.find((x) => x.id === chId);
-  const [name, setName] = useState(ch?.name || '');
-  const [topic, setTopic] = useState(ch?.topic || '');
-  const [slow, setSlow] = useState(ch?.slowmode || 0);
-  const [url, setUrl] = useState(ch?.url || DEFAULT_SITE_URL);
-  if (!c || !ch) return null;
-  const urlOk = ch.type !== 'site' || !!cleanSiteUrl(url);
-  const save = () => {
-    if (!urlOk) return;
-    cmd(cid, { t: 'chan.update', cid, id: chId, name, topic, slowmode: slow, ...(ch.type === 'site' ? { url: cleanSiteUrl(url)! } : {}) });
-    close();
-    toast('Kanal güncellendi', 'ok');
-  };
-  return (
-    <Modal onClose={close}>
-      <ModalHead title="Kanalı düzenle" sub={hasFreeName(ch.type) ? ch.name : `#${ch.name}`} />
-      <div className="modal-body">
-        <label className="field">
-          <span>Kanal adı</span>
-          <input value={name} maxLength={48} onChange={(e) => setName(e.target.value)} />
-        </label>
-        {ch.type === 'site' && (
-          <label className="field">
-            <span>Sitenin adresi</span>
-            <input value={url} maxLength={500} onChange={(e) => setUrl(e.target.value)} placeholder="https://xanaphian.com/" />
-            <small className={cx('field-hint', !urlOk && 'err')}>{urlOk ? 'Oda bu adresle açılır.' : 'Geçerli bir http(s) adresi yaz.'}</small>
-          </label>
-        )}
-        {!isVoiceLike(ch.type) && (
-          <>
-            <label className="field">
-              <span>Kanal konusu</span>
-              <textarea rows={3} maxLength={512} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Herkese bu kanalın ne için olduğunu anlat" />
-            </label>
-            <label className="field">
-              <span>Yavaş mod: {slow ? `${slow} saniye` : 'kapalı'}</span>
-              <input type="range" min={0} max={120} step={5} value={slow} onChange={(e) => setSlow(Number(e.target.value))} />
-            </label>
-          </>
-        )}
-      </div>
-      <div className="modal-foot">
-        <button className="btn ghost" onClick={close}>
-          Vazgeç
-        </button>
-        <button className="btn primary" disabled={!urlOk} onClick={save}>
-          Kaydet
         </button>
       </div>
     </Modal>
@@ -530,7 +487,13 @@ export function Modals() {
     case 'createChannel':
       return <CreateChannelModal cid={m.cid} categoryId={m.categoryId} kind={m.kind} />;
     case 'editChannel':
-      return <EditChannelModal cid={m.cid} chId={m.chId} />;
+      return <ChannelSettings key={m.chId} cid={m.cid} chId={m.chId} tab={m.tab} />;
+    case 'editCategory':
+      return <CategorySettings key={m.catId} cid={m.cid} catId={m.catId} tab={m.tab} />;
+    case 'notify':
+      return <NotifyModal cid={m.cid} chId={m.chId} />;
+    case 'moderate':
+      return <ModerateModal cid={m.cid} uid={m.uid} action={m.action} />;
     case 'createCategory':
       return <CategoryModal cid={m.cid} catId={m.catId} />;
     case 'confirm':

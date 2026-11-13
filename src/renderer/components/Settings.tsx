@@ -10,6 +10,8 @@ import { playSound } from '../lib/sound';
 import { can, Perm, type Role } from '../../shared/protocol';
 
 export const close = () => openModal(null);
+// Sohbet / Gizlilik / Gelişmiş sekmeleri ayrı dosyada (MoreSettings.tsx)
+import { ChatTab, PrivacyTab, AdvancedTab, NotifyExtras } from './MoreSettings';
 
 export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: string; label: string; group?: string; danger?: boolean }[]; tab: string; setTab: (t: string) => void; children: React.ReactNode; footer?: React.ReactNode }) {
   useEffect(() => {
@@ -229,6 +231,7 @@ function NotificationsTab() {
         </button>
       </div>
       <p className="note">"Rahatsız Etmeyin" durumundayken bildirimler ve sesler susturulur.</p>
+      <NotifyExtras />
     </>
   );
 }
@@ -405,9 +408,12 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
   const nav = [
     { id: 'profile', label: 'Profilim', group: 'Kullanıcı Ayarları' },
     { id: 'connection', label: 'Bağlantı', group: 'Kullanıcı Ayarları' },
+    { id: 'privacy', label: 'Gizlilik ve Güvenlik', group: 'Kullanıcı Ayarları' },
     { id: 'appearance', label: 'Görünüm', group: 'Uygulama Ayarları' },
     { id: 'notifications', label: 'Bildirimler', group: 'Uygulama Ayarları' },
     { id: 'voice', label: 'Ses ve Görüntü', group: 'Uygulama Ayarları' },
+    { id: 'chat', label: 'Sohbet', group: 'Uygulama Ayarları' },
+    { id: 'advanced', label: 'Gelişmiş', group: 'Uygulama Ayarları' },
     { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama Ayarları' },
     { id: 'updates', label: 'Güncellemeler', group: 'Kovan' },
   ];
@@ -434,6 +440,9 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       {tab === 'connection' && <ConnectionTab />}
       {tab === 'app' && <AppTab />}
       {tab === 'updates' && <UpdatesTab />}
+      {tab === 'chat' && <ChatTab />}
+      {tab === 'privacy' && <PrivacyTab />}
+      {tab === 'advanced' && <AdvancedTab />}
     </Shell>
   );
 }
