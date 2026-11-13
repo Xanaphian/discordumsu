@@ -23,7 +23,7 @@ fi
 echo "== Kullanıcı ve klasör"
 id kovan >/dev/null 2>&1 || useradd --system --home-dir "$DIR" --shell /usr/sbin/nologin kovan
 mkdir -p "$DIR/data"
-curl -fsSL "$BASE/release/kovan-server.js" -o "$DIR/kovan-server.js.new"
+curl -fsSL "$BASE/paket/kovan-server.js" -o "$DIR/kovan-server.js.new"
 mv "$DIR/kovan-server.js.new" "$DIR/kovan-server.js"
 if [ ! -f "$DIR/.env" ]; then
   umask 077
