@@ -26,7 +26,7 @@ const GROUP_MS = 7 * 60 * 1000;
 const drafts = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
-function useMdCtx(c: Community): MdCtx {
+export function useMdCtx(c: Community): MdCtx {
   const users = useStore((s) => s.users);
   const me = useStore((s) => s.me.id);
   return useMemo(

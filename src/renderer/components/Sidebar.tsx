@@ -11,6 +11,8 @@ import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, 
 import { enterSpace, exitSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
+import { ToolIcon } from './Tools';
+import { isToolChannel } from '../../shared/protocol';
 import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
 import { focusProfileSection } from './profile/ProfileEditor';
@@ -40,7 +42,7 @@ function tryJoinVoice(c: Community, ch: Channel) {
 const ChannelIcon = ({ type, size = 18, icon }: { type: Channel['type']; size?: number; icon?: string }) =>
   type === 'site' && icon ? (
     <img className="ch-site-icon" src={icon} alt="" width={size} height={size} draggable={false} />
-  ) : type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
+  ) : isToolChannel(type) ? <ToolIcon type={type} size={size} /> : type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
 
 function siteHost(url?: string) {
   if (!url) return '';
@@ -266,6 +268,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     openMenu({ clientX: r.left + 8, clientY: r.bottom + 4 }, [
       { label: 'Sunucu profili', icon: 'profile', onClick: () => openModal({ type: 'commProfile', cid: c.id }) },
+      { label: 'Topluluk istatistikleri', icon: 'stats', onClick: () => openModal({ type: 'stats', cid: c.id }) },
       ...(c.inviteKey ? [{ label: 'Davet et', icon: 'invite', onClick: () => openModal({ type: 'invite', cid: c.id }) }] : []),
       { label: 'Topluluk ayarları', icon: 'settings', onClick: () => openModal({ type: 'commSettings', cid: c.id }) },
       ...(can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Roller', icon: 'roles', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) }] : []),

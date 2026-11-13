@@ -11,7 +11,7 @@ import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
-  hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
+  hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
   DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo,
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
@@ -206,6 +206,8 @@ interface Session {
 }
 
 export const BOT_ID = 'kovan-asistan';
+/** Araç kanallarının adı boş bırakılınca kullanılan adlar */
+const TOOL_NAMES: Record<ToolType, string> = { ideas: 'Öneri panosu', tasks: 'Görev panosu', events: 'Etkinlikler', wall: 'Ortak duvar' };
 
 const HATS = ['none', 'antenna', 'crown', 'cap', 'wizard', 'halo', 'headphones'] as const;
 function cleanLook(l: Partial<AvatarLook> | undefined): AvatarLook {
@@ -1292,8 +1294,15 @@ export class Hub {
       case 'edit': {
         const r = this.commOfChannel(s, f.ch);
         const m = r && this.log(f.ch).byId.get(f.id);
-        if (!r || !m || m.authorId !== uid) return;
+        if (!r || !m) return;
         let content = clampStr(f.content, MAX_CONTENT).trim();
+        if (m.authorId !== uid) {
+          // araç kanallarında pano öğesi (xn:<tür>) başkası tarafından da güncellenebilir: görev taşıma, öneri durumu…
+          const t = r.channel.type;
+          if (!isToolChannel(t) || !(channelPerms(r.c, uid, r.channel) & toolEditPerm(t))) return;
+          const kind = (x: string) => /^xn:[a-z]+ /.exec(x)?.[0];
+          if (!kind(m.content) || kind(m.content) !== kind(content)) return;
+        }
         if (!content && !m.attachments?.length) return;
         const cp = channelPerms(r.c, uid, r.channel);
         if (!(cp & Perm.MANAGE_MESSAGES)) {
@@ -1353,8 +1362,17 @@ export class Hub {
       case 'hist': {
         const r = this.commOfChannel(s, f.ch);
         if (!r) return this.send(s, { t: 'hist', rid: f.rid, ch: f.ch, msgs: [], more: false });
+        if (f.full && isToolChannel(r.channel.type) && !f.before && !f.around) {
+          const L = this.log(f.ch).list;
+          return this.send(s, { t: 'hist', rid: f.rid, ch: f.ch, msgs: L.slice(-2000), more: L.length > 2000 });
+        }
         const p = this.log(f.ch).page(f.before, f.around);
         return this.send(s, { t: 'hist', rid: f.rid, ch: f.ch, msgs: p.msgs, more: p.more });
+      }
+      case 'stats': {
+        const c = this.commFor(s, f.cid);
+        if (!c) return;
+        return this.send(s, { t: 'ok', rid: f.rid, data: this.stats(c, uid, f.days) });
       }
       case 'pins': {
         const r = this.commOfChannel(s, f.ch);
@@ -1504,12 +1522,12 @@ export class Hub {
         if (!c || c.channels.length >= 200) return;
         const src = f.clone ? c.channels.find((x) => x.id === f.clone) : undefined;
         const want = src ? src.type : f.type;
-        const type: ChannelType = isVoiceLike(want) || want === 'announce' || want === 'site' ? want : 'text';
+        const type: ChannelType = isVoiceLike(want) || want === 'announce' || want === 'site' || isToolChannel(want) ? want : 'text';
         const catId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
         const ch: Channel = {
           id: makeId(),
           name: hasFreeName(type)
-            ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : type === 'site' ? siteHost(cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL) || 'Site' : 'Ses')
+            ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : type === 'site' ? siteHost(cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL) || 'Site' : isToolChannel(type) ? TOOL_NAMES[type] : 'Ses')
             : channelSlug(f.name),
           type,
           categoryId: catId,
@@ -2024,6 +2042,50 @@ export class Hub {
   }
 
   /** Rol konumlarını 0..n aralığında sıkıştırır; @herkes her zaman 0 */
+  /** Topluluk istatistikleri: üyenin görebildiği kanallardaki mesajlardan hesaplanır */
+  private stats(c: StoredCommunity, uid: ID, daysIn: number): CommunityStats {
+    const days = [7, 30, 90].includes(daysIn) ? daysIn : 30;
+    const TZ = 3 * 3600_000; // Türkiye saati
+    const DAY = 86400_000;
+    const today = Math.floor((Date.now() + TZ) / DAY);
+    const first = today - days + 1;
+    const since = first * DAY - TZ;
+    const perDay = new Array(days).fill(0);
+    const perHour = new Array(24).fill(0);
+    const chN = new Map<ID, number>();
+    const userN = new Map<ID, number>();
+    let messages = 0;
+    for (const ch of c.channels) {
+      if (isVoiceLike(ch.type) || !this.canView(c, uid, ch)) continue;
+      const L = this.log(ch.id).list;
+      for (let i = L.length - 1; i >= 0; i--) {
+        const m = L[i];
+        if (m.ts < since) break;
+        if (m.kind || m.authorId === BOT_ID) continue;
+        const local = m.ts + TZ;
+        const d = Math.floor(local / DAY) - first;
+        if (d < 0 || d >= days) continue;
+        perDay[d]++;
+        perHour[Math.floor((local % DAY) / 3600_000)]++;
+        chN.set(ch.id, (chN.get(ch.id) || 0) + 1);
+        userN.set(m.authorId, (userN.get(m.authorId) || 0) + 1);
+        messages++;
+      }
+    }
+    const members = c.members.filter((m) => m.userId !== BOT_ID);
+    const joined = members.filter((m) => m.joinedAt >= since).length;
+    const memberCurve = perDay.map((_, i) => {
+      const end = (first + i + 1) * DAY - TZ;
+      return members.filter((m) => m.joinedAt < end).length;
+    });
+    const top = (map: Map<ID, number>) =>
+      [...map.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([id, n]) => ({ id, n }));
+    return { days, perDay, perHour, messages, activeMembers: userN.size, joined, memberCurve, topChannels: top(chN), topMembers: top(userN) };
+  }
+
   private normalizeRoles(c: StoredCommunity) {
     const rest = c.roles.filter((r) => r.id !== c.id).sort((a, b) => a.position - b.position);
     rest.forEach((r, i) => (r.position = i + 1));

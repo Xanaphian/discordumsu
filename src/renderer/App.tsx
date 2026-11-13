@@ -15,6 +15,8 @@ import { SiteView } from './components/SiteView';
 import { Logo } from './components/Common';
 import { DESTAN_FAMILY } from './components/Appearance';
 import { isVoiceLike } from '../shared/protocol';
+import { isToolChannel } from '../shared/protocol';
+import { ToolView } from './components/Tools';
 
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
@@ -125,8 +127,8 @@ function Main() {
     );
   return (
     <>
-      {ch.type === 'space' ? <SpaceView c={c} ch={ch} /> : ch.type === 'site' ? <SiteView c={c} ch={ch} /> : ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
-      {membersOpen && !isVoiceLike(ch.type) && ch.type !== 'site' && <MemberList c={c} />}
+      {ch.type === 'space' ? <SpaceView c={c} ch={ch} /> : ch.type === 'site' ? <SiteView c={c} ch={ch} /> : ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : isToolChannel(ch.type) ? <ToolView key={ch.id} c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
+      {membersOpen && !isVoiceLike(ch.type) && ch.type !== 'site' && !isToolChannel(ch.type) && <MemberList c={c} />}
     </>
   );
 }

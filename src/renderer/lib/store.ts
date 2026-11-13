@@ -9,6 +9,7 @@ import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
 import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
+import { toolSummary } from './tools';
 
 export interface Profile {
   id: ID;
@@ -213,6 +214,7 @@ export type Modal =
   | { type: 'settings'; tab?: string }
   | { type: 'commSettings'; cid: ID; tab?: string }
   | { type: 'commProfile'; cid: ID }
+  | { type: 'stats'; cid: ID }
   | { type: 'createChannel'; cid: ID; categoryId: ID | null; kind?: ChannelType }
   | { type: 'editChannel'; cid: ID; chId: ID; tab?: string }
   | { type: 'editCategory'; cid: ID; catId: ID; tab?: string }
@@ -782,6 +784,8 @@ function isViewing(ch: ID) {
 
 export function plainText(content: string, c?: Community) {
   const users = S().users;
+  const tool = toolSummary(content);
+  if (tool) return tool;
   return content
     .replace(/<@&([\w-]+)>/g, (_, id) => '@' + (c?.roles.find((r) => r.id === id)?.name || 'rol'))
     .replace(/<@([\w-]+)>/g, (_, id) => '@' + (users[id]?.name || 'biri'))
@@ -1096,6 +1100,7 @@ function notifyFor(m: Message, c: Community | undefined, mentioned: boolean) {
   const ch = c?.channels.find((x) => x.id === m.channelId);
   const author = c?.members.find((x) => x.userId === m.authorId)?.nick || S().users[m.authorId]?.name || 'Biri';
   if (m.kind === 'join') return;
+  if (m.content.startsWith('xn:wall ')) return; // ortak duvara çizim/çıkartma bildirim düşürmez
   if (c?.dm && settings.blocked.includes(c.dm)) return;
   const body = !settings.notifyPreview ? 'Yeni mesaj' : plainText(m.content, c) || (m.attachments?.length ? `📎 ${m.attachments.length} dosya` : '');
   if (settings.sounds) playSound(mentioned ? 'mention' : 'message');
