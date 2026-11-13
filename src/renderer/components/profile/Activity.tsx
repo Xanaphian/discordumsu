@@ -351,15 +351,20 @@ export const ActivityLine = memo(function ActivityLine({ uid, className }: { uid
 });
 
 /** Kullanıcının ses durumu: '' | 'voice' (sesli aramada) | 'screen' (ekranını paylaşıyor) */
+// Kim seste / ekran paylaşıyor: ses durumu her değiştiğinde bir kez hesaplanır, satırlar yalnız kendi kaydına bakar
+let voiceIdxOf: unknown = null;
+let voiceIdx = new Map<string, 'voice' | 'screen'>();
+function voiceIndex(voice: Record<string, { userId: string; screen?: unknown }[] | undefined>) {
+  if (voiceIdxOf !== voice) {
+    voiceIdxOf = voice;
+    voiceIdx = new Map();
+    for (const list of Object.values(voice)) for (const m of list || []) if (!voiceIdx.has(m.userId)) voiceIdx.set(m.userId, m.screen ? 'screen' : 'voice');
+  }
+  return voiceIdx;
+}
+
 export function useVoiceOf(uid: string | undefined): '' | 'voice' | 'screen' {
-  return useStore((s) => {
-    if (!uid) return '';
-    for (const list of Object.values(s.voice)) {
-      const m = list?.find((x) => x.userId === uid);
-      if (m) return m.screen ? 'screen' : 'voice';
-    }
-    return '';
-  });
+  return useStore((s) => (uid && voiceIndex(s.voice).get(uid)) || '');
 }
 
 /** Satırın sağındaki küçük etkinlik simgesi (oyunun kendi simgesi ya da marka logosu) */

@@ -17,7 +17,7 @@ import { Avatar, Tooltip, STATUS_LABEL } from './Common';
 import { NameText } from './profile/ProfileCard';
 import { EmojiPicker } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
-import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles } from '../lib/util';
+import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles, memberOf } from '../lib/util';
 import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
 import { can, canIn, channelPerms, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
 
@@ -26,22 +26,43 @@ const GROUP_MS = 7 * 60 * 1000;
 const drafts = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
+// Kullanıcı adlarının imzası: kullanıcı listesi her değiştiğinde değil, yalnız bir ad değiştiğinde yeni değer verir.
+// (Profil, etkinlik özeti gibi güncellemeler bütün mesajları yeniden işletmesin.)
+let namesOf: unknown = null;
+let namesSig = '';
+function namesKey(users: Record<string, { name: string }>) {
+  if (namesOf !== users) {
+    namesOf = users;
+    let k = '';
+    for (const id in users) k += id + '\u0001' + users[id].name + '\u0002';
+    namesSig = k;
+  }
+  return namesSig;
+}
+
 function useMdCtx(c: Community): MdCtx {
-  const users = useStore((s) => s.users);
+  const names = useStore((s) => namesKey(s.users));
   const me = useStore((s) => s.me.id);
+  const cRef = useRef(c);
+  cRef.current = c;
   return useMemo(
     () => ({
       meId: me,
-      userName: (id) => (c.users[id] || users[id] ? displayName(c, id, users) : null),
+      userName: (id) => {
+        const c = cRef.current;
+        const users = useStore.getState().users;
+        return c.users[id] || users[id] ? displayName(c, id, users) : null;
+      },
       channelName: (id) => c.channels.find((x) => x.id === id)?.name ?? null,
       onUser: (id, e) => useStore.setState({ popout: { uid: id, cid: c.id, x: e.clientX, y: e.clientY } }),
       onChannel: (id) => c.channels.some((x) => x.id === id) && selectChannel(c.id, id),
       roleInfo: (id) => {
         const r = c.roles.find((x) => x.id === id);
-        return r ? { name: r.name, color: r.color, mine: !!c.members.find((m) => m.userId === me)?.roles.includes(id) } : null;
+        return r ? { name: r.name, color: r.color, mine: !!memberOf(c, me)?.roles.includes(id) } : null;
       },
     }),
-    [c, users, me],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [c.id, c.members, c.roles, c.channels, names, me],
   );
 }
 
@@ -188,24 +209,45 @@ interface ItemProps {
   compact: boolean;
 }
 
+// Yanıtlanan mesajı bulmak için kanal başına dizin (her mesaj için listeyi taramamak için)
+const itemIdx = new WeakMap<CMessage[], Map<string, CMessage>>();
+function findItem(items: CMessage[] | undefined, id: string) {
+  if (!items) return undefined;
+  let idx = itemIdx.get(items);
+  if (!idx) {
+    idx = new Map();
+    for (const x of items) if (!idx.has(x.id)) idx.set(x.id, x);
+    itemIdx.set(items, idx);
+  }
+  return idx.get(id);
+}
+
+// Topluluk nesnesi her profil güncellemesinde yenilenir; mesaj yalnız kendisini ilgilendiren alanlar değişince yeniden çizilsin.
+function sameItem(a: ItemProps, b: ItemProps) {
+  for (const k of Object.keys(a) as (keyof ItemProps)[]) if (k !== 'c' && a[k] !== b[k]) return false;
+  const x = a.c, y = b.c;
+  return x === y || (x.id === y.id && x.ownerId === y.ownerId && x.members === y.members && x.roles === y.roles && x.channels === y.channels && x.users[a.m.authorId] === y.users[b.m.authorId]);
+}
+
 const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, isEditing, isNew, highlight, compact }: ItemProps) {
-  const users = useStore((s) => s.users);
-  const parent = useStore((s) => (m.replyTo ? s.chans[m.channelId]?.items.find((x) => x.id === m.replyTo) : undefined));
+  const authorUser = useStore((s) => s.users[m.authorId]);
+  const parent = useStore((s) => (m.replyTo ? findItem(s.chans[m.channelId]?.items, m.replyTo) : undefined));
+  const parentUser = useStore((s) => (parent ? s.users[parent.authorId] : undefined));
   const newDay = !prev || !sameDay(prev.ts, m.ts);
   const grouped =
     !!prev && !newDay && !m.replyTo && !m.kind && !prev.kind && prev.authorId === m.authorId && m.ts - prev.ts < GROUP_MS && !prev.failed;
-  const author = users[m.authorId] || c.users[m.authorId];
-  const name = displayName(c, m.authorId, users);
+  const author = authorUser || c.users[m.authorId];
+  const name = displayName(c, m.authorId, authorUser ? { [m.authorId]: authorUser } : {});
   const color = roleColor(c, m.authorId);
   const mine = m.authorId === me;
-  const myRoles = c.members.find((x) => x.userId === me)?.roles;
+  const myRoles = memberOf(c, me)?.roles;
   const mentioned =
     m.content.includes(`<@${me}>`) || /@(everyone|here)\b/.test(m.content) || (parent?.authorId === me && !mine) || !!myRoles?.some((r) => m.content.includes(`<@&${r}>`));
   const blocked = useStore((s) => s.settings.blocked.includes(m.authorId));
   const showJoin = useStore((s) => s.settings.showJoinMessages);
   const showIcons = useStore((s) => s.settings.showRoleIcons);
   const [reveal, setReveal] = useState(false);
-  const roleIcon = showIcons ? memberRoles(c, c.members.find((x) => x.userId === m.authorId)).find((r) => r.icon)?.icon : undefined;
+  const roleIcon = showIcons ? memberRoles(c, memberOf(c, m.authorId)).find((r) => r.icon)?.icon : undefined;
   const body = useMemo(() => (m.content ? renderMarkdown(m.content, md) : null), [m.content, md]);
   const jumbo = useMemo(() => isEmojiOnly(m.content), [m.content]);
   const base = hostHttp(c.id);
@@ -299,9 +341,9 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
             <CornerUpLeft size={14} className="reply-curve" />
             {parent ? (
               <>
-                <Avatar user={users[parent.authorId]} size={16} />
+                <Avatar user={parentUser} size={16} />
                 <span className="reply-name" style={{ color: roleColor(c, parent.authorId) || undefined }}>
-                  {displayName(c, parent.authorId, users)}
+                  {displayName(c, parent.authorId, parentUser ? { [parent.authorId]: parentUser } : {})}
                 </span>
                 <span className="reply-text">{plainText(parent.content, c) || (parent.attachments?.length ? 'Ek dosya' : '')}</span>
               </>
@@ -330,7 +372,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 </span>
                 {roleIcon && <span className="role-icon">{roleIcon}</span>}
                 {m.authorId === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}
-                {(users[m.authorId] || c.users[m.authorId])?.bot && <span className="tag-bot">BOT</span>}
+                {author?.bot && <span className="tag-bot">BOT</span>}
                 {c.ownerId === m.authorId && m.authorId !== 'kovan-asistan' && (
                   <Tooltip text="Topluluk sahibi" side="top">
                     <span className="owner-crown">♛</span>
@@ -431,7 +473,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
       </div>
     </>
   );
-});
+}, sameItem);
 
 function DayDivider({ ts }: { ts: number }) {
   return (
@@ -443,12 +485,10 @@ function DayDivider({ ts }: { ts: number }) {
 
 // ---------------------------------------------------------------------------
 function ChannelStart({ c, ch, loading, more }: { c?: Community; ch: Channel; loading: boolean; more: boolean }) {
+  // Dönen simge yalnız gerçekten yüklenirken çizilir: daha eski mesaj varken hep dönmesi (görünmese bile)
+  // pencere açıkken arayüzü saniyede 60 kez yeniden boyatıyordu.
   if (more || loading)
-    return (
-      <div className="list-loading">
-        <LoaderCircle size={20} className="spin" />
-      </div>
-    );
+    return <div className="list-loading">{loading ? <LoaderCircle size={20} className="spin" /> : <span className="list-loading-slot" aria-hidden />}</div>;
   if (c?.dm) return <DmStart c={c} />;
   return (
     <div className="ch-start">
@@ -491,6 +531,13 @@ function DmStart({ c }: { c: Community }) {
   );
 }
 
+// Virtuoso'nun üst/alt parçaları sabit bileşenler: her çizimde yeni bileşen verilirse baştan kurulurlar
+type ListCtx = { c: Community; ch: Channel; loading: boolean; more: boolean };
+const LIST_PARTS = {
+  Header: ({ context }: { context?: ListCtx }) => (context ? <ChannelStart c={context.c} ch={context.ch} loading={context.loading} more={context.more} /> : null),
+  Footer: () => <div style={{ height: 18 }} />,
+};
+
 export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const st = useStore((s) => s.chans[ch.id]);
   const me = useStore((s) => s.me.id);
@@ -527,6 +574,8 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
     useStore.setState({ jumpTo: null });
     return () => clearTimeout(t);
   }, [jumpTo, items, ch.id]);
+
+  const headCtx = useMemo<ListCtx>(() => ({ c, ch, loading: !!st?.loading, more: !!st?.more }), [c, ch, st?.loading, st?.more]);
 
   const startReached = useCallback(() => {
     const s = useStore.getState().chans[ch.id];
@@ -566,10 +615,8 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
         startReached={startReached}
         increaseViewportBy={{ top: 600, bottom: 400 }}
         computeItemKey={(_i, m) => m.nonce || m.id}
-        components={{
-          Header: () => <ChannelStart c={c} ch={ch} loading={st.loading} more={st.more} />,
-          Footer: () => <div style={{ height: 18 }} />,
-        }}
+        context={headCtx}
+        components={LIST_PARTS}
         itemContent={(index, m) => {
           const i = index - (BASE - st.prepended);
           return (

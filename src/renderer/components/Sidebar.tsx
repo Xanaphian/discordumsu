@@ -18,7 +18,7 @@ import { activeCustom } from '../../shared/profile';
 import { useActsOf } from '../lib/activity';
 import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
-import { cx, copyText, displayName } from '../lib/util';
+import { cx, copyText, displayName, countOnline } from '../lib/util';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
 
 /** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi */
@@ -238,7 +238,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
   const collapsed = useStore((s) => s.settings.collapsed);
   const mentions = useStore((s) => s.mentions);
   const connStatus = useStore((s) => s.conns[s.commHost[c.id]]?.status);
-  const onlineCount = useStore((s) => c.members.filter((m) => m.userId === s.me.id || m.userId === 'kovan-asistan' || (s.presence[m.userId] && s.presence[m.userId] !== 'offline')).length);
+  const onlineCount = useStore((s) => countOnline(c.members, s.presence, s.me.id));
   const { unreadCh } = useUnread();
   const manage = can(c, me, Perm.MANAGE_CHANNELS);
   const commMuted = useStore((s) => s.settings.mutedIds.includes(c.id));

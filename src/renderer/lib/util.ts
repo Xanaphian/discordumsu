@@ -46,19 +46,38 @@ export function initials(name: string) {
   return (parts[0][0] + parts[1][0]).toLocaleUpperCase('tr');
 }
 
+// Üye arama dizini: büyük topluluklarda her satır/mesaj için listeyi baştan taramamak için.
+// Üye dizisi değişmez (her değişiklikte yeni dizi gelir), bu yüzden diziye bağlı önbellek güvenli.
+const memberIdx = new WeakMap<Member[], Map<string, Member>>();
+export function memberOf(c: Community | undefined, uid: string): Member | undefined {
+  if (!c) return undefined;
+  let idx = memberIdx.get(c.members);
+  if (!idx) {
+    idx = new Map();
+    for (const m of c.members) idx.set(m.userId, m);
+    memberIdx.set(c.members, idx);
+  }
+  return idx.get(uid);
+}
+
+const rolesCache = new WeakMap<Role[], WeakMap<string[], Role[]>>();
 export function memberRoles(c: Community, m: Member | undefined): Role[] {
   if (!m) return [];
-  return c.roles.filter((r) => m.roles.includes(r.id)).sort((a, b) => b.position - a.position);
+  let byMember = rolesCache.get(c.roles);
+  if (!byMember) rolesCache.set(c.roles, (byMember = new WeakMap()));
+  let list = byMember.get(m.roles);
+  if (!list) byMember.set(m.roles, (list = c.roles.filter((r) => m.roles.includes(r.id)).sort((a, b) => b.position - a.position)));
+  return list;
 }
 
 export function roleColor(c: Community, uid: string): string {
-  const m = c.members.find((x) => x.userId === uid);
+  const m = memberOf(c, uid);
   for (const r of memberRoles(c, m)) if (r.color) return r.color;
   return '';
 }
 
 export function displayName(c: Community | undefined, uid: string, users: Record<string, UserPublic>) {
-  const m = c?.members.find((x) => x.userId === uid);
+  const m = memberOf(c, uid);
   return m?.nick || users[uid]?.name || c?.users[uid]?.name || 'Bilinmeyen';
 }
 
@@ -118,3 +137,14 @@ export function debounce<T extends (...a: any[]) => void>(fn: T, ms: number) {
 
 export const isMac = navigator.platform.startsWith('Mac');
 export const modKey = isMac ? '⌘' : 'Ctrl';
+
+/** Topluluktaki çevrimiçi üye sayısı; yalnız üye listesi ya da durumlar değişince yeniden sayılır. */
+const onlineCache = new WeakMap<Member[], { presence: object; me: string; n: number }>();
+export function countOnline(members: Member[], presence: Record<string, string>, me: string): number {
+  const hit = onlineCache.get(members);
+  if (hit && hit.presence === presence && hit.me === me) return hit.n;
+  let n = 0;
+  for (const m of members) if (m.userId === me || m.userId === 'kovan-asistan' || (presence[m.userId] && presence[m.userId] !== 'offline')) n++;
+  onlineCache.set(members, { presence, me, n });
+  return n;
+}

@@ -6,19 +6,17 @@ import { NameText, ACTIVITY_ICON, ProfileCard } from './profile/ProfileCard';
 import { activeCustom } from '../../shared/profile';
 import { useActsOf } from '../lib/activity';
 import { ActivityBadge, PresenceLine, useVoiceOf } from './profile/Activity';
-import { cx, displayName, roleColor, memberRoles } from '../lib/util';
+import { cx, displayName, roleColor, memberRoles, memberOf } from '../lib/util';
 import { can, isTimedOut, Perm, type Community, type Status, type UserPublic } from '../../shared/protocol';
 import { memberMenu } from './Moderation';
 
-const Row = memo(function Row({ c, uid, user, status, name, color, me }: { c: Community; uid: string; user: UserPublic | undefined; status: Status; name: string; color: string; me: string }) {
+const Row = memo(function Row({ c, uid, user, status, name, color, me, showIcons, blocked }: { c: Community; uid: string; user: UserPublic | undefined; status: Status; name: string; color: string; me: string; showIcons: boolean; blocked: boolean }) {
   const offline = status === 'offline';
   const menu = (e: React.MouseEvent) => {
     openMenu(e, memberMenu(c, me, uid, { at: { x: e.clientX - 300, y: e.clientY }, onMention: () => insertMention(name) }));
   };
-  const mem = c.members.find((x) => x.userId === uid);
-  const showIcons = useStore((s) => s.settings.showRoleIcons);
+  const mem = memberOf(c, uid);
   const icon = showIcons ? memberRoles(c, mem).find((r) => r.icon)?.icon : undefined;
-  const blocked = useStore((s) => s.settings.blocked.includes(uid));
   return (
     <div className={cx('member', offline && 'offline')} onClick={(e) => useStore.setState({ popout: { uid, cid: c.id, x: e.clientX - 300, y: e.clientY } })} onContextMenu={menu}>
       <Avatar user={user} size={34} status={status} />
@@ -75,11 +73,18 @@ function insertMention(name: string) {
   el.focus();
 }
 
+// localeCompare(…, 'tr') her karşılaştırmada yeni bir karşılaştırıcı kurar; tek bir Collator aynı sırayı çok daha hızlı verir
+const trCollator = new Intl.Collator('tr');
+
 export function MemberList({ c }: { c: Community }) {
   const users = useStore((s) => s.users);
   const presence = useStore((s) => s.presence);
   const me = useStore((s) => s.me.id);
   const myStatus = useStore((s) => s.me.status);
+  // satır başına ayrı abonelik yerine tek abonelik (kalabalık listede her değişiklikte yüzlerce seçici çalışmasın)
+  const showIcons = useStore((s) => s.settings.showRoleIcons);
+  const blockedList = useStore((s) => s.settings.blocked);
+  const blocked = useMemo(() => new Set(blockedList), [blockedList]);
   const groups = useMemo(() => {
     const hoisted = c.roles.filter((r) => r.hoist && r.id !== c.id).sort((a, b) => b.position - a.position);
     const g = new Map<string, { title: string; list: { uid: string; name: string; status: Status; color: string }[] }>();
@@ -97,7 +102,7 @@ export function MemberList({ c }: { c: Community }) {
       const top = memberRoles(c, m).find((r) => r.hoist);
       g.get(top ? top.id : 'online')!.list.push(entry);
     }
-    for (const x of g.values()) x.list.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    for (const x of g.values()) x.list.sort((a, b) => trCollator.compare(a.name, b.name));
     return [...g.values()].filter((x) => x.list.length);
   }, [c, users, presence, me, myStatus]);
 
@@ -115,7 +120,7 @@ export function MemberList({ c }: { c: Community }) {
             {g.title} — {g.list.length}
           </div>
           {g.list.slice(0, 300).map((x) => (
-            <Row key={x.uid} c={c} uid={x.uid} user={users[x.uid] || c.users[x.uid]} status={x.status} name={x.name} color={x.color} me={me} />
+            <Row key={x.uid} c={c} uid={x.uid} user={users[x.uid] || c.users[x.uid]} status={x.status} name={x.name} color={x.color} me={me} showIcons={showIcons} blocked={blocked.has(x.uid)} />
           ))}
         </div>
       ))}
