@@ -125,7 +125,7 @@ const DmRailItem = memo(function DmRailItem({ c, active, mentions }: { c: Commun
   const menu = (e: React.MouseEvent) =>
     openMenu(e, [
       { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !mentions },
-      { label: 'Profil', onClick: () => useStore.setState({ popout: { uid: c.dm!, cid: c.id, x: e.clientX + 20, y: e.clientY } }) },
+      { label: 'Profil', onClick: () => openModal({ type: 'profile', uid: c.dm!, cid: c.id }) },
       { sep: true },
       { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
     ]);

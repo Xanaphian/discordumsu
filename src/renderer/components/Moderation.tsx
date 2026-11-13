@@ -23,7 +23,8 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
   const pop = () => useStore.setState({ popout: { uid, cid: c.id, x: opts.at?.x ?? 400, y: opts.at?.y ?? 200 } });
 
   // 1) profil ve iletişim
-  if (!opts.noProfile) items.push({ label: 'Profil', onClick: pop });
+  // sağ tıktaki Profil tam profili açar; sol tık küçük kartı açmaya devam eder
+  if (!opts.noProfile) items.push({ label: 'Profil', onClick: () => (useStore.setState({ popout: null }), openModal({ type: 'profile', uid, cid: c.id })) });
   if (opts.onMention) items.push({ label: 'Bahset', onClick: opts.onMention });
   if (self) {
     items.push({ label: 'Profili düzenle', onClick: () => openModal({ type: 'settings', tab: 'profile' }) });
