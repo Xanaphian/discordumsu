@@ -629,6 +629,18 @@ function HomeSidebar() {
         <div className="cat-row static">
           <span>Toplulukların ({realCommunities(communities).length})</span>
         </div>
+        <div className="home-links">
+          {realCommunities(communities).map((c) => (
+            <button key={c.id} className={cx('ch-row home-comm-row', comm[c.id]?.unread && 'unread')} onClick={() => selectCommunity(c.id)}>
+              <span className="ch-icon">
+                <CommunityIcon c={c} size={20} />
+              </span>
+              <span className="ch-name">{c.name}</span>
+              {comm[c.id]?.mentions ? <span className="badge">{comm[c.id].mentions}</span> : null}
+            </button>
+          ))}
+          {!realCommunities(communities).length && <div className="dm-empty">Henüz bir topluluğun yok. Kısayollardan oluşturabilir ya da bir davetle katılabilirsin.</div>}
+        </div>
       </div>
     </>
   );

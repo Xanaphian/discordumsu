@@ -137,11 +137,15 @@ function EditBox({ m, onDone }: { m: Message; onDone: () => void }) {
     const el = ref.current!;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
+    // Son mesajı düzenlerken kutu ve ipucu yazı kutusunun arkasında kalmasın
+    const t = setTimeout(() => el.closest('.edit-box')?.scrollIntoView({ block: 'nearest' }), 60);
+    return () => clearTimeout(t);
   }, []);
   useLayoutEffect(() => {
     const el = ref.current!;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 400) + 'px';
+    // +2: çerçeve payı; yoksa tek satırda bile kaydırma çubuğu çıkıyor
+    el.style.height = Math.min(el.scrollHeight + 2, 400) + 'px';
   }, [v]);
   const save = () => {
     const t = replaceShortcodes(v.trim());

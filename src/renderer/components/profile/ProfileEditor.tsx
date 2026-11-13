@@ -841,7 +841,7 @@ export function ProfileEditor() {
                   </NameText>
                   <span>Bugün 14:32</span>
                 </div>
-                <div className="pe-chat-bubble">Yeni profilime bakın! 🐝</div>
+                <div className="pe-chat-bubble">Yeni profilime bakın! ✨</div>
               </div>
             </div>
           </div>

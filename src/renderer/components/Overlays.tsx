@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronRight, CircleCheck, CircleAlert, Info, Plus, X, MoreHorizontal, Clock } from 'lucide-react';
 import { useStore, MenuItem, openModal, openMenu, cmd, recentEmoji, rememberEmoji, meAsUser } from '../lib/store';
 import { ProfileCard } from './profile/ProfileCard';
@@ -13,12 +13,25 @@ function useFit(ref: React.RefObject<HTMLElement | null>, x: number, y: number, 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
-    const pad = 8;
-    let left = x, top = y;
-    if (left + r.width > window.innerWidth - pad) left = Math.max(pad, window.innerWidth - r.width - pad);
-    if (top + r.height > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - r.height - pad);
-    setPos({ left: Math.max(pad, left), top: Math.max(pad, top), ready: true });
+    const fit = () => {
+      const r = el.getBoundingClientRect();
+      const pad = 8;
+      let left = x, top = y;
+      if (left + r.width > window.innerWidth - pad) left = Math.max(pad, window.innerWidth - r.width - pad);
+      if (top + r.height > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - r.height - pad);
+      left = Math.max(pad, left);
+      top = Math.max(pad, top);
+      setPos((p) => (p.ready && p.left === left && p.top === top ? p : { left, top, ready: true }));
+    };
+    fit();
+    // İçerik sonradan büyüyebilir (etkinlik, resimler, roller); pencereden taşmasın diye yeniden yerleştir.
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    window.addEventListener('resize', fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', fit);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [x, y, ...deps]);
   return pos;
@@ -110,7 +123,14 @@ export function UserPopout() {
   const ref = useRef<HTMLDivElement>(null);
   const close = () => useStore.setState({ popout: null });
   useClickOutside(ref, close, !!p);
-  const pos = useFit(ref, (p?.x || 0) + 12, (p?.y || 0) - 40, [p]);
+  const anchor = useMemo(() => {
+    // Üye listesinden açılan kart listenin üstüne binmesin: listenin soluna yerleşir
+    const x = p?.x || 0, y = p?.y || 0;
+    const list = document.querySelector('.members')?.getBoundingClientRect();
+    if (list && list.width > 0 && x + 300 >= list.left && x + 300 <= list.right && y >= list.top && y <= list.bottom) return { x: list.left - 352, y: y - 20 };
+    return { x, y };
+  }, [p]);
+  const pos = useFit(ref, anchor.x + 12, anchor.y - 40, [p]);
   if (!p) return null;
   const isMe = p.uid === me.id;
   const u = isMe ? meAsUser(me) : users[p.uid] || c?.users[p.uid];
@@ -206,6 +226,11 @@ export function EmojiPicker({ x, y, onPick, onClose }: { x: number; y: number; o
   const recent = useMemo(() => recentEmoji(), []);
   const results = useMemo(() => (q ? searchEmoji(q, 120) : null), [q]);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  // Seçici ilk karede gizli çizildiği için autoFocus tutmuyordu; görünür olunca arama kutusuna odaklan
+  useEffect(() => {
+    if (pos.ready) searchRef.current?.focus();
+  }, [pos.ready]);
   const pick = (e: string) => {
     rememberEmoji(e);
     onPick(e);
@@ -213,7 +238,7 @@ export function EmojiPicker({ x, y, onPick, onClose }: { x: number; y: number; o
   return (
     <div ref={ref} className="emoji-picker" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}>
       <div className="ep-search">
-        <input autoFocus placeholder="Emoji ara (ör. ari, kalp, fire)" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && results?.[0] && pick(results[0].e)} />
+        <input ref={searchRef} placeholder="Emoji ara (ör. kalp, ateş, yıldız)" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && results?.[0] && pick(results[0].e)} />
       </div>
       <div className="ep-main">
         {!q && (

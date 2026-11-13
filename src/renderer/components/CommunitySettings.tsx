@@ -10,7 +10,7 @@ import { memberMenu } from './Moderation';
 import { BotsTab } from './Bots';
 import { CommunityProfileEditor } from './CommunityProfile';
 
-const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🐝', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🍯', '❤️'];
+const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🏆', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🦀', '❤️'];
 
 // ---------------------------------------------------------------------------
 // Roller
