@@ -1,4 +1,5 @@
 // Kovan ağ protokolü: istemci <-> kovan sunucusu (hub) arasında JSON çerçeveler.
+import type { BotClientFrame, BotServerFrame } from './bots';
 
 export type ID = string;
 
@@ -10,6 +11,7 @@ export interface UserPublic {
   color: string;
   avatar?: string; // küçük data URL
   bio?: string;
+  bot?: boolean; // bot hesabı (yalnızca sunucu atar)
 }
 
 export const Perm = {
@@ -168,7 +170,8 @@ export type ClientFrame =
   | { t: 'sp.emote'; e: string }
   | { t: 'sp.booth'; i: number; text: string | null }
   | { t: 'sp.look'; look: AvatarLook }
-  | { t: 'ping' };
+  | { t: 'ping' }
+  | BotClientFrame;
 
 // ---- Sunucu -> İstemci ----
 export type ServerFrame =
@@ -197,7 +200,8 @@ export type ServerFrame =
   | { t: 'sp.booths'; booths: Booth[] }
   | { t: 'sp.look'; sid: ID; look: AvatarLook }
   | { t: 'vc.you'; sessionId: ID }
-  | { t: 'pong' };
+  | { t: 'pong' }
+  | BotServerFrame;
 
 export const PROTOCOL_VERSION = 1;
 export const DEFAULT_PORT = 47820;

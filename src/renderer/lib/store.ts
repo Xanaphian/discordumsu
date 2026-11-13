@@ -131,6 +131,8 @@ export interface AppInfo {
   electron: string;
   chrome: string;
   dev: boolean;
+  exePath?: string;
+  mcpBridge?: string;
 }
 
 interface Conn {
@@ -561,6 +563,9 @@ function onFrame(host: string, f: ServerFrame) {
     case 'sp.look':
       spaceHooks.onFrame?.(host, f);
       return;
+    case 'bots':
+      for (const cb of botHooks) cb(f);
+      return;
     case 'err':
       if (f.nonce) {
         set((s) => {
@@ -581,6 +586,8 @@ function onFrame(host: string, f: ServerFrame) {
   }
 }
 
+/** Botlar sekmesi canlı güncellemeleri dinler */
+export const botHooks = new Set<(f: Extract<ServerFrame, { t: 'bots' }>) => void>();
 export const spaceHooks: { onFrame?: (host: string, f: ServerFrame) => void } = {};
 
 export const voiceHooks: {

@@ -43,6 +43,7 @@ const Row = memo(function Row({ c, uid, user, status, name, color, me }: { c: Co
           {name}
           {c.ownerId === uid && <span className="owner-crown" title="Topluluk sahibi">♛</span>}
           {uid === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}
+          {user?.bot && <span className="tag-bot">BOT</span>}
         </span>
         {user?.bio && !offline && <span className="member-sub">{user.bio}</span>}
       </div>
