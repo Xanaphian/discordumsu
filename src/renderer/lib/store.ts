@@ -40,6 +40,29 @@ export interface Settings {
   avatarColor: string;
   spaceNight: boolean;
   spaceQuality: 'low' | 'high';
+  // ses
+  echoCancellation: boolean;
+  autoGainControl: boolean;
+  voiceBitrate: number; // kbps
+  inputVolume: number; // %
+  outputVolume: number; // %
+  inputMode: 'vad' | 'ptt';
+  vadThreshold: number; // 0-100, 0 = otomatik
+  pttKey: string; // KeyboardEvent.code
+  pttRelease: number; // ms
+  userVolumes: Record<ID, number>; // %
+  joinMuted: boolean;
+  // kamera
+  camId: string;
+  camRes: 360 | 720 | 1080;
+  camFps: 15 | 30 | 60;
+  camMirror: boolean;
+  // ekran paylaşımı
+  screenRes: 720 | 1080 | 1440 | 2160 | 0; // 0 = kaynak
+  screenFps: 15 | 30 | 60;
+  screenHint: 'motion' | 'detail';
+  screenAudio: boolean;
+  videoCodec: 'auto' | 'h264' | 'vp9' | 'vp8' | 'av1';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -65,6 +88,26 @@ export const DEFAULT_SETTINGS: Settings = {
   avatarColor: '',
   spaceNight: false,
   spaceQuality: 'high',
+  echoCancellation: true,
+  autoGainControl: true,
+  voiceBitrate: 96,
+  inputVolume: 100,
+  outputVolume: 100,
+  inputMode: 'vad',
+  vadThreshold: 0,
+  pttKey: 'KeyV',
+  pttRelease: 200,
+  userVolumes: {},
+  joinMuted: false,
+  camId: 'default',
+  camRes: 720,
+  camFps: 30,
+  camMirror: true,
+  screenRes: 1080,
+  screenFps: 30,
+  screenHint: 'motion',
+  screenAudio: false,
+  videoCodec: 'auto',
 };
 
 export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string };
@@ -91,6 +134,7 @@ export type Modal =
   | { type: 'confirm'; title: string; body: string; confirmText?: string; danger?: boolean; onConfirm: () => void }
   | { type: 'image'; src: string; name: string }
   | { type: 'quick' }
+  | { type: 'screenShare' }
   | { type: 'search'; cid: ID; q?: string };
 
 export interface MenuItem {

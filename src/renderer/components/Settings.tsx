@@ -3,6 +3,7 @@ import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleChe
 import {
   useStore, openModal, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT,
 } from '../lib/store';
+import { VoiceTab } from './VoiceSettings';
 import { Avatar, CommunityIcon, Toggle, Logo, STATUS_LABEL } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtSize, fmtDay, displayName, modKey } from '../lib/util';
 import { playSound } from '../lib/sound';
@@ -232,93 +233,6 @@ function NotificationsTab() {
   );
 }
 
-function VoiceTab() {
-  const s = useStore((x) => x.settings);
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [testing, setTesting] = useState(false);
-  const [lvl, setLvl] = useState(0);
-  useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then(setDevices).catch(() => {});
-  }, [testing]);
-  useEffect(() => {
-    if (!testing) return;
-    let stream: MediaStream | null = null;
-    let raf = 0;
-    let ctx: AudioContext | null = null;
-    navigator.mediaDevices
-      .getUserMedia({ audio: { deviceId: s.micId !== 'default' ? { ideal: s.micId } : undefined, noiseSuppression: s.noiseSuppression, echoCancellation: true } })
-      .then((st) => {
-        stream = st;
-        ctx = new AudioContext();
-        const an = ctx.createAnalyser();
-        an.fftSize = 512;
-        ctx.createMediaStreamSource(st).connect(an);
-        const buf = new Uint8Array(512);
-        const loop = () => {
-          an.getByteTimeDomainData(buf);
-          let sum = 0;
-          for (const v of buf) sum += ((v - 128) / 128) ** 2;
-          setLvl(Math.min(1, Math.sqrt(sum / buf.length) * 5));
-          raf = requestAnimationFrame(loop);
-        };
-        loop();
-      })
-      .catch(() => {
-        toast('Mikrofona erişilemedi.', 'err');
-        setTesting(false);
-      });
-    return () => {
-      cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
-      ctx?.close();
-    };
-  }, [testing, s.micId, s.noiseSuppression]);
-  const inputs = devices.filter((d) => d.kind === 'audioinput');
-  const outputs = devices.filter((d) => d.kind === 'audiooutput');
-  return (
-    <>
-      <h1>Ses</h1>
-      <div className="two-col">
-        <label className="field">
-          <span>Giriş aygıtı</span>
-          <select value={s.micId} onChange={(e) => updateSettings({ micId: e.target.value })}>
-            <option value="default">Varsayılan</option>
-            {inputs.filter((d) => d.deviceId !== 'default').map((d) => (
-              <option key={d.deviceId} value={d.deviceId}>
-                {d.label || 'Mikrofon'}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Çıkış aygıtı</span>
-          <select value={s.speakerId} onChange={(e) => updateSettings({ speakerId: e.target.value })}>
-            <option value="default">Varsayılan</option>
-            {outputs.filter((d) => d.deviceId !== 'default').map((d) => (
-              <option key={d.deviceId} value={d.deviceId}>
-                {d.label || 'Hoparlör'}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <h3>Mikrofon testi</h3>
-      <div className="mic-test">
-        <button className={cx('btn sm', testing ? 'danger' : 'primary')} onClick={() => setTesting((t) => !t)}>
-          <Mic size={14} /> {testing ? 'Durdur' : 'Test et'}
-        </button>
-        <div className="meter">
-          <div style={{ width: `${lvl * 100}%` }} />
-        </div>
-      </div>
-      <Row title="Gürültü bastırma" sub="Klavye, fan gibi arka plan seslerini azaltır.">
-        <Toggle value={s.noiseSuppression} onChange={(v) => updateSettings({ noiseSuppression: v })} />
-      </Row>
-      <p className="note">Sesli kanallar doğrudan eşler arası (WebRTC) bağlantı kurar; ses kovan sunucusundan geçmez.</p>
-    </>
-  );
-}
-
 function ConnectionTab() {
   const info = useStore((x) => x.info);
   const s = useStore((x) => x.settings);
@@ -493,7 +407,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
     { id: 'connection', label: 'Bağlantı', group: 'Kullanıcı Ayarları' },
     { id: 'appearance', label: 'Görünüm', group: 'Uygulama Ayarları' },
     { id: 'notifications', label: 'Bildirimler', group: 'Uygulama Ayarları' },
-    { id: 'voice', label: 'Ses', group: 'Uygulama Ayarları' },
+    { id: 'voice', label: 'Ses ve Görüntü', group: 'Uygulama Ayarları' },
     { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama Ayarları' },
     { id: 'updates', label: 'Güncellemeler', group: 'Kovan' },
   ];

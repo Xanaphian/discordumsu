@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useStore, openModal, selectChannel, sortedChannels } from './lib/store';
-import { toggleMute, toggleDeaf } from './lib/voice';
+import { toggleMute, toggleDeaf, useVoice } from './lib/voice';
 import { TitleBar } from './components/TitleBar';
 import { ServerRail } from './components/ServerRail';
 import { Sidebar } from './components/Sidebar';
@@ -8,7 +8,8 @@ import { ChatView, PickerHost } from './components/Chat';
 import { MemberList } from './components/Members';
 import { Modals } from './components/Modals';
 import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
-import { HomeView, Onboarding, VoiceView } from './components/Views';
+import { HomeView, Onboarding } from './components/Views';
+import { VoiceView } from './components/Media';
 import { SpaceView } from './components/SpaceView';
 import { Logo } from './components/Common';
 import { isVoiceLike } from '../shared/protocol';
@@ -75,6 +76,7 @@ function useShortcuts() {
       }
       // herhangi bir yerde yazmaya başlayınca mesaj kutusuna odaklan
       const tag = (document.activeElement?.tagName || '').toLowerCase();
+      if (st.settings.inputMode === 'ptt' && e.code === st.settings.pttKey && useVoice.getState().ch) return; // bas-konuş tuşu
       if (!st.modal && !mod && !e.altKey && e.key.length === 1 && tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
         const ta = document.getElementById('composer-input') as HTMLTextAreaElement | null;
         ta?.focus();
