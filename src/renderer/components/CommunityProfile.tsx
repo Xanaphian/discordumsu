@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, Trash2, ImagePlus, Link as LinkIcon, UserPlus, Pencil, CalendarDays, Users, ScrollText, Crown } from 'lucide-react';
 import { useStore, cmd, openModal, toast } from '../lib/store';
 import { Avatar, CommunityIcon } from './Common';
-import { cx, fmtDay, displayName } from '../lib/util';
+import { cx, fmtDay, displayName, countOnline } from '../lib/util';
 import { can, Perm, type Community } from '../../shared/protocol';
 import {
   BANNER_H, BANNER_MAX, COMM_RULES_MAX, COMM_TAGLINE_MAX, PATTERNS, sanitizeCommunityProfile,
@@ -23,7 +23,7 @@ export function ruleLines(rules?: string) {
 }
 
 function useOnline(c: Community) {
-  return useStore((s) => c.members.filter((m) => m.userId === s.me.id || m.userId === 'kovan-asistan' || (s.presence[m.userId] && s.presence[m.userId] !== 'offline')).length);
+  return useStore((s) => countOnline(c.members, s.presence, s.me.id));
 }
 
 /** Sunucu profili kartı: üyeler görür, yönetenler ayrıca düzenleme tuşunu görür. */

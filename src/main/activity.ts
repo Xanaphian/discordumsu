@@ -122,17 +122,65 @@ function Thumb($ref) {
   } catch {}
   return $null
 }
+# Pencereli süreçler: her süreç için ayrı ayrı pencere taramak (MainWindowHandle) yerine
+# tüm pencereler tek seferde taranır; yol ve başlangıç zamanı da süreç başına bir kez okunur.
+$winApi = $false
+try {
+  Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public static class KovanPencere {
+  delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  public static Dictionary<int, bool> Pids() {
+    var s = new Dictionary<int, bool>();
+    EnumWindows(delegate (IntPtr h, IntPtr l) {
+      if (IsWindowVisible(h) && GetWindow(h, 4) == IntPtr.Zero) { uint p; GetWindowThreadProcessId(h, out p); s[(int)p] = true; }
+      return true;
+    }, IntPtr.Zero);
+    return s;
+  }
+}
+'@
+  [void][KovanPencere]::Pids()
+  $winApi = $true
+} catch { $winApi = $false }
+$info = @{}
+$tick = 0
 $last = ''
 $lastKey = ''
 while ($true) {
   if (-not (Get-Process -Id $parent -ErrorAction SilentlyContinue)) { exit }
-  $procs = @(Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -or $known.Contains($_.ProcessName.ToLower()) } | Sort-Object ProcessName | ForEach-Object {
-    $s = 0
-    try { $s = ([DateTimeOffset]$_.StartTime).ToUnixTimeMilliseconds() } catch {}
-    $o = [ordered]@{ n = $_.ProcessName; p = $_.Path; s = $s }
-    if ($_.ProcessName -match '^javaw?$') { $o.t = $_.MainWindowTitle }
-    $o
-  })
+  $tick++
+  $wins = $null
+  if ($winApi) { try { $wins = [KovanPencere]::Pids() } catch { $wins = $null } }
+  $found = New-Object System.Collections.ArrayList
+  foreach ($pr in [System.Diagnostics.Process]::GetProcesses()) {
+    try {
+      $n = $pr.ProcessName
+      $hasWin = if ($wins) { $wins.ContainsKey($pr.Id) } else { $pr.MainWindowHandle -ne 0 }
+      if (-not ($hasWin -or $known.Contains($n.ToLower()))) { continue }
+      $key = "$($pr.Id)|$n"
+      $c = $info[$key]
+      if (-not $c) {
+        $s = 0; $p = $null
+        try { $s = ([DateTimeOffset]$pr.StartTime).ToUnixTimeMilliseconds() } catch {}
+        try { $p = $pr.MainModule.FileName } catch {}
+        $c = @{ p = $p; s = $s; seen = 0 }
+        $info[$key] = $c
+      }
+      $c.seen = $tick
+      $o = [ordered]@{ n = $n; p = $c.p; s = $c.s }
+      if ($n -match '^javaw?$') { $o.t = $pr.MainWindowTitle }
+      [void]$found.Add($o)
+    } catch {} finally { $pr.Dispose() }
+  }
+  foreach ($k in @($info.Keys)) { if ($info[$k].seen -ne $tick) { $info.Remove($k) } }
+  $procs = @($found | Sort-Object { $_.n })
   $media = $null
   $thumb = $null
   if ($mgr) {

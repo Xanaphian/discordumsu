@@ -431,7 +431,16 @@ export class Hub {
   async start(preferredPort: number, host = '0.0.0.0'): Promise<number> {
     this.init();
     this.server = http.createServer((req, res) => this.handleHttp(req, res));
-    this.wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: { threshold: 1024 } });
+    this.wss = new WebSocketServer({
+      noServer: true,
+      maxPayload: 2 * 1024 * 1024,
+      perMessageDeflate: {
+        threshold: 1024,
+        // Hızlı sıkıştırma ve küçük pencere: oran neredeyse aynı (JSON), işlemci ~3 kat, bağlantı başına bellek ~2,5 kat daha az.
+        zlibDeflateOptions: { level: 1, memLevel: 7 },
+        serverMaxWindowBits: 13,
+      },
+    });
     this.server.on('upgrade', (req, socket, head) => {
       if (!req.url?.startsWith('/ws')) return socket.destroy();
       this.wss!.handleUpgrade(req, socket, head, (ws) => this.attach(ws as unknown as Sock, req.socket.remoteAddress || ''));
@@ -712,12 +721,16 @@ export class Hub {
   }
 
   /** Kullanıcıya özel topluluk görüntüsü: göremediği kanallar ve yönetim verileri çıkarılır. */
-  private snapshot(c: StoredCommunity, uid?: ID): Community {
+  private commUsers(c: StoredCommunity): Record<ID, UserPublic> {
     const users: Record<ID, UserPublic> = {};
     for (const m of c.members) {
       const u = this.data.users[m.userId];
       if (u) users[m.userId] = u.pub;
     }
+    return users;
+  }
+
+  private snapshot(c: StoredCommunity, uid?: ID, users = this.commUsers(c)): Community {
     const { bans: _b, audit: _a, m11: _m, m112: _m2, ...rest } = c;
     const out: Community = { ...rest, users };
     if (uid) {
@@ -749,7 +762,17 @@ export class Hub {
 
   private pushComm(c: StoredCommunity) {
     this.saveComm(c.id);
-    for (const s of this.memberSessions(c)) this.send(s, { t: 'comm', c: this.snapshot(c, s.userId!), lastIds: this.lastIdsFor(c, s.userId!) });
+    // Üyelerin çoğu topluluğu aynı görür: aynı görünüm (görülen kanallar + davet bilgisi) bir kez paketlenir.
+    // Eskiden her üye için ayrı ayrı paketleniyordu; kalabalık toplulukta her katılma sunucuyu yüzlerce ms kilitliyordu.
+    const users = this.commUsers(c);
+    const packed = new Map<string, string>();
+    for (const s of this.memberSessions(c)) {
+      const snap = this.snapshot(c, s.userId!, users);
+      const key = (snap.inviteCode ? 'c' : '') + (snap.inviteKey ? 'k' : '') + '|' + snap.channels.map((ch) => ch.id).join(',');
+      let data = packed.get(key);
+      if (data === undefined) packed.set(key, (data = JSON.stringify({ t: 'comm', c: snap, lastIds: this.lastIdsFor(c, s.userId!) } satisfies ServerFrame)));
+      this.sendRaw(s, data);
+    }
   }
 
   /** Sadece kanalı görebilen üyelere gönder */

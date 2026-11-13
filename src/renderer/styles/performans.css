@@ -1,0 +1,23 @@
+/* Performans: görünümü değiştirmeyen çizim kısaltmaları */
+
+/* sohbetin tepesinde daha eski mesaj varken, yüklenmiyorsa dönen simge yerine aynı boyda boşluk */
+.list-loading-slot {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+/* üye listesi: ekranda görünmeyen satırlar biçimlenmez ve çizilmez (kalabalık toplulukta en büyük çizim yükü buydu).
+   Görünen satırlar aynen çizilir; parlayan avatar çerçevesi kırpılmasın diye kenar payı bırakılır. */
+.members .member {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 48px;
+  overflow-clip-margin: 14px;
+}
+
+/* sohbet ve üye listesi kendi katmanında kaysın: yeni mesaj gelince ya da kaydırınca yalnız yeni açılan kısım çizilir,
+   bütün liste yeniden boyanmaz */
+.msg-scroller,
+.members {
+  will-change: scroll-position;
+}

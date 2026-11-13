@@ -15,14 +15,19 @@ import './styles/temalar.css';
 import './styles/sunucu-profili.css';
 import './styles/etkinlik.css';
 import './styles/marka.css';
+import './styles/performans.css';
+
+// Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
+const booting = boot().catch((e) => console.error('Açılış hatası', e));
 
 // Yazı tipleri yüklenmeden çizersek mesaj yükseklikleri sonradan değişir ve liste en altta kalmaz.
+// Yalnız gerçekten kullanılan yazı tipleri (metin: Source Sans 3, başlık: Marcellus) beklenir.
 const fontsReady = Promise.race([
-  Promise.all(['400 14px "Manrope Variable"', '700 14px "Manrope Variable"', '700 16px "Bricolage Grotesque Variable"', '700 16px "Cinzel Variable"'].map((f) => document.fonts.load(f, 'aşğıİç'))),
+  Promise.all(['400 14px "Source Sans 3"', '700 14px "Source Sans 3"', '400 16px "Marcellus"'].map((f) => document.fonts.load(f, 'aşğıİç'))),
   new Promise((r) => setTimeout(r, 1200)),
 ]).catch(() => {});
 
 fontsReady.then(() => {
   createRoot(document.getElementById('root')!).render(<App />);
-  boot().catch((e) => console.error('Açılış hatası', e));
+  return booting;
 });

@@ -1548,6 +1548,24 @@ export function forgetHost(host: string) {
   saveHosts();
 }
 
+// Bellek: ekrandan çıkan kanalın yalnız son mesajları tutulur; geri dönülünce eskiler kaydırdıkça yeniden yüklenir.
+// (Uzun bir oturumda gezilen her kanalın tüm geçmişi bellekte birikmesin.)
+const KEEP_HIDDEN = 120;
+let shownCh: ID | undefined;
+useStore.subscribe((s) => {
+  const now = s.current !== 'home' ? s.chanByComm[s.current] : undefined;
+  if (now === shownCh) return;
+  const prev = shownCh;
+  shownCh = now;
+  const st = prev ? s.chans[prev] : undefined;
+  if (!prev || !st || st.loading || st.detached || st.items.length <= KEEP_HIDDEN * 2) return;
+  set((x) => {
+    const cur = x.chans[prev];
+    if (!cur || cur.loading || cur.detached) return {};
+    return { chans: { ...x.chans, [prev]: { ...cur, items: cur.items.slice(-KEEP_HIDDEN), more: true, prepended: 0, epoch: (cur.epoch || 0) + 1 } } };
+  });
+});
+
 // yazıyor göstergelerinin süresi dolanlarını temizle
 setInterval(() => {
   const now = Date.now();
