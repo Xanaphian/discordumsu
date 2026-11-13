@@ -4,6 +4,7 @@ import { BellOff, Bell } from 'lucide-react';
 import { useStore, updateSettings, setNotifyOverride, toggleMuted, confirmDialog, toast, DEFAULT_SETTINGS, openModal } from '../lib/store';
 import { Avatar, Toggle } from './Common';
 import { Row } from './Settings';
+import { DmPrivacySection } from './YayinciModu';
 import { cx, copyText } from '../lib/util';
 
 export function ChatTab() {
@@ -14,6 +15,9 @@ export function ChatTab() {
       <h3>Mesajları gösterme</h3>
       <Row title="Görselleri sohbette göster" sub="Kapalıyken görseller küçük bir dosya kartı olarak görünür; tıklayınca açılır.">
         <Toggle value={s.inlineMedia} onChange={(v) => updateSettings({ inlineMedia: v })} />
+      </Row>
+      <Row title="Bağlantı önizlemelerini göster" sub="Mesajdaki bağlantıların başlığı, açıklaması ve görseli bir kart olarak çıkar. Bir bağlantıyı <adres> biçiminde yazarsan kart çıkmaz.">
+        <Toggle value={s.showLinkPreviews} onChange={(v) => updateSettings({ showLinkPreviews: v })} />
       </Row>
       <Row title="Katılma mesajlarını göster" sub='"… aramıza katıldı" satırları.'>
         <Toggle value={s.showJoinMessages} onChange={(v) => updateSettings({ showJoinMessages: v })} />
@@ -61,6 +65,7 @@ export function PrivacyTab() {
       <Row title="Bağlantıları açmadan önce sor" sub="Mesajlardaki bir bağlantıya tıklayınca tarayıcıda açmadan önce adresi gösterir.">
         <Toggle value={s.confirmLinks} onChange={(v) => updateSettings({ confirmLinks: v })} />
       </Row>
+      <DmPrivacySection />
       <h3>Engellenen kullanıcılar ({s.blocked.length})</h3>
       <p className="note">Engellediğin kişilerin mesajları gizlenir ("Göster" ile açabilirsin) ve senden bildirim almazsın. Engellemek için üye listesinde birine sağ tıkla.</p>
       <div className="list-card">

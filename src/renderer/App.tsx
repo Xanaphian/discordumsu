@@ -15,6 +15,7 @@ import { SiteView } from './components/SiteView';
 import { Logo } from './components/Common';
 import { DESTAN_FAMILY } from './components/Appearance';
 import { isVoiceLike } from '../shared/protocol';
+import { PopoutApp, usePopoutReturn } from './components/AyriPencere';
 
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
@@ -99,6 +100,12 @@ function useShortcuts() {
   }, []);
 }
 
+/** Ayrı pencerenin kökü (tema ve kısayollar ana pencereyle aynı) */
+export function PopoutRoot() {
+  useTheme();
+  return <PopoutApp />;
+}
+
 function Main() {
   const current = useStore((s) => s.current);
   const c = useStore((s) => (s.current !== 'home' ? s.communities[s.current] : undefined));
@@ -136,6 +143,7 @@ export function App() {
   const onboarded = useStore((s) => s.onboarded);
   useTheme();
   useShortcuts();
+  usePopoutReturn();
   if (!booted)
     return (
       <div className="splash">

@@ -1,6 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
+import { App, PopoutRoot } from './App';
+import { IS_POPOUT } from './lib/popout';
+import './lib/yayinci';
 import { boot } from './lib/store';
 import './lib/activity';
 import './styles/app.css';
@@ -15,6 +17,7 @@ import './styles/temalar.css';
 import './styles/sunucu-profili.css';
 import './styles/etkinlik.css';
 import './styles/marka.css';
+import './styles/root-ozellikleri.css';
 
 // Yazı tipleri yüklenmeden çizersek mesaj yükseklikleri sonradan değişir ve liste en altta kalmaz.
 const fontsReady = Promise.race([
@@ -23,6 +26,6 @@ const fontsReady = Promise.race([
 ]).catch(() => {});
 
 fontsReady.then(() => {
-  createRoot(document.getElementById('root')!).render(<App />);
+  createRoot(document.getElementById('root')!).render(IS_POPOUT ? <PopoutRoot /> : <App />);
   boot().catch((e) => console.error('Açılış hatası', e));
 });

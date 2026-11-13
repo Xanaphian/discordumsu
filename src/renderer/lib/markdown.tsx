@@ -66,6 +66,8 @@ const inlineRules: Rule[] = [
       </Link>
     ),
   },
+  // <adres>: önizleme kartı çıkmaz, köşeli ayraçlar görünmez (v1.26)
+  { re: /^<(https?:\/\/[^\s<>]+)>/, render: (m, _c, k) => <Link key={k} href={m[1]}>{m[1]}</Link> },
   { re: URL_RE, render: (m, _c, k) => <Link key={k} href={m[0]}>{m[0]}</Link> },
   {
     re: /^<@&([\w-]+)>/,

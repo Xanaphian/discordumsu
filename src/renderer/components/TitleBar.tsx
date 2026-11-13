@@ -2,7 +2,8 @@ import React from 'react';
 import { Download, RefreshCw, RotateCw, CircleAlert, LoaderCircle, Palette } from 'lucide-react';
 import { ThemeQuick } from './Appearance';
 import { cx } from '../lib/util';
-import { useStore, toast } from '../lib/store';
+import { useStore, toast, openModal } from '../lib/store';
+import { StreamerBadge } from './YayinciModu';
 import { Logo, Tooltip } from './Common';
 import { fmtSize } from '../lib/util';
 
@@ -93,6 +94,7 @@ export function TitleBar() {
           </button>
         </Tooltip>
         {themes && <ThemeQuick onClose={() => setThemes(false)} />}
+        <StreamerBadge onOpen={() => openModal({ type: 'settings', tab: 'streamer' })} />
         <UpdateButton />
       </div>
     </header>

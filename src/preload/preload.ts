@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import type { LinkMeta as LinkMetaT } from '../main/ekstralar';
 
 function on<T>(channel: string, cb: (v: T) => void) {
   const h = (_e: IpcRendererEvent, v: T) => cb(v);
@@ -36,6 +37,19 @@ const api = {
     configure: (c: unknown) => ipcRenderer.invoke('act:config', c),
     apps: () => ipcRenderer.invoke('act:apps'),
     onUpdate: (cb: (s: any) => void) => on('act:update', cb),
+  },
+  /** v1.26: bağlantı önizlemesi, yayıncı modu, ayrı pencereler */
+  linkMeta: (url: string) => ipcRenderer.invoke('link:meta', url) as Promise<LinkMetaT | null>,
+  streamer: {
+    watch: (on: boolean) => ipcRenderer.invoke('yayinci:izle', on) as Promise<boolean>,
+    state: (s: { active: boolean; hideNotifs: boolean }) => ipcRenderer.send('yayinci:durum', s),
+    onObs: (cb: (on: boolean) => void) => on('yayinci:obs', cb),
+  },
+  popout: {
+    open: (a: { cid: string; ch: string; title: string }) => ipcRenderer.send('pencere:ayir', a),
+    toMain: (a: { cid: string; ch: string }) => ipcRenderer.send('pencere:ana', a),
+    onGo: (cb: (a: { cid: string; ch: string }) => void) => on('pencere:git', cb),
+    theme: (t: string) => ipcRenderer.send('pencere:tema', t),
   },
   platform: process.platform,
   update: {

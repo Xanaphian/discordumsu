@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { Hub } from './hub';
 import { initActivity, configureActivity, getActivity, runningApps, stopActivity, type ActivityConfig } from './activity';
 import { Updater } from './updater';
+import { initEkstralar, blockNotify, isPopout } from './ekstralar';
 import { DEFAULT_PORT, makeId } from '../shared/protocol';
 
 const isDev = !app.isPackaged;
@@ -445,6 +446,17 @@ app.whenReady().then(async () => {
   setTimeout(() => hub.refreshAllSiteMeta(), 4000);
   setInterval(() => hub.refreshAllSiteMeta(), 6 * 3600_000);
   registerIpc();
+  initEkstralar({
+    preload: path.join(__dirname, 'preload.js'),
+    indexFile: path.join(__dirname, '../renderer/index.html'),
+    devUrl: isDev ? process.env.KOVAN_DEV_URL : undefined,
+    icon: iconPath(),
+    mainWin: () => win,
+    look: () => {
+      const t = (config.settings.theme as string) || 'destan';
+      return { bg: themeBg(t), overlay: overlayFor(t) };
+    },
+  });
   initActivity((st) => win?.webContents.send('act:update', st));
   createWindow();
   createTray();
@@ -540,7 +552,7 @@ function registerIpc() {
     }
   });
   ipcMain.on('notify', (_e, n: { title: string; body: string; tag: string; silent?: boolean; icon?: string }) => {
-    if (!Notification.isSupported()) return;
+    if (!Notification.isSupported() || blockNotify(_e.sender)) return;
     if (win?.isFocused()) return;
     const notif = new Notification({ title: n.title.slice(0, 100), body: n.body.slice(0, 300), silent: !!n.silent, icon: iconPath() });
     notif.on('click', () => {
@@ -583,6 +595,7 @@ function registerIpc() {
   });
 
   ipcMain.on('badge', (_e, count: number) => {
+    if (isPopout(_e.sender)) return;
     if (process.platform === 'win32') {
       if (count > 0 && !win?.isFocused()) win?.flashFrame(true);
     } else app.setBadgeCount(count);

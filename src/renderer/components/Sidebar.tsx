@@ -1,11 +1,11 @@
 import React, { memo, useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home,
+  Signal, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
-  updateSettings, toggleMuted, toast, selectCommunity, setHomeTab, dmList, closeDm, pendingIn, hiddenDms, isDmHidden, realCommunities,
+  updateSettings, toggleMuted, toast, selectCommunity, setHomeTab, dmList, closeDm, pendingIn, hiddenDms, isDmHidden, realCommunities, togglePinDm,
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
 import { enterSpace, exitSpace } from '../lib/space';
@@ -19,6 +19,7 @@ import { useActsOf } from '../lib/activity';
 import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName } from '../lib/util';
+import { openPopout } from './AyriPencere';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
 
 /** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi */
@@ -119,6 +120,7 @@ const ChannelRow = memo(function ChannelRow({
   const menu = (e: React.MouseEvent) =>
     openMenu(e, [
       ...(!isVoiceLike(ch.type) ? [{ label: 'Okundu olarak işaretle', onClick: () => markRead(ch.id), disabled: !unread }] : []),
+      ...(ch.type === 'text' || ch.type === 'announce' ? [{ label: 'Ayrı pencerede aç', onClick: () => openPopout(c, ch) }] : []),
       ...(isVoiceLike(ch.type)
         ? [
             inVoice
@@ -284,6 +286,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
       ...(can(c, me, Perm.CHANGE_NICKNAME) || can(c, me, Perm.MANAGE_NICKNAMES)
         ? [{ label: 'Takma adını değiştir', onClick: () => openModal({ type: 'moderate', cid: c.id, uid: me, action: 'nick' }) }]
         : []),
+      ...(c.roles.some((r) => r.selfAssign) ? [{ label: 'Rollerini seç', icon: 'roles', onClick: () => openModal({ type: 'selfRoles', cid: c.id }) }] : []),
       { label: 'Tümünü okundu işaretle', icon: 'check', onClick: () => markCommunityRead(c.id) },
       ...(devMode ? [{ label: 'Topluluk kimliğini kopyala', onClick: () => copyText(c.id) }] : []),
       { sep: true },
@@ -513,19 +516,25 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
   const status = useStore((s) => s.presence[c.dm!]);
   const custom = activeCustom(user?.profile);
   const live = useActsOf(c.dm).length > 0;
+  const pinned = useStore((s) => s.settings.pinnedDms.includes(c.id));
   const menu = (e: React.MouseEvent) =>
     openMenu(e, [
       { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !unread },
+      { label: pinned ? 'Sabitlemeyi kaldır' : 'Listenin üstüne sabitle', onClick: () => togglePinDm(c.id) },
+      { label: 'Ayrı pencerede aç', onClick: () => c.channels[0] && openPopout(c, c.channels[0]) },
       { label: 'Profil', onClick: () => useStore.setState({ popout: { uid: c.dm!, cid: c.id, x: e.clientX + 20, y: e.clientY } }) },
       { label: isMutedId(c.id) ? 'Bildirimleri aç' : 'Sessize al', onClick: () => toggleMuted(c.id) },
       { sep: true },
       { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
     ]);
   return (
-    <div className={cx('ch-row dm-row', active && 'active', unread && 'unread')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} role="button" tabIndex={0}>
+    <div className={cx('ch-row dm-row', active && 'active', unread && 'unread', pinned && 'pinned')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} role="button" tabIndex={0}>
       <Avatar user={user} size={32} status={status || 'offline'} />
       <span className="dm-text">
-        <span className="ch-name">{user?.name || c.name}</span>
+        <span className="ch-name">
+          {user?.name || c.name}
+          {pinned && <Pin size={12} className="dm-pin" aria-label="Sabitlendi" />}
+        </span>
         {live ? <ActivityLine uid={c.dm!} className="ch-sub" /> : custom?.text ? <span className="ch-sub">{custom.emoji ? custom.emoji + ' ' : ''}{custom.text}</span> : null}
       </span>
       {mentions > 0 ? (
@@ -558,10 +567,14 @@ function HomeSidebar() {
   const remote = Object.values(conns).filter((x) => !x.local && !x.home);
   const home = Object.values(conns).find((x) => x.home);
   const requests = pendingIn(friends);
+  const pinnedIds = useStore((s) => s.settings.pinnedDms);
   const dms = useMemo(() => {
     const hidden = hiddenDms();
-    return dmList(communities).filter((c) => current === c.id || !isDmHidden(c, hidden));
-  }, [communities, current]);
+    const list = dmList(communities).filter((c) => current === c.id || pinnedIds.includes(c.id) || !isDmHidden(c, hidden));
+    // sabitlenenler en üstte, sabitlendikleri sırayla
+    const pinned = pinnedIds.map((id) => list.find((c) => c.id === id)).filter((c): c is Community => !!c);
+    return [...pinned, ...list.filter((c) => !pinnedIds.includes(c.id))];
+  }, [communities, current, pinnedIds]);
   const onHome = current === 'home';
   return (
     <>

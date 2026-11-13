@@ -64,7 +64,16 @@ export interface Role {
   position: number; // büyük olan üstte
   mentionable?: boolean; // herkes @rol ile bahsedebilir
   icon?: string; // rol rozeti (emoji)
+  selfAssign?: boolean; // üyeler bu rolü kendisi alıp bırakabilir (v1.26)
 }
+
+/** Kendine verilebilen rollerde bulunamayacak yetkiler (yönetim yetkileri) */
+export const SELF_ROLE_FORBIDDEN =
+  Perm.ADMIN | Perm.MANAGE_CHANNELS | Perm.MANAGE_MESSAGES | Perm.MANAGE_ROLES | Perm.KICK | Perm.MANAGE_COMMUNITY | Perm.MENTION_EVERYONE |
+  Perm.MANAGE_NICKNAMES | Perm.BAN | Perm.TIMEOUT | Perm.VIEW_AUDIT_LOG;
+
+/** Özel mesaj gizliliği: kimler sana yeni mesaj yazabilir */
+export type DmPrivacy = 'all' | 'friends';
 
 /** Kanal / kategori izin üzerine yazması. id === topluluk id ise @herkes. */
 export interface Overwrite {
@@ -317,8 +326,10 @@ export type ClientFrame =
   | { t: 'cat.create'; cid: ID; name: string }
   | { t: 'cat.update'; cid: ID; id: ID; name?: string; overwrites?: Overwrite[] }
   | { t: 'cat.delete'; cid: ID; id: ID }
-  | { t: 'role.create'; cid: ID; name: string; color: string; perms: number; hoist: boolean; mentionable?: boolean; icon?: string; rid?: string }
-  | { t: 'role.update'; cid: ID; id: ID; name?: string; color?: string; perms?: number; hoist?: boolean; mentionable?: boolean; icon?: string }
+  | { t: 'role.create'; cid: ID; name: string; color: string; perms: number; hoist: boolean; mentionable?: boolean; icon?: string; selfAssign?: boolean; rid?: string }
+  | { t: 'role.update'; cid: ID; id: ID; name?: string; color?: string; perms?: number; hoist?: boolean; mentionable?: boolean; icon?: string; selfAssign?: boolean }
+  /** üye kendine verilebilen bir rolü alır / bırakır */
+  | { t: 'role.self'; cid: ID; id: ID; on: boolean; rid?: string }
   | { t: 'role.move'; cid: ID; id: ID; dir: 1 | -1 }
   | { t: 'role.delete'; cid: ID; id: ID }
   | { t: 'member.update'; cid: ID; userId: ID; roles?: ID[]; nick?: string | null }
@@ -345,6 +356,8 @@ export type ClientFrame =
   | { t: 'friend.accept'; to: ID }
   | { t: 'friend.remove'; to: ID }
   | { t: 'friend.code'; reset?: boolean; rid: string }
+  /** özel mesaj gizliliği (her bağlantıda gönderilir) */
+  | { t: 'privacy'; dms: DmPrivacy }
   | { t: 'ping' }
   | BotClientFrame;
 

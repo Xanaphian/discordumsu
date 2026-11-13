@@ -3,7 +3,7 @@ import { X, RefreshCw, Trash2, Plus, ChevronUp, ChevronDown, Lock, Copy, Search,
 import { useStore, cmd, toast, confirmDialog, deleteCommunity, makeInvite, openMenu, request, loadModData, type ModData } from '../lib/store';
 import { Avatar, CommunityIcon, Toggle } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtDay, fmtTime, displayName } from '../lib/util';
-import { can, canEditRole, isTimedOut, isVoiceLike, memberPerms, ALL_PERMS, Perm, type Community, type Role, type AutoMod } from '../../shared/protocol';
+import { can, canEditRole, isTimedOut, isVoiceLike, memberPerms, ALL_PERMS, Perm, SELF_ROLE_FORBIDDEN, type Community, type Role, type AutoMod } from '../../shared/protocol';
 import { Shell, Row, close } from './Settings';
 import { PERM_GROUPS, countBits } from './Permissions';
 import { memberMenu } from './Moderation';
@@ -41,6 +41,7 @@ function RoleEditor({ c, role, me, onSelect }: { c: Community; role: Role; me: s
         hoist: role.hoist,
         mentionable: role.mentionable,
         icon: role.icon,
+        selfAssign: role.selfAssign,
         rid: '',
       });
       if (r?.data) onSelect(r.data);
@@ -146,6 +147,16 @@ function RoleEditor({ c, role, me, onSelect }: { c: Community; role: Role; me: s
           </Row>
           <Row title="Herkes bu rolden bahsedebilsin" sub={`Üyeler @${role.name} yazarak bu roldeki herkese bildirim gönderebilir. Kapalıyken sadece "@everyone" yetkisi olanlar bahsedebilir.`}>
             <Toggle value={!!role.mentionable} disabled={!editable} onChange={(v) => upd({ mentionable: v })} />
+          </Row>
+          <Row
+            title="Üyeler bu rolü kendisi alabilsin"
+            sub={
+              role.perms & SELF_ROLE_FORBIDDEN
+                ? 'Bu rolde yönetim yetkisi var; kendine verilen rollerde yönetim yetkisi olamaz.'
+                : 'Üyeler topluluk menüsündeki "Rollerini seç" ile bu rolü kendi açıp kapatabilir. Oyun, bölge ya da bildirim rolleri için uygun.'
+            }
+          >
+            <Toggle value={!!role.selfAssign} disabled={!editable || !!(role.perms & SELF_ROLE_FORBIDDEN)} onChange={(v) => upd({ selfAssign: v })} />
           </Row>
         </>
       )}
@@ -481,6 +492,7 @@ const AUDIT_LABEL: Record<string, string> = {
   'role.move': 'rolü taşıdı',
   'role.delete': 'rolü sildi',
   'member.roles': 'üyenin rollerini değiştirdi',
+  'member.selfrole': 'kendine rol seçti',
   'member.nick': 'takma ad değiştirdi',
   'member.kick': 'üyeyi attı',
   'member.ban': 'üyeyi yasakladı',
