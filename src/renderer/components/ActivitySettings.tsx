@@ -75,6 +75,8 @@ export function ActivityTab() {
         )}
       </div>
 
+      <MusicDiag />
+
       <Row title="Etkinliğimi paylaş" sub="Kapatırsan hiçbir etkinliğin görünmez ve bilgisayarındaki algılama durur.">
         <Toggle value={s.actShare} onChange={(v) => updateSettings({ actShare: v })} />
       </Row>
@@ -224,4 +226,23 @@ export function ActivityTab() {
       </p>
     </div>
   );
+}
+
+/** Müzik algılamanın durumu: neden görünmediğini anlatır */
+function MusicDiag() {
+  const s = useStore((x) => x.settings);
+  const d = useActs((x) => x.detected);
+  if (!d || !d.supported || !s.actShare) return null;
+  const m = d.media;
+  let text: string;
+  let warn = false;
+  if (!s.actMusic) (text = 'Müzik paylaşımı kapalı.'), (warn = true);
+  else if (m && m.src === 'browser' && !s.actBrowser)
+    (text = `Tarayıcıda (${m.appName}) çalan bir şey var: "${m.title}". Spotify'ı tarayıcıdan dinliyorsan aşağıdan "Tarayıcıda çalanları da göster"i aç ya da Spotify masaüstü uygulamasını kullan.`), (warn = true);
+  else if (m && !m.playing) text = `${m.appName} açık ama şu an duraklatılmış.`;
+  else if (m) text = `Algılanan müzik: ${m.appName} · ${m.title}${m.artist ? ' — ' + m.artist : ''}`;
+  else if (d.mediaOk === false)
+    (text = "Windows'un medya denetimlerine ulaşılamadı. Spotify masaüstü uygulaması yine de pencere başlığından tanınır; başka çalarlar görünmeyebilir."), (warn = true);
+  else text = 'Şu an çalan bir müzik algılanmadı. Spotify masaüstü uygulamasında şarkı çalınca burada görünür.';
+  return <p className={cx('act-diag', warn && 'warn')}>{text}</p>;
 }

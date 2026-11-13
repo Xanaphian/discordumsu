@@ -46,6 +46,11 @@ export interface DetectedStream {
 }
 export interface ActivityState {
   supported: boolean;
+  /** Windows medya denetimlerine (SMTC) erişilebiliyor mu */
+  mediaOk?: boolean;
+  /** teşhis: görülen medya oturumları ("Spotify.exe:Playing") */
+  sessions?: string[];
+  mediaErr?: string;
   game: DetectedGame | null;
   media: DetectedMedia | null;
   streams: DetectedStream[];
@@ -96,6 +101,7 @@ $known = New-Object 'System.Collections.Generic.HashSet[string]'
 foreach ($k in @(${list})) { [void]$known.Add($k) }
 $mgr = $null
 $asTaskG = $null
+$mgrErr = ''
 function Await($op, [Type]$t) {
   $task = $script:asTaskG.MakeGenericMethod($t).Invoke($null, @($op))
   [void]$task.Wait(4000)
@@ -106,9 +112,15 @@ try {
   Add-Type -AssemblyName System.Runtime.WindowsRuntime
   $asTaskG = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation${'`'}1' })[0]
   [void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]
-  [void][Windows.Storage.Streams.IRandomAccessStreamWithContentType, Windows.Storage.Streams, ContentType = WindowsRuntime]
-  $mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-} catch { $mgr = $null }
+} catch { $mgrErr = "$_" }
+# kapak okumak için (yüklenemezse yalnız kapak gelmez, şarkı yine görünür)
+try { [void][Windows.Storage.Streams.IRandomAccessStreamWithContentType, Windows.Storage.Streams, ContentType = WindowsRuntime] } catch {}
+function GetMgr {
+  if (-not $script:asTaskG) { return $null }
+  try { return Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]) }
+  catch { $script:mgrErr = "$_"; return $null }
+}
+$mgr = GetMgr
 function Thumb($ref) {
   try {
     $st = Await ($ref.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
@@ -175,7 +187,7 @@ while ($true) {
       }
       $c.seen = $tick
       $o = [ordered]@{ n = $n; p = $c.p; s = $c.s }
-      if ($n -match '^javaw?$') { $o.t = $pr.MainWindowTitle }
+      if ($n -match '^(javaw?|spotify)$') { $t = $pr.MainWindowTitle; if ($t) { $o.t = $t } }
       [void]$found.Add($o)
     } catch {} finally { $pr.Dispose() }
   }
@@ -183,12 +195,15 @@ while ($true) {
   $procs = @($found | Sort-Object { $_.n })
   $media = $null
   $thumb = $null
+  $sess = @()
+  if (-not $mgr -and ($tick % 15) -eq 1) { $mgr = GetMgr }
   if ($mgr) {
     try {
       $best = $null; $bestScore = -1; $bestPlaying = $false
       foreach ($ss in $mgr.GetSessions()) {
         $pi = $ss.GetPlaybackInfo()
         $playing = ("$($pi.PlaybackStatus)" -eq 'Playing')
+        $sess += "$($ss.SourceAppUserModelId):$($pi.PlaybackStatus)"
         $score = 0
         if ($playing) { $score += 10 }
         if ($ss.SourceAppUserModelId -match 'spotify') { $score += 5 }
@@ -197,24 +212,25 @@ while ($true) {
       if ($best) {
         $pr = Await ($best.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
         if ($pr -and $pr.Title) {
-          $tl = $best.GetTimelineProperties()
+          $tl = $null
+          try { $tl = $best.GetTimelineProperties() } catch {}
           $key = "$($best.SourceAppUserModelId)|$($pr.Title)|$($pr.Artist)"
           if ($key -ne $lastKey) {
             $lastKey = $key
             if ($pr.Thumbnail) { $thumb = Thumb $pr.Thumbnail }
           }
-          $media = [ordered]@{
-            app = $best.SourceAppUserModelId; title = $pr.Title; artist = $pr.Artist; album = $pr.AlbumTitle; playing = [bool]$bestPlaying
-            pos = [int64]$tl.Position.TotalMilliseconds; dur = [int64]$tl.EndTime.TotalMilliseconds; upd = [int64]$tl.LastUpdatedTime.ToUnixTimeMilliseconds()
+          $media = [ordered]@{ app = $best.SourceAppUserModelId; title = $pr.Title; artist = $pr.Artist; album = $pr.AlbumTitle; playing = [bool]$bestPlaying }
+          if ($tl) {
+            try { $media.pos = [int64]$tl.Position.TotalMilliseconds; $media.dur = [int64]$tl.EndTime.TotalMilliseconds; $media.upd = [int64]$tl.LastUpdatedTime.ToUnixTimeMilliseconds() } catch {}
           }
         }
       }
-    } catch {}
+    } catch { $mgrErr = "$_" }
   }
-  $sig = (@{ p = $procs; m = $media } | ConvertTo-Json -Compress -Depth 4)
+  $sig = (@{ p = $procs; m = $media; s = $sess; ok = [bool]$mgr } | ConvertTo-Json -Compress -Depth 4)
   if ($sig -ne $last -or $thumb) {
     $last = $sig
-    $out = [ordered]@{ p = $procs; m = $media; th = $thumb; ok = [bool]$mgr }
+    $out = [ordered]@{ p = $procs; m = $media; th = $thumb; ok = [bool]$mgr; s = $sess; e = $mgrErr }
     [Console]::Out.WriteLine(($out | ConvertTo-Json -Compress -Depth 4))
     [Console]::Out.Flush()
   }
@@ -274,7 +290,20 @@ function stopWatcher() {
 
 const arr = <T,>(v: T | T[] | null | undefined): T[] => (Array.isArray(v) ? v : v ? [v] : []);
 
-async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; ok?: boolean }) {
+/** Spotify masaüstü penceresinin başlığı çalarken "Sanatçı - Şarkı" olur; duraklatılınca "Spotify Premium". */
+function spotifyFromTitle(procs: Proc[]): DetectedMedia | null {
+  for (const pr of procs) {
+    if (pr.n.toLowerCase() !== 'spotify' || !pr.t) continue;
+    const t = pr.t.trim();
+    if (/^spotify( premium| free)?$/i.test(t) || /^(advertisement|reklam)$/i.test(t)) continue;
+    const i = t.indexOf(' - ');
+    if (i < 1) continue;
+    return { app: 'Spotify.exe', src: 'spotify', appName: 'Spotify', artist: t.slice(0, i).trim(), title: t.slice(i + 3).trim(), playing: true };
+  }
+  return null;
+}
+
+async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; ok?: boolean; s?: string | string[]; e?: string }) {
   lastProcs = arr(o.p);
   if (o.th) lastThumb = resizeArt(o.th);
   const game = await pickGame(lastProcs);
@@ -296,6 +325,14 @@ async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; ok?
       art: lastThumb,
     };
   } else lastThumb = undefined;
+  // medya denetimleri Spotify'ı vermediyse (kapalı, hata ya da başka uygulama seçildi) pencere başlığından oku
+  if (!media || !media.playing) {
+    const sp = spotifyFromTitle(lastProcs);
+    if (sp && (!media || media.src !== 'spotify' || !media.playing)) {
+      if (media && media.src === 'spotify' && media.title === sp.title) media = { ...media, playing: true };
+      else media = sp;
+    }
+  }
   const prevGame = state.game;
   // LoL maç ayrıntılarını koru (ayrı zamanlayıcı günceller)
   if (game && prevGame && prevGame.exe === game.exe && prevGame.name === game.name) {
@@ -303,7 +340,7 @@ async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; ok?
     game.state = prevGame.state;
     game.matchStart = prevGame.matchStart;
   }
-  state = { ...state, game, media };
+  state = { ...state, game, media, mediaOk: !!o.ok, sessions: arr(o.s).slice(0, 8), mediaErr: o.e ? String(o.e).slice(0, 200) : undefined };
   syncLol();
   emit();
 }
@@ -563,7 +600,7 @@ function loadFake() {
     const img = (p?: string) => (p && fs.existsSync(p) ? 'data:image/' + (p.endsWith('.png') ? 'png' : 'jpeg') + ';base64,' + fs.readFileSync(p).toString('base64') : undefined);
     if (f.game) f.game.icon = img(f.game.iconFile);
     if (f.media) f.media.art = img(f.media.artFile), (f.media.at = Date.now());
-    state = { supported: true, game: f.game || null, media: f.media || null, streams: f.streams || [] };
+    state = { supported: true, mediaOk: f.mediaOk ?? true, game: f.game || null, media: f.media || null, streams: f.streams || [] };
     if (state.game && !state.game.start) state.game.start = Date.now() - 23 * 60_000;
     if (state.game?.matchStart) state.game.matchStart = Date.now() - state.game.matchStart;
     for (const s of state.streams) if (s.start && s.start < 1e9) s.start = Date.now() - s.start;
