@@ -1,0 +1,36 @@
+appId: com.xanaphian.kovan
+productName: Kovan
+copyright: Copyright © 2026 Xanaphian
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+  - "!**/*.map"
+asar: true
+compression: normal
+electronLanguages:
+  - tr
+  - en-US
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  artifactName: Kovan-Setup-${version}.${ext}
+  signAndEditExecutable: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Kovan
+  deleteAppDataOnUninstall: false
+  differentialPackage: true
+publish:
+  - provider: github
+    owner: Xanaphian
+    repo: discordumsu
+    releaseType: release
