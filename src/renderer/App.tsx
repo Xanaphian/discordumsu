@@ -10,6 +10,7 @@ import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
 import { HomeView, Onboarding } from './components/Views';
 import { VoiceView } from './components/Media';
 import { SpaceView } from './components/SpaceView';
+import { SiteView } from './components/SiteView';
 import { Logo } from './components/Common';
 import { isVoiceLike } from '../shared/protocol';
 
@@ -114,8 +115,8 @@ function Main() {
     );
   return (
     <>
-      {ch.type === 'space' ? <SpaceView c={c} ch={ch} /> : ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
-      {membersOpen && !isVoiceLike(ch.type) && <MemberList c={c} />}
+      {ch.type === 'space' ? <SpaceView c={c} ch={ch} /> : ch.type === 'site' ? <SiteView c={c} ch={ch} /> : ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
+      {membersOpen && !isVoiceLike(ch.type) && ch.type !== 'site' && <MemberList c={c} />}
     </>
   );
 }

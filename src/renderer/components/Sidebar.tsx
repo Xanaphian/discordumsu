@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, WifiOff, Bell, Video, VideoOff, MonitorUp, MonitorX,
+  Signal, WifiOff, Bell, Video, VideoOff, MonitorUp, MonitorX, Globe,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
@@ -10,6 +10,7 @@ import {
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
 import { enterSpace, exitSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
+import { SiteViewers } from './SiteView';
 import { Banner, NameText } from './profile/ProfileCard';
 import { activeCustom } from '../../shared/profile';
 import { useUnread } from './ServerRail';
@@ -17,7 +18,7 @@ import { cx, copyText, displayName } from '../lib/util';
 import { can, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
 
 const ChannelIcon = ({ type, size = 18 }: { type: Channel['type']; size?: number }) =>
-  type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
+  type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
 
 const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chId: string }) {
   const members = useStore((s) => s.voice[chId]);
@@ -140,6 +141,7 @@ const ChannelRow = memo(function ChannelRow({
         )}
       </div>
       {isVoiceLike(ch.type) && <VoiceMembers c={c} chId={ch.id} />}
+      {ch.type === 'site' && <SiteViewers c={c} chId={ch.id} />}
     </>
   );
 });
@@ -179,6 +181,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
       ...(can(c, me, Perm.MANAGE_COMMUNITY) || can(c, me, Perm.MANAGE_ROLES) || can(c, me, Perm.KICK)
         ? [{ label: 'Topluluk ayarları', icon: 'settings', onClick: () => openModal({ type: 'commSettings', cid: c.id }) }]
         : []),
+      ...(can(c, me, Perm.MANAGE_COMMUNITY) ? [{ label: 'Botlar ve yapay zekâ', icon: 'bot', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'bots' }) }] : []),
       ...(manage
         ? [
             { label: 'Kanal oluştur', icon: 'plus', onClick: () => openModal({ type: 'createChannel', cid: c.id, categoryId: null }) },

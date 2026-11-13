@@ -1231,3 +1231,8 @@
 .ap-msgs.ms-duz i.m {
   background: var(--text-4);
 }
+
+.pc-bot {
+  vertical-align: 5px;
+  margin-left: 8px;
+}

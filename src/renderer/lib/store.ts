@@ -185,6 +185,8 @@ export interface AppInfo {
   electron: string;
   chrome: string;
   dev: boolean;
+  exePath?: string;
+  mcpBridge?: string;
 }
 
 interface Conn {
@@ -494,6 +496,7 @@ function onFrame(host: string, f: ServerFrame) {
         lastIds: { ...s.lastIds, ...f.lastIds },
         voice: { ...s.voice, ...f.voice },
       }));
+      siteHooks.onFrame?.(f);
       // bu sunucudan gelen eski toplulukları temizle
       const ids = new Set(f.communities.map((c) => c.id));
       for (const [cid, h] of Object.entries(S().commHost)) if (h === host && !ids.has(cid)) removeCommunity(cid);
@@ -599,6 +602,9 @@ function onFrame(host: string, f: ServerFrame) {
       set((s) => ({ voice: { ...s.voice, [f.ch]: f.members } }));
       voiceHooks.onRoom?.(host, f.ch, f.members);
       return;
+    case 'web':
+      siteHooks.onFrame?.(f);
+      return;
     case 'vc.you':
       voiceHooks.onYou?.(host, f.sessionId);
       return;
@@ -614,6 +620,9 @@ function onFrame(host: string, f: ServerFrame) {
     case 'sp.booths':
     case 'sp.look':
       spaceHooks.onFrame?.(host, f);
+      return;
+    case 'bots':
+      for (const cb of botHooks) cb(f);
       return;
     case 'err':
       if (f.nonce) {
@@ -635,7 +644,10 @@ function onFrame(host: string, f: ServerFrame) {
   }
 }
 
+/** Botlar sekmesi canlı güncellemeleri dinler */
+export const botHooks = new Set<(f: Extract<ServerFrame, { t: 'bots' }>) => void>();
 export const spaceHooks: { onFrame?: (host: string, f: ServerFrame) => void } = {};
+export const siteHooks: { onFrame?: (f: ServerFrame) => void } = {};
 
 export const voiceHooks: {
   onRoom?: (host: string, ch: ID, members: VoiceMember[]) => void;

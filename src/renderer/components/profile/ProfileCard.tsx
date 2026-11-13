@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
-  Gamepad2, Headphones, Tv, Briefcase, BookOpen, Clock, Cake, Globe, Crown, Pencil, Copy, Maximize2, AtSign, Sparkles, Hexagon,
+  Gamepad2, Headphones, Tv, Briefcase, BookOpen, Clock, Cake, Globe, Crown, Pencil, Copy, Maximize2, AtSign, Sparkles, Hexagon, Bot,
 } from 'lucide-react';
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
 import { idTime } from '../../../shared/protocol';
@@ -117,10 +117,11 @@ interface Badge {
   icon: React.ReactNode;
 }
 
-function useBadges(uid: string, c: Community | undefined, profile?: ProfileExtra): Badge[] {
+function useBadges(uid: string, c: Community | undefined, profile?: ProfileExtra, bot?: boolean): Badge[] {
   const ownsAny = useStore((s) => Object.values(s.communities).some((x) => x.ownerId === uid && x.members.length > 1));
   const out: Badge[] = [];
   if (uid === 'kovan-asistan') out.push({ id: 'bot', label: 'Kovan Asistanı', icon: <Sparkles size={14} /> });
+  else if (bot) out.push({ id: 'bot', label: 'Bot', icon: <Bot size={14} /> });
   if (c?.ownerId === uid) out.push({ id: 'owner', label: 'Topluluk sahibi', icon: <Crown size={14} /> });
   else if (ownsAny) out.push({ id: 'founder', label: 'Kovan kurucusu', icon: <Crown size={14} /> });
   if (/^[0-9a-z]{14}$/.test(uid) && idTime(uid) < Date.UTC(2027, 0, 1)) out.push({ id: 'early', label: 'Erken arı (2026)', icon: <Hexagon size={14} /> });
@@ -192,7 +193,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
   const communities = useStore((s) => s.communities);
   const p = user?.profile;
   const theme = cardTheme(p);
-  const badges = useBadges(uid, c, p);
+  const badges = useBadges(uid, c, p, user?.bot);
   const [tab, setTab] = useState<'about' | 'mutual'>('about');
   useMinuteTick(p?.tz !== undefined);
   const member = c?.members.find((x) => x.userId === uid);
@@ -317,6 +318,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
           <NameText profile={p} color={color || undefined} className="pc-name">
             {shownName}
           </NameText>
+          {(user?.bot || uid === 'kovan-asistan') && <span className="tag-bot pc-bot">{uid === 'kovan-asistan' ? 'ASİSTAN' : 'BOT'}</span>}
           <div className="pc-sub">
             {shownName !== user?.name && user?.name && <span>{user.name}</span>}
             {p?.pronouns && (
