@@ -566,7 +566,7 @@ function ModerationTab({ c }: { c: Community }) {
   return (
     <>
       <h1>Moderasyon</h1>
-      <p className="note">Bu kurallar "Mesajları yönet" yetkisi olmayan herkes için kovan sunucusunda uygulanır. Yöneticiler ve moderatörler etkilenmez.</p>
+      <p className="note">Bu kurallar "Mesajları yönet" yetkisi olmayan herkes için topluluğun sunucusunda uygulanır. Yöneticiler ve moderatörler etkilenmez.</p>
       <h3>Doğrulama</h3>
       <Row title="Yeni üye bekleme süresi" sub="Topluluğa yeni katılanlar bu süre dolmadan mesaj yazamaz. Hızlı gelip spam yapan hesaplara karşı.">
         <select className="mini-select" value={am.newMemberWait} onChange={(e) => save({ newMemberWait: Number(e.target.value) })}>

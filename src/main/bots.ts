@@ -407,7 +407,7 @@ export class BotManager {
     const names: Record<BotTemplate, string> = { blank: 'Bot', welcome: 'Karşılayıcı', fun: 'Eğlence', ai: 'Yapay Zekâ' };
     const colors: Record<BotTemplate, string> = { blank: '#6cb6ff', welcome: '#3ecf8e', fun: '#c084fc', ai: '#f5a524' };
     const bios: Record<BotTemplate, string> = {
-      blank: 'Bir Kovan botu.',
+      blank: 'Bir Xanaphian botu.',
       welcome: 'Yeni gelenleri karşılar.',
       fun: 'Zar atar, anket açar, yazı tura atar. !yardım yaz.',
       ai: 'Claude ile çalışan yapay zekâ. Beni an ya da mesajıma yanıt ver.',
@@ -856,7 +856,7 @@ export class BotManager {
   private systemPrompt(c: StoredComm, b: BotRecord) {
     const me = this.nameOf(c, b.id);
     return [
-      `Sen "${me}" adlı bir botsun ve Kovan adlı sohbet uygulamasındaki "${c.name}" topluluğunda üyelerle konuşuyorsun. Kovan, Discord'a benzeyen bir masaüstü sohbet uygulaması: topluluklar, kanallar, roller ve sesli odalar var.`,
+      `Sen "${me}" adlı bir botsun ve Xanaphian adlı sohbet uygulamasındaki "${c.name}" topluluğunda üyelerle konuşuyorsun. Xanaphian, Discord'a benzeyen bir masaüstü sohbet uygulaması: topluluklar, kanallar, roller ve sesli odalar var.`,
       c.description ? `Topluluğun açıklaması: ${c.description}` : '',
       'Yazdığın metin olduğu gibi kanala mesaj olarak gönderilir. Sohbet eden biri gibi doğal ve öz yaz; uzun açıklama istenmedikçe birkaç cümleyi geçme. Kullanıcı hangi dilde yazdıysa o dilde yanıt ver (çoğunlukla Türkçe).',
       'Biçimlendirme: **kalın**, *italik*, `kod`, ```dil ... ``` kod blokları, > alıntı, - liste ve # başlıklar desteklenir. Birini anmak için <@kimlik>, bir kanala bağlantı için <#kimlik> yaz. Tek mesaj en fazla 4000 karakter.',
@@ -1104,9 +1104,9 @@ export class BotManager {
         return ok({
           protocolVersion: MCP_VERSIONS.includes(want) ? want : MCP_VERSIONS[1],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'kovan', title: 'Kovan', version: '1' },
+          serverInfo: { name: 'kovan', title: 'Xanaphian', version: '1' },
           instructions:
-            `Kovan sohbet uygulamasındaki "${c.name}" topluluğuna "${this.nameOf(c, b.id)}" adlı bot olarak bağlısın. ` +
+            `Xanaphian sohbet uygulamasındaki "${c.name}" topluluğuna "${this.nameOf(c, b.id)}" adlı bot olarak bağlısın. ` +
             'Kanalları list_channels ile gör, mesajları read_messages ile oku, send_message ile yaz. Yeni mesajları beklemek için wait_for_messages kullan. ' +
             'Birini anmak için mesajda <@kullanıcıKimliği> yaz.' +
             (b.api.write ? '' : ' Bu bot salt okunur: mesaj gönderemez.'),

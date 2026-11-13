@@ -25,7 +25,7 @@ export const THEMES: ThemeDef[] = [
   { id: 'buzul', label: 'Buzul', sub: 'Gece mavisi ve gümüş', rail: '#050a12', side: '#0a1320', chat: '#0d1828', ink: '#e6eef8', accent: '#8fc3ea', family: 'destan' },
   { id: 'zumrut', label: 'Zümrüt', sub: 'Orman ve yeşim', rail: '#040a08', side: '#09130f', chat: '#0c1813', ink: '#e4f1e8', accent: '#4fc490', family: 'destan' },
   { id: 'alaca', label: 'Alacakaranlık', sub: 'Mor ve gül altını', rail: '#08060f', side: '#110c1b', chat: '#161022', ink: '#efe6f6', accent: '#c38cf0', family: 'destan' },
-  { id: 'dark', label: 'Bal', sub: 'Sıcak koyu', rail: '#0d0b08', side: '#17140f', chat: '#1d1a14', ink: '#efe9df', accent: '#f5a524', family: 'klasik' },
+  { id: 'dark', label: 'Amber', sub: 'Sıcak koyu', rail: '#0d0b08', side: '#17140f', chat: '#1d1a14', ink: '#efe9df', accent: '#f5a524', family: 'klasik' },
   { id: 'midnight', label: 'Gece', sub: 'Saf siyah', rail: '#000000', side: '#09090a', chat: '#0f0f11', ink: '#ececf1', accent: '#6cb6ff', family: 'klasik' },
   { id: 'ocean', label: 'Okyanus', sub: 'Derin mavi', rail: '#060d14', side: '#0c1620', chat: '#111d29', ink: '#e3eef7', accent: '#22d3ee', family: 'klasik' },
   { id: 'forest', label: 'Orman', sub: 'Yosun yeşili', rail: '#070c08', side: '#0e1610', chat: '#131d15', ink: '#e4efe4', accent: '#3ecf8e', family: 'klasik' },
@@ -172,7 +172,7 @@ export function AppearanceTab() {
       <div className="ap-choices three">
         {(
           [
-            ['petek', 'Petek', 'Her mesaj yumuşak bir balonda.'],
+            ['petek', 'Yumuşak', 'Her mesaj yumuşak bir balonda.'],
             ['balon', 'Balon', 'Seninkiler sağda, sohbet uygulaması gibi.'],
             ['duz', 'Düz', 'Balonsuz, yoğun liste.'],
           ] as const
@@ -192,7 +192,7 @@ export function AppearanceTab() {
       <h3>Yazı boyutu: {s.fontSize}px</h3>
       <input type="range" min={12} max={20} step={1} value={s.fontSize} onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })} />
       <div className="divider" />
-      <SwitchRow title="Arka plan dokusu" sub="Arka planda hafif bir desen (Destan'da rün ızgarası, klasikte petek).">
+      <SwitchRow title="Arka plan dokusu" sub="Arka planda hafif bir ışık ve doku.">
         <Toggle value={s.backdrop} onChange={(v) => updateSettings({ backdrop: v })} />
       </SwitchRow>
       <SwitchRow title="Sıkışık mod" sub="Mesajlar arasında daha az boşluk, avatarlar gizli.">

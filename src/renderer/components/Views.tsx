@@ -25,7 +25,7 @@ function HomeStart() {
         <div className="home-hero">
           <div className="hh-text">
             <h1>Merhaba, {me.name} 👋</h1>
-            <p>Kovan'da toplulukların, kanalların ve arkadaşların bir arada. Kendi topluluğunu kur ya da bir davetle katıl.</p>
+            <p>Toplulukların, özel mesajların ve arkadaşların bir arada. Kendi topluluğunu kur ya da bir davetle katıl.</p>
             <div className="btn-row">
               <button className="btn primary lg" onClick={() => openModal({ type: 'createCommunity' })}>
                 <Plus size={18} /> Topluluk oluştur
@@ -38,10 +38,10 @@ function HomeStart() {
               </button>
             </div>
           </div>
-          <div className="hh-art" aria-hidden>
-            {Array.from({ length: 7 }).map((_, i) => (
-              <span key={i} className={`hex h${i}`} />
-            ))}
+          <div className="hh-art xa-art" aria-hidden>
+            <span className="xa-ring r1" />
+            <span className="xa-ring r2" />
+            <Logo size={120} />
           </div>
         </div>
         <h3 className="home-h">Toplulukların</h3>
@@ -113,7 +113,7 @@ export function Onboarding() {
         {step === 0 ? (
           <>
             <Logo size={64} />
-            <h1>Kovan'a hoş geldin</h1>
+            <h1>Xanaphian'a hoş geldin</h1>
             <p>Arkadaşlarınla topluluklar kur, kanallarda yazış, sesli sohbet et. Hızlı, hafif ve verilerin kendi bilgisayarında.</p>
             <ul className="ob-list">
               <li>Topluluklar, kategoriler, metin / ses / duyuru kanalları</li>
@@ -147,7 +147,7 @@ export function Onboarding() {
               </div>
             </div>
             <button className="btn primary lg" disabled={!name.trim()} onClick={done}>
-              Kovan'a gir
+              Xanaphian'a gir
             </button>
           </>
         )}

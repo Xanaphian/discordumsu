@@ -596,13 +596,13 @@ function HomeSidebar() {
         </div>
         <div className="conn-row">
           <span className={cx('dot', 'online')} />
-          <span className="conn-name">Kendi kovanın</span>
+          <span className="conn-name">Kendi sunucun</span>
           <span className="conn-meta">:{localPort}</span>
         </div>
         {remote.map((x) => (
           <div key={x.host} className="conn-row">
             <span className={cx('dot', x.status)} />
-            <span className="conn-name">{x.hubName ? `${x.hubName} kovanı` : x.host}</span>
+            <span className="conn-name">{x.hubName ? `${x.hubName} sunucusu` : x.host}</span>
             <span className="conn-meta">{x.status === 'online' ? 'bağlı' : x.status === 'connecting' ? 'bağlanıyor' : 'çevrimdışı'}</span>
           </div>
         ))}

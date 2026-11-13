@@ -295,7 +295,7 @@ export function VoiceTab() {
         </>
       ) : (
         <>
-          <Row title="Bas-konuş tuşu" sub="Oyundayken, Kovan arka plandayken bile çalışır. Klavye tuşu ya da farenin yan tuşları olabilir.">
+          <Row title="Bas-konuş tuşu" sub="Oyundayken, Xanaphian arka plandayken bile çalışır. Klavye tuşu ya da farenin yan tuşları olabilir.">
             <button className={cx('btn sm kbd-bind', binding && 'primary')} onClick={() => setBinding(true)}>
               {binding ? 'Bir tuşa ya da fare yan tuşuna bas… (Esc: vazgeç)' : keyLabel(s.pttKey)}
             </button>
@@ -404,7 +404,7 @@ export function VoiceTab() {
           ))}
         </>
       )}
-      <p className="note">Ses ve görüntü doğrudan eşler arası (WebRTC) gider; kovan sunucusundan geçmez. Bir kişinin sesini, ses odasında kutusunun üzerine gelip ayarlayabilirsin.</p>
+      <p className="note">Ses ve görüntü doğrudan eşler arası (WebRTC) gider; sunucudan geçmez. Bir kişinin sesini, ses odasında kutusunun üzerine gelip ayarlayabilirsin.</p>
     </>
   );
 }

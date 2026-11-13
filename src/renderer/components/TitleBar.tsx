@@ -73,7 +73,7 @@ export function TitleBar() {
   React.useEffect(() => {
     if (u.state === 'none' && u.manual && u.checkedAt !== lastNone.current) {
       lastNone.current = u.checkedAt;
-      toast('Kovan güncel. En son sürümü kullanıyorsun.', 'ok');
+      toast('Xanaphian güncel. En son sürümü kullanıyorsun.', 'ok');
     }
     if (u.state === 'error' && u.manual) toast('Güncelleme denetlenemedi: ' + u.message, 'err');
   }, [u]);
@@ -83,7 +83,7 @@ export function TitleBar() {
     <header className="titlebar">
       <div className="tb-brand">
         <Logo size={20} />
-        <span>kovan</span>
+        <span>Xanaphian</span>
       </div>
       <div className="tb-drag" />
       <div className="tb-actions">

@@ -587,7 +587,7 @@ function sharedHost(uid: ID): string | null {
 
 /** Eski sürüm kovanlar yeni çerçevelere hiç cevap vermez: zaman aşımını anlaşılır bir mesaja çevir */
 const oldHubMsg = (e: any) =>
-  e?.message === 'Zaman aşımı' ? "Ortak topluluğunuzu barındıran kişinin Kovan'ı eski sürümde. Özel mesaj ve arkadaşlık için onun da 1.10'a güncellemesi gerekiyor." : '';
+  e?.message === 'Zaman aşımı' ? "Ortak topluluğunuzu barındıran kişinin Xanaphian'ı eski sürümde. Özel mesaj ve arkadaşlık için onun da 1.10'a güncellemesi gerekiyor." : '';
 
 export async function addFriend(uid: ID) {
   const f = S().friends[uid];
@@ -617,7 +617,7 @@ export function removeFriend(uid: ID) {
 export async function myFriendCode(reset = false, hostPick?: string): Promise<string> {
   const local = localHost();
   const conn = conns.get(local);
-  if (!conn) throw new Error('Kendi kovanın henüz açılmadı.');
+  if (!conn) throw new Error('Kendi sunucun henüz açılmadı.');
   await waitOnline(local);
   const r = await conn.request<{ data: string }>({ t: 'friend.code', reset, rid: '' });
   const name = S().settings.inviteName;
@@ -654,7 +654,7 @@ export async function openDm(uid: ID) {
   // önce arkadaşlığın tutulduğu kovan, yoksa ortak topluluğun kovanı
   const fr = st.friends[uid];
   const host = fr?.state === 'ok' && st.conns[fr.host]?.status === 'online' ? fr.host : sharedHost(uid);
-  if (!host) return toast('Bu kişiyle şu an açık ortak bir topluluğun yok ya da arkadaşlığınızın tutulduğu kovan kapalı, mesaj gönderilemiyor.', 'err');
+  if (!host) return toast('Bu kişiyle şu an açık ortak bir topluluğun yok ya da arkadaşlığınızın tutulduğu sunucu kapalı, mesaj gönderilemiyor.', 'err');
   try {
     const r = await conns.get(host)!.request<{ data: DmInfo }>({ t: 'dm.open', to: uid, rid: '' });
     if (r?.data) upsertDm(host, r.data);
@@ -768,7 +768,7 @@ function onFrame(host: string, f: ServerFrame) {
       const conn = S().conns[host];
       if (conn?.local && f.communities.length === 0 && !localStorage.getItem('kovan.seeded')) {
         localStorage.setItem('kovan.seeded', '1');
-        conns.get(host)?.request({ t: 'comm.create', name: `${S().me.name || 'Benim'} Kovanı`, color: '#f5a524', template: 'lobby' }).then((r: any) => {
+        conns.get(host)?.request({ t: 'comm.create', name: `${S().me.name || 'Benim'} Topluluğu`, color: '#c9a35a', template: 'lobby' }).then((r: any) => {
           if (r?.data) selectCommunity(r.data);
         });
       }
@@ -1265,7 +1265,7 @@ export function meAsUser(me: Profile = S().me): UserPublic {
 // topluluklar
 export async function createCommunity(name: string, color: string, icon?: string) {
   const conn = conns.get(localHost());
-  if (!conn) throw new Error('Yerel kovan çalışmıyor.');
+  if (!conn) throw new Error('Yerel sunucu çalışmıyor.');
   const r = await conn.request<{ data: ID }>({ t: 'comm.create', name, color, icon });
   selectCommunity(r.data);
   return r.data;
@@ -1443,7 +1443,7 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
     prefix && INVITE_NAME_RE.test(prefix) && !tokenHost && !triedSomething
       ? `"${prefix}" adında bir davet adı bulunamadı. Kodu doğru yazdığından emin ol.`
       : triedSomething
-        ? "Davetin sahibine ulaşılamadı. Aynı ağda (ya da aynı Radmin/Hamachi ağında) olduğunuzdan, internetten bağlanıyorsan onun modeminde portun yönlendirildiğinden ve Kovan'ının açık olduğundan emin ol."
+        ? "Davetin sahibine ulaşılamadı. Aynı ağda (ya da aynı Radmin/Hamachi ağında) olduğunuzdan, internetten bağlanıyorsan onun modeminde portun yönlendirildiğinden ve Xanaphian'ının açık olduğundan emin ol."
         : 'Bu kod bağlı olduğun sunucularda bulunamadı. Kodu adresiyle birlikte (ör. 2ld8x1k/s3gas25) yapıştır.',
   );
 }
@@ -1470,7 +1470,7 @@ export async function joinByInvite(code: string): Promise<ID> {
     const results = await Promise.all(d.h.map(async (h) => ((await probeHost(h)) ? h : null)));
     host = results.find(Boolean) || null;
   }
-  if (!host) throw new Error('Davetin sahibine ulaşılamadı. Aynı ağda olduğunuzdan ve onun Kovan\'ının açık olduğundan emin ol.');
+  if (!host) throw new Error('Davetin sahibine ulaşılamadı. Aynı ağda olduğunuzdan ve onun Xanaphian\'ının açık olduğundan emin ol.');
   const conn = ensureConn(host, host === localHost());
   saveHosts();
   await waitOnline(host);

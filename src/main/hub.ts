@@ -156,7 +156,7 @@ interface HubData {
   friendCodes?: Record<string, ID>;
 }
 
-type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number };
+type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number; m112?: number };
 
 const MAX_TIMEOUT_MIN = 28 * 24 * 60;
 const LINK_RE = /(https?:\/\/|www\.)\S+/i;
@@ -208,7 +208,7 @@ export class Hub {
   private saveTimers = new Map<string, NodeJS.Timeout>();
   private heartbeat: NodeJS.Timeout | null = null;
   port = 0;
-  ownerName = 'Kovan';
+  ownerName = 'Xanaphian';
   /** Bot API anahtarlarını şifrelemek için (main.ts safeStorage ile ayarlar) */
   crypt: BotHost['crypt'] = null;
   readonly bots: BotManager;
@@ -259,6 +259,14 @@ export class Hub {
     }
     this.migrateSite(c);
     this.migrate11(c);
+    // v1.12: Xanaphian kimliği. Kendiliğinden kurulan adlardaki "Kovan" kalkar (kullanıcının verdiği adlara dokunulmaz).
+    if (!c.m112) {
+      c.m112 = 1;
+      for (const ch of c.channels) if (ch.type === 'space' && ch.name === 'Kovan Meydanı') ch.name = 'Meydan';
+      const owner = this.data.users[c.ownerId]?.pub.name;
+      if (owner && c.name === `${owner} Kovanı`) c.name = `${owner} Topluluğu`;
+      this.saveComm(c.id);
+    }
     // v1.4: ayrıntılı yetkiler. Eskiden herkesin yapabildiği temel işler @herkes rolüne yazılır.
     if ((c.pv || 0) < 2) {
       c.pv = 2;
@@ -274,7 +282,7 @@ export class Hub {
     c.m11 = 1;
     const cat: Category = { id: makeId(), name: '3D Odalar', position: c.categories.length };
     c.categories.push(cat);
-    const ch: Channel = { id: makeId(), name: 'Kovan Meydanı', type: 'space', categoryId: cat.id, position: 0, topic: 'Avatarınla dolaş, yakındakilerle sesli konuş' };
+    const ch: Channel = { id: makeId(), name: 'Meydan', type: 'space', categoryId: cat.id, position: 0, topic: 'Avatarınla dolaş, yakındakilerle sesli konuş' };
     c.channels.push(ch);
     this.chanToComm.set(ch.id, c.id);
     const welcome = c.channels.find((x) => x.type === 'announce');
@@ -285,7 +293,7 @@ export class Hub {
         authorId: BOT_ID,
         ts: Date.now(),
         content:
-          '## Yeni: 3D Odalar 🐝\n**Kovan Meydanı**\'na gir, avatarınla dolaş. Yanına yaklaştığın kişinin sesi yükselir, uzaklaştıkça kısılır; ses yönünü de duyarsın.\n- **WASD / ok tuşları** yürü, **Shift** koş, **Boşluk** zıpla, sağ tık sürükle kamera\n- **Enter** ile yaz: mesajın başının üstünde balon olarak çıkar\n- **1-7** ile emote: el salla, dans, alkış, kalp…\n- **Sahneye** çık: herkes seni mesafeden bağımsız duyar\n- **Stand** kirala: yanına git, **E** bas, tabelana yazını yaz\n- **Kamp ateşi** banklarına **E** ile otur',
+          '## Yeni: 3D Odalar 🧭\n**Meydan**\'a gir, avatarınla dolaş. Yanına yaklaştığın kişinin sesi yükselir, uzaklaştıkça kısılır; ses yönünü de duyarsın.\n- **WASD / ok tuşları** yürü, **Shift** koş, **Boşluk** zıpla, sağ tık sürükle kamera\n- **Enter** ile yaz: mesajın başının üstünde balon olarak çıkar\n- **1-7** ile emote: el salla, dans, alkış, kalp…\n- **Sahneye** çık: herkes seni mesafeden bağımsız duyar\n- **Stand** kirala: yanına git, **E** bas, tabelana yazını yaz\n- **Kamp ateşi** banklarına **E** ile otur',
       };
       this.log(welcome.id).add(m);
     }
@@ -312,16 +320,21 @@ export class Hub {
         authorId: BOT_ID,
         ts: Date.now(),
         content:
-          '## Yeni: Site Odaları 🌐\n**xanaphian.com** artık Kovan\'ın içinde. Soldaki **Site Odaları** bölümünden odaya gir; site ortada açılır, sağda o odanın sohbeti durur.\n- Odada kimin hangi sayfaya baktığını görürsün; birinin üstüne tıklayıp **takip et**, o gezdikçe sen de gezersin\n- Sohbetteki xanaphian.com bağlantıları doğrudan odada açılır\n- Yöneticiler kanal oluştururken türü **Site Odası** seçip başka bir site de bağlayabilir',
+          '## Yeni: Site Odaları 🌐\n**xanaphian.com** artık Xanaphian\'ın içinde. Soldaki **Site Odaları** bölümünden odaya gir; site ortada açılır, sağda o odanın sohbeti durur.\n- Odada kimin hangi sayfaya baktığını görürsün; birinin üstüne tıklayıp **takip et**, o gezdikçe sen de gezersin\n- Sohbetteki xanaphian.com bağlantıları doğrudan odada açılır\n- Yöneticiler kanal oluştururken türü **Site Odası** seçip başka bir site de bağlayabilir',
       });
     }
     this.saveComm(c.id);
   }
 
   private ensureBot() {
+    const b = this.data.users[BOT_ID];
+    if (b && b.pub.name === 'Kovan Asistanı') {
+      b.pub = { ...b.pub, name: 'Asistan', color: '#c9a35a', bio: 'Xanaphian\'ın yerleşik yardımcısı. Mesajlara yanıt vermez, sadece bilgilendirir.' };
+      this.saveHub();
+    }
     if (!this.data.users[BOT_ID]) {
       this.data.users[BOT_ID] = {
-        pub: { id: BOT_ID, name: 'Kovan Asistanı', color: '#f5a524', bio: 'Kovan\'ın yerleşik yardımcısı. Mesajlara yanıt vermez, sadece bilgilendirir.' },
+        pub: { id: BOT_ID, name: 'Asistan', color: '#c9a35a', bio: 'Xanaphian\'ın yerleşik yardımcısı. Mesajlara yanıt vermez, sadece bilgilendirir.' },
         secretHash: sha(crypto.randomBytes(32).toString('hex')),
       };
       this.saveHub();
@@ -621,7 +634,7 @@ export class Hub {
       const u = this.data.users[m.userId];
       if (u) users[m.userId] = u.pub;
     }
-    const { bans: _b, audit: _a, m11: _m, ...rest } = c;
+    const { bans: _b, audit: _a, m11: _m, m112: _m2, ...rest } = c;
     const out: Community = { ...rest, users };
     if (uid) {
       out.channels = c.channels.filter((ch) => this.canView(c, uid, ch));
@@ -1286,7 +1299,7 @@ export class Hub {
         return;
       }
       case 'comm.create': {
-        if (!s.loopback) return this.send(s, { t: 'err', msg: 'Bu kovanda topluluk oluşturamazsın.', rid: f.rid });
+        if (!s.loopback) return this.send(s, { t: 'err', msg: 'Bu sunucuda topluluk oluşturamazsın.', rid: f.rid });
         const c = this.createCommunity(uid, cleanName(f.name, 48) || 'Yeni Topluluk', f.color, f.icon, f.template);
         for (const ch of c.channels) if (ch.type === 'site') this.refreshSiteMeta(c.id, ch.id);
         this.send(s, { t: 'comm', c: this.snapshot(c, uid), lastIds: this.lastIdsFor(c, uid) });
@@ -2059,7 +2072,7 @@ export class Hub {
     if (template === 'lobby') {
       roles.push({ id: makeId(), name: 'Bot', color: '#f5a524', perms: 0, hoist: true, position: 3 });
       const info = cat('Bilgi');
-      welcome = chan('hoş-geldin', 'announce', info, 'Kovan\'a hoş geldin! Buradan başla.');
+      welcome = chan('hoş-geldin', 'announce', info, 'Xanaphian\'a hoş geldin! Buradan başla.');
       chan('duyurular', 'announce', info, 'Önemli duyurular');
       const talk = cat('Sohbet');
       chan('genel', 'text', talk, 'Her şeyden konuşulur');
@@ -2069,7 +2082,7 @@ export class Hub {
       chan('Lobi', 'voice', voice);
       chan('Oyun', 'voice', voice);
       const space = cat('3D Odalar');
-      chan('Kovan Meydanı', 'space', space, 'Avatarınla dolaş, yakındakilerle sesli konuş');
+      chan('Meydan', 'space', space, 'Avatarınla dolaş, yakındakilerle sesli konuş');
       const sites = cat('Site Odaları');
       chan('xanaphian.com', 'site', sites, 'Siteyi birlikte gez, yanında sohbet et').url = DEFAULT_SITE_URL;
     } else {
@@ -2108,9 +2121,9 @@ export class Hub {
 
   private seedWelcome(ch: ID) {
     const texts = [
-      '# Kovan\'a hoş geldin! 🐝\nBurası senin kovanın. Topluluklar oluştur, kanallar aç, arkadaşlarını davet et ve gerçek zamanlı sohbet et.',
+      '# Xanaphian\'a hoş geldin! 👋\nBurası senin topluluğun. Topluluklar oluştur, kanallar aç, arkadaşlarını davet et ve gerçek zamanlı sohbet et.',
       '## Hızlı başlangıç\n- **Arkadaş davet et:** sol üstteki topluluk adına tıkla → *Davet et*. Kodu gönder, karşı taraf *Davetle katıl* ile girer.\n- **Kanal aç:** kategori başlığındaki **+** düğmesi.\n- **Hızlı geçiş:** `Ctrl+K` ile kanallar ve topluluklar arasında atla.\n- **Yanıtla / düzenle / tepki:** mesajın üzerine gel, sağda araç çubuğu çıkar. Kendi son mesajını düzenlemek için boş kutuda `↑` tuşu.',
-      '## Biçimlendirme\n**kalın**, *italik*, __altı çizili__, ~~üstü çizili~~, `satır içi kod`, ||spoiler|| ve\n```js\nconst kovan = "hızlı ve hafif";\n```\n> Alıntı da yapabilirsin.',
+      '## Biçimlendirme\n**kalın**, *italik*, __altı çizili__, ~~üstü çizili~~, `satır içi kod`, ||spoiler|| ve\n```js\nconst xanaphian = "hızlı ve hafif";\n```\n> Alıntı da yapabilirsin.',
       '## Güncellemeler\nYeni sürüm çıktığında üst çubukta **Güncelle** düğmesi belirir. Tek tıkla indirip yeniden başlatır, tekrar kurulum dosyası indirmen gerekmez. Ayarlar → *Güncellemeler* bölümünden elle de denetleyebilirsin.',
     ];
     const base = Date.now();
