@@ -15,6 +15,7 @@ import './styles/temalar.css';
 import './styles/sunucu-profili.css';
 import './styles/etkinlik.css';
 import './styles/marka.css';
+import './styles/farklar.css';
 
 // Yazı tipleri yüklenmeden çizersek mesaj yükseklikleri sonradan değişir ve liste en altta kalmaz.
 const fontsReady = Promise.race([

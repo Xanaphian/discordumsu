@@ -4,11 +4,17 @@ import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
   ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Settings, Bell, BellOff, EyeOff, Globe,
   Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Dices, Coins, Braces, UserRound, Phone, Video,
+  Swords, ChartNoAxesColumn, CalendarClock, Bookmark, BookmarkCheck,
 } from 'lucide-react';
+import { parseCard, isCardReaction } from '../lib/cards';
+import { CardView, LfgCreator, PollCreator, ScheduleDialog } from './Cards';
+import { CatchUp, summarize } from './CatchUp';
+import { SavedPopover, ScheduledStrip } from './Later';
+import { useLater, toggleSaved, isSaved } from '../lib/later';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
   openModal, confirmDialog, retryMessage, discardMessage, markRead, uploadFile, hostHttp, toast, updateSettings, request, jumpToMessage,
-  selectChannel, jumpToPresent, plainText, toggleMuted, addFriend, acceptFriend,
+  selectChannel, jumpToPresent, plainText, toggleMuted, addFriend, acceptFriend, readBeforeOpen,
 } from '../lib/store';
 import { activeCustom } from '../../shared/profile';
 import { DmCall } from './Media';
@@ -91,7 +97,7 @@ const AttachmentView = memo(function AttachmentView({ a, base }: { a: Attachment
 
 const Reactions = memo(function Reactions({ m, me }: { m: Message; me: string }) {
   const users = useStore((s) => s.users);
-  const entries = Object.entries(m.reactions || {});
+  const entries = Object.entries(m.reactions || {}).filter(([e]) => !isCardReaction(e));
   if (!entries.length) return null;
   return (
     <div className="reactions">
@@ -206,7 +212,9 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
   const showIcons = useStore((s) => s.settings.showRoleIcons);
   const [reveal, setReveal] = useState(false);
   const roleIcon = showIcons ? memberRoles(c, c.members.find((x) => x.userId === m.authorId)).find((r) => r.icon)?.icon : undefined;
-  const body = useMemo(() => (m.content ? renderMarkdown(m.content, md) : null), [m.content, md]);
+  const card = useMemo(() => parseCard(m.content), [m.content]);
+  const body = useMemo(() => (m.content && !card ? renderMarkdown(m.content, md) : null), [m.content, md, card]);
+  const saved = useLater((s) => isSaved(s.saved, m.id));
   const jumbo = useMemo(() => isEmojiOnly(m.content), [m.content]);
   const base = hostHttp(c.id);
 
@@ -224,7 +232,8 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
     openMenu(e, [
       { emojis: QUICK_REACTIONS, onEmoji: (x) => toggleReaction(m, x) },
       { label: 'Yanıtla', onClick: reply },
-      ...(mine ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
+      ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
+      { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
       ...(canManage ? [{ label: m.pinned ? 'Sabitlemeyi kaldır' : 'Mesajı sabitle', onClick: () => pinMessage(m.channelId, m.id, !m.pinned) }] : []),
       { label: 'Metni kopyala', onClick: () => copyText(plainText(m.content, c)) },
       { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
@@ -291,7 +300,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
         )}
         onContextMenu={more}
         onDoubleClick={(e) => {
-          if (mine && !isEditing && !(e.target as HTMLElement).closest('a,button,.att-img,.md-pre')) startEdit();
+          if (mine && !card && !isEditing && !(e.target as HTMLElement).closest('a,button,.att-img,.md-pre')) startEdit();
         }}
       >
         {m.replyTo && (
@@ -346,6 +355,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 )}
               </div>
             )}
+            {card && !isEditing && <CardView m={m} card={card} c={c} me={me} />}
             {isEditing ? (
               <EditBox m={m} onDone={() => useStore.setState({ editing: null })} />
             ) : (
@@ -407,7 +417,12 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 <Reply size={17} />
               </button>
             </Tooltip>
-            {mine && (
+            <Tooltip text={saved ? 'Kaydedildi' : 'Kaydet'} side="top">
+              <button className={cx('mt-btn', saved && 'on')} onClick={() => toggleSaved(c.id, m)}>
+                {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+              </button>
+            </Tooltip>
+            {mine && !card && (
               <Tooltip text="Düzenle" side="top">
                 <button className="mt-btn" onClick={startEdit}>
                   <Pencil size={16} />
@@ -491,6 +506,23 @@ function DmStart({ c }: { c: Community }) {
   );
 }
 
+// özet kanal açıldığındaki haliyle sabit kalır (yeni gelen mesajlar özeti değiştirmez)
+const cuCache = new Map<string, ReturnType<typeof summarize>>();
+function catchUpData(items: CMessage[], readAt: string, me: string, c: Community, more: boolean, ch: string) {
+  if (!readAt || !items.length) return null;
+  const k = ch + ':' + readAt;
+  if (cuCache.has(k)) return cuCache.get(k) || null;
+  const res = summarize(items, readAt, me, c, more);
+  // kanal yenilenmeden önceki eski listeyle "özet yok" kararı verip kilitleme
+  const last = useStore.getState().lastIds[ch];
+  const fresh = !last || items[items.length - 1].id >= last;
+  if (res || fresh) {
+    if (cuCache.size > 50) cuCache.clear();
+    cuCache.set(k, res);
+  }
+  return res;
+}
+
 export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const st = useStore((s) => s.chans[ch.id]);
   const me = useStore((s) => s.me.id);
@@ -505,7 +537,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const [atBottom, setAtBottom] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
   // kanal açıldığındaki okunma noktası ("YENİ" çizgisi için)
-  const readAtOpen = useMemo(() => useStore.getState().read[ch.id] || '', [ch.id]); // eslint-disable-line
+  const readAtOpen = useMemo(() => readBeforeOpen[ch.id] ?? (useStore.getState().read[ch.id] || ''), [ch.id]); // eslint-disable-line
   const items = st?.items || [];
   const firstNewId = useMemo(() => {
     if (!readAtOpen) return null;
@@ -548,10 +580,12 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
       </div>
     );
 
+  const catchUp = catchUpData(items, readAtOpen, me, c, st.more, ch.id);
   const detachedOrBehind = st.detached || (lastId && items.length && items[items.length - 1].id < lastId && !items[items.length - 1].id.startsWith('~'));
 
   return (
     <div className="msg-list">
+      {catchUp && <CatchUp key={ch.id + readAtOpen} c={c} ch={ch} data={catchUp} />}
       <Virtuoso
         key={ch.id + ':' + (st.epoch || 0)}
         ref={ref}
@@ -726,6 +760,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [plusOpen, setPlusOpen] = useState(false);
+  const [dlg, setDlg] = useState<null | 'lfg' | 'poll' | 'sched'>(null);
   const [fmtOpen, setFmtOpen] = useState(false);
   const rec = useRecorder((f) => addFiles([f]));
   const cp = channelPerms(c, me, ch);
@@ -949,8 +984,29 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
       </div>
     );
 
+  const openSched = () => {
+    if (!value.trim()) return toast('Önce zamanlamak istediğin mesajı yaz.', 'info');
+    if (files.length) return toast('Dosyalı mesajlar zamanlanamaz; dosyayı şimdi gönder.', 'info');
+    setDlg('sched');
+  };
+
   return (
     <div className="composer">
+      {dlg === 'lfg' && <LfgCreator ch={ch.id} onClose={() => setDlg(null)} />}
+      {dlg === 'poll' && <PollCreator ch={ch.id} onClose={() => setDlg(null)} />}
+      {dlg === 'sched' && (
+        <ScheduleDialog
+          cid={c.id}
+          ch={ch.id}
+          content={encode(value.trim())}
+          onClose={() => setDlg(null)}
+          onDone={() => {
+            setValue('');
+            drafts.delete(ch.id);
+          }}
+        />
+      )}
+      <ScheduledStrip ch={ch.id} />
       {sug && (
         <div className="suggest">
           <div className="suggest-title">{sug.kind === 'user' ? 'Üyeler' : sug.kind === 'channel' ? 'Kanallar' : 'Emoji'}</div>
@@ -1027,6 +1083,28 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
               <span>
                 <b>Sürpriz metin</b>
                 <small>Tıklayınca görünür</small>
+              </span>
+            </button>
+            <div className="cp-sep" />
+            <button onClick={() => setDlg('lfg')}>
+              <Swords size={17} />
+              <span>
+                <b>Takım kur</b>
+                <small>Boş yerlere tek tıkla katılınır</small>
+              </span>
+            </button>
+            <button onClick={() => setDlg('poll')}>
+              <ChartNoAxesColumn size={17} />
+              <span>
+                <b>Anket</b>
+                <small>Canlı sonuçlu oylama</small>
+              </span>
+            </button>
+            <button onClick={openSched}>
+              <CalendarClock size={17} />
+              <span>
+                <b>Zamanlanmış gönder</b>
+                <small>Yazdığın mesaj sonra gitsin</small>
               </span>
             </button>
             <div className="cp-sep" />
@@ -1183,8 +1261,14 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
           </button>
         </Tooltip>
         {(value.trim() || files.length > 0) && (
-          <Tooltip text="Gönder" side="top">
-            <button className="composer-btn cp-send" onClick={submit} aria-label="Gönder" disabled={uploading}>
+          <Tooltip text="Gönder · sağ tık: zamanla" side="top">
+            <button
+              className="composer-btn cp-send"
+              onClick={submit}
+              onContextMenu={(e) => (e.preventDefault(), openSched())}
+              aria-label="Gönder"
+              disabled={uploading}
+            >
               <SendHorizontal size={18} />
             </button>
           </Tooltip>
@@ -1296,6 +1380,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const me = useStore((s) => s.me.id);
   const editCh = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const [pins, setPins] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
   const [q, setQ] = useState('');
   if (c.dm) return <DmHeader c={c} ch={ch} pins={pins} setPins={setPins} />;
   return (
@@ -1337,6 +1422,11 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
             <Pin size={19} />
           </button>
         </Tooltip>
+        <Tooltip text="Kaydedilenler" side="bottom">
+          <button className={cx('icon-btn', savedOpen && 'active')} onClick={() => setSavedOpen((x) => !x)} aria-label="Kaydedilenler">
+            <Bookmark size={19} />
+          </button>
+        </Tooltip>
         <Tooltip text={membersOpen ? 'Üye listesini gizle' : 'Üye listesini göster'} side="bottom">
           <button className={cx('icon-btn', membersOpen && 'active')} onClick={() => updateSettings({ membersOpen: !membersOpen })} aria-label="Üye listesi">
             <Users size={19} />
@@ -1354,6 +1444,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
           <Search size={15} />
         </div>
         {pins && <PinsPopover c={c} ch={ch} onClose={() => setPins(false)} />}
+        {savedOpen && <SavedPopover onClose={() => setSavedOpen(false)} />}
       </div>
     </div>
   );

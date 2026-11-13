@@ -9,6 +9,7 @@ import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
 import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
+import { cardSummary } from './cards';
 
 export interface Profile {
   id: ID;
@@ -781,6 +782,8 @@ function isViewing(ch: ID) {
 }
 
 export function plainText(content: string, c?: Community) {
+  const card = cardSummary(content);
+  if (card) return card;
   const users = S().users;
   return content
     .replace(/<@&([\w-]+)>/g, (_, id) => '@' + (c?.roles.find((r) => r.id === id)?.name || 'rol'))
@@ -1127,8 +1130,12 @@ export function selectChannel(cid: ID, ch: ID) {
   openChannel(ch);
 }
 
+/** kanal açılmadan hemen önceki okunma noktası ("YENİ" çizgisi ve "Sen yokken" özeti için) */
+export const readBeforeOpen: Record<ID, ID> = {};
+
 function openChannel(ch: ID) {
   const st = S().chans[ch];
+  readBeforeOpen[ch] = S().read[ch] || '';
   if (!st?.loaded && !st?.loading) loadHistory(ch);
   markRead(ch);
 }
