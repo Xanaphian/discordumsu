@@ -1,7 +1,7 @@
 // Küçük, dosyasız arayüz sesleri (WebAudio ile sentezlenir).
 let ctx: AudioContext | null = null;
 
-type Kind = 'message' | 'mention' | 'join' | 'leave' | 'mute' | 'unmute';
+type Kind = 'message' | 'mention' | 'join' | 'leave' | 'mute' | 'unmute' | 'ring';
 
 const TONES: Record<Kind, [number, number, number][]> = {
   // [frekans, başlangıç(sn), süre(sn)]
@@ -11,6 +11,8 @@ const TONES: Record<Kind, [number, number, number][]> = {
   leave: [[784, 0, 0.1], [523, 0.08, 0.16]],
   mute: [[440, 0, 0.08]],
   unmute: [[660, 0, 0.08]],
+  // gelen arama: iki kısa çift ton
+  ring: [[659, 0, 0.16], [784, 0.17, 0.16], [659, 0.5, 0.16], [784, 0.67, 0.16]],
 };
 
 export function playSound(kind: Kind, volume = 0.12) {

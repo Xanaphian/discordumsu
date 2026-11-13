@@ -432,3 +432,138 @@
   min-width: 34px;
   padding: 0 9px;
 }
+
+/* ---------------- özel arama ---------------- */
+.dm-call {
+  flex: none;
+  height: min(46%, 420px);
+  min-height: 240px;
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+.voice-view.embedded {
+  flex: 1;
+  min-width: 0;
+}
+.voice-view.embedded .vv-stage {
+  padding: 14px 18px 4px;
+}
+.voice-view.embedded .vv-controls {
+  height: 66px;
+}
+.voice-view.embedded .vv-grid2 {
+  max-width: 760px;
+}
+.call-join {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--green);
+  color: #fff;
+}
+
+.call-card {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 300;
+  width: 240px;
+  padding: 22px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  border-radius: 20px;
+  background: var(--bg-float);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7);
+  animation: call-in 0.28s var(--ease) both;
+}
+@keyframes call-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.96);
+  }
+}
+.call-card .cc-av {
+  position: relative;
+  margin-bottom: 8px;
+  border-radius: 50%;
+}
+.call-card .cc-av::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--green);
+  animation: call-pulse 1.4s ease-out infinite;
+}
+@keyframes call-pulse {
+  from {
+    opacity: 0.9;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+.call-card b {
+  font-size: 17px;
+}
+.call-card > span {
+  color: var(--text-3);
+  font-size: 13px;
+}
+.call-card .cc-btns {
+  display: flex;
+  gap: 26px;
+  margin-top: 14px;
+}
+.cc-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  transition: transform 0.15s var(--ease), filter 0.15s;
+}
+.cc-btn:hover {
+  transform: scale(1.06);
+  filter: brightness(1.1);
+}
+.cc-btn.ok {
+  background: var(--green);
+}
+.cc-btn.no {
+  background: var(--red);
+}
+@media (prefers-reduced-motion: reduce) {
+  .call-card .cc-av::after {
+    animation: none;
+  }
+}
+.voice-view.embedded .vv-stage {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.voice-view.embedded .vv-grid2 {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  grid-template-columns: repeat(var(--cols, 2), auto);
+  grid-auto-rows: minmax(0, 1fr);
+  justify-content: center;
+}
+.voice-view.embedded .vv-grid2 .vt {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 16/10;
+}

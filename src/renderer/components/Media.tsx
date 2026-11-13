@@ -2,9 +2,9 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Video, VideoOff, MonitorUp, MonitorX, Maximize2, Minimize2, Expand, Settings2,
-  RefreshCw, Monitor, AppWindow, LoaderCircle, Volume1, VolumeX,
+  RefreshCw, Monitor, AppWindow, LoaderCircle, Volume1, VolumeX, Phone,
 } from 'lucide-react';
-import { useStore, openModal, updateSettings } from '../lib/store';
+import { useStore, openModal, updateSettings, dismissCall, selectCommunity } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, startScreen, stopScreen, setUserVolume, screenLabelOf } from '../lib/voice';
 import { Avatar, Tooltip, Toggle } from './Common';
 import { Modal } from './Modals';
@@ -126,7 +126,7 @@ function TileView({ t, c, focused, onFocus, small }: { t: Tile; c: Community; fo
   );
 }
 
-export function VoiceView({ c, ch }: { c: Community; ch: Channel }) {
+export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embedded?: boolean }) {
   const members = useStore((s) => s.voice[ch.id]) || [];
   const v = useVoice();
   const inHere = v.ch === ch.id;
@@ -146,15 +146,15 @@ export function VoiceView({ c, ch }: { c: Community; ch: Channel }) {
   const n = tiles.length;
   const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
   return (
-    <section className="voice-view">
-      <div className="chat-header">
+    <section className={cx('voice-view', embedded && 'embedded')}>
+      {!embedded && <div className="chat-header">
         <span className="ch-head-icon">
           <Volume2 size={22} />
         </span>
         <h2>{ch.name}</h2>
         <span className="head-sep" />
         <span className="ch-topic">{members.length ? `${members.length} kişi bağlı` : 'Kimse yok'}</span>
-      </div>
+      </div>}
       <div className={cx('vv-stage', focused && 'has-focus')}>
         {members.length === 0 && !inHere ? (
           <div className="vv-empty">
@@ -224,8 +224,8 @@ export function VoiceView({ c, ch }: { c: Community; ch: Channel }) {
           </>
         ) : (
           members.length > 0 && (
-            <button className="btn primary lg" onClick={() => joinVoice(c.id, ch.id)}>
-              Sese katıl
+            <button className={cx('btn primary lg', embedded && 'call-join')} onClick={() => joinVoice(c.id, ch.id)}>
+              {embedded ? <><Phone size={18} /> Aramaya katıl</> : 'Sese katıl'}
             </button>
           )
         )}
@@ -368,5 +368,50 @@ export function ScreenPickerModal() {
         </button>
       </div>
     </Modal>
+  );
+}
+
+/** Özel sohbetin üstündeki arama alanı: biri aramadaysa görünür */
+export function DmCall({ c, ch }: { c: Community; ch: Channel }) {
+  const members = useStore((s) => s.voice[ch.id]) || [];
+  const v = useVoice();
+  if (!members.length && v.ch !== ch.id) return null;
+  return (
+    <div className="dm-call">
+      <VoiceView c={c} ch={ch} embedded />
+    </div>
+  );
+}
+
+/** Gelen arama kartı (her ekranda) */
+export function IncomingCall() {
+  const r = useStore((s) => s.ringing);
+  const user = useStore((s) => (r ? s.users[r.from] : undefined));
+  if (!r) return null;
+  const accept = () => {
+    dismissCall();
+    selectCommunity(r.cid);
+    joinVoice(r.cid, r.ch);
+  };
+  return (
+    <div className="call-card" role="alertdialog" aria-label="Gelen arama">
+      <div className="cc-av">
+        <Avatar user={user} size={64} plain />
+      </div>
+      <b>{user?.name || 'Biri'}</b>
+      <span>seni arıyor…</span>
+      <div className="cc-btns">
+        <Tooltip text="Reddet" side="bottom">
+          <button className="cc-btn no" onClick={dismissCall} aria-label="Reddet">
+            <PhoneOff size={20} />
+          </button>
+        </Tooltip>
+        <Tooltip text="Katıl" side="bottom">
+          <button className="cc-btn ok" onClick={accept} aria-label="Katıl">
+            <Phone size={20} />
+          </button>
+        </Tooltip>
+      </div>
+    </div>
   );
 }

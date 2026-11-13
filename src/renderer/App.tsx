@@ -9,7 +9,7 @@ import { MemberList, DmProfile } from './components/Members';
 import { Modals } from './components/Modals';
 import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
 import { HomeView, Onboarding } from './components/Views';
-import { VoiceView } from './components/Media';
+import { VoiceView, IncomingCall } from './components/Media';
 import { SpaceView } from './components/SpaceView';
 import { SiteView } from './components/SiteView';
 import { Logo } from './components/Common';
@@ -161,6 +161,7 @@ export function App() {
       <UserPopout />
       <PickerHost />
       <Toasts />
+      <IncomingCall />
     </div>
   );
 }
