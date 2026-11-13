@@ -99,6 +99,74 @@ function safeUrl(v: unknown): string {
   }
 }
 
+/** Afiş verisini doğrular (kullanıcı ve sunucu profili ortak) */
+export function sanitizeBanner(b: any): ProfileBanner | undefined {
+  if (!b || typeof b !== 'object') return undefined;
+  const kind = pick(b.kind, ['solid', 'gradient', 'image'] as const);
+  const a = col(b.a);
+  if (!kind || !a) return undefined;
+  const banner: ProfileBanner = { kind, a };
+  const bb = col(b.b);
+  if (bb) banner.b = bb;
+  if (typeof b.angle === 'number' && isFinite(b.angle)) banner.angle = Math.round(((b.angle % 360) + 360) % 360);
+  const pat = pick(b.pattern, PATTERNS);
+  if (pat && pat !== 'none') banner.pattern = pat;
+  if (kind === 'image') {
+    if (typeof b.image === 'string' && b.image.length <= BANNER_MAX && IMG.test(b.image)) {
+      banner.image = b.image;
+      framing(b, banner);
+    } else banner.kind = bb ? 'gradient' : 'solid';
+  }
+  if (typeof b.h === 'number' && isFinite(b.h)) {
+    const h = Math.max(BANNER_H.min, Math.min(BANNER_H.max, Math.round(b.h)));
+    if (h !== BANNER_H.def) banner.h = h;
+  }
+  return banner;
+}
+
+/** Sunucu (topluluk) profili: sahibi ve topluluğu yönetenler düzenler, üyeler görür */
+export interface CommunityProfile {
+  banner?: ProfileBanner;
+  /** adın altındaki kısa tanıtım */
+  tagline?: string;
+  tags?: string[];
+  links?: ProfileLink[];
+  /** topluluk kuralları, satır satır */
+  rules?: string;
+}
+export const COMM_TAGLINE_MAX = 90;
+export const COMM_RULES_MAX = 1500;
+
+export function sanitizeCommunityProfile(p: unknown): CommunityProfile | undefined {
+  if (!p || typeof p !== 'object') return undefined;
+  const x = p as Record<string, any>;
+  const out: CommunityProfile = {};
+  const banner = sanitizeBanner(x.banner);
+  if (banner) out.banner = banner;
+  const tagline = str(x.tagline, COMM_TAGLINE_MAX);
+  if (tagline) out.tagline = tagline;
+  if (Array.isArray(x.links)) {
+    const links = x.links
+      .slice(0, 5)
+      .map((l: any) => ({ label: str(l?.label, 24), url: safeUrl(l?.url) }))
+      .filter((l: ProfileLink) => l.url);
+    if (links.length) out.links = links;
+  }
+  if (Array.isArray(x.tags)) {
+    const seen = new Set<string>();
+    const tags = x.tags
+      .map((t: unknown) => str(t, 20))
+      .filter((t: string) => t && !seen.has(t.toLocaleLowerCase('tr')) && seen.add(t.toLocaleLowerCase('tr')))
+      .slice(0, 8);
+    if (tags.length) out.tags = tags;
+  }
+  if (typeof x.rules === 'string') {
+    const rules = x.rules.replace(/\r/g, '').trim().slice(0, COMM_RULES_MAX);
+    if (rules) out.rules = rules;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 /** Gelen profil verisini doğrular; boşsa undefined döner. */
 export function sanitizeProfile(p: unknown): ProfileExtra | undefined {
   if (!p || typeof p !== 'object') return undefined;
@@ -117,30 +185,8 @@ export function sanitizeProfile(p: unknown): ProfileExtra | undefined {
     const text = str(x.activity.text, 60);
     if (kind && text) out.activity = { kind, text };
   }
-  if (x.banner && typeof x.banner === 'object') {
-    const b = x.banner;
-    const kind = pick(b.kind, ['solid', 'gradient', 'image'] as const);
-    const a = col(b.a);
-    if (kind && a) {
-      const banner: ProfileBanner = { kind, a };
-      const bb = col(b.b);
-      if (bb) banner.b = bb;
-      if (typeof b.angle === 'number' && isFinite(b.angle)) banner.angle = Math.round(((b.angle % 360) + 360) % 360);
-      const pat = pick(b.pattern, PATTERNS);
-      if (pat && pat !== 'none') banner.pattern = pat;
-      if (kind === 'image') {
-        if (typeof b.image === 'string' && b.image.length <= BANNER_MAX && IMG.test(b.image)) {
-          banner.image = b.image;
-          framing(b, banner);
-        } else banner.kind = bb ? 'gradient' : 'solid';
-      }
-      if (typeof b.h === 'number' && isFinite(b.h)) {
-        const h = Math.max(BANNER_H.min, Math.min(BANNER_H.max, Math.round(b.h)));
-        if (h !== BANNER_H.def) banner.h = h;
-      }
-      out.banner = banner;
-    }
-  }
+  const banner = sanitizeBanner(x.banner);
+  if (banner) out.banner = banner;
   if (x.bg && typeof x.bg === 'object' && typeof x.bg.image === 'string' && x.bg.image.length <= BG_MAX && IMG.test(x.bg.image)) {
     const bg: ProfileBg = { image: x.bg.image };
     if (typeof x.bg.dim === 'number' && isFinite(x.bg.dim)) bg.dim = Math.max(0, Math.min(85, Math.round(x.bg.dim)));

@@ -8,6 +8,7 @@ import { Shell, Row, close } from './Settings';
 import { PERM_GROUPS, countBits } from './Permissions';
 import { memberMenu } from './Moderation';
 import { BotsTab } from './Bots';
+import { CommunityProfileEditor } from './CommunityProfile';
 
 const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🐝', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🍯', '❤️'];
 
@@ -730,6 +731,7 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
   const manage = can(c, me, Perm.MANAGE_COMMUNITY);
   const nav = [
     ...(manage ? [{ id: 'overview', label: 'Genel Bakış', group: c.name }] : []),
+    ...(manage ? [{ id: 'profile', label: 'Sunucu Profili', group: c.name }] : []),
     ...(can(c, me, Perm.MANAGE_ROLES) ? [{ id: 'roles', label: 'Roller', group: c.name }] : []),
     ...(manage ? [{ id: 'moderation', label: 'Moderasyon', group: 'Moderasyon' }] : []),
     ...(can(c, me, Perm.VIEW_AUDIT_LOG) ? [{ id: 'audit', label: 'Denetim Kaydı', group: 'Moderasyon' }] : []),
@@ -743,6 +745,7 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
   return (
     <Shell nav={nav} tab={cur} setTab={setTab}>
       {cur === 'overview' && <OverviewTab c={c} />}
+      {cur === 'profile' && <CommunityProfileEditor c={c} />}
       {cur === 'roles' && <RolesTab c={c} me={me} initial={initial?.startsWith('roles:') ? initial.slice(6) : undefined} />}
       {cur === 'moderation' && <ModerationTab c={c} />}
       {cur === 'audit' && <AuditTab c={c} />}

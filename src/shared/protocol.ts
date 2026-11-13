@@ -1,5 +1,5 @@
 // Kovan ağ protokolü: istemci <-> kovan sunucusu (hub) arasında JSON çerçeveler.
-import type { ProfileExtra } from './profile';
+import type { ProfileExtra, CommunityProfile } from './profile';
 import type { BotClientFrame, BotServerFrame } from './bots';
 
 export type ID = string;
@@ -202,6 +202,8 @@ export interface Community {
   ownerId: ID;
   createdAt: number;
   description?: string;
+  /** sunucu profili: afiş, kısa tanıtım, etiketler, bağlantılar, kurallar */
+  profile?: CommunityProfile;
   roles: Role[]; // roles[0] her zaman @herkes (id === community.id)
   categories: Category[];
   channels: Channel[];
@@ -302,7 +304,7 @@ export type ClientFrame =
   | { t: 'presence'; status: Status }
   | { t: 'profile'; user: UserPublic }
   | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; rid?: string }
-  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod }
+  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod }
   | { t: 'comm.delete'; cid: ID }
   | { t: 'comm.leave'; cid: ID }
   | { t: 'comm.invite.reset'; cid: ID }
