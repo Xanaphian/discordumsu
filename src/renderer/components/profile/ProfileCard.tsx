@@ -10,7 +10,7 @@ import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
 import { useStore, openModal, toast, selectCommunity, openDm, addFriend, acceptFriend } from '../../lib/store';
 import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
 import { ACTIVITY_LABEL, bannerBackground, bannerClass, cardTheme, imgFrameStyle, linkBrand, linkTitle, nameStyle } from './look';
-import { ActivityCards, AccountList, PrivateNote, RecentList } from './Activity';
+import { ActivityCards, AccountList, PrivateNote, RecentList, VoiceStatus } from './Activity';
 import { useActsOf } from '../../lib/activity';
 
 export const ACTIVITY_ICON: Record<ActivityKind, React.ComponentType<{ size?: number }>> = {
@@ -265,6 +265,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
           <div className="pc-bio">{user.bio}</div>
         </section>
       )}
+      <VoiceStatus uid={uid} />
       {acts.length > 0 ? (
         <section className="pc-sec pc-sec-acts">
           <ActivityCards uid={uid} compact={variant === 'preview'} />
