@@ -7,6 +7,7 @@ import {
 import type { AccountService, LinkedAccount, LiveActivity, ProfileExtra, RecentActivity } from '../../../shared/profile';
 import { useActsOf, useActs, riotUrl, openInSpotify, startAlong, stopAlong } from '../../lib/activity';
 import { useStore } from '../../lib/store';
+import { BRANDS, SERVICE_BRAND, activityBrand, brandBg } from '../../lib/brands';
 import { cx, copyText } from '../../lib/util';
 import { toast } from '../../lib/store';
 
@@ -94,9 +95,28 @@ export function accountFromInput(svc: AccountService, raw: string): string {
   }
 }
 
+/** Hizmet / oyun logosu (Simple Icons). plain: zeminsiz, marka renginde */
+export function BrandLogo({ k, size = 30, plain, className }: { k: string; size?: number; plain?: boolean; className?: string }) {
+  const b = BRANDS[k];
+  if (!b) return null;
+  const inner = Math.round(size * (plain ? 1 : 0.56));
+  const svg = (
+    <svg viewBox="0 0 24 24" width={inner} height={inner} fill={plain ? (brandBg(b.hex) === b.hex ? b.hex : 'currentColor') : '#fff'} aria-hidden>
+      <path d={b.path} />
+    </svg>
+  );
+  if (plain) return <span className={cx('brand-logo plain', className)} title={b.title}>{svg}</span>;
+  return (
+    <span className={cx('acc-ic brand-logo', className)} style={{ background: brandBg(b.hex), width: size, height: size }} title={b.title}>
+      {svg}
+    </span>
+  );
+}
+
 export function ServiceIcon({ svc, size = 30 }: { svc: AccountService; size?: number }) {
   const m = SERVICES[svc];
   const I = m.icon;
+  if (SERVICE_BRAND[svc]) return <BrandLogo k={SERVICE_BRAND[svc]} size={size} />;
   return (
     <span className="acc-ic" style={{ background: m.color, width: size, height: size }}>
       <I size={Math.round(size * 0.55)} />
@@ -221,16 +241,27 @@ export const LiveActivityCard = memo(function LiveActivityCard({ a, compact, uid
   const title = a.kind === 'listening' ? a.details || a.name : a.kind === 'streaming' ? a.details || a.name : a.name;
   const sub1 = a.kind === 'listening' ? a.state : a.kind === 'streaming' ? a.state : a.details;
   const sub2 = a.kind === 'playing' ? a.state : a.kind === 'streaming' && a.viewers !== undefined ? `${a.viewers.toLocaleString('tr-TR')} izleyici` : undefined;
+  const brand = activityBrand(a);
+  const big = compact ? 44 : 64;
   return (
     <div className={cx('act-card', 'act-' + a.kind, a.src && 'src-' + a.src, compact && 'compact')}>
       <div className="act-head">
         {a.kind === 'streaming' && <span className="act-live-dot" />}
+        {brand && (a.kind !== 'playing') && <BrandLogo k={brand} size={14} plain />}
         {activityHeading(a)}
       </div>
       <div className="act-main">
-        <div className={cx('act-art', !a.art && !a.icon && 'empty')}>
-          {a.art ? <img src={a.art} alt="" draggable={false} /> : a.icon ? <img className="act-icon" src={a.icon} alt="" draggable={false} /> : <Icon size={compact ? 20 : 26} />}
-          {a.art && a.icon && <img className="act-badge" src={a.icon} alt="" />}
+        <div className={cx('act-art', !a.art && !a.icon && 'empty', !a.art && !a.icon && brand && 'branded')}>
+          {a.art ? (
+            <img src={a.art} alt="" draggable={false} />
+          ) : a.icon ? (
+            <img className="act-icon" src={a.icon} alt="" draggable={false} />
+          ) : brand ? (
+            <BrandLogo k={brand} size={big} />
+          ) : (
+            <Icon size={compact ? 20 : 26} />
+          )}
+          {a.art && (a.icon ? <img className="act-badge" src={a.icon} alt="" /> : brand && <BrandLogo k={brand} size={22} className="act-badge" />)}
         </div>
         <div className="act-text">
           <b title={title}>{title}</b>
@@ -297,9 +328,10 @@ export const ActivityLine = memo(function ActivityLine({ uid, className }: { uid
   const a = acts[0];
   if (!a) return null;
   const Icon = KIND_ICON[a.kind];
+  const brand = activityBrand(a);
   return (
     <span className={cx('act-line', 'act-' + a.kind, className)} title={activityHeading(a) + ': ' + activityShort(a)}>
-      <Icon size={12} />
+      {a.icon && a.kind === 'playing' ? <img className="act-line-ic" src={a.icon} alt="" /> : brand ? <BrandLogo k={brand} size={12} plain /> : <Icon size={12} />}
       <span>{a.kind === 'playing' ? <><em>Oynuyor</em> {a.name}</> : activityShort(a)}</span>
     </span>
   );
@@ -335,9 +367,13 @@ export function RecentList({ profile, empty }: { profile?: ProfileExtra; empty?:
         const Icon = KIND_ICON[r.kind];
         return (
           <div key={r.kind + r.name} className={cx('recent-row', 'act-' + r.kind)}>
-            <span className="recent-ic">
-              <Icon size={20} />
-            </span>
+            {activityBrand(r) ? (
+              <BrandLogo k={activityBrand(r)!} size={44} className="recent-brand" />
+            ) : (
+              <span className="recent-ic">
+                <Icon size={20} />
+              </span>
+            )}
             <div className="recent-text">
               <b>{r.name}</b>
               <div className="recent-meta">
