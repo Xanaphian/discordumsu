@@ -1,6 +1,7 @@
 // Hafif ve güvenli (innerHTML kullanmayan) mesaj biçimlendirici.
 import React, { ReactNode, useState } from 'react';
 import { highlight } from './highlight';
+import { openInSiteRoom } from './site';
 
 export interface MdCtx {
   userName: (id: string) => string | null;
@@ -32,7 +33,7 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
       title={href}
       onClick={(e) => {
         e.preventDefault();
-        window.kovan.openExternal(href);
+        if (!openInSiteRoom(href)) window.kovan.openExternal(href);
       }}
     >
       {children}

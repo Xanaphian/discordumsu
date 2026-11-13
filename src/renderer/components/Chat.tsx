@@ -2,7 +2,7 @@ import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, 
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
-  ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight,
+  ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Globe,
 } from 'lucide-react';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
@@ -402,14 +402,16 @@ function ChannelStart({ ch, loading, more }: { ch: Channel; loading: boolean; mo
     );
   return (
     <div className="ch-start">
-      <div className="ch-start-icon">{ch.type === 'announce' ? <Megaphone size={36} /> : <Hash size={40} />}</div>
-      <h1>#{ch.name} kanalına hoş geldin!</h1>
-      <p>Bu, #{ch.name} kanalının başlangıcı. {ch.topic}</p>
+      <div className="ch-start-icon">{ch.type === 'announce' ? <Megaphone size={36} /> : ch.type === 'site' ? <Globe size={38} /> : <Hash size={40} />}</div>
+      <h1>{ch.type === 'site' ? `${ch.name} odasına hoş geldin!` : `#${ch.name} kanalına hoş geldin!`}</h1>
+      <p>
+        {ch.type === 'site' ? 'Odanın sohbeti burada; baktığın sayfayı paylaş düğmesiyle buraya atabilirsin.' : `Bu, #${ch.name} kanalının başlangıcı.`} {ch.topic}
+      </p>
     </div>
   );
 }
 
-function MessageList({ c, ch }: { c: Community; ch: Channel }) {
+export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const st = useStore((s) => s.chans[ch.id]);
   const me = useStore((s) => s.me.id);
   const editing = useStore((s) => s.editing);
@@ -561,7 +563,7 @@ interface PendingFile {
   preview?: string;
 }
 
-function Composer({ c, ch }: { c: Community; ch: Channel }) {
+export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const me = useStore((s) => s.me.id);
   const users = useStore((s) => s.users);
   const replyTo = useStore((s) => s.replyTo[ch.id]);
@@ -802,7 +804,7 @@ function Composer({ c, ch }: { c: Community; ch: Channel }) {
           value={value}
           rows={1}
           spellCheck={false}
-          placeholder={`#${ch.name} kanalına mesaj gönder`}
+          placeholder={ch.type === 'site' ? `${ch.name} odasına mesaj gönder` : `#${ch.name} kanalına mesaj gönder`}
           onChange={(e) => {
             setValue(e.target.value);
             computeSuggest(e.target.value, e.target.selectionStart);
