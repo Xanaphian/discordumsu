@@ -7,8 +7,10 @@ import { CommunityIcon, Avatar } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtTime, displayName } from '../lib/util';
 import { renderMarkdown } from '../lib/markdown';
 import { can, Perm, isVoiceLike, type ChannelType, type Message } from '../../shared/protocol';
-import { UserSettings, CommunitySettings } from './Settings';
+import { UserSettings } from './Settings';
+import { CommunitySettings } from './CommunitySettings';
 import { joinVoice } from '../lib/voice';
+import { ScreenPickerModal } from './Media';
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
   useEffect(() => {
@@ -515,6 +517,8 @@ export function Modals() {
       return <ConfirmModal m={m} />;
     case 'image':
       return <ImageModal src={m.src} name={m.name} />;
+    case 'screenShare':
+      return <ScreenPickerModal />;
     case 'quick':
       return <QuickSwitcher />;
     case 'search':

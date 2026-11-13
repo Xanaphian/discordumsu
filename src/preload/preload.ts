@@ -18,6 +18,17 @@ const api = {
   quit: () => ipcRenderer.send('app:quit'),
   onInvite: (cb: (code: string) => void) => on('invite', cb),
   onNotifyClick: (cb: (tag: string) => void) => on('notify:click', cb),
+  capture: {
+    sources: () =>
+      ipcRenderer.invoke('cap:sources') as Promise<{ id: string; name: string; kind: 'screen' | 'window'; thumb: string; icon: string; size: { w: number; h: number } | null }[]>,
+    select: (sel: { id: string; audio: boolean } | null) => ipcRenderer.invoke('cap:select', sel),
+  },
+  inCall: (on: boolean) => ipcRenderer.send('win:in-call', on),
+  ptt: {
+    configure: (cfg: { enabled: boolean; code: string }) => ipcRenderer.invoke('ptt:config', cfg) as Promise<boolean>,
+    onChange: (cb: (down: boolean) => void) => on('ptt', cb),
+  },
+  platform: process.platform,
   update: {
     check: () => ipcRenderer.invoke('upd:check'),
     download: () => ipcRenderer.invoke('upd:download'),
