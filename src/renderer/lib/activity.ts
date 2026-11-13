@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type { ID } from '../../shared/protocol';
 import type { LiveActivity, RecentActivity } from '../../shared/profile';
+import { IS_POPOUT } from './popout';
 import { useStore, actHooks, sendAll, sendHost, updateProfile, toast, type Settings } from './store';
 
 export interface DetectedState {
@@ -275,7 +276,7 @@ export const runningApps = (): Promise<{ exe: string; title: string; path?: stri
 
 let started = false;
 function start() {
-  if (started) return;
+  if (started || IS_POPOUT) return; // ayrı pencere etkinlik göndermez (ana pencere gönderir)
   started = true;
   window.kovan.activity.onUpdate((d: DetectedState) => {
     useActs.setState({ detected: d });

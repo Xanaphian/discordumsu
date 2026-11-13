@@ -1,0 +1,1181 @@
+/* v1.24: takım ilanı, anket, "Sen yokken", kaydedilenler, zamanlanmış mesaj.
+   Renkler temadan gelir (--accent tema vurgusu); tek vurgu, yuvarlak köşe, sade. */
+
+/* ---- ortak kart ---- */
+.xcard {
+  --xc-line: color-mix(in srgb, var(--accent) 28%, var(--line));
+  max-width: 520px;
+  margin-top: 6px;
+  border: 1px solid var(--xc-line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, var(--bg-elev)), var(--bg-elev));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  user-select: none;
+}
+.xcard-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px 10px;
+}
+.xcard-ico {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.xcard-title {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.xcard-title b {
+  font-size: 15.5px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.xcard-title small {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.xcard-count {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  font-size: 13px;
+}
+.xcard-count.ok {
+  color: var(--accent-ink, #111);
+  background: var(--accent);
+}
+.xcard-note {
+  margin: -2px 14px 10px;
+  color: var(--text-2);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.xcard-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-chat) 55%, transparent);
+  min-height: 44px;
+}
+.xcard-foot .btn:last-child {
+  margin-left: auto;
+}
+.xcard-muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+.xcard-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+/* ---- takım ilanı ---- */
+.lfg-slots {
+  display: grid;
+  gap: 8px;
+  padding: 2px 14px 12px;
+}
+.lfg-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 6px 9px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--text-3) 45%, transparent);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.lfg-slot:not(:disabled):hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  transform: translateY(-1px);
+}
+.lfg-slot.taken {
+  border-style: solid;
+  border-color: var(--line-2);
+  background: var(--bg-hover);
+  cursor: default;
+}
+.lfg-slot.me {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  cursor: pointer;
+}
+.lfg-slot:disabled {
+  opacity: 1;
+}
+.lfg-empty {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 20px;
+  color: var(--text-3);
+  background: var(--bg-hover);
+}
+.lfg-slot:not(:disabled):hover .lfg-empty {
+  color: var(--accent);
+}
+.lfg-role {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lfg-slot.taken .lfg-role,
+.lfg-slot.me .lfg-role {
+  color: var(--accent);
+}
+.lfg-who {
+  font-size: 12.5px;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xcard.lfg.full {
+  --xc-line: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* ---- anket ---- */
+.poll-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 14px 12px;
+}
+.poll-opt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-chat);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  font: inherit;
+}
+.poll-opt:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.poll-opt:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.poll-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  transition: width 0.4s var(--ease);
+  pointer-events: none;
+}
+.poll-opt.mine {
+  border-color: var(--accent);
+}
+.poll-opt.mine .poll-bar,
+.poll-opt.win .poll-bar {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.poll-check {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+}
+.poll-opt.mine .poll-check {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink, #111);
+}
+.poll-label {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.poll-voters {
+  position: relative;
+  display: flex;
+}
+.poll-voters > * + * {
+  margin-left: -6px;
+}
+.poll-pct {
+  position: relative;
+  min-width: 36px;
+  text-align: right;
+  font-weight: 800;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+/* ---- "Sen yokken" ---- */
+.catchup {
+  position: absolute;
+  top: 10px;
+  left: 16px;
+  right: 16px;
+  z-index: 6;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--bg-float) 94%, var(--accent) 6%);
+  box-shadow: 0 10px 28px -12px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  animation: modal-in 0.25s var(--ease);
+}
+.cu-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+}
+.cu-spark {
+  color: var(--accent);
+  flex: none;
+}
+.cu-sum {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cu-sum b {
+  font-size: 14px;
+}
+.cu-sum span {
+  color: var(--text-3);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.catchup.open .cu-btn svg {
+  transform: rotate(180deg);
+}
+.cu-x {
+  width: 28px;
+  height: 28px;
+}
+.cu-body {
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  padding: 4px 14px 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cu-people {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+}
+.cu-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 2px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+}
+.cu-person small {
+  color: var(--text-2);
+  font-weight: 700;
+  font-size: 12px;
+}
+.cu-topics {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.cu-topics i {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.cu-body section h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.cu-line {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.cu-line:hover {
+  background: var(--bg-hover);
+}
+.cu-line b {
+  flex: none;
+  font-size: 13px;
+}
+.cu-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cu-line time {
+  color: var(--text-4);
+  font-size: 12px;
+}
+.cu-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.cu-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.cu-foot .btn {
+  margin-left: auto;
+}
+
+/* ---- kaydedilenler ---- */
+.mt-btn.on {
+  color: var(--accent);
+}
+.popover.saved-pop {
+  width: 440px;
+}
+.saved-row {
+  position: relative;
+  align-items: flex-start;
+}
+.saved-row > :first-child {
+  flex: none;
+}
+.saved-row > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.saved-row.gone {
+  opacity: 0.55;
+  cursor: default;
+}
+.saved-where {
+  color: var(--accent) !important;
+  opacity: 0.85;
+}
+.saved-del {
+  width: 28px;
+  height: 28px;
+  opacity: 0;
+}
+.saved-row:hover .saved-del {
+  opacity: 1;
+}
+
+/* ---- zamanlanmış mesaj ---- */
+.sched-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 6px;
+}
+.sched-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-chat));
+  color: var(--text-2);
+  font-size: 13px;
+}
+.sched-item > svg {
+  color: var(--accent);
+  flex: none;
+}
+.sched-item b {
+  color: var(--text);
+  white-space: nowrap;
+}
+.sched-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sched-item .link.danger {
+  color: var(--red);
+}
+.sched-more {
+  color: var(--text-3);
+  font-size: 12px;
+  padding-left: 12px;
+}
+.sched-preview {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-elev);
+  border-left: 3px solid var(--accent);
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sched-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.sched-presets .btn {
+  justify-content: flex-start;
+  gap: 7px;
+}
+.sched-presets .btn small {
+  margin-left: auto;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- kurulum pencereleri ---- */
+.modal.xdialog {
+  width: 500px;
+}
+.modal.xdialog .modal-head {
+  text-align: left;
+}
+.modal.xdialog .seg {
+  display: flex;
+}
+.modal.xdialog .seg button {
+  flex: 1;
+}
+.lfg-role-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lfg-role-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lfg-role-row input {
+  flex: 1;
+}
+.lfg-role-row .btn {
+  white-space: nowrap;
+  min-width: 112px;
+  justify-content: center;
+}
+.lfg-role-edit > .btn {
+  align-self: flex-start;
+}
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.stepper b {
+  min-width: 26px;
+  text-align: center;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 14px;
+  cursor: pointer;
+}
+.sched-item .link {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---- Takım kur: oyuna göre şekil alan kart ve pencere ---- */
+.xcard.lfg.themed,
+.lfg-dialog.themed {
+  --accent: var(--g-a);
+  --accent-ink: var(--g-ink);
+}
+.xcard.lfg.themed {
+  --xc-line: color-mix(in srgb, var(--g-a) 45%, transparent);
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--g-b) 10%, transparent), transparent 60%),
+    var(--g-bg);
+  color: #f2f2f4;
+}
+.xcard.lfg.themed .xcard-foot {
+  background: rgba(0, 0, 0, 0.22);
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+.xcard.lfg.themed .xcard-title small,
+.xcard.lfg.themed .xcard-muted,
+.xcard.lfg.themed .xcard-note {
+  color: rgba(255, 255, 255, 0.68);
+}
+.xcard.lfg.themed .lfg-slot {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #f2f2f4;
+}
+.xcard.lfg.themed .lfg-slot.taken {
+  background: color-mix(in srgb, var(--g-a) 12%, rgba(0, 0, 0, 0.25));
+  border-color: color-mix(in srgb, var(--g-a) 50%, transparent);
+}
+.xcard.lfg.themed .lfg-slot.me {
+  background: color-mix(in srgb, var(--g-a) 24%, rgba(0, 0, 0, 0.2));
+  border-color: var(--g-a);
+}
+.xcard.lfg.themed .lfg-empty {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+}
+.xcard.lfg.themed .xcard-count {
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+.xcard.lfg.themed .xcard-count.ok,
+.xcard.lfg.themed .btn.primary,
+.lfg-dialog.themed .btn.primary {
+  background: var(--g-a) !important;
+  color: var(--g-ink) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.xcard.lfg.themed .btn.ghost {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+}
+.lfg-logo {
+  border-radius: 10px;
+  flex: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.lfg-slot {
+  position: relative;
+  padding-top: 22px;
+}
+.lfg-state {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+  line-height: 1.5;
+}
+.lfg-state.on {
+  background: var(--accent);
+  color: var(--accent-ink, #111);
+}
+.lfg-state.off {
+  background: rgba(127, 127, 127, 0.18);
+  color: var(--text-3);
+}
+.xcard.lfg.themed .lfg-state.off {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* oyun seçimi */
+.lfg-games {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.lfg-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 16px 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: var(--g-bg, var(--bg-elev));
+  color: #f2f2f4;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.lfg-game:hover {
+  transform: translateY(-2px);
+  border-color: var(--g-a, var(--accent));
+}
+.lfg-game:not([style]) {
+  color: var(--text);
+}
+.lfg-game-other {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px dashed var(--line-2);
+  color: var(--text-2);
+}
+
+/* oyuna göre pencere */
+.modal.lfg-dialog.themed .modal-head {
+  border-radius: 14px 14px 0 0;
+  background: var(--g-bg);
+  padding-bottom: 14px;
+}
+.modal.lfg-dialog.themed .modal-head h2 {
+  color: #fff;
+}
+.lfg-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--g-bg, var(--bg-elev));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: #f2f2f4;
+}
+.lfg-dialog:not(.themed) .lfg-hero {
+  color: var(--text);
+}
+.lfg-hero > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.lfg-hero b {
+  font-size: 19px;
+}
+.lfg-hero small {
+  font-size: 12.5px;
+  opacity: 0.7;
+}
+.lfg-custom {
+  min-height: 34px !important;
+  font-size: 16px !important;
+}
+.lfg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lfg-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lfg-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.lfg-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink, #111);
+}
+.lfg-preview {
+  display: grid;
+  gap: 8px;
+}
+.lfg-pslot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 62px;
+  padding: 24px 4px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-2);
+  background: var(--bg-elev);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.lfg-pslot:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.lfg-pslot b {
+  font-size: 13px;
+}
+.lfg-pslot.mine {
+  border-style: solid;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-elev));
+}
+.lfg-pslot:not(:disabled):hover {
+  border-color: var(--accent);
+}
+.stepper small {
+  color: var(--text-3);
+}
+.modal.lfg-dialog.themed {
+  background: var(--g-bg);
+  border: 1px solid color-mix(in srgb, var(--g-a) 45%, transparent);
+  color: #f2f2f4;
+}
+.modal.lfg-dialog.themed .modal-head {
+  background: transparent;
+}
+.modal.lfg-dialog.themed .modal-foot {
+  background: rgba(0, 0, 0, 0.25);
+}
+.modal.lfg-dialog.themed .lfg-hero {
+  background: rgba(0, 0, 0, 0.22);
+}
+.modal.lfg-dialog.themed .field > span {
+  color: rgba(255, 255, 255, 0.7);
+}
+.modal.lfg-dialog.themed .lfg-pslot {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #f2f2f4;
+}
+.modal.lfg-dialog.themed .lfg-pslot.mine {
+  background: color-mix(in srgb, var(--g-a) 22%, rgba(0, 0, 0, 0.2));
+  border-color: var(--g-a);
+}
+.modal.lfg-dialog.themed .lfg-chip {
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.modal.lfg-dialog.themed .lfg-chip.on {
+  color: var(--g-ink);
+  border-color: var(--g-a);
+}
+.modal.lfg-dialog.themed .btn.ghost {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+.modal.lfg-dialog.themed input {
+  background: rgba(0, 0, 0, 0.28) !important;
+  color: #fff;
+}
+.modal.lfg-dialog.themed .lfg-state.off {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ilan altı: sese katıl, oyuna katıl */
+.lfg-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 14px 12px;
+}
+.lfg-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-size: 13px;
+}
+.lfg-row > svg {
+  color: var(--accent);
+  flex: none;
+}
+.lfg-row-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lfg-row-text.muted {
+  opacity: 0.65;
+}
+.lfg-avs {
+  display: flex;
+}
+.lfg-avs > * + * {
+  margin-left: -6px;
+}
+.lfg-row .btn {
+  flex: none;
+}
+
+/* ---- lobi görünümü: sancaklar (LoL, Dota 2) ---- */
+.lfg-banners {
+  display: grid;
+  gap: 8px;
+  padding: 4px 14px 14px;
+}
+.bn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 6px 30px;
+  border: 0;
+  color: #f2f2f4;
+  font: inherit;
+  cursor: pointer;
+  clip-path: polygon(0 0, 100% 0, 100% 84%, 50% 100%, 0 84%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.35));
+  transition: transform 0.18s var(--ease), filter 0.18s;
+}
+.bn::before {
+  /* sancağın kenar çizgisi */
+  content: '';
+  position: absolute;
+  inset: 0;
+  clip-path: inherit;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 25%, transparent) 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1px;
+  pointer-events: none;
+}
+.bn::after {
+  /* üstteki asma çubuğu */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+}
+.bn.open {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.3));
+  color: rgba(255, 255, 255, 0.55);
+}
+.bn.open::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.05) 70%);
+}
+.bn.open::after {
+  background: rgba(255, 255, 255, 0.25);
+}
+.bn:not(:disabled):hover {
+  transform: translateY(-2px);
+  filter: brightness(1.15);
+}
+.bn:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.bn.me {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 38%, transparent), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.3));
+}
+.bn-role {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.bn.open .bn-role {
+  color: rgba(255, 255, 255, 0.5);
+}
+.bn-frame {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--accent), color-mix(in srgb, var(--accent) 30%, #000), var(--accent), color-mix(in srgb, var(--g-b, var(--accent)) 70%, #000), var(--accent));
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.bn-frame > :first-child {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
+}
+.bn.open .bn-frame {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.bn-plus {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.bn:not(:disabled):hover .bn-plus {
+  color: var(--accent);
+}
+.bn-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  line-height: 1.2;
+}
+.bn-plate b {
+  max-width: 100%;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bn-plate small {
+  font-size: 11px;
+  opacity: 0.6;
+  min-height: 13px;
+}
+[data-style='destan'] .bn-plate b {
+  font-family: 'Marcellus', serif;
+  letter-spacing: 0.3px;
+}
+
+/* ---- lobi görünümü: rütbe plakaları (CS2, PUBG, THE FINALS) ---- */
+.lfg-plates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 14px 14px;
+}
+.pl-row {
+  display: grid;
+  grid-template-columns: 18px 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 10px;
+  border: 0;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, rgba(0, 0, 0, 0.3)), rgba(0, 0, 0, 0.25) 60%);
+  color: #f2f2f4;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.15s;
+}
+.pl-row.open {
+  border-left-color: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+}
+.pl-row.me {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, rgba(0, 0, 0, 0.3)), rgba(0, 0, 0, 0.25) 70%);
+}
+.pl-row:not(:disabled):hover {
+  filter: brightness(1.18);
+  transform: translateX(2px);
+}
+.pl-row:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.pl-ix {
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+.pl-av {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.pl-av > * {
+  border-radius: 6px !important;
+}
+.pl-av.empty {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 18px;
+}
+.pl-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.pl-name b {
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pl-name small {
+  font-size: 11.5px;
+  opacity: 0.6;
+}
+.pl-rank {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 108px;
+  height: 26px;
+  padding: 0 12px 0 8px;
+  transform: skewX(-14deg);
+  border: 1px solid var(--accent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 35%, #0b0d12), #0b0d12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.pl-rank i {
+  width: 4px;
+  height: 14px;
+  background: var(--accent);
+  opacity: 0.9;
+}
+.pl-rank i + i {
+  opacity: 0.55;
+  margin-right: 5px;
+}
+.pl-rank span {
+  transform: skewX(14deg);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
+}
+.pl-row.open .pl-rank {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+}
+.pl-row.open .pl-rank i {
+  background: rgba(255, 255, 255, 0.3);
+}
+.pl-row.open .pl-rank span {
+  color: rgba(255, 255, 255, 0.6);
+}
+.lfg-games {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.modal.xdialog:has(.lfg-games) {
+  width: 620px;
+}
+.lfg-games.locked .lfg-game {
+  cursor: default;
+  opacity: 0.45;
+  filter: grayscale(0.7);
+}
+.lfg-games.locked .lfg-game.live {
+  opacity: 1;
+  filter: none;
+  border-color: var(--g-a);
+}
+.lfg-game small {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.lfg-hint {
+  font-size: 12.5px;
+  color: var(--text-3);
+}

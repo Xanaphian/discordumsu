@@ -4,44 +4,74 @@ import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
   ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Settings, Bell, BellOff, EyeOff, Globe,
   Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Dices, Coins, Braces, UserRound, Phone, Video,
+  Swords, ChartNoAxesColumn, CalendarClock, Bookmark, BookmarkCheck,
 } from 'lucide-react';
+import { parseCard, isCardReaction } from '../lib/cards';
+import { CardView, LfgCreator, PollCreator, ScheduleDialog } from './Cards';
+import { CatchUp, summarize } from './CatchUp';
+import { SavedPopover, ScheduledStrip } from './Later';
+import { useLater, toggleSaved, isSaved } from '../lib/later';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
   openModal, confirmDialog, retryMessage, discardMessage, markRead, uploadFile, hostHttp, toast, updateSettings, request, jumpToMessage,
-  selectChannel, jumpToPresent, plainText, toggleMuted, addFriend, acceptFriend,
+  selectChannel, jumpToPresent, plainText, toggleMuted, addFriend, acceptFriend, readBeforeOpen,
 } from '../lib/store';
 import { activeCustom } from '../../shared/profile';
 import { DmCall } from './Media';
 import { useVoice, joinVoice, toggleCamera } from '../lib/voice';
 import { Avatar, Tooltip, STATUS_LABEL } from './Common';
 import { NameText } from './profile/ProfileCard';
-import { EmojiPicker } from './Overlays';
+import { EmojiPicker, type PickerMedia } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
-import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles } from '../lib/util';
+import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles, memberOf } from '../lib/util';
 import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
 import { can, canIn, channelPerms, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
+import { LinkPreviews } from './BaglantiOnizleme';
+import { PopoutButton } from './AyriPencere';
 
 const BASE = 1_000_000;
 const GROUP_MS = 7 * 60 * 1000;
 const drafts = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
-function useMdCtx(c: Community): MdCtx {
-  const users = useStore((s) => s.users);
+// Kullanıcı adlarının imzası: kullanıcı listesi her değiştiğinde değil, yalnız bir ad değiştiğinde yeni değer verir.
+// (Profil, etkinlik özeti gibi güncellemeler bütün mesajları yeniden işletmesin.)
+let namesOf: unknown = null;
+let namesSig = '';
+function namesKey(users: Record<string, { name: string }>) {
+  if (namesOf !== users) {
+    namesOf = users;
+    let k = '';
+    for (const id in users) k += id + '\u0001' + users[id].name + '\u0002';
+    namesSig = k;
+  }
+  return namesSig;
+}
+
+export function useMdCtx(c: Community): MdCtx {
+  const names = useStore((s) => namesKey(s.users));
   const me = useStore((s) => s.me.id);
+  const cRef = useRef(c);
+  cRef.current = c;
   return useMemo(
     () => ({
       meId: me,
-      userName: (id) => (c.users[id] || users[id] ? displayName(c, id, users) : null),
+      base: hostHttp(c.id),
+      userName: (id) => {
+        const c = cRef.current;
+        const users = useStore.getState().users;
+        return c.users[id] || users[id] ? displayName(c, id, users) : null;
+      },
       channelName: (id) => c.channels.find((x) => x.id === id)?.name ?? null,
       onUser: (id, e) => useStore.setState({ popout: { uid: id, cid: c.id, x: e.clientX, y: e.clientY } }),
       onChannel: (id) => c.channels.some((x) => x.id === id) && selectChannel(c.id, id),
       roleInfo: (id) => {
         const r = c.roles.find((x) => x.id === id);
-        return r ? { name: r.name, color: r.color, mine: !!c.members.find((m) => m.userId === me)?.roles.includes(id) } : null;
+        return r ? { name: r.name, color: r.color, mine: !!memberOf(c, me)?.roles.includes(id) } : null;
       },
     }),
-    [c, users, me],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [c.id, c.members, c.roles, c.channels, names, me],
   );
 }
 
@@ -91,7 +121,7 @@ const AttachmentView = memo(function AttachmentView({ a, base }: { a: Attachment
 
 const Reactions = memo(function Reactions({ m, me }: { m: Message; me: string }) {
   const users = useStore((s) => s.users);
-  const entries = Object.entries(m.reactions || {});
+  const entries = Object.entries(m.reactions || {}).filter(([e]) => !isCardReaction(e));
   if (!entries.length) return null;
   return (
     <div className="reactions">
@@ -119,15 +149,17 @@ const Reactions = memo(function Reactions({ m, me }: { m: Message; me: string })
 });
 
 // tek bir global emoji seçici
-let pickerSetter: ((p: { x: number; y: number; onPick: (e: string) => void } | null) => void) | null = null;
-export function openPicker(x: number, y: number, onPick: (e: string) => void) {
-  pickerSetter?.({ x, y, onPick });
+type PickerReq = { x: number; y: number; onPick: (e: string) => void; media?: PickerMedia };
+let pickerSetter: ((p: PickerReq | null) => void) | null = null;
+export function openPicker(x: number, y: number, onPick: (e: string) => void, media?: PickerMedia) {
+  pickerSetter?.({ x, y, onPick, media });
 }
 export function PickerHost() {
-  const [p, setP] = useState<{ x: number; y: number; onPick: (e: string) => void } | null>(null);
+  const [p, setP] = useState<PickerReq | null>(null);
   pickerSetter = setP;
   if (!p) return null;
-  return <EmojiPicker x={p.x} y={p.y} onPick={(e) => (p.onPick(e), setP(null))} onClose={() => setP(null)} />;
+  const media = p.media && { ...p.media, onSend: (t: string) => (p.media!.onSend(t), setP(null)) };
+  return <EmojiPicker x={p.x} y={p.y} onPick={(e) => (p.onPick(e), setP(null))} onClose={() => setP(null)} media={media} />;
 }
 
 function EditBox({ m, onDone }: { m: Message; onDone: () => void }) {
@@ -137,11 +169,15 @@ function EditBox({ m, onDone }: { m: Message; onDone: () => void }) {
     const el = ref.current!;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
+    // Son mesajı düzenlerken kutu ve ipucu yazı kutusunun arkasında kalmasın
+    const t = setTimeout(() => el.closest('.edit-box')?.scrollIntoView({ block: 'nearest' }), 60);
+    return () => clearTimeout(t);
   }, []);
   useLayoutEffect(() => {
     const el = ref.current!;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 400) + 'px';
+    // +2: çerçeve payı; yoksa tek satırda bile kaydırma çubuğu çıkıyor
+    el.style.height = Math.min(el.scrollHeight + 2, 400) + 'px';
   }, [v]);
   const save = () => {
     const t = replaceShortcodes(v.trim());
@@ -188,25 +224,48 @@ interface ItemProps {
   compact: boolean;
 }
 
+// Yanıtlanan mesajı bulmak için kanal başına dizin (her mesaj için listeyi taramamak için)
+const itemIdx = new WeakMap<CMessage[], Map<string, CMessage>>();
+function findItem(items: CMessage[] | undefined, id: string) {
+  if (!items) return undefined;
+  let idx = itemIdx.get(items);
+  if (!idx) {
+    idx = new Map();
+    for (const x of items) if (!idx.has(x.id)) idx.set(x.id, x);
+    itemIdx.set(items, idx);
+  }
+  return idx.get(id);
+}
+
+// Topluluk nesnesi her profil güncellemesinde yenilenir; mesaj yalnız kendisini ilgilendiren alanlar değişince yeniden çizilsin.
+function sameItem(a: ItemProps, b: ItemProps) {
+  for (const k of Object.keys(a) as (keyof ItemProps)[]) if (k !== 'c' && a[k] !== b[k]) return false;
+  const x = a.c, y = b.c;
+  return x === y || (x.id === y.id && x.ownerId === y.ownerId && x.members === y.members && x.roles === y.roles && x.channels === y.channels && x.users[a.m.authorId] === y.users[b.m.authorId]);
+}
+
 const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, isEditing, isNew, highlight, compact }: ItemProps) {
-  const users = useStore((s) => s.users);
-  const parent = useStore((s) => (m.replyTo ? s.chans[m.channelId]?.items.find((x) => x.id === m.replyTo) : undefined));
+  const authorUser = useStore((s) => s.users[m.authorId]);
+  const parent = useStore((s) => (m.replyTo ? findItem(s.chans[m.channelId]?.items, m.replyTo) : undefined));
+  const parentUser = useStore((s) => (parent ? s.users[parent.authorId] : undefined));
   const newDay = !prev || !sameDay(prev.ts, m.ts);
   const grouped =
     !!prev && !newDay && !m.replyTo && !m.kind && !prev.kind && prev.authorId === m.authorId && m.ts - prev.ts < GROUP_MS && !prev.failed;
-  const author = users[m.authorId] || c.users[m.authorId];
-  const name = displayName(c, m.authorId, users);
+  const author = authorUser || c.users[m.authorId];
+  const name = displayName(c, m.authorId, authorUser ? { [m.authorId]: authorUser } : {});
   const color = roleColor(c, m.authorId);
   const mine = m.authorId === me;
-  const myRoles = c.members.find((x) => x.userId === me)?.roles;
+  const myRoles = memberOf(c, me)?.roles;
   const mentioned =
     m.content.includes(`<@${me}>`) || /@(everyone|here)\b/.test(m.content) || (parent?.authorId === me && !mine) || !!myRoles?.some((r) => m.content.includes(`<@&${r}>`));
   const blocked = useStore((s) => s.settings.blocked.includes(m.authorId));
   const showJoin = useStore((s) => s.settings.showJoinMessages);
   const showIcons = useStore((s) => s.settings.showRoleIcons);
   const [reveal, setReveal] = useState(false);
-  const roleIcon = showIcons ? memberRoles(c, c.members.find((x) => x.userId === m.authorId)).find((r) => r.icon)?.icon : undefined;
-  const body = useMemo(() => (m.content ? renderMarkdown(m.content, md) : null), [m.content, md]);
+  const roleIcon = showIcons ? memberRoles(c, memberOf(c, m.authorId)).find((r) => r.icon)?.icon : undefined;
+  const card = useMemo(() => parseCard(m.content), [m.content]);
+  const body = useMemo(() => (m.content && !card ? renderMarkdown(m.content, md) : null), [m.content, md, card]);
+  const saved = useLater((s) => isSaved(s.saved, m.id));
   const jumbo = useMemo(() => isEmojiOnly(m.content), [m.content]);
   const base = hostHttp(c.id);
 
@@ -224,7 +283,8 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
     openMenu(e, [
       { emojis: QUICK_REACTIONS, onEmoji: (x) => toggleReaction(m, x) },
       { label: 'Yanıtla', onClick: reply },
-      ...(mine ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
+      ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
+      { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
       ...(canManage ? [{ label: m.pinned ? 'Sabitlemeyi kaldır' : 'Mesajı sabitle', onClick: () => pinMessage(m.channelId, m.id, !m.pinned) }] : []),
       { label: 'Metni kopyala', onClick: () => copyText(plainText(m.content, c)) },
       { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
@@ -291,7 +351,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
         )}
         onContextMenu={more}
         onDoubleClick={(e) => {
-          if (mine && !isEditing && !(e.target as HTMLElement).closest('a,button,.att-img,.md-pre')) startEdit();
+          if (mine && !card && !isEditing && !(e.target as HTMLElement).closest('a,button,.att-img,.md-pre')) startEdit();
         }}
       >
         {m.replyTo && (
@@ -299,9 +359,9 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
             <CornerUpLeft size={14} className="reply-curve" />
             {parent ? (
               <>
-                <Avatar user={users[parent.authorId]} size={16} />
+                <Avatar user={parentUser} size={16} />
                 <span className="reply-name" style={{ color: roleColor(c, parent.authorId) || undefined }}>
-                  {displayName(c, parent.authorId, users)}
+                  {displayName(c, parent.authorId, parentUser ? { [parent.authorId]: parentUser } : {})}
                 </span>
                 <span className="reply-text">{plainText(parent.content, c) || (parent.attachments?.length ? 'Ek dosya' : '')}</span>
               </>
@@ -330,7 +390,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 </span>
                 {roleIcon && <span className="role-icon">{roleIcon}</span>}
                 {m.authorId === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}
-                {(users[m.authorId] || c.users[m.authorId])?.bot && <span className="tag-bot">BOT</span>}
+                {author?.bot && <span className="tag-bot">BOT</span>}
                 {c.ownerId === m.authorId && m.authorId !== 'kovan-asistan' && (
                   <Tooltip text="Topluluk sahibi" side="top">
                     <span className="owner-crown">♛</span>
@@ -346,6 +406,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 )}
               </div>
             )}
+            {card && !isEditing && <CardView m={m} card={card} c={c} me={me} />}
             {isEditing ? (
               <EditBox m={m} onDone={() => useStore.setState({ editing: null })} />
             ) : (
@@ -368,6 +429,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 ))}
               </div>
             )}
+            {!isEditing && <LinkPreviews content={m.content} />}
             <Reactions m={m} me={me} />
             {m.failed && (
               <div className="msg-failed">
@@ -407,7 +469,12 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 <Reply size={17} />
               </button>
             </Tooltip>
-            {mine && (
+            <Tooltip text={saved ? 'Kaydedildi' : 'Kaydet'} side="top">
+              <button className={cx('mt-btn', saved && 'on')} onClick={() => toggleSaved(c.id, m)}>
+                {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+              </button>
+            </Tooltip>
+            {mine && !card && (
               <Tooltip text="Düzenle" side="top">
                 <button className="mt-btn" onClick={startEdit}>
                   <Pencil size={16} />
@@ -431,7 +498,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
       </div>
     </>
   );
-});
+}, sameItem);
 
 function DayDivider({ ts }: { ts: number }) {
   return (
@@ -443,12 +510,10 @@ function DayDivider({ ts }: { ts: number }) {
 
 // ---------------------------------------------------------------------------
 function ChannelStart({ c, ch, loading, more }: { c?: Community; ch: Channel; loading: boolean; more: boolean }) {
+  // Dönen simge yalnız gerçekten yüklenirken çizilir: daha eski mesaj varken hep dönmesi (görünmese bile)
+  // pencere açıkken arayüzü saniyede 60 kez yeniden boyatıyordu.
   if (more || loading)
-    return (
-      <div className="list-loading">
-        <LoaderCircle size={20} className="spin" />
-      </div>
-    );
+    return <div className="list-loading">{loading ? <LoaderCircle size={20} className="spin" /> : <span className="list-loading-slot" aria-hidden />}</div>;
   if (c?.dm) return <DmStart c={c} />;
   return (
     <div className="ch-start">
@@ -491,6 +556,30 @@ function DmStart({ c }: { c: Community }) {
   );
 }
 
+// Virtuoso'nun üst/alt parçaları sabit bileşenler: her çizimde yeni bileşen verilirse baştan kurulurlar
+type ListCtx = { c: Community; ch: Channel; loading: boolean; more: boolean };
+const LIST_PARTS = {
+  Header: ({ context }: { context?: ListCtx }) => (context ? <ChannelStart c={context.c} ch={context.ch} loading={context.loading} more={context.more} /> : null),
+  Footer: () => <div style={{ height: 18 }} />,
+};
+
+// özet kanal açıldığındaki haliyle sabit kalır (yeni gelen mesajlar özeti değiştirmez)
+const cuCache = new Map<string, ReturnType<typeof summarize>>();
+function catchUpData(items: CMessage[], readAt: string, me: string, c: Community, more: boolean, ch: string) {
+  if (!readAt || !items.length) return null;
+  const k = ch + ':' + readAt;
+  if (cuCache.has(k)) return cuCache.get(k) || null;
+  const res = summarize(items, readAt, me, c, more);
+  // kanal yenilenmeden önceki eski listeyle "özet yok" kararı verip kilitleme
+  const last = useStore.getState().lastIds[ch];
+  const fresh = !last || items[items.length - 1].id >= last;
+  if (res || fresh) {
+    if (cuCache.size > 50) cuCache.clear();
+    cuCache.set(k, res);
+  }
+  return res;
+}
+
 export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const st = useStore((s) => s.chans[ch.id]);
   const me = useStore((s) => s.me.id);
@@ -505,7 +594,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const [atBottom, setAtBottom] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
   // kanal açıldığındaki okunma noktası ("YENİ" çizgisi için)
-  const readAtOpen = useMemo(() => useStore.getState().read[ch.id] || '', [ch.id]); // eslint-disable-line
+  const readAtOpen = useMemo(() => readBeforeOpen[ch.id] ?? (useStore.getState().read[ch.id] || ''), [ch.id]); // eslint-disable-line
   const items = st?.items || [];
   const firstNewId = useMemo(() => {
     if (!readAtOpen) return null;
@@ -528,6 +617,8 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
     return () => clearTimeout(t);
   }, [jumpTo, items, ch.id]);
 
+  const headCtx = useMemo<ListCtx>(() => ({ c, ch, loading: !!st?.loading, more: !!st?.more }), [c, ch, st?.loading, st?.more]);
+
   const startReached = useCallback(() => {
     const s = useStore.getState().chans[ch.id];
     if (s?.more && !s.loading && s.items.length) loadHistory(ch.id, s.items.find((x) => !x.id.startsWith('~'))?.id);
@@ -548,10 +639,12 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
       </div>
     );
 
+  const catchUp = catchUpData(items, readAtOpen, me, c, st.more, ch.id);
   const detachedOrBehind = st.detached || (lastId && items.length && items[items.length - 1].id < lastId && !items[items.length - 1].id.startsWith('~'));
 
   return (
     <div className="msg-list">
+      {catchUp && <CatchUp key={ch.id + readAtOpen} c={c} ch={ch} data={catchUp} />}
       <Virtuoso
         key={ch.id + ':' + (st.epoch || 0)}
         ref={ref}
@@ -566,10 +659,8 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
         startReached={startReached}
         increaseViewportBy={{ top: 600, bottom: 400 }}
         computeItemKey={(_i, m) => m.nonce || m.id}
-        components={{
-          Header: () => <ChannelStart c={c} ch={ch} loading={st.loading} more={st.more} />,
-          Footer: () => <div style={{ height: 18 }} />,
-        }}
+        context={headCtx}
+        components={LIST_PARTS}
         itemContent={(index, m) => {
           const i = index - (BASE - st.prepended);
           return (
@@ -726,6 +817,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [plusOpen, setPlusOpen] = useState(false);
+  const [dlg, setDlg] = useState<null | 'lfg' | 'poll' | 'sched'>(null);
   const [fmtOpen, setFmtOpen] = useState(false);
   const rec = useRecorder((f) => addFiles([f]));
   const cp = channelPerms(c, me, ch);
@@ -949,8 +1041,29 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
       </div>
     );
 
+  const openSched = () => {
+    if (!value.trim()) return toast('Önce zamanlamak istediğin mesajı yaz.', 'info');
+    if (files.length) return toast('Dosyalı mesajlar zamanlanamaz; dosyayı şimdi gönder.', 'info');
+    setDlg('sched');
+  };
+
   return (
     <div className="composer">
+      {dlg === 'lfg' && <LfgCreator ch={ch.id} onClose={() => setDlg(null)} />}
+      {dlg === 'poll' && <PollCreator ch={ch.id} onClose={() => setDlg(null)} />}
+      {dlg === 'sched' && (
+        <ScheduleDialog
+          cid={c.id}
+          ch={ch.id}
+          content={encode(value.trim())}
+          onClose={() => setDlg(null)}
+          onDone={() => {
+            setValue('');
+            drafts.delete(ch.id);
+          }}
+        />
+      )}
+      <ScheduledStrip ch={ch.id} />
       {sug && (
         <div className="suggest">
           <div className="suggest-title">{sug.kind === 'user' ? 'Üyeler' : sug.kind === 'channel' ? 'Kanallar' : 'Emoji'}</div>
@@ -1027,6 +1140,28 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
               <span>
                 <b>Sürpriz metin</b>
                 <small>Tıklayınca görünür</small>
+              </span>
+            </button>
+            <div className="cp-sep" />
+            <button onClick={() => setDlg('lfg')}>
+              <Swords size={17} />
+              <span>
+                <b>Takım kur</b>
+                <small>Boş yerlere tek tıkla katılınır</small>
+              </span>
+            </button>
+            <button onClick={() => setDlg('poll')}>
+              <ChartNoAxesColumn size={17} />
+              <span>
+                <b>Anket</b>
+                <small>Canlı sonuçlu oylama</small>
+              </span>
+            </button>
+            <button onClick={openSched}>
+              <CalendarClock size={17} />
+              <span>
+                <b>Zamanlanmış gönder</b>
+                <small>Yazdığın mesaj sonra gitsin</small>
               </span>
             </button>
             <div className="cp-sep" />
@@ -1166,16 +1301,22 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
             className="composer-btn"
             onClick={(ev) => {
               const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-              openPicker(r.right - 352, r.top, (e) => {
-                const el = ta.current!;
-                const s = el.selectionStart ?? value.length;
-                const next = value.slice(0, s) + e + value.slice(el.selectionEnd ?? s);
-                setValue(next);
-                requestAnimationFrame(() => {
-                  el.focus();
-                  el.setSelectionRange(s + e.length, s + e.length);
-                });
-              });
+              openPicker(
+                r.right - 424,
+                r.top,
+                (e) => {
+                  const el = ta.current!;
+                  const s = el.selectionStart ?? value.length;
+                  const next = value.slice(0, s) + e + value.slice(el.selectionEnd ?? s);
+                  setValue(next);
+                  requestAnimationFrame(() => {
+                    el.focus();
+                    el.setSelectionRange(s + e.length, s + e.length);
+                  });
+                },
+                // GIF ve çıkartma ayrı bir mesaj olarak hemen gider; yazılan metin kutuda kalır
+                { cid: c.id, onSend: (token) => (sendMessage(ch.id, token), requestAnimationFrame(() => ta.current?.focus())) },
+              );
             }}
             aria-label="Emoji"
           >
@@ -1183,8 +1324,14 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
           </button>
         </Tooltip>
         {(value.trim() || files.length > 0) && (
-          <Tooltip text="Gönder" side="top">
-            <button className="composer-btn cp-send" onClick={submit} aria-label="Gönder" disabled={uploading}>
+          <Tooltip text="Gönder · sağ tık: zamanla" side="top">
+            <button
+              className="composer-btn cp-send"
+              onClick={submit}
+              onContextMenu={(e) => (e.preventDefault(), openSched())}
+              aria-label="Gönder"
+              disabled={uploading}
+            >
               <SendHorizontal size={18} />
             </button>
           </Tooltip>
@@ -1279,6 +1426,7 @@ function DmHeader({ c, ch, pins, setPins }: { c: Community; ch: Channel; pins: b
             <Pin size={19} />
           </button>
         </Tooltip>
+        <PopoutButton c={c} ch={ch} />
         <Tooltip text={membersOpen ? 'Profili gizle' : 'Profili göster'} side="bottom">
           <button className={cx('icon-btn', membersOpen && 'active')} onClick={() => updateSettings({ membersOpen: !membersOpen })} aria-label="Profil">
             <UserRound size={19} />
@@ -1296,6 +1444,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const me = useStore((s) => s.me.id);
   const editCh = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const [pins, setPins] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
   const [q, setQ] = useState('');
   if (c.dm) return <DmHeader c={c} ch={ch} pins={pins} setPins={setPins} />;
   return (
@@ -1337,6 +1486,12 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
             <Pin size={19} />
           </button>
         </Tooltip>
+        <Tooltip text="Kaydedilenler" side="bottom">
+          <button className={cx('icon-btn', savedOpen && 'active')} onClick={() => setSavedOpen((x) => !x)} aria-label="Kaydedilenler">
+            <Bookmark size={19} />
+          </button>
+        </Tooltip>
+        <PopoutButton c={c} ch={ch} />
         <Tooltip text={membersOpen ? 'Üye listesini gizle' : 'Üye listesini göster'} side="bottom">
           <button className={cx('icon-btn', membersOpen && 'active')} onClick={() => updateSettings({ membersOpen: !membersOpen })} aria-label="Üye listesi">
             <Users size={19} />
@@ -1354,6 +1509,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
           <Search size={15} />
         </div>
         {pins && <PinsPopover c={c} ch={ch} onClose={() => setPins(false)} />}
+        {savedOpen && <SavedPopover onClose={() => setSavedOpen(false)} />}
       </div>
     </div>
   );

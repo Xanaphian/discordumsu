@@ -15,6 +15,11 @@ import { SiteView } from './components/SiteView';
 import { Logo } from './components/Common';
 import { DESTAN_FAMILY } from './components/Appearance';
 import { isVoiceLike } from '../shared/protocol';
+import { PopoutApp, usePopoutReturn } from './components/AyriPencere';
+import { isToolChannel } from '../shared/protocol';
+import { ToolView } from './components/Tools';
+import { startOverlay } from './lib/overlay';
+import { ExploreView, startCommunityWatch } from './components/ToplulukAraclari';
 
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
@@ -99,11 +104,18 @@ function useShortcuts() {
   }, []);
 }
 
+/** Ayrı pencerenin kökü (tema ve kısayollar ana pencereyle aynı) */
+export function PopoutRoot() {
+  useTheme();
+  return <PopoutApp />;
+}
+
 function Main() {
   const current = useStore((s) => s.current);
   const c = useStore((s) => (s.current !== 'home' ? s.communities[s.current] : undefined));
   const chId = useStore((s) => (s.current !== 'home' ? s.chanByComm[s.current] : undefined));
   const membersOpen = useStore((s) => s.settings.membersOpen);
+  if (current === 'explore') return <ExploreView />;
   if (current === 'home' || !c) return <HomeView />;
   const ch = c.channels.find((x) => x.id === chId);
   if (!ch)
@@ -125,8 +137,8 @@ function Main() {
     );
   return (
     <>
-      {ch.type === 'space' ? <SpaceView c={c} ch={ch} /> : ch.type === 'site' ? <SiteView c={c} ch={ch} /> : ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
-      {membersOpen && !isVoiceLike(ch.type) && ch.type !== 'site' && <MemberList c={c} />}
+      {ch.type === 'space' ? <SpaceView c={c} ch={ch} /> : ch.type === 'site' ? <SiteView c={c} ch={ch} /> : ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : isToolChannel(ch.type) ? <ToolView key={ch.id} c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
+      {membersOpen && !isVoiceLike(ch.type) && ch.type !== 'site' && !isToolChannel(ch.type) && <MemberList c={c} />}
     </>
   );
 }
@@ -136,6 +148,12 @@ export function App() {
   const onboarded = useStore((s) => s.onboarded);
   useTheme();
   useShortcuts();
+  usePopoutReturn();
+  useEffect(() => {
+    if (!booted) return;
+    startOverlay();
+    startCommunityWatch();
+  }, [booted]);
   if (!booted)
     return (
       <div className="splash">

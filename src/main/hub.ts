@@ -11,11 +11,13 @@ import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
-  hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
-  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo,
+  hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
+  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN,
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
+import { sanitizeStickers } from '../shared/stickers';
+import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
 const MAX_CONTENT = 4000;
 const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -142,6 +144,8 @@ class ChannelLog {
 interface StoredUser {
   pub: UserPublic;
   secretHash: string;
+  /** bu sunucuyu ilk kullandığı an (katılma korumasındaki hesap yaşı); 1 = sürüm 1.27'den önce gelmiş eski hesap */
+  since?: number;
 }
 
 interface HubData {
@@ -156,6 +160,8 @@ interface HubData {
   friendCodes?: Record<string, ID>;
   /** merkezi sunucuya taşınan topluluklar: topluluk -> sunucu adresi */
   moved?: Record<ID, string>;
+  /** özel mesaj gizliliği: yalnız arkadaşlarından yeni mesaj alan kullanıcılar */
+  dmFriendsOnly?: Record<ID, 1>;
 }
 
 /** Bir topluluğun taşınma paketi (yerel kovan → merkezi sunucu) */
@@ -206,6 +212,8 @@ interface Session {
 }
 
 export const BOT_ID = 'kovan-asistan';
+/** Araç kanallarının adı boş bırakılınca kullanılan adlar */
+const TOOL_NAMES: Record<ToolType, string> = { ideas: 'Öneri panosu', tasks: 'Görev panosu', events: 'Etkinlikler', wall: 'Ortak duvar' };
 
 const HATS = ['none', 'antenna', 'crown', 'cap', 'wizard', 'halo', 'headphones'] as const;
 function cleanLook(l: Partial<AvatarLook> | undefined): AvatarLook {
@@ -219,6 +227,8 @@ export class Hub {
   private dir: string;
   private data!: HubData;
   private comms = new Map<ID, StoredCommunity>();
+  /** katılma koruması: topluluk başına son bir dakikadaki katılım anları */
+  private joinTimes = new Map<ID, number[]>();
   private chanToComm = new Map<ID, ID>();
   private logs = new Map<ID, ChannelLog>();
   private sessions = new Set<Session>();
@@ -431,7 +441,16 @@ export class Hub {
   async start(preferredPort: number, host = '0.0.0.0'): Promise<number> {
     this.init();
     this.server = http.createServer((req, res) => this.handleHttp(req, res));
-    this.wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: { threshold: 1024 } });
+    this.wss = new WebSocketServer({
+      noServer: true,
+      maxPayload: 2 * 1024 * 1024,
+      perMessageDeflate: {
+        threshold: 1024,
+        // Hızlı sıkıştırma ve küçük pencere: oran neredeyse aynı (JSON), işlemci ~3 kat, bağlantı başına bellek ~2,5 kat daha az.
+        zlibDeflateOptions: { level: 1, memLevel: 7 },
+        serverMaxWindowBits: 13,
+      },
+    });
     this.server.on('upgrade', (req, socket, head) => {
       if (!req.url?.startsWith('/ws')) return socket.destroy();
       this.wss!.handleUpgrade(req, socket, head, (ws) => this.attach(ws as unknown as Sock, req.socket.remoteAddress || ''));
@@ -712,12 +731,16 @@ export class Hub {
   }
 
   /** Kullanıcıya özel topluluk görüntüsü: göremediği kanallar ve yönetim verileri çıkarılır. */
-  private snapshot(c: StoredCommunity, uid?: ID): Community {
+  private commUsers(c: StoredCommunity): Record<ID, UserPublic> {
     const users: Record<ID, UserPublic> = {};
     for (const m of c.members) {
       const u = this.data.users[m.userId];
       if (u) users[m.userId] = u.pub;
     }
+    return users;
+  }
+
+  private snapshot(c: StoredCommunity, uid?: ID, users = this.commUsers(c)): Community {
     const { bans: _b, audit: _a, m11: _m, m112: _m2, ...rest } = c;
     const out: Community = { ...rest, users };
     if (uid) {
@@ -749,7 +772,17 @@ export class Hub {
 
   private pushComm(c: StoredCommunity) {
     this.saveComm(c.id);
-    for (const s of this.memberSessions(c)) this.send(s, { t: 'comm', c: this.snapshot(c, s.userId!), lastIds: this.lastIdsFor(c, s.userId!) });
+    // Üyelerin çoğu topluluğu aynı görür: aynı görünüm (görülen kanallar + davet bilgisi) bir kez paketlenir.
+    // Eskiden her üye için ayrı ayrı paketleniyordu; kalabalık toplulukta her katılma sunucuyu yüzlerce ms kilitliyordu.
+    const users = this.commUsers(c);
+    const packed = new Map<string, string>();
+    for (const s of this.memberSessions(c)) {
+      const snap = this.snapshot(c, s.userId!, users);
+      const key = (snap.inviteCode ? 'c' : '') + (snap.inviteKey ? 'k' : '') + '|' + snap.channels.map((ch) => ch.id).join(',');
+      let data = packed.get(key);
+      if (data === undefined) packed.set(key, (data = JSON.stringify({ t: 'comm', c: snap, lastIds: this.lastIdsFor(c, s.userId!) } satisfies ServerFrame)));
+      this.sendRaw(s, data);
+    }
   }
 
   /** Sadece kanalı görebilen üyelere gönder */
@@ -765,6 +798,37 @@ export class Hub {
     if (d) e.d = d.slice(0, 300);
     list.push(e);
     if (list.length > 300) list.splice(0, list.length - 300);
+  }
+
+  /** Katılma koruması: baskın kilidi, hesap yaşı ve dakikalık katılım sınırı. Sorun yoksa null. */
+  private joinGuardCheck(c: StoredCommunity, uid: ID): string | null {
+    const now = Date.now();
+    if (c.raidUntil && c.raidUntil > now) {
+      const m = Math.max(1, Math.ceil((c.raidUntil - now) / 60_000));
+      return `Bu toplulukta katılma koruması devrede: kısa sürede çok fazla kişi katılmaya çalıştı. ${m} dakika sonra tekrar dene.`;
+    }
+    if (c.raidUntil) delete c.raidUntil;
+    const g = c.joinGuard;
+    if (!g) return null;
+    if (g.minAgeH) {
+      const since = this.data.users[uid]?.since || 1;
+      const ageH = (now - since) / 3_600_000;
+      if (since > 1 && ageH < g.minAgeH)
+        return `Bu topluluk yalnızca en az ${fmtHours(g.minAgeH)} önce açılmış hesapları kabul ediyor. Yaklaşık ${fmtHours(Math.ceil(g.minAgeH - ageH))} sonra tekrar dene.`;
+    }
+    if (g.perMin) {
+      const list = (this.joinTimes.get(c.id) || []).filter((t) => now - t < 60_000);
+      if (list.length >= g.perMin) {
+        c.raidUntil = now + g.lockMin * 60_000;
+        this.joinTimes.delete(c.id);
+        this.audit(c, BOT_ID, 'comm.update', c.name, `baskın algılandı: bir dakikada ${list.length} katılım, yeni üyeler ${g.lockMin} dakika durduruldu`);
+        this.pushComm(c);
+        return `Bu toplulukta katılma koruması devrede: kısa sürede çok fazla kişi katılmaya çalıştı. ${g.lockMin} dakika sonra tekrar dene.`;
+      }
+      list.push(now);
+      this.joinTimes.set(c.id, list);
+    }
+    return null;
   }
 
   private userName(c: StoredCommunity, uid: ID): string {
@@ -954,7 +1018,16 @@ export class Hub {
   }
 
   private canMessage(a: ID, b: ID) {
-    return !!this.data.friends?.[dmChannelId(a, b)]?.ok || this.shareCommunity(a, b);
+    return !this.dmBlockReason(a, b);
+  }
+
+  /** a, b'ye özel mesaj yazamıyorsa nedeni (arkadaşlık, ortak topluluk ve b'nin gizlilik ayarı) */
+  private dmBlockReason(a: ID, b: ID): string | null {
+    const friends = !!this.data.friends?.[dmChannelId(a, b)]?.ok;
+    if (friends) return null;
+    if (this.data.dmFriendsOnly?.[b]) return 'Bu kişi yalnızca arkadaşlarından özel mesaj alıyor. Önce arkadaşlık isteği gönder.';
+    if (!this.shareCommunity(a, b)) return 'Bu kişiyle ortak bir topluluğun olmadığı için mesajlaşamazsın.';
+    return null;
   }
 
   /** Arkadaşları, istek bekleyenleri ve DM yazışanları (varlık/profil güncellemeleri için) */
@@ -1066,6 +1139,15 @@ export class Hub {
       case 'friend.code':
         this.send(s, { t: 'ok', rid: f.rid, data: this.friendCodeOf(uid, !!f.reset) });
         return true;
+      case 'privacy': {
+        const on = f.dms === 'friends';
+        if (on === !!this.data.dmFriendsOnly?.[uid]) return true;
+        this.data.dmFriendsOnly ||= {};
+        if (on) this.data.dmFriendsOnly[uid] = 1;
+        else delete this.data.dmFriendsOnly[uid];
+        this.saveHub();
+        return true;
+      }
     }
     return false;
   }
@@ -1096,7 +1178,9 @@ export class Hub {
     if (f.t === 'dm.open') {
       const ch = dmChannelId(uid, String(f.to || ''));
       if (!this.dmAllowed(uid, ch)) {
-        this.send(s, { t: 'err', msg: 'Bu kişiyle ortak bir topluluğun olmadığı için mesajlaşamazsın.', rid: f.rid });
+        const to = String(f.to || '');
+        const why = this.data.users[to] && to !== uid ? this.dmBlockReason(uid, to) : null;
+        this.send(s, { t: 'err', msg: why || 'Bu kişiyle ortak bir topluluğun olmadığı için mesajlaşamazsın.', rid: f.rid });
         return true;
       }
       this.dmTouch(ch, '');
@@ -1114,8 +1198,10 @@ export class Hub {
     const L = this.log(ch);
     switch (f.t) {
       case 'send': {
-        if (!this.canMessage(uid, peer))
-          return this.send(s, { t: 'err', msg: 'Bu kişiyle artık ortak bir topluluğunuz yok ve arkadaş değilsiniz, mesaj gönderemezsin.', nonce: f.nonce }), true;
+        if (!this.canMessage(uid, peer)) {
+          const why = this.data.dmFriendsOnly?.[peer] ? this.dmBlockReason(uid, peer)! : 'Bu kişiyle artık ortak bir topluluğunuz yok ve arkadaş değilsiniz, mesaj gönderemezsin.';
+          return this.send(s, { t: 'err', msg: why, nonce: f.nonce }), true;
+        }
         if (Date.now() - (s.lastSend[ch] || 0) < 80) return this.send(s, { t: 'err', msg: 'Biraz yavaş yaz.', nonce: f.nonce }), true;
         s.lastSend[ch] = Date.now();
         const content = clampStr(f.content, MAX_CONTENT).trim();
@@ -1229,10 +1315,12 @@ export class Hub {
           if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: '@' + friendOf });
           return;
         }
-        if (!c || (!code && c.inviteKey !== f.key)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
+        if (!c || (!code && c.inviteKey !== f.key && !c.listing)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           if (c.bans?.some((b) => b.userId === uid)) return this.send(s, { t: 'err', msg: 'Bu topluluktan yasaklandın.', rid: f.rid });
           if (c.invitesPaused) return this.send(s, { t: 'err', msg: 'Bu topluluk şu an yeni üye kabul etmiyor.', rid: f.rid });
+          const guardErr = this.joinGuardCheck(c, uid);
+          if (guardErr) return this.send(s, { t: 'err', msg: guardErr, rid: f.rid });
           c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
           const sys = c.systemChannelId ? c.channels.find((x) => x.id === c.systemChannelId && !isVoiceLike(x.type)) : undefined;
           const first = sys || c.channels.find((x) => !isVoiceLike(x.type) && this.canView(c, uid, x));
@@ -1292,8 +1380,15 @@ export class Hub {
       case 'edit': {
         const r = this.commOfChannel(s, f.ch);
         const m = r && this.log(f.ch).byId.get(f.id);
-        if (!r || !m || m.authorId !== uid) return;
+        if (!r || !m) return;
         let content = clampStr(f.content, MAX_CONTENT).trim();
+        if (m.authorId !== uid) {
+          // araç kanallarında pano öğesi (xn:<tür>) başkası tarafından da güncellenebilir: görev taşıma, öneri durumu…
+          const t = r.channel.type;
+          if (!isToolChannel(t) || !(channelPerms(r.c, uid, r.channel) & toolEditPerm(t))) return;
+          const kind = (x: string) => /^xn:[a-z]+ /.exec(x)?.[0];
+          if (!kind(m.content) || kind(m.content) !== kind(content)) return;
+        }
         if (!content && !m.attachments?.length) return;
         const cp = channelPerms(r.c, uid, r.channel);
         if (!(cp & Perm.MANAGE_MESSAGES)) {
@@ -1353,8 +1448,17 @@ export class Hub {
       case 'hist': {
         const r = this.commOfChannel(s, f.ch);
         if (!r) return this.send(s, { t: 'hist', rid: f.rid, ch: f.ch, msgs: [], more: false });
+        if (f.full && isToolChannel(r.channel.type) && !f.before && !f.around) {
+          const L = this.log(f.ch).list;
+          return this.send(s, { t: 'hist', rid: f.rid, ch: f.ch, msgs: L.slice(-2000), more: L.length > 2000 });
+        }
         const p = this.log(f.ch).page(f.before, f.around);
         return this.send(s, { t: 'hist', rid: f.rid, ch: f.ch, msgs: p.msgs, more: p.more });
+      }
+      case 'stats': {
+        const c = this.commFor(s, f.cid);
+        if (!c) return;
+        return this.send(s, { t: 'ok', rid: f.rid, data: this.stats(c, uid, f.days) });
       }
       case 'pins': {
         const r = this.commOfChannel(s, f.ch);
@@ -1415,7 +1519,7 @@ export class Hub {
           const owned = [...this.comms.values()].filter((x) => x.ownerId === uid).length;
           if (owned >= this.maxOwned) return this.send(s, { t: 'err', msg: `En fazla ${this.maxOwned} topluluk kurabilirsin.`, rid: f.rid });
         } else if (!s.loopback) return this.send(s, { t: 'err', msg: 'Bu sunucuda topluluk oluşturamazsın.', rid: f.rid });
-        const c = this.createCommunity(uid, cleanName(f.name, 48) || 'Yeni Topluluk', f.color, f.icon, f.template);
+        const c = this.createCommunity(uid, cleanName(f.name, 48) || 'Yeni Topluluk', f.color, f.icon, f.template, f.blueprint);
         for (const ch of c.channels) if (ch.type === 'site') this.refreshSiteMeta(c.id, ch.id);
         this.send(s, { t: 'comm', c: this.snapshot(c, uid), lastIds: this.lastIdsFor(c, uid) });
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: c.id });
@@ -1449,6 +1553,12 @@ export class Hub {
         }
         if (f.joinMessages !== undefined) (c.joinMessages = !!f.joinMessages), changed.push(`katılma mesajları ${f.joinMessages ? 'açık' : 'kapalı'}`);
         if (f.invitesPaused !== undefined) (c.invitesPaused = !!f.invitesPaused), changed.push(f.invitesPaused ? 'davetler durduruldu' : 'davetler açıldı');
+        if (f.stickers !== undefined) {
+          const st = sanitizeStickers(f.stickers);
+          if (st.length) c.stickers = st;
+          else delete c.stickers;
+          changed.push('çıkartmalar');
+        }
         if (f.automod !== undefined) {
           const a = f.automod as Partial<AutoMod>;
           c.automod = {
@@ -1464,6 +1574,57 @@ export class Hub {
         }
         if (changed.length) this.audit(c, uid, 'comm.update', c.name, changed.join(', '));
         this.pushComm(c);
+        return;
+      }
+      case 'comm.guard': {
+        const c = this.commFor(s, f.cid, Perm.MANAGE_COMMUNITY);
+        if (!c) return;
+        if (f.guard !== undefined) {
+          const g = sanitizeGuard(f.guard);
+          if (!g.minAgeH && !g.perMin) delete c.joinGuard;
+          else c.joinGuard = g;
+          this.audit(c, uid, 'comm.update', c.name, `katılma koruması: ${g.minAgeH ? 'hesap en az ' + fmtHours(g.minAgeH) : 'hesap yaşı serbest'}, ${g.perMin ? 'dakikada en çok ' + g.perMin + ' katılım' : 'hız sınırı yok'}`);
+        }
+        if (f.unlock && c.raidUntil) {
+          delete c.raidUntil;
+          this.joinTimes.delete(c.id);
+          this.audit(c, uid, 'comm.update', c.name, 'baskın kilidi kaldırıldı');
+        }
+        this.pushComm(c);
+        return;
+      }
+      case 'comm.listing': {
+        const c = this.commFor(s, f.cid, Perm.MANAGE_COMMUNITY);
+        if (!c) return;
+        const cat = f.listing && EXPLORE_CATS.some((x) => x.id === f.listing!.cat) ? f.listing.cat : null;
+        if (cat) c.listing = { cat, at: c.listing?.at || Date.now() };
+        else delete c.listing;
+        this.audit(c, uid, 'comm.update', c.name, cat ? `keşfette listelendi (${catLabel(cat)})` : 'keşfetten kaldırıldı');
+        this.pushComm(c);
+        return;
+      }
+      case 'explore': {
+        const out: ExploreItem[] = [];
+        for (const c of this.comms.values()) {
+          if (!c.listing) continue;
+          let online = 0;
+          for (const m of c.members) {
+            const set = this.userSessions.get(m.userId);
+            if (set && [...set].some((x) => x.status !== 'invisible')) online++;
+          }
+          const it: ExploreItem = { id: c.id, name: c.name, color: c.color, cat: c.listing.cat, members: c.members.filter((m) => m.userId !== BOT_ID).length, online, createdAt: c.createdAt };
+          if (c.icon) it.icon = c.icon;
+          if (c.description) it.description = c.description;
+          const p = c.profile;
+          // büyük afiş resimleri listeyi şişirmesin (kart rengiyle düz afiş gösterilir)
+          if (p?.banner && !(p.banner.image && p.banner.image.length > 250_000)) it.banner = p.banner;
+          if (p?.tagline) it.tagline = p.tagline;
+          if (p?.tags?.length) it.tags = p.tags;
+          if (c.members.some((m) => m.userId === uid)) it.joined = true;
+          out.push(it);
+        }
+        out.sort((a, b) => b.online - a.online || b.members - a.members);
+        this.send(s, { t: 'ok', rid: f.rid, data: out.slice(0, 200) });
         return;
       }
       case 'comm.invite.reset': {
@@ -1504,12 +1665,12 @@ export class Hub {
         if (!c || c.channels.length >= 200) return;
         const src = f.clone ? c.channels.find((x) => x.id === f.clone) : undefined;
         const want = src ? src.type : f.type;
-        const type: ChannelType = isVoiceLike(want) || want === 'announce' || want === 'site' ? want : 'text';
+        const type: ChannelType = isVoiceLike(want) || want === 'announce' || want === 'site' || isToolChannel(want) ? want : 'text';
         const catId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
         const ch: Channel = {
           id: makeId(),
           name: hasFreeName(type)
-            ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : type === 'site' ? siteHost(cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL) || 'Site' : 'Ses')
+            ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : type === 'site' ? siteHost(cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL) || 'Site' : isToolChannel(type) ? TOOL_NAMES[type] : 'Ses')
             : channelSlug(f.name),
           type,
           categoryId: catId,
@@ -1671,6 +1832,7 @@ export class Hub {
           position: 1,
         };
         if (f.mentionable) r.mentionable = true;
+        if (f.selfAssign && !(r.perms & SELF_ROLE_FORBIDDEN)) r.selfAssign = true;
         const icon = clampStr(f.icon, 16).trim();
         if (icon) r.icon = icon;
         c.roles.push(r);
@@ -1711,6 +1873,15 @@ export class Hub {
           else delete r.icon;
           changed.push('rozet');
         }
+        if (f.selfAssign !== undefined && r.id !== c.id) {
+          if (f.selfAssign && r.perms & SELF_ROLE_FORBIDDEN)
+            return this.send(s, { t: 'err', msg: 'Yönetim yetkisi olan bir rolü üyeler kendisi alamaz. Önce bu rolden yönetim yetkilerini kaldır.' });
+          if (f.selfAssign) r.selfAssign = true;
+          else delete r.selfAssign;
+          changed.push(f.selfAssign ? 'üyeler kendisi alabilir' : 'üyeler kendisi alamaz');
+        }
+        // yönetim yetkisi verilen rol artık kendine verilemez
+        if (r.selfAssign && r.perms & SELF_ROLE_FORBIDDEN) delete r.selfAssign;
         if (changed.length) this.audit(c, uid, 'role.update', r.name, changed.join(', '));
         this.pushComm(c);
         return;
@@ -1743,6 +1914,25 @@ export class Hub {
         this.normalizeRoles(c);
         this.audit(c, uid, 'role.delete', r.name);
         this.pushComm(c);
+        return;
+      }
+      case 'role.self': {
+        const c = this.comms.get(f.cid);
+        const r = c?.roles.find((x) => x.id === f.id);
+        const m = c?.members.find((x) => x.userId === uid);
+        const fail = (msg: string) => this.send(s, { t: 'err', msg, rid: f.rid });
+        if (!c || !r || !m || r.id === c.id) return fail('Rol bulunamadı.');
+        if (!r.selfAssign || r.perms & SELF_ROLE_FORBIDDEN) return fail('Bu rolü kendine veremezsin.');
+        const has = m.roles.includes(r.id);
+        if (f.on && !has) m.roles.push(r.id);
+        else if (!f.on && has) m.roles = m.roles.filter((x) => x !== r.id);
+        else {
+          if (f.rid) this.send(s, { t: 'ok', rid: f.rid });
+          return;
+        }
+        this.audit(c, uid, 'member.selfrole', this.userName(c, uid), `${f.on ? '+' : '-'} ${r.name}`);
+        this.pushComm(c);
+        if (f.rid) this.send(s, { t: 'ok', rid: f.rid });
         return;
       }
       case 'member.update': {
@@ -2024,6 +2214,50 @@ export class Hub {
   }
 
   /** Rol konumlarını 0..n aralığında sıkıştırır; @herkes her zaman 0 */
+  /** Topluluk istatistikleri: üyenin görebildiği kanallardaki mesajlardan hesaplanır */
+  private stats(c: StoredCommunity, uid: ID, daysIn: number): CommunityStats {
+    const days = [7, 30, 90].includes(daysIn) ? daysIn : 30;
+    const TZ = 3 * 3600_000; // Türkiye saati
+    const DAY = 86400_000;
+    const today = Math.floor((Date.now() + TZ) / DAY);
+    const first = today - days + 1;
+    const since = first * DAY - TZ;
+    const perDay = new Array(days).fill(0);
+    const perHour = new Array(24).fill(0);
+    const chN = new Map<ID, number>();
+    const userN = new Map<ID, number>();
+    let messages = 0;
+    for (const ch of c.channels) {
+      if (isVoiceLike(ch.type) || !this.canView(c, uid, ch)) continue;
+      const L = this.log(ch.id).list;
+      for (let i = L.length - 1; i >= 0; i--) {
+        const m = L[i];
+        if (m.ts < since) break;
+        if (m.kind || m.authorId === BOT_ID) continue;
+        const local = m.ts + TZ;
+        const d = Math.floor(local / DAY) - first;
+        if (d < 0 || d >= days) continue;
+        perDay[d]++;
+        perHour[Math.floor((local % DAY) / 3600_000)]++;
+        chN.set(ch.id, (chN.get(ch.id) || 0) + 1);
+        userN.set(m.authorId, (userN.get(m.authorId) || 0) + 1);
+        messages++;
+      }
+    }
+    const members = c.members.filter((m) => m.userId !== BOT_ID);
+    const joined = members.filter((m) => m.joinedAt >= since).length;
+    const memberCurve = perDay.map((_, i) => {
+      const end = (first + i + 1) * DAY - TZ;
+      return members.filter((m) => m.joinedAt < end).length;
+    });
+    const top = (map: Map<ID, number>) =>
+      [...map.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([id, n]) => ({ id, n }));
+    return { days, perDay, perHour, messages, activeMembers: userN.size, joined, memberCurve, topChannels: top(chN), topMembers: top(userN) };
+  }
+
   private normalizeRoles(c: StoredCommunity) {
     const rest = c.roles.filter((r) => r.id !== c.id).sort((a, b) => a.position - b.position);
     rest.forEach((r, i) => (r.position = i + 1));
@@ -2144,8 +2378,8 @@ export class Hub {
     // bot hesapları (belirteçle bağlanan bot programları) profillerini değiştiremez
     const pub = existing?.pub.bot ? existing.pub : this.sanitizeUser(f.user, id);
     const changed = !existing || JSON.stringify(existing.pub) !== JSON.stringify(pub);
-    this.data.users[id] = { pub, secretHash: sha(secret) };
-    if (changed) this.saveHub();
+    this.data.users[id] = { pub, secretHash: sha(secret), since: existing ? existing.since || 1 : Date.now() };
+    if (changed || !existing?.since) this.saveHub();
     s.userId = id;
     s.status = ['online', 'idle', 'dnd', 'invisible'].includes(f.status) ? f.status : 'online';
     let set = this.userSessions.get(id);
@@ -2163,7 +2397,7 @@ export class Hub {
   }
 
   // ---------- topluluk oluşturma ----------
-  private createCommunity(ownerId: ID, name: string, color: string, icon: string | undefined, template: 'default' | 'lobby' = 'default'): StoredCommunity {
+  private createCommunity(ownerId: ID, name: string, color: string, icon: string | undefined, template: 'default' | 'lobby' = 'default', bp?: Blueprint): StoredCommunity {
     const id = makeId();
     const roles: Role[] = [
       { id, name: '@herkes', color: '', perms: DEFAULT_EVERYONE, hoist: false, position: 0 },
@@ -2190,7 +2424,55 @@ export class Hub {
       return c;
     };
     let welcome: Channel | null = null;
-    if (template === 'lobby') {
+    if (bp && typeof bp === 'object' && Array.isArray(bp.channels)) {
+      // Discord şablonundan: @herkes, roller, kategoriler ve kanallar şablondaki gibi
+      roles.length = 1;
+      const ev = Number(bp.everyone) & ALL_PERMS & ~Perm.ADMIN;
+      roles[0].perms = ev & Perm.VIEW_CHANNEL ? ev : DEFAULT_EVERYONE;
+      const list = (Array.isArray(bp.roles) ? bp.roles : []).slice(0, BLUEPRINT_LIMITS.roles);
+      list.forEach((r, i) => {
+        const role: Role = {
+          id: makeId(),
+          name: cleanName(r?.name, 32) || 'rol',
+          color: typeof r?.color === 'string' && /^#[0-9a-f]{6}$/i.test(r.color) ? r.color : '',
+          perms: (Number(r?.perms) | 0) & ALL_PERMS,
+          hoist: !!r?.hoist,
+          position: i + 1,
+        };
+        if (r?.mentionable) role.mentionable = true;
+        roles.push(role);
+      });
+      const ow = (x: BlueprintOverwrite[] | undefined): Overwrite[] | undefined => {
+        const out: Overwrite[] = [];
+        for (const o of Array.isArray(x) ? x.slice(0, 30) : []) {
+          const rid = o?.role === -1 ? id : roles[(Number(o?.role) | 0) + 1]?.id;
+          if (!rid || out.some((y) => y.id === rid)) continue;
+          const allow = (Number(o.allow) | 0) & CHANNEL_PERMS;
+          const deny = (Number(o.deny) | 0) & CHANNEL_PERMS & ~allow;
+          if (allow || deny) out.push({ id: rid, type: 'role', allow, deny });
+        }
+        return out.length ? out : undefined;
+      };
+      const catIds = (Array.isArray(bp.categories) ? bp.categories : []).slice(0, BLUEPRINT_LIMITS.categories).map((k) => {
+        const cid = cat(cleanName(k?.name, 40) || 'Kategori');
+        const o = ow(k?.ow);
+        if (o) categories[categories.length - 1].overwrites = o;
+        return cid;
+      });
+      for (const x of bp.channels.slice(0, BLUEPRINT_LIMITS.channels)) {
+        const type: ChannelType = x?.type === 'voice' || x?.type === 'announce' ? x.type : 'text';
+        const catId = typeof x?.cat === 'number' ? catIds[x.cat] ?? null : null;
+        const ch = chan(type === 'voice' ? cleanName(x?.name, 48) || 'Ses' : channelSlug(x?.name), type, catId, x?.topic ? clampStr(x.topic, 512) : undefined);
+        if (!ch.topic) delete ch.topic;
+        const sm = Math.max(0, Math.min(21600, Number(x?.slowmode) || 0));
+        if (sm) ch.slowmode = sm;
+        const ul = Math.max(0, Math.min(99, Number(x?.userLimit) || 0));
+        if (ul && type === 'voice') ch.userLimit = ul;
+        const o = ow(x?.ow);
+        if (o) ch.overwrites = o;
+      }
+      if (!channels.some((x) => !isVoiceLike(x.type))) chan('genel', 'text', null);
+    } else if (template === 'lobby') {
       roles.push({ id: makeId(), name: 'Bot', color: '#f5a524', perms: 0, hoist: true, position: 3 });
       const info = cat('Bilgi');
       welcome = chan('hoş-geldin', 'announce', info, 'Xanaphian\'a hoş geldin! Buradan başla.');

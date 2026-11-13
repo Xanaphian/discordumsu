@@ -3,12 +3,17 @@ import {
   type AvatarLook,
   Attachment, ChannelType, ClientFrame, Community, ID, Message, ServerFrame, Status, UserPublic, VoiceMember,
   decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite, Perm,
-  type AuditEntry, type Ban, type DmInfo, type FriendInfo,
+  type AuditEntry, type Ban, type DmInfo, type FriendInfo, type DmPrivacy,
 } from '../../shared/protocol';
+import { IS_POPOUT } from './popout';
 import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
 import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
+import { mediaLabel } from './medya';
+import { cardSummary } from './cards';
+import { toolSummary } from './tools';
+import type { Blueprint } from '../../shared/topluluk';
 
 export interface Profile {
   id: ID;
@@ -101,6 +106,17 @@ export interface Settings {
   customGames: { exe: string; name: string }[];
   /** gösterilmeyecek oyunlar (görünen ad) */
   hiddenGames: string[];
+  // v1.26: yayıncı modu, özel mesaj gizliliği ve sabitleme
+  /** off = kapalı, auto = OBS açılınca, on = hep açık */
+  streamerMode: 'off' | 'auto' | 'on';
+  streamerHideNotifs: boolean;
+  streamerHideInvites: boolean;
+  streamerHidePersonal: boolean;
+  streamerMuteSounds: boolean;
+  /** kimler yeni özel mesaj yazabilir */
+  dmPrivacy: DmPrivacy;
+  /** listenin üstüne sabitlenen özel mesajlar (sanal topluluk kimliği) */
+  pinnedDms: ID[];
   /** görünüm göçü: 2 = Destan teması varsayılan oldu (v1.7), 3 = site altını (v1.14), 4 = site temaları (v1.16) */
   lookRev: number;
 }
@@ -191,6 +207,13 @@ export const DEFAULT_SETTINGS: Settings = {
   actRecent: true,
   customGames: [],
   hiddenGames: [],
+  streamerMode: 'auto',
+  streamerHideNotifs: true,
+  streamerHideInvites: true,
+  streamerHidePersonal: true,
+  streamerMuteSounds: false,
+  dmPrivacy: 'all',
+  pinnedDms: [],
   lookRev: 4,
 };
 
@@ -213,6 +236,7 @@ export type Modal =
   | { type: 'settings'; tab?: string }
   | { type: 'commSettings'; cid: ID; tab?: string }
   | { type: 'commProfile'; cid: ID }
+  | { type: 'stats'; cid: ID }
   | { type: 'createChannel'; cid: ID; categoryId: ID | null; kind?: ChannelType }
   | { type: 'editChannel'; cid: ID; chId: ID; tab?: string }
   | { type: 'editCategory'; cid: ID; catId: ID; tab?: string }
@@ -225,7 +249,8 @@ export type Modal =
   | { type: 'screenShare' }
   | { type: 'search'; cid: ID; q?: string }
   | { type: 'profile'; uid: ID; cid?: ID }
-  | { type: 'customStatus' };
+  | { type: 'customStatus' }
+  | { type: 'selfRoles'; cid: ID };
 
 export interface MenuItem {
   label?: string;
@@ -506,8 +531,11 @@ export async function boot() {
       }
     }, 10 * 60 * 1000);
   };
-  for (const ev of ['mousemove', 'keydown', 'mousedown']) window.addEventListener(ev, debounce(activity, 1000), { passive: true });
-  activity();
+  // ayrı pencere boşta durumunu yönetmez (ana pencere yönetir)
+  if (!IS_POPOUT) {
+    for (const ev of ['mousemove', 'keydown', 'mousedown']) window.addEventListener(ev, debounce(activity, 1000), { passive: true });
+    activity();
+  }
 
   if (S().onboarded) connectAll(cfg.hosts || []);
   const pending = await window.kovan.pendingInvite();
@@ -727,7 +755,14 @@ export async function openDm(uid: ID) {
   }
 }
 
+/** Özel mesajı listenin üstüne sabitler / sabitlemeyi kaldırır (v1.26) */
+export function togglePinDm(cid: ID) {
+  const list = S().settings.pinnedDms;
+  updateSettings({ pinnedDms: list.includes(cid) ? list.filter((x) => x !== cid) : [...list, cid] });
+}
+
 export function closeDm(cid: ID) {
+  if (S().settings.pinnedDms.includes(cid)) togglePinDm(cid);
   // listeden gizler; yeni mesaj gelirse yeniden görünür
   set((s) => ({ current: s.current === cid ? 'home' : s.current }));
   const ch = S().chanByComm[cid];
@@ -781,7 +816,13 @@ function isViewing(ch: ID) {
 }
 
 export function plainText(content: string, c?: Community) {
+  const card = cardSummary(content);
+  if (card) return card;
   const users = S().users;
+  const media = mediaLabel(content);
+  if (media) return media;
+  const tool = toolSummary(content);
+  if (tool) return tool;
   return content
     .replace(/<@&([\w-]+)>/g, (_, id) => '@' + (c?.roles.find((r) => r.id === id)?.name || 'rol'))
     .replace(/<@([\w-]+)>/g, (_, id) => '@' + (users[id]?.name || 'biri'))
@@ -802,6 +843,8 @@ function onFrame(host: string, f: ServerFrame) {
       }));
       siteHooks.onFrame?.(f);
       actHooks.onReady?.(host, f);
+      // özel mesaj gizliliği her bağlantıda bildirilir (eski sunucular yok sayar)
+      conns.get(host)?.send({ t: 'privacy', dms: S().settings.dmPrivacy });
       // bu sunucudan gelen eski toplulukları temizle
       const dms = f.dms || [];
       const ids = new Set([...f.communities.map((c) => c.id), ...dms.map((d) => dmCid(d.peer.id))]);
@@ -1043,6 +1086,8 @@ function callWatch(c: Community, ch: ID, before: VoiceMember[], now: VoiceMember
 export const botHooks = new Set<(f: Extract<ServerFrame, { t: 'bots' }>) => void>();
 export const spaceHooks: { onFrame?: (host: string, f: ServerFrame) => void } = {};
 export const siteHooks: { onFrame?: (f: ServerFrame) => void } = {};
+/** v1.27 oyun içi kaplama: bildirime düşen her mesaj (lib/overlay.ts) */
+export const overlayHooks: { onNotify?: (m: Message, c: Community | undefined, author: string, body: string, mentioned: boolean) => void } = {};
 /** anlık etkinlik (lib/activity.ts) */
 export const actHooks: {
   onReady?: (host: string, f: Extract<ServerFrame, { t: 'ready' }>) => void;
@@ -1096,10 +1141,12 @@ function notifyFor(m: Message, c: Community | undefined, mentioned: boolean) {
   const ch = c?.channels.find((x) => x.id === m.channelId);
   const author = c?.members.find((x) => x.userId === m.authorId)?.nick || S().users[m.authorId]?.name || 'Biri';
   if (m.kind === 'join') return;
+  if (m.content.startsWith('xn:wall ')) return; // ortak duvara çizim/çıkartma bildirim düşürmez
   if (c?.dm && settings.blocked.includes(c.dm)) return;
   const body = !settings.notifyPreview ? 'Yeni mesaj' : plainText(m.content, c) || (m.attachments?.length ? `📎 ${m.attachments.length} dosya` : '');
   if (settings.sounds) playSound(mentioned ? 'mention' : 'message');
   const title = c?.dm ? `${author} (özel mesaj)` : `${author} (#${ch?.name || 'kanal'}, ${c?.name || ''})`;
+  overlayHooks.onNotify?.(m, c, author, body, mentioned);
   window.kovan.notify({ title, body, tag: m.channelId, silent: true });
 }
 
@@ -1127,8 +1174,12 @@ export function selectChannel(cid: ID, ch: ID) {
   openChannel(ch);
 }
 
+/** kanal açılmadan hemen önceki okunma noktası ("YENİ" çizgisi ve "Sen yokken" özeti için) */
+export const readBeforeOpen: Record<ID, ID> = {};
+
 function openChannel(ch: ID) {
   const st = S().chans[ch];
+  readBeforeOpen[ch] = S().read[ch] || '';
   if (!st?.loaded && !st?.loading) loadHistory(ch);
   markRead(ch);
 }
@@ -1355,14 +1406,22 @@ export async function moveToServer(cid: ID) {
   return r;
 }
 
-export async function createCommunity(name: string, color: string, icon?: string) {
+export async function createCommunity(name: string, color: string, icon?: string, blueprint?: Blueprint) {
   const home = homeHost();
   const conn = conns.get(home);
   if (!conn) throw new Error('Sunucuya bağlanılmadı.');
   await waitOnline(home);
-  const r = await conn.request<{ data: ID }>({ t: 'comm.create', name, color, icon });
+  const r = await conn.request<{ data: ID }>({ t: 'comm.create', name, color, icon, ...(blueprint ? { blueprint } : {}) });
   selectCommunity(r.data);
   return r.data;
+}
+
+/** v1.27: merkezi sunucuya istek (keşfet listesi, listeden katılma) */
+export async function homeRequest<T = any>(f: ClientFrame): Promise<T> {
+  const home = homeHost();
+  const conn = ensureConn(home, home === localHost());
+  await waitOnline(home);
+  return conn.request<T>(f);
 }
 
 export interface InviteHostOption {
@@ -1547,6 +1606,24 @@ export function forgetHost(host: string) {
   set((s) => ({ conns: omit(s.conns, host) }));
   saveHosts();
 }
+
+// Bellek: ekrandan çıkan kanalın yalnız son mesajları tutulur; geri dönülünce eskiler kaydırdıkça yeniden yüklenir.
+// (Uzun bir oturumda gezilen her kanalın tüm geçmişi bellekte birikmesin.)
+const KEEP_HIDDEN = 120;
+let shownCh: ID | undefined;
+useStore.subscribe((s) => {
+  const now = s.current !== 'home' ? s.chanByComm[s.current] : undefined;
+  if (now === shownCh) return;
+  const prev = shownCh;
+  shownCh = now;
+  const st = prev ? s.chans[prev] : undefined;
+  if (!prev || !st || st.loading || st.detached || st.items.length <= KEEP_HIDDEN * 2) return;
+  set((x) => {
+    const cur = x.chans[prev];
+    if (!cur || cur.loading || cur.detached) return {};
+    return { chans: { ...x.chans, [prev]: { ...cur, items: cur.items.slice(-KEEP_HIDDEN), more: true, prepended: 0, epoch: (cur.epoch || 0) + 1 } } };
+  });
+});
 
 // yazıyor göstergelerinin süresi dolanlarını temizle
 setInterval(() => {

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import type { LinkMeta as LinkMetaT } from '../main/ekstralar';
 
 function on<T>(channel: string, cb: (v: T) => void) {
   const h = (_e: IpcRendererEvent, v: T) => cb(v);
@@ -37,6 +38,36 @@ const api = {
     apps: () => ipcRenderer.invoke('act:apps'),
     onUpdate: (cb: (s: any) => void) => on('act:update', cb),
   },
+  game: {
+    lolState: () => ipcRenderer.invoke('game:lol-state') as Promise<{ running: boolean; me?: string; lobby: boolean }>,
+    lolInvite: (riotId: string) => ipcRenderer.invoke('game:lol-invite', riotId) as Promise<{ ok: boolean; error?: string }>,
+    lolAccept: (from: string) => ipcRenderer.invoke('game:lol-accept', from) as Promise<{ ok: boolean; error?: string }>,
+    steamJoin: (id: string) => ipcRenderer.invoke('game:steam-join', id) as Promise<boolean>,
+  },
+  /** v1.26: bağlantı önizlemesi, yayıncı modu, ayrı pencereler */
+  linkMeta: (url: string) => ipcRenderer.invoke('link:meta', url) as Promise<LinkMetaT | null>,
+  streamer: {
+    watch: (on: boolean) => ipcRenderer.invoke('yayinci:izle', on) as Promise<boolean>,
+    state: (s: { active: boolean; hideNotifs: boolean }) => ipcRenderer.send('yayinci:durum', s),
+    onObs: (cb: (on: boolean) => void) => on('yayinci:obs', cb),
+  },
+  popout: {
+    open: (a: { cid: string; ch: string; title: string }) => ipcRenderer.send('pencere:ayir', a),
+    toMain: (a: { cid: string; ch: string }) => ipcRenderer.send('pencere:ana', a),
+    onGo: (cb: (a: { cid: string; ch: string }) => void) => on('pencere:git', cb),
+    theme: (t: string) => ipcRenderer.send('pencere:tema', t),
+  },
+  /** v1.27 oyun içi kaplama */
+  overlay: {
+    state: (st: unknown) => ipcRenderer.send('ovl:state', st),
+    message: (m: unknown) => ipcRenderer.send('ovl:msg', m),
+    shortcut: (acc: string) => ipcRenderer.send('ovl:shortcut', acc),
+    onState: (cb: (st: any) => void) => on('ovl:state', cb),
+    onMessage: (cb: (m: any) => void) => on('ovl:msg', cb),
+    onHidden: (cb: (hidden: boolean) => void) => on('ovl:hidden', cb),
+  },
+  /** v1.27 Discord şablonu */
+  discordTemplate: (code: string) => ipcRenderer.invoke('tpl:discord', code) as Promise<{ ok: boolean; data?: unknown; error?: string }>,
   platform: process.platform,
   update: {
     check: () => ipcRenderer.invoke('upd:check'),

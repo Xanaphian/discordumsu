@@ -1,4 +1,4 @@
-import React, { memo, ReactNode, useEffect, useRef } from 'react';
+import React, { memo, ReactNode, useEffect, useRef, useState } from 'react';
 import type { Community, Status, UserPublic } from '../../shared/protocol';
 import type { AvatarShape, ProfileExtra } from '../../shared/profile';
 import { cx, initials } from '../lib/util';
@@ -68,8 +68,10 @@ export const CommunityIcon = memo(function CommunityIcon({ c, size = 48 }: { c: 
 });
 
 export function Tooltip({ text, side = 'right', children }: { text: ReactNode; side?: 'right' | 'top' | 'bottom' | 'left'; children: ReactNode }) {
+  // Tıklanınca ipucu gizlenir; yoksa düğmenin açtığı menü ya da panelin üstüne biner. Fare çıkınca yeniden çalışır.
+  const [off, setOff] = useState(false);
   return (
-    <span className={cx('tip-wrap', 'tip-' + side)}>
+    <span className={cx('tip-wrap', 'tip-' + side, off && 'tip-off')} onMouseDown={() => setOff(true)} onMouseLeave={() => setOff(false)}>
       {children}
       <span className="tip">{text}</span>
     </span>

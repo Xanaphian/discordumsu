@@ -5,6 +5,10 @@ import crypto from 'node:crypto';
 import { Hub } from './hub';
 import { initActivity, configureActivity, getActivity, runningApps, stopActivity, type ActivityConfig } from './activity';
 import { Updater } from './updater';
+import { lolState, lolInvite, lolAccept, steamJoin } from './gamejoin';
+import { initEkstralar, blockNotify, isPopout } from './ekstralar';
+import { initOverlay, destroyOverlay } from './overlay';
+import { initTemplateFetch } from './sablon';
 import { DEFAULT_PORT, makeId } from '../shared/protocol';
 
 const isDev = !app.isPackaged;
@@ -445,8 +449,21 @@ app.whenReady().then(async () => {
   setTimeout(() => hub.refreshAllSiteMeta(), 4000);
   setInterval(() => hub.refreshAllSiteMeta(), 6 * 3600_000);
   registerIpc();
+  initEkstralar({
+    preload: path.join(__dirname, 'preload.js'),
+    indexFile: path.join(__dirname, '../renderer/index.html'),
+    devUrl: isDev ? process.env.KOVAN_DEV_URL : undefined,
+    icon: iconPath(),
+    mainWin: () => win,
+    look: () => {
+      const t = (config.settings.theme as string) || 'destan';
+      return { bg: themeBg(t), overlay: overlayFor(t) };
+    },
+  });
   initActivity((st) => win?.webContents.send('act:update', st));
   createWindow();
+  initOverlay(() => win, isDev);
+  initTemplateFetch();
   createTray();
   updater = new Updater(() => win, isDev);
   updater.start();
@@ -458,6 +475,7 @@ app.on('before-quit', () => {
 });
 app.on('will-quit', () => {
   if (saveTimer) saveConfig(true);
+  destroyOverlay();
   stopActivity();
   hub.stop();
 });
@@ -512,6 +530,10 @@ function registerIpc() {
   ipcMain.handle('cfg:get', () => config);
   ipcMain.handle('act:config', (_e, c: ActivityConfig) => (configureActivity(c), getActivity()));
   ipcMain.handle('act:apps', () => runningApps());
+  ipcMain.handle('game:lol-state', () => lolState());
+  ipcMain.handle('game:lol-invite', (_e, riotId: string) => lolInvite(String(riotId).slice(0, 48)));
+  ipcMain.handle('game:lol-accept', (_e, from: string) => lolAccept(String(from).slice(0, 48)));
+  ipcMain.handle('game:steam-join', (_e, id: string) => steamJoin(String(id).slice(0, 120)));
   ipcMain.handle('cfg:set', (_e, patch: Partial<Config>) => {
     config = {
       ...config,
@@ -540,7 +562,7 @@ function registerIpc() {
     }
   });
   ipcMain.on('notify', (_e, n: { title: string; body: string; tag: string; silent?: boolean; icon?: string }) => {
-    if (!Notification.isSupported()) return;
+    if (!Notification.isSupported() || blockNotify(_e.sender)) return;
     if (win?.isFocused()) return;
     const notif = new Notification({ title: n.title.slice(0, 100), body: n.body.slice(0, 300), silent: !!n.silent, icon: iconPath() });
     notif.on('click', () => {
@@ -583,6 +605,7 @@ function registerIpc() {
   });
 
   ipcMain.on('badge', (_e, count: number) => {
+    if (isPopout(_e.sender)) return;
     if (process.platform === 'win32') {
       if (count > 0 && !win?.isFocused()) win?.flashFrame(true);
     } else app.setBadgeCount(count);

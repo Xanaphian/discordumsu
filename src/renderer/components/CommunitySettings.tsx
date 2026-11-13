@@ -3,14 +3,16 @@ import { X, RefreshCw, Trash2, Plus, ChevronUp, ChevronDown, Lock, Copy, Search,
 import { useStore, cmd, toast, confirmDialog, deleteCommunity, makeInvite, openMenu, request, loadModData, type ModData } from '../lib/store';
 import { Avatar, CommunityIcon, Toggle } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtDay, fmtTime, displayName } from '../lib/util';
-import { can, canEditRole, isTimedOut, isVoiceLike, memberPerms, ALL_PERMS, Perm, type Community, type Role, type AutoMod } from '../../shared/protocol';
+import { can, canEditRole, isTimedOut, isVoiceLike, memberPerms, ALL_PERMS, Perm, SELF_ROLE_FORBIDDEN, type Community, type Role, type AutoMod } from '../../shared/protocol';
 import { Shell, Row, close } from './Settings';
 import { PERM_GROUPS, countBits } from './Permissions';
 import { memberMenu } from './Moderation';
 import { BotsTab } from './Bots';
 import { CommunityProfileEditor } from './CommunityProfile';
+import { StickersTab } from './CikartmaAyarlari';
+import { JoinGuardTab, ListingTab } from './ToplulukAraclari';
 
-const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🐝', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🍯', '❤️'];
+const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🏆', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🦀', '❤️'];
 
 // ---------------------------------------------------------------------------
 // Roller
@@ -41,6 +43,7 @@ function RoleEditor({ c, role, me, onSelect }: { c: Community; role: Role; me: s
         hoist: role.hoist,
         mentionable: role.mentionable,
         icon: role.icon,
+        selfAssign: role.selfAssign,
         rid: '',
       });
       if (r?.data) onSelect(r.data);
@@ -146,6 +149,16 @@ function RoleEditor({ c, role, me, onSelect }: { c: Community; role: Role; me: s
           </Row>
           <Row title="Herkes bu rolden bahsedebilsin" sub={`Üyeler @${role.name} yazarak bu roldeki herkese bildirim gönderebilir. Kapalıyken sadece "@everyone" yetkisi olanlar bahsedebilir.`}>
             <Toggle value={!!role.mentionable} disabled={!editable} onChange={(v) => upd({ mentionable: v })} />
+          </Row>
+          <Row
+            title="Üyeler bu rolü kendisi alabilsin"
+            sub={
+              role.perms & SELF_ROLE_FORBIDDEN
+                ? 'Bu rolde yönetim yetkisi var; kendine verilen rollerde yönetim yetkisi olamaz.'
+                : 'Üyeler topluluk menüsündeki "Rollerini seç" ile bu rolü kendi açıp kapatabilir. Oyun, bölge ya da bildirim rolleri için uygun.'
+            }
+          >
+            <Toggle value={!!role.selfAssign} disabled={!editable || !!(role.perms & SELF_ROLE_FORBIDDEN)} onChange={(v) => upd({ selfAssign: v })} />
           </Row>
         </>
       )}
@@ -481,6 +494,7 @@ const AUDIT_LABEL: Record<string, string> = {
   'role.move': 'rolü taşıdı',
   'role.delete': 'rolü sildi',
   'member.roles': 'üyenin rollerini değiştirdi',
+  'member.selfrole': 'kendine rol seçti',
   'member.nick': 'takma ad değiştirdi',
   'member.kick': 'üyeyi attı',
   'member.ban': 'üyeyi yasakladı',
@@ -733,11 +747,14 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
     ...(manage ? [{ id: 'overview', label: 'Genel Bakış', group: c.name }] : []),
     ...(manage ? [{ id: 'profile', label: 'Sunucu Profili', group: c.name }] : []),
     ...(can(c, me, Perm.MANAGE_ROLES) ? [{ id: 'roles', label: 'Roller', group: c.name }] : []),
+    ...(manage ? [{ id: 'stickers', label: 'Çıkartmalar', group: c.name }] : []),
     ...(manage ? [{ id: 'moderation', label: 'Moderasyon', group: 'Moderasyon' }] : []),
+    ...(manage ? [{ id: 'joinguard', label: 'Katılma Koruması', group: 'Moderasyon' }] : []),
     ...(can(c, me, Perm.VIEW_AUDIT_LOG) ? [{ id: 'audit', label: 'Denetim Kaydı', group: 'Moderasyon' }] : []),
     { id: 'members', label: 'Üyeler', group: 'Kullanıcı Yönetimi' },
     ...(can(c, me, Perm.BAN) ? [{ id: 'bans', label: 'Yasaklar', group: 'Kullanıcı Yönetimi' }] : []),
     { id: 'invites', label: 'Davetler', group: 'Kullanıcı Yönetimi' },
+    ...(manage ? [{ id: 'listing', label: 'Keşfet', group: 'Kullanıcı Yönetimi' }] : []),
     ...(manage ? [{ id: 'bots', label: 'Botlar ve Yapay Zekâ', group: 'Entegrasyonlar' }] : []),
     ...(c.ownerId === me ? [{ id: 'delete', label: 'Topluluğu sil', danger: true }] : []),
   ];
@@ -746,8 +763,11 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
     <Shell nav={nav} tab={cur} setTab={setTab}>
       {cur === 'overview' && <OverviewTab c={c} />}
       {cur === 'profile' && <CommunityProfileEditor c={c} />}
+      {cur === 'stickers' && <StickersTab c={c} />}
       {cur === 'roles' && <RolesTab c={c} me={me} initial={initial?.startsWith('roles:') ? initial.slice(6) : undefined} />}
       {cur === 'moderation' && <ModerationTab c={c} />}
+      {cur === 'joinguard' && <JoinGuardTab c={c} />}
+      {cur === 'listing' && <ListingTab c={c} />}
       {cur === 'audit' && <AuditTab c={c} />}
       {cur === 'members' && <MembersTab c={c} me={me} />}
       {cur === 'bans' && <BansTab c={c} />}

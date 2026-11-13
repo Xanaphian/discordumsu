@@ -1,6 +1,9 @@
 // Kovan ağ protokolü: istemci <-> kovan sunucusu (hub) arasında JSON çerçeveler.
 import type { LiveActivity, ProfileExtra, CommunityProfile } from './profile';
 import type { BotClientFrame, BotServerFrame } from './bots';
+import type { Sticker } from './stickers';
+export type { Sticker } from './stickers';
+import type { JoinGuard, Listing, Blueprint } from './topluluk';
 
 export type ID = string;
 
@@ -64,7 +67,16 @@ export interface Role {
   position: number; // büyük olan üstte
   mentionable?: boolean; // herkes @rol ile bahsedebilir
   icon?: string; // rol rozeti (emoji)
+  selfAssign?: boolean; // üyeler bu rolü kendisi alıp bırakabilir (v1.26)
 }
+
+/** Kendine verilebilen rollerde bulunamayacak yetkiler (yönetim yetkileri) */
+export const SELF_ROLE_FORBIDDEN =
+  Perm.ADMIN | Perm.MANAGE_CHANNELS | Perm.MANAGE_MESSAGES | Perm.MANAGE_ROLES | Perm.KICK | Perm.MANAGE_COMMUNITY | Perm.MENTION_EVERYONE |
+  Perm.MANAGE_NICKNAMES | Perm.BAN | Perm.TIMEOUT | Perm.VIEW_AUDIT_LOG;
+
+/** Özel mesaj gizliliği: kimler sana yeni mesaj yazabilir */
+export type DmPrivacy = 'all' | 'friends';
 
 /** Kanal / kategori izin üzerine yazması. id === topluluk id ise @herkes. */
 export interface Overwrite {
@@ -82,12 +94,38 @@ export interface Member {
   timeoutUntil?: number; // zaman aşımı bitişi (ms)
 }
 
-export type ChannelType = 'text' | 'voice' | 'announce' | 'space' | 'site';
+export type ChannelType = 'text' | 'voice' | 'announce' | 'space' | 'site' | ToolType;
+
+/** v1.28 topluluk araçları: öneri panosu, görev panosu, etkinlik planlayıcı, ortak duvar.
+ * Panodaki her öğe kanalın bir mesajıdır ("xn:<tür> {json}"); oylar ve katılım "~" ile başlayan tepkilerdir. */
+export type ToolType = 'ideas' | 'tasks' | 'events' | 'wall';
+export const TOOL_TYPES: ToolType[] = ['ideas', 'tasks', 'events', 'wall'];
+export const isToolChannel = (t: ChannelType): t is ToolType => (TOOL_TYPES as string[]).includes(t);
+/** Başkasının öğesini düzenleyebilmek için gereken yetki: görev ve duvarda yazabilen herkes, öneri ve etkinlikte mesaj yöneticisi */
+export const toolEditPerm = (t: ToolType) => (t === 'tasks' || t === 'wall' ? Perm.SEND_MESSAGES : Perm.MANAGE_MESSAGES);
+
+/** Topluluk istatistikleri (sunucu hesaplar, yalnız görülebilen kanallar) */
+export interface CommunityStats {
+  days: number;
+  /** günlük mesaj sayısı, en eskiden bugüne (yerel değil, UTC+3 günü) */
+  perDay: number[];
+  /** saat başına mesaj (0-23, UTC+3) */
+  perHour: number[];
+  messages: number;
+  /** dönemde yazan farklı üye */
+  activeMembers: number;
+  /** dönemde katılan üye */
+  joined: number;
+  /** dönem başından bugüne günlük üye sayısı */
+  memberCurve: number[];
+  topChannels: { id: ID; n: number }[];
+  topMembers: { id: ID; n: number }[];
+}
 
 /** Sesli bağlantı kurulan kanal türleri (ses ve 3D oda) */
 export const isVoiceLike = (t: ChannelType) => t === 'voice' || t === 'space';
 /** Adı boşluklu serbest metin olan kanal türleri (#slug değil) */
-export const hasFreeName = (t: ChannelType) => isVoiceLike(t) || t === 'site';
+export const hasFreeName = (t: ChannelType) => isVoiceLike(t) || t === 'site' || isToolChannel(t);
 
 // ---- Site odası ----
 export const DEFAULT_SITE_URL = 'https://xanaphian.com/';
@@ -204,6 +242,12 @@ export interface Community {
   description?: string;
   /** sunucu profili: afiş, kısa tanıtım, etiketler, bağlantılar, kurallar */
   profile?: CommunityProfile;
+  /** katılma koruması (v1.27) */
+  joinGuard?: JoinGuard;
+  /** baskın algılandı: bu ana kadar yeni üye alınmaz (ms) */
+  raidUntil?: number;
+  /** keşfet sayfasında listelenir (v1.27) */
+  listing?: Listing;
   roles: Role[]; // roles[0] her zaman @herkes (id === community.id)
   categories: Category[];
   channels: Channel[];
@@ -216,6 +260,8 @@ export interface Community {
   joinMessages?: boolean; // false ise katılma mesajı gönderilmez
   invitesPaused?: boolean; // yeni katılımlar durduruldu
   automod?: AutoMod;
+  /** topluluk çıkartmaları (v1.25) */
+  stickers?: Sticker[];
   /** sadece istemcide: özel mesaj sohbetini temsil eden sanal topluluk (karşı tarafın kimliği) */
   dm?: ID;
   /** sadece istemcide: DM'in son mesaj kimliği / açılma anı (sıralama için) */
@@ -297,7 +343,9 @@ export type ClientFrame =
   | { t: 'del'; ch: ID; id: ID }
   | { t: 'react'; ch: ID; id: ID; e: string; on: boolean }
   | { t: 'pin'; ch: ID; id: ID; on: boolean }
-  | { t: 'hist'; ch: ID; before?: ID; around?: ID; rid: string }
+  /** full: araç kanalları için son 2000 öğeyi tek seferde ister */
+  | { t: 'hist'; ch: ID; before?: ID; around?: ID; rid: string; full?: boolean }
+  | { t: 'stats'; cid: ID; days: number; rid: string }
   | { t: 'pins'; ch: ID; rid: string }
   | { t: 'search'; cid: ID; q: string; rid: string }
   | { t: 'typing'; ch: ID }
@@ -305,11 +353,15 @@ export type ClientFrame =
   /** anlık etkinlik (oyun, müzik, yayın); boş dizi temizler */
   | { t: 'activity'; acts: LiveActivity[] }
   | { t: 'profile'; user: UserPublic }
-  | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; rid?: string }
-  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod }
+  | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; blueprint?: Blueprint; rid?: string }
+  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod; stickers?: Sticker[] }
   | { t: 'comm.delete'; cid: ID }
   | { t: 'comm.leave'; cid: ID }
   | { t: 'comm.invite.reset'; cid: ID }
+  /** v1.27: katılma koruması, baskın kilidini kaldırma, keşfet listesi */
+  | { t: 'comm.guard'; cid: ID; guard?: JoinGuard; unlock?: boolean }
+  | { t: 'comm.listing'; cid: ID; listing: Listing | null }
+  | { t: 'explore'; rid: string }
   | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; url?: string; rid?: string; private?: boolean; clone?: ID }
   | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string; overwrites?: Overwrite[]; userLimit?: number; type?: ChannelType }
   | { t: 'chan.delete'; cid: ID; id: ID }
@@ -317,8 +369,10 @@ export type ClientFrame =
   | { t: 'cat.create'; cid: ID; name: string }
   | { t: 'cat.update'; cid: ID; id: ID; name?: string; overwrites?: Overwrite[] }
   | { t: 'cat.delete'; cid: ID; id: ID }
-  | { t: 'role.create'; cid: ID; name: string; color: string; perms: number; hoist: boolean; mentionable?: boolean; icon?: string; rid?: string }
-  | { t: 'role.update'; cid: ID; id: ID; name?: string; color?: string; perms?: number; hoist?: boolean; mentionable?: boolean; icon?: string }
+  | { t: 'role.create'; cid: ID; name: string; color: string; perms: number; hoist: boolean; mentionable?: boolean; icon?: string; selfAssign?: boolean; rid?: string }
+  | { t: 'role.update'; cid: ID; id: ID; name?: string; color?: string; perms?: number; hoist?: boolean; mentionable?: boolean; icon?: string; selfAssign?: boolean }
+  /** üye kendine verilebilen bir rolü alır / bırakır */
+  | { t: 'role.self'; cid: ID; id: ID; on: boolean; rid?: string }
   | { t: 'role.move'; cid: ID; id: ID; dir: 1 | -1 }
   | { t: 'role.delete'; cid: ID; id: ID }
   | { t: 'member.update'; cid: ID; userId: ID; roles?: ID[]; nick?: string | null }
@@ -345,6 +399,8 @@ export type ClientFrame =
   | { t: 'friend.accept'; to: ID }
   | { t: 'friend.remove'; to: ID }
   | { t: 'friend.code'; reset?: boolean; rid: string }
+  /** özel mesaj gizliliği (her bağlantıda gönderilir) */
+  | { t: 'privacy'; dms: DmPrivacy }
   | { t: 'ping' }
   | BotClientFrame;
 

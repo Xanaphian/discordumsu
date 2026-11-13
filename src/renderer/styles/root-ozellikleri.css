@@ -1,0 +1,284 @@
+/* v1.26: bağlantı önizlemesi, yayıncı modu, ayrı pencere, sabit özel mesajlar ve "Rollerini seç".
+   Sade tutuldu: temanın kendi renkleri (--accent, --bg-elev, --line) kullanılır. */
+
+/* ---------- Bağlantı önizlemesi ---------- */
+.lp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: 440px;
+}
+.lp-card {
+  --lp: var(--accent);
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--lp);
+  min-width: 0;
+}
+.lp-card.side {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.lp-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.lp-site {
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lp-title {
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--accent);
+  line-height: 1.3;
+  text-decoration: none;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lp-title:hover {
+  text-decoration: underline;
+}
+.lp-desc {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lp-img {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.lp-img img {
+  display: block;
+  width: 100%;
+  max-height: 230px;
+  object-fit: cover;
+}
+.lp-card.side .lp-img {
+  width: 80px;
+  height: 80px;
+}
+.lp-card.side .lp-img img {
+  width: 80px;
+  height: 80px;
+  aspect-ratio: auto !important;
+}
+.lp-play {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  padding-left: 3px;
+  transition: transform 0.15s var(--ease);
+}
+.lp-img.video:hover .lp-play {
+  transform: translate(-50%, -50%) scale(1.08);
+}
+.lp-direct {
+  cursor: zoom-in;
+  max-width: 420px;
+}
+.lp-direct img {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+}
+
+/* ---------- Yayıncı modu ---------- */
+.sm-badge {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #c03a4a;
+  border: 0;
+  cursor: pointer;
+}
+.sm-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  animation: sm-pulse 1.6s ease-in-out infinite;
+}
+@keyframes sm-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.reduce-motion .sm-dot {
+  animation: none;
+}
+.sm-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+.sm-status b {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+}
+.sm-status span {
+  font-size: 12.5px;
+}
+.sm-status.on {
+  border-color: #c03a4a;
+  color: #e0566a;
+}
+.h3-icon {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+/* gizlenen bilgiler: girişlerde metin noktaya döner, diğer yerlerde bulanıklaşır */
+html.sm-invites .copy-row input {
+  -webkit-text-security: disc;
+  color: var(--text-3);
+}
+html.sm-personal .fr-code code,
+html.sm-personal .info-card .ic-row b,
+html.sm-personal .list-card .lc-text span,
+html.sm-personal .hint-card b,
+html.sm-personal .conn-row .conn-name,
+html.sm-personal .acc-handle,
+html.sm-personal .acc-row small {
+  filter: blur(6px);
+  user-select: none;
+  pointer-events: none;
+}
+html.sm-personal .copy-row input[value*='.'] {
+  -webkit-text-security: disc;
+}
+
+/* ---------- Ayrı pencere ---------- */
+html.ayri-pencere .popout-app {
+  height: 100%;
+}
+.popout-bar {
+  --tb-h: 38px;
+  height: 38px;
+  padding-right: calc(140px + 8px);
+  border-bottom: 1px solid var(--line);
+}
+.popout-bar .tb-brand span {
+  font-family: var(--font);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.popout-bar .tb-brand small {
+  color: var(--text-3);
+  font-weight: 600;
+  font-size: 12px;
+}
+.popout-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.popout-body > .chat {
+  flex: 1;
+  min-width: 0;
+}
+.popout-body > .splash {
+  flex: 1;
+}
+/* ayrı pencerede arama ve üye listesi yok; ses ana pencerede kalır */
+html.ayri-pencere .chat-header .search-box,
+html.ayri-pencere .chat-header [aria-label='Üye listesi'],
+html.ayri-pencere .chat-header [aria-label='Profil'],
+html.ayri-pencere .chat-header [aria-label='Sesli arama'],
+html.ayri-pencere .chat-header [aria-label='Görüntülü arama'] {
+  display: none;
+}
+
+/* ---------- Sabitlenen özel mesajlar ---------- */
+.dm-row .dm-pin {
+  margin-left: 6px;
+  vertical-align: -1px;
+  color: var(--text-3);
+  transform: rotate(35deg);
+}
+
+/* ---------- Rollerini seç ---------- */
+.sr-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sr-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sr-role:hover {
+  border-color: var(--rc);
+}
+.sr-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--rc);
+}
+.sr-check {
+  width: 14px;
+  display: grid;
+  place-items: center;
+}
+.sr-role.on {
+  color: var(--text);
+  border-color: var(--rc);
+  background: color-mix(in srgb, var(--rc) 16%, var(--bg-elev));
+}

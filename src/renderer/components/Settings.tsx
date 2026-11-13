@@ -15,6 +15,8 @@ import { can, Perm, type Role, type Community } from '../../shared/protocol';
 export const close = () => openModal(null);
 // Sohbet / Gizlilik / Gelişmiş sekmeleri ayrı dosyada (MoreSettings.tsx)
 import { ChatTab, PrivacyTab, AdvancedTab, NotifyExtras } from './MoreSettings';
+import { StreamerTab } from './YayinciModu';
+import { OverlayTab } from './Kaplama';
 
 export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: string; label: string; group?: string; danger?: boolean }[]; tab: string; setTab: (t: string) => void; children: React.ReactNode; footer?: React.ReactNode }) {
   useEffect(() => {
@@ -231,15 +233,12 @@ function AppTab() {
   const s = useStore((x) => x.settings);
   return (
     <>
-      <h1>Uygulama</h1>
+      <h1>Uygulama ve Kısayollar</h1>
       <Row title="Kapatınca tepside çalış" sub="Pencereyi kapatınca Xanaphian arka planda çalışmaya devam eder; topluluğuna gelenler sohbet edebilir.">
         <Toggle value={s.closeToTray} onChange={(v) => updateSettings({ closeToTray: v })} />
       </Row>
       <Row title="Bilgisayar açılınca başlat" sub="Windows oturumu açıldığında Xanaphian tepside başlar.">
         <Toggle value={s.openAtLogin} onChange={(v) => updateSettings({ openAtLogin: v })} />
-      </Row>
-      <Row title="Enter ile gönder" sub="Kapalıyken Ctrl+Enter ile gönderilir, Enter yeni satır açar.">
-        <Toggle value={s.enterToSend} onChange={(v) => updateSettings({ enterToSend: v })} />
       </Row>
       <h3>Klavye kısayolları</h3>
       <div className="shortcuts">
@@ -313,7 +312,7 @@ function UpdatesTab() {
         </>
       )}
       <p className="note">
-        Güncellemeler GitHub üzerinden yayınlanır. Yeni sürüm çıktığında üst çubukta yeşil <b>Güncelle</b> düğmesi belirir; bir kez tıklayınca indirilir, ikinci tıklamada uygulama yeniden başlayıp kendini günceller. Verilerin ve toplulukların korunur.
+        Güncellemeler GitHub üzerinden yayınlanır. Yeni sürüm çıktığında üst çubukta <b>Güncelle</b> düğmesi belirir; bir kez tıklayınca indirilir, ikinci tıklamada uygulama yeniden başlayıp kendini günceller. Verilerin ve toplulukların korunur.
       </p>
       <div className="info-card">
         <div className="ic-row">
@@ -336,9 +335,11 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
     { id: 'activity', label: 'Etkinlik', group: 'Kullanıcı Ayarları' },
     { id: 'connection', label: 'Bağlantı', group: 'Kullanıcı Ayarları' },
     { id: 'privacy', label: 'Gizlilik ve Güvenlik', group: 'Kullanıcı Ayarları' },
+    { id: 'streamer', label: 'Yayıncı modu', group: 'Uygulama Ayarları' },
     { id: 'appearance', label: 'Görünüm', group: 'Uygulama Ayarları' },
     { id: 'notifications', label: 'Bildirimler', group: 'Uygulama Ayarları' },
     { id: 'voice', label: 'Ses ve Görüntü', group: 'Uygulama Ayarları' },
+    { id: 'overlay', label: 'Oyun İçi Kaplama', group: 'Uygulama Ayarları' },
     { id: 'chat', label: 'Sohbet', group: 'Uygulama Ayarları' },
     { id: 'advanced', label: 'Gelişmiş', group: 'Uygulama Ayarları' },
     { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama Ayarları' },
@@ -365,11 +366,13 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       {tab === 'appearance' && <AppearanceTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'voice' && <VoiceTab />}
+      {tab === 'overlay' && <OverlayTab />}
       {tab === 'connection' && <ConnectionTab />}
       {tab === 'app' && <AppTab />}
       {tab === 'updates' && <UpdatesTab />}
       {tab === 'chat' && <ChatTab />}
       {tab === 'privacy' && <PrivacyTab />}
+      {tab === 'streamer' && <StreamerTab />}
       {tab === 'advanced' && <AdvancedTab />}
     </Shell>
   );

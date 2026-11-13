@@ -323,7 +323,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
           )}
         </section>
       )}
-      {variant !== 'popout' && <section className="pc-sec pc-dates">
+      {variant !== 'popout' && (/^[0-9a-z]{14}$/.test(uid) || !!member) && <section className="pc-sec pc-dates">
         {/^[0-9a-z]{14}$/.test(uid) && (
           <div>
             <h4>Xanaphian'a katıldı</h4>

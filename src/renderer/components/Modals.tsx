@@ -6,16 +6,21 @@ import {
 import { CommunityIcon, Avatar } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtTime, displayName } from '../lib/util';
 import { renderMarkdown } from '../lib/markdown';
+import { isToolChannel, type ToolType } from '../../shared/protocol';
 import { can, Perm, isVoiceLike, hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, type ChannelType, type Message } from '../../shared/protocol';
 import { UserSettings } from './Settings';
 import { CommunitySettings } from './CommunitySettings';
 import { CommunityProfileModal } from './CommunityProfile';
+import { StatsModal } from './Stats';
+import { TOOL_INFO, ToolIcon } from './Tools';
 import { ChannelSettings, CategorySettings } from './ChannelSettings';
 import { ModerateModal, NotifyModal } from './Moderation';
 import { Toggle } from './Common';
 import { joinVoice } from '../lib/voice';
 import { ScreenPickerModal } from './Media';
 import { ProfileModal, CustomStatusModal } from './profile/ProfileModal';
+import { SelfRolesModal } from './RolSec';
+import { TemplateImport } from './ToplulukAraclari';
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
   useEffect(() => {
@@ -52,6 +57,7 @@ function CreateCommunityModal() {
   const [color, setColor] = useState(COLORS[Math.floor(Math.random() * 6)]);
   const [icon, setIcon] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [fromTpl, setFromTpl] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const submit = async () => {
     if (!name.trim()) return;
@@ -64,6 +70,12 @@ function CreateCommunityModal() {
     }
     setBusy(false);
   };
+  if (fromTpl)
+    return (
+      <Modal onClose={close} className="tp-modal">
+        <TemplateImport onBack={() => setFromTpl(false)} onDone={close} />
+      </Modal>
+    );
   return (
     <Modal onClose={close}>
       <ModalHead title="Topluluğunu oluştur" sub="Topluluk sunucuda durur; bilgisayarın kapalıyken de arkadaşların sohbet edebilir. Arkadaşların davet koduyla katılır." />
@@ -84,6 +96,15 @@ function CreateCommunityModal() {
             ))}
           </div>
         </div>
+        <button className="tp-entry" onClick={() => setFromTpl(true)}>
+          <span className="tp-entry-ic">
+            <Copy size={16} />
+          </span>
+          <span>
+            <b>Discord şablonundan kur</b>
+            <small>Şablon bağlantısını yapıştır, kanallar ve roller hazır gelsin.</small>
+          </span>
+        </button>
       </div>
       <div className="modal-foot">
         <button className="btn ghost" onClick={() => openModal({ type: 'join' })}>
@@ -151,7 +172,7 @@ function InviteModal({ cid }: { cid: string }) {
   if (!c) return null;
   return (
     <Modal onClose={close}>
-      <ModalHead title={`Arkadaşlarını ${c.name} topluluğuna davet et`} />
+      <ModalHead title="Arkadaşlarını davet et" sub={`${c.name} · kodu alan herkes katılabilir`} />
       <div className="modal-body">
         <label className="field">
           <span>Davet kodunu gönder</span>
@@ -213,6 +234,13 @@ const TYPES: { t: ChannelType; label: string; sub: string; icon: React.ReactNode
   { t: 'space', label: '3D Oda', sub: 'Avatarlarla dolaşılan, yakınlık sesli meydan', icon: <Box size={22} /> },
   { t: 'site', label: 'Site Odası', sub: 'Bir siteyi (ör. xanaphian.com) birlikte gez, yanında sohbet et', icon: <Globe size={22} /> },
 ];
+/** v1.28 topluluk araçları */
+const TOOL_TYPES_UI: { t: ChannelType; label: string; sub: string; icon: React.ReactNode }[] = (['ideas', 'tasks', 'events', 'wall'] as const).map((t) => ({
+  t,
+  label: TOOL_INFO[t].label,
+  sub: TOOL_INFO[t].sub,
+  icon: <ToolIcon type={t} size={22} />,
+}));
 
 function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId: string | null; kind?: ChannelType }) {
   const c = useStore((s) => s.communities[cid]);
@@ -223,8 +251,9 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
   const [priv, setPriv] = useState(false);
   if (!c) return null;
   const urlOk = type !== 'site' || !!cleanSiteUrl(url);
+  const tool = isToolChannel(type);
   const submit = async () => {
-    if ((!name.trim() && type !== 'site') || !urlOk) return;
+    if ((!name.trim() && type !== 'site' && !tool) || !urlOk) return;
     try {
       const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name, type, categoryId: cat, private: priv, ...(type === 'site' ? { url: cleanSiteUrl(url)! } : {}) });
       close();
@@ -253,12 +282,25 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
               </button>
             ))}
           </div>
+          <span className="type-group">Topluluk araçları</span>
+          <div className="type-list">
+            {TOOL_TYPES_UI.map((x) => (
+              <button key={x.t} className={cx('type-opt', type === x.t && 'on')} onClick={() => setType(x.t)}>
+                {x.icon}
+                <div>
+                  <b>{x.label}</b>
+                  <span>{x.sub}</span>
+                </div>
+                <span className="radio" />
+              </button>
+            ))}
+          </div>
         </div>
         <label className="field">
           <span>Kanal adı</span>
           <div className="input-icon">
-            {type === 'voice' ? <Volume2 size={16} /> : type === 'space' ? <Box size={16} /> : type === 'site' ? <Globe size={16} /> : type === 'announce' ? <Megaphone size={16} /> : <Hash size={16} />}
-            <input autoFocus placeholder={type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Meydan' : type === 'site' ? 'Boş bırakırsan sitenin adı kullanılır' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+            {tool ? <ToolIcon type={type as 'ideas'} size={16} /> : type === 'voice' ? <Volume2 size={16} /> : type === 'space' ? <Box size={16} /> : type === 'site' ? <Globe size={16} /> : type === 'announce' ? <Megaphone size={16} /> : <Hash size={16} />}
+            <input autoFocus placeholder={tool ? `Boş bırakırsan "${TOOL_INFO[type as 'ideas'].label}"` : type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Meydan' : type === 'site' ? 'Boş bırakırsan sitenin adı kullanılır' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
           </div>
         </label>
         {type === 'site' && (
@@ -291,7 +333,7 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
         <button className="btn ghost" onClick={close}>
           Vazgeç
         </button>
-        <button className="btn primary" disabled={(!name.trim() && type !== 'site') || !urlOk} onClick={submit}>
+        <button className="btn primary" disabled={(!name.trim() && type !== 'site' && !tool) || !urlOk} onClick={submit}>
           Kanal oluştur
         </button>
       </div>
@@ -379,7 +421,7 @@ function QuickSwitcher() {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const items = useMemo(() => {
-    const all: { key: string; label: string; sub: string; kind: 'ch' | 'voice' | 'space' | 'site' | 'comm'; cid: string; ch?: string; unread: boolean }[] = [];
+    const all: { key: string; label: string; sub: string; kind: 'ch' | 'voice' | 'space' | 'site' | 'comm'; cid: string; ch?: string; unread: boolean; tool?: ToolType }[] = [];
     for (const c of Object.values(communities)) {
       if (c.dm) {
         const ch = c.channels[0]?.id;
@@ -388,7 +430,7 @@ function QuickSwitcher() {
       }
       all.push({ key: c.id, label: c.name, sub: 'Topluluk', kind: 'comm', cid: c.id, unread: false });
       for (const ch of c.channels)
-        all.push({ key: ch.id, label: ch.name, sub: c.name, kind: ch.type === 'voice' ? 'voice' : ch.type === 'space' ? 'space' : ch.type === 'site' ? 'site' : 'ch', cid: c.id, ch: ch.id, unread: !!lastIds[ch.id] && lastIds[ch.id] > (read[ch.id] || '') });
+        all.push({ key: ch.id, label: ch.name, sub: c.name, kind: ch.type === 'voice' ? 'voice' : ch.type === 'space' ? 'space' : ch.type === 'site' ? 'site' : 'ch', cid: c.id, ch: ch.id, unread: !!lastIds[ch.id] && lastIds[ch.id] > (read[ch.id] || ''), tool: isToolChannel(ch.type) ? ch.type : undefined });
     }
     const n = q.toLocaleLowerCase('tr').replace(/^[#@*!]/, '');
     const f = n ? all.filter((x) => x.label.toLocaleLowerCase('tr').includes(n)) : all.filter((x) => x.unread).concat(all.filter((x) => !x.unread && x.kind === 'ch'));
@@ -422,7 +464,7 @@ function QuickSwitcher() {
         <div className="quick-list">
           {items.map((it, i) => (
             <div key={it.key} className={cx('quick-item', i === sel && 'sel', it.unread && 'unread')} onMouseEnter={() => setSel(i)} onClick={() => go(i)}>
-              {it.kind === 'comm' ? <CommunityIcon c={communities[it.cid]} size={22} /> : it.kind === 'voice' ? <Volume2 size={18} /> : it.kind === 'space' ? <Box size={18} /> : it.kind === 'site' ? <Globe size={18} /> : <Hash size={18} />}
+              {it.kind === 'comm' ? <CommunityIcon c={communities[it.cid]} size={22} /> : it.tool ? <ToolIcon type={it.tool} size={18} /> : it.kind === 'voice' ? <Volume2 size={18} /> : it.kind === 'space' ? <Box size={18} /> : it.kind === 'site' ? <Globe size={18} /> : <Hash size={18} />}
               <span className="qi-label">{it.label}</span>
               <span className="qi-sub">{it.sub}</span>
             </div>
@@ -530,11 +572,15 @@ export function Modals() {
       return <UserSettings tab={m.tab} />;
     case 'commProfile':
       return <CommunityProfileModal cid={m.cid} />;
+    case 'stats':
+      return <StatsModal cid={m.cid} />;
     case 'commSettings':
       return <CommunitySettings cid={m.cid} tab={m.tab} />;
     case 'profile':
       return <ProfileModal uid={m.uid} cid={m.cid} />;
     case 'customStatus':
       return <CustomStatusModal />;
+    case 'selfRoles':
+      return <SelfRolesModal cid={m.cid} />;
   }
 }

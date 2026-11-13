@@ -7,6 +7,8 @@ import { OverwriteEditor } from './Permissions';
 import { Toggle } from './Common';
 import { cx } from '../lib/util';
 import { canIn, can, isVoiceLike, hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, Perm, type Overwrite } from '../../shared/protocol';
+import { isToolChannel } from '../../shared/protocol';
+import { TOOL_INFO } from './Tools';
 
 const SLOWMODES: [number, string][] = [
   [0, 'Kapalı'],
@@ -101,7 +103,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
       toast((e as Error).message, 'err');
     }
   };
-  const Icon = ch.type === 'voice' ? Volume2 : ch.type === 'space' ? Box : site ? Globe : ch.type === 'announce' ? Megaphone : Hash;
+  const Icon = isToolChannel(ch.type) ? TOOL_INFO[ch.type].Icon : ch.type === 'voice' ? Volume2 : ch.type === 'space' ? Box : site ? Globe : ch.type === 'announce' ? Megaphone : Hash;
   const nav = [
     { id: 'overview', label: 'Genel Bakış', group: (free ? '' : '#') + ch.name },
     ...(canPerms ? [{ id: 'perms', label: 'İzinler', group: (free ? '' : '#') + ch.name }] : []),

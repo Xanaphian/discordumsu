@@ -1,0 +1,93 @@
+/* v1.23 hata ayıklama ve arayüz düzeltmeleri. En son yüklenir; diğer dosyaları yeniden yazmaz, üzerine yazar. */
+
+/* Uzun adlar: ad kutusu flex olduğu için "…" çıkmıyor, satırın dışına taşıyordu */
+.member-name .name-x,
+.msg-author .name-x,
+.dm-row .name-x {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tıklayınca menü/panel açan düğmelerde ipucu yazısı açılan şeyin üstüne binmesin */
+.tip-wrap.tip-off > .tip {
+  display: none !important;
+}
+
+/* Özel renk seçici, yanındaki renk kutularıyla aynı boyda ve biçimde dursun */
+.swatches .color-input {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  overflow: hidden;
+  outline: 1px dashed var(--line-2);
+  outline-offset: 2px;
+  flex: none;
+}
+.swatches.big .color-input {
+  width: 40px;
+  height: 40px;
+}
+.swatches .color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.swatches .color-input::-webkit-color-swatch {
+  border: 0;
+  border-radius: 8px;
+}
+
+/* Açık temalar (Arşiv Kâğıdı, Toz Pembe, Bej): kod renkleri ve bağlantılar krem zeminde okunmuyordu */
+[data-theme='kagit'],
+[data-theme='tozpembe'],
+[data-theme='bej'] {
+  --blue: #1f5fae;
+}
+:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .hl-k {
+  color: #b4380b;
+}
+:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .hl-s {
+  color: #2f6b1f;
+}
+:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .hl-n {
+  color: #8a5a00;
+}
+:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .hl-f {
+  color: #1f5fae;
+}
+:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .hl-t {
+  color: #7a2fa8;
+}
+
+/* Bildirimler ses ve yazı kutusu düğmelerinin üstüne binmesin */
+.toasts {
+  bottom: 104px;
+}
+
+/* Profil kartı pencereden uzunsa kendi içinde kaysın */
+.popout.pc-pop {
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* Dar site odası sohbetinde yazı kutusunun ipucu üç satıra bölünmesin */
+.composer textarea::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ana sayfa yan menüsü: topluluk listesi */
+.home-comm-row .ch-icon > * {
+  border-radius: 6px;
+  flex: none;
+}
+
+/* Mesaj düzenleme kutusu zeminle aynı renkteydi; düzenlendiği belli olsun */
+.edit-box textarea {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.edit-box textarea:focus {
+  border-color: var(--accent);
+}

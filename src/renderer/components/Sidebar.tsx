@@ -1,16 +1,18 @@
 import React, { memo, useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home,
+  Signal, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
-  updateSettings, toggleMuted, toast, selectCommunity, setHomeTab, dmList, closeDm, pendingIn, hiddenDms, isDmHidden, realCommunities,
+  updateSettings, toggleMuted, toast, selectCommunity, setHomeTab, dmList, closeDm, pendingIn, hiddenDms, isDmHidden, realCommunities, togglePinDm,
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
 import { enterSpace, exitSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
+import { ToolIcon } from './Tools';
+import { isToolChannel } from '../../shared/protocol';
 import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
 import { focusProfileSection } from './profile/ProfileEditor';
@@ -18,7 +20,8 @@ import { activeCustom } from '../../shared/profile';
 import { useActsOf } from '../lib/activity';
 import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
-import { cx, copyText, displayName } from '../lib/util';
+import { cx, copyText, displayName, countOnline } from '../lib/util';
+import { openPopout } from './AyriPencere';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
 
 /** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi */
@@ -40,7 +43,7 @@ function tryJoinVoice(c: Community, ch: Channel) {
 const ChannelIcon = ({ type, size = 18, icon }: { type: Channel['type']; size?: number; icon?: string }) =>
   type === 'site' && icon ? (
     <img className="ch-site-icon" src={icon} alt="" width={size} height={size} draggable={false} />
-  ) : type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
+  ) : isToolChannel(type) ? <ToolIcon type={type} size={size} /> : type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
 
 function siteHost(url?: string) {
   if (!url) return '';
@@ -119,6 +122,7 @@ const ChannelRow = memo(function ChannelRow({
   const menu = (e: React.MouseEvent) =>
     openMenu(e, [
       ...(!isVoiceLike(ch.type) ? [{ label: 'Okundu olarak işaretle', onClick: () => markRead(ch.id), disabled: !unread }] : []),
+      ...(ch.type === 'text' || ch.type === 'announce' ? [{ label: 'Ayrı pencerede aç', onClick: () => openPopout(c, ch) }] : []),
       ...(isVoiceLike(ch.type)
         ? [
             inVoice
@@ -238,7 +242,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
   const collapsed = useStore((s) => s.settings.collapsed);
   const mentions = useStore((s) => s.mentions);
   const connStatus = useStore((s) => s.conns[s.commHost[c.id]]?.status);
-  const onlineCount = useStore((s) => c.members.filter((m) => m.userId === s.me.id || m.userId === 'kovan-asistan' || (s.presence[m.userId] && s.presence[m.userId] !== 'offline')).length);
+  const onlineCount = useStore((s) => countOnline(c.members, s.presence, s.me.id));
   const { unreadCh } = useUnread();
   const manage = can(c, me, Perm.MANAGE_CHANNELS);
   const commMuted = useStore((s) => s.settings.mutedIds.includes(c.id));
@@ -266,6 +270,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     openMenu({ clientX: r.left + 8, clientY: r.bottom + 4 }, [
       { label: 'Sunucu profili', icon: 'profile', onClick: () => openModal({ type: 'commProfile', cid: c.id }) },
+      { label: 'Topluluk istatistikleri', icon: 'stats', onClick: () => openModal({ type: 'stats', cid: c.id }) },
       ...(c.inviteKey ? [{ label: 'Davet et', icon: 'invite', onClick: () => openModal({ type: 'invite', cid: c.id }) }] : []),
       { label: 'Topluluk ayarları', icon: 'settings', onClick: () => openModal({ type: 'commSettings', cid: c.id }) },
       ...(can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Roller', icon: 'roles', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) }] : []),
@@ -284,6 +289,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
       ...(can(c, me, Perm.CHANGE_NICKNAME) || can(c, me, Perm.MANAGE_NICKNAMES)
         ? [{ label: 'Takma adını değiştir', onClick: () => openModal({ type: 'moderate', cid: c.id, uid: me, action: 'nick' }) }]
         : []),
+      ...(c.roles.some((r) => r.selfAssign) ? [{ label: 'Rollerini seç', icon: 'roles', onClick: () => openModal({ type: 'selfRoles', cid: c.id }) }] : []),
       { label: 'Tümünü okundu işaretle', icon: 'check', onClick: () => markCommunityRead(c.id) },
       ...(devMode ? [{ label: 'Topluluk kimliğini kopyala', onClick: () => copyText(c.id) }] : []),
       { sep: true },
@@ -513,19 +519,25 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
   const status = useStore((s) => s.presence[c.dm!]);
   const custom = activeCustom(user?.profile);
   const live = useActsOf(c.dm).length > 0;
+  const pinned = useStore((s) => s.settings.pinnedDms.includes(c.id));
   const menu = (e: React.MouseEvent) =>
     openMenu(e, [
       { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !unread },
+      { label: pinned ? 'Sabitlemeyi kaldır' : 'Listenin üstüne sabitle', onClick: () => togglePinDm(c.id) },
+      { label: 'Ayrı pencerede aç', onClick: () => c.channels[0] && openPopout(c, c.channels[0]) },
       { label: 'Profil', onClick: () => useStore.setState({ popout: { uid: c.dm!, cid: c.id, x: e.clientX + 20, y: e.clientY } }) },
       { label: isMutedId(c.id) ? 'Bildirimleri aç' : 'Sessize al', onClick: () => toggleMuted(c.id) },
       { sep: true },
       { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
     ]);
   return (
-    <div className={cx('ch-row dm-row', active && 'active', unread && 'unread')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} role="button" tabIndex={0}>
+    <div className={cx('ch-row dm-row', active && 'active', unread && 'unread', pinned && 'pinned')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} role="button" tabIndex={0}>
       <Avatar user={user} size={32} status={status || 'offline'} />
       <span className="dm-text">
-        <span className="ch-name">{user?.name || c.name}</span>
+        <span className="ch-name">
+          {user?.name || c.name}
+          {pinned && <Pin size={12} className="dm-pin" aria-label="Sabitlendi" />}
+        </span>
         {live ? <ActivityLine uid={c.dm!} className="ch-sub" /> : custom?.text ? <span className="ch-sub">{custom.emoji ? custom.emoji + ' ' : ''}{custom.text}</span> : null}
       </span>
       {mentions > 0 ? (
@@ -558,10 +570,14 @@ function HomeSidebar() {
   const remote = Object.values(conns).filter((x) => !x.local && !x.home);
   const home = Object.values(conns).find((x) => x.home);
   const requests = pendingIn(friends);
+  const pinnedIds = useStore((s) => s.settings.pinnedDms);
   const dms = useMemo(() => {
     const hidden = hiddenDms();
-    return dmList(communities).filter((c) => current === c.id || !isDmHidden(c, hidden));
-  }, [communities, current]);
+    const list = dmList(communities).filter((c) => current === c.id || pinnedIds.includes(c.id) || !isDmHidden(c, hidden));
+    // sabitlenenler en üstte, sabitlendikleri sırayla
+    const pinned = pinnedIds.map((id) => list.find((c) => c.id === id)).filter((c): c is Community => !!c);
+    return [...pinned, ...list.filter((c) => !pinnedIds.includes(c.id))];
+  }, [communities, current, pinnedIds]);
   const onHome = current === 'home';
   return (
     <>
@@ -628,6 +644,18 @@ function HomeSidebar() {
         ))}
         <div className="cat-row static">
           <span>Toplulukların ({realCommunities(communities).length})</span>
+        </div>
+        <div className="home-links">
+          {realCommunities(communities).map((c) => (
+            <button key={c.id} className={cx('ch-row home-comm-row', comm[c.id]?.unread && 'unread')} onClick={() => selectCommunity(c.id)}>
+              <span className="ch-icon">
+                <CommunityIcon c={c} size={20} />
+              </span>
+              <span className="ch-name">{c.name}</span>
+              {comm[c.id]?.mentions ? <span className="badge">{comm[c.id].mentions}</span> : null}
+            </button>
+          ))}
+          {!realCommunities(communities).length && <div className="dm-empty">Henüz bir topluluğun yok. Kısayollardan oluşturabilir ya da bir davetle katılabilirsin.</div>}
         </div>
       </div>
     </>
