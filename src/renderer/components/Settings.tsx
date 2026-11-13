@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleCheck, Mic } from 'lucide-react';
 import {
-  useStore, openModal, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT,
+  useStore, openModal, registerInviteName, releaseInviteName, DIRECTORY_URL, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT,
 } from '../lib/store';
 import { VoiceTab } from './VoiceSettings';
 import { Avatar, CommunityIcon, Toggle, Logo, STATUS_LABEL } from './Common';
@@ -106,6 +106,56 @@ function NotificationsTab() {
   );
 }
 
+function InviteNameCard() {
+  const name = useStore((x) => x.settings.inviteName);
+  const [val, setVal] = useState(name);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const ready = !!DIRECTORY_URL;
+  const save = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      await registerInviteName(val);
+      toast(`Davet adın "${val.trim().toLowerCase()}" oldu. Davet kodların artık bu adla başlıyor.`, 'ok');
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+    setBusy(false);
+  };
+  return (
+    <label className="field" style={{ marginTop: 18 }}>
+      <span>Davet adı</span>
+      <div className="copy-row">
+        <input
+          placeholder="ör. xanaphian"
+          value={val}
+          maxLength={24}
+          disabled={!ready || busy}
+          onChange={(e) => setVal(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+        />
+        <button className="btn primary" disabled={!ready || busy || !val.trim() || val === name} onClick={save}>
+          {name ? 'Değiştir' : 'Al'}
+        </button>
+        {name && (
+          <button className="btn ghost" disabled={busy} onClick={() => (releaseInviteName(), setVal(''))}>
+            Bırak
+          </button>
+        )}
+      </div>
+      {err && <div className="field-err">{err}</div>}
+      <small className="note">
+        {!ready
+          ? 'Davet rehberi henüz kurulmadı; kurulunca bu alan açılacak.'
+          : name
+            ? `Davet kodların "${name}/kod" biçiminde. Adresin değişse bile ad seni bulur.`
+            : 'Bir ad alırsan davet kodların "xanaphian/s3gas25" gibi görünür. Ad, Kovan davet rehberinde bilgisayarının adreslerine eşlenir.'}
+      </small>
+    </label>
+  );
+}
+
 function ConnectionTab() {
   const info = useStore((x) => x.info);
   const s = useStore((x) => x.settings);
@@ -144,6 +194,7 @@ function ConnectionTab() {
           Farklı ağlardaki arkadaşların için: modeminde TCP {info?.hubPort} portunu bu bilgisayara yönlendir ve dış IP'ni buraya yaz. Aynı ağdaysanız gerek yok.
         </small>
       </label>
+      <InviteNameCard />
       <h3>Bağlı olduğun kovanlar</h3>
       <div className="list-card">
         {Object.values(conns)

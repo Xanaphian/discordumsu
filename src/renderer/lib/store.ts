@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import {
   type AvatarLook,
   Attachment, ChannelType, ClientFrame, Community, ID, Message, ServerFrame, Status, UserPublic, VoiceMember,
-  decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite, Perm,
+  decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite, INVITE_NAME_RE, Perm,
   type AuditEntry, type Ban, type DmInfo, type FriendInfo,
 } from '../../shared/protocol';
 import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
@@ -31,6 +31,8 @@ export interface Settings {
   openAtLogin: boolean;
   publicAddress: string;
   inviteHost: string; // kısa davette kullanılacak adres ("" = otomatik)
+  inviteName: string; // davet rehberindeki adın (ör. "xanaphian"); "" = yok
+  inviteNameKey: string; // adın sahiplik anahtarı
   railOrder: ID[];
   collapsed: ID[];
   membersOpen: boolean;
@@ -103,6 +105,8 @@ export const DEFAULT_SETTINGS: Settings = {
   openAtLogin: false,
   publicAddress: '',
   inviteHost: '',
+  inviteName: '',
+  inviteNameKey: '',
   railOrder: [],
   collapsed: [],
   membersOpen: true,
@@ -442,6 +446,7 @@ export async function boot() {
   activity();
 
   if (S().onboarded) connectAll(cfg.hosts || []);
+  startDirectoryRefresh();
   const pending = await window.kovan.pendingInvite();
   if (pending) set({ modal: { type: 'join', code: pending } });
 }
@@ -615,6 +620,8 @@ export async function myFriendCode(reset = false, hostPick?: string): Promise<st
   if (!conn) throw new Error('Kendi kovanın henüz açılmadı.');
   await waitOnline(local);
   const r = await conn.request<{ data: string }>({ t: 'friend.code', reset, rid: '' });
+  const name = S().settings.inviteName;
+  if (name && !hostPick) return `${name}/${r.data}`;
   const opts = hostOptions(local);
   const want = hostPick || S().settings.inviteHost;
   const h = opts.find((o) => o.host === want)?.host || opts[0]?.host || local;
@@ -1264,6 +1271,73 @@ export async function createCommunity(name: string, color: string, icon?: string
   return r.data;
 }
 
+// ---------------------------------------------------------------------------
+// davet rehberi: "xanaphian/s3gas25" gibi adlı davetler
+/** Cloudflare'de çalışan rehberin adresi ("" = henüz kurulmadı) */
+export const DIRECTORY_URL = '';
+
+async function dirFetch(path: string, init?: RequestInit) {
+  if (!DIRECTORY_URL) throw new Error('Davet rehberi henüz kurulmadı.');
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 6000);
+  try {
+    const r = await fetch(DIRECTORY_URL + path, { ...init, signal: ctl.signal, headers: { 'content-type': 'application/json' } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Davet rehberine ulaşılamadı.');
+    return j;
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw new Error('Davet rehberi yanıt vermedi.');
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+export async function resolveInviteName(name: string): Promise<string[]> {
+  const j = await dirFetch('/v1/ad/' + encodeURIComponent(name));
+  return Array.isArray(j.hosts) ? j.hosts.filter((h: unknown) => typeof h === 'string') : [];
+}
+
+function myDirHosts(): string[] {
+  const s = S();
+  const port = s.info?.hubPort || 47820;
+  const pub = s.settings.publicAddress.trim();
+  return [...(pub ? [pub.includes(':') ? pub : `${pub}:${port}`] : []), ...(s.info?.lan || []).map((ip) => `${ip}:${port}`)];
+}
+
+/** Adı rehbere kaydeder/günceller. İlk kaydeden sahibi olur. */
+export async function registerInviteName(name: string): Promise<void> {
+  const n = name.trim().toLowerCase();
+  if (!INVITE_NAME_RE.test(n)) throw new Error('Ad 3-24 karakter olmalı; küçük harf, rakam ve tire içerebilir, harfle başlamalı.');
+  let key = S().settings.inviteNameKey;
+  if (!key) {
+    const b = crypto.getRandomValues(new Uint8Array(24));
+    key = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+    updateSettings({ inviteNameKey: key });
+  }
+  await dirFetch('/v1/ad/' + n, { method: 'PUT', body: JSON.stringify({ key, hosts: myDirHosts(), port: S().info?.hubPort || 47820 }) });
+  const old = S().settings.inviteName;
+  if (old && old !== n) dirFetch('/v1/ad/' + old, { method: 'DELETE', body: JSON.stringify({ key }) }).catch(() => {});
+  updateSettings({ inviteName: n });
+}
+
+export async function releaseInviteName(): Promise<void> {
+  const { inviteName, inviteNameKey } = S().settings;
+  if (inviteName) await dirFetch('/v1/ad/' + inviteName, { method: 'DELETE', body: JSON.stringify({ key: inviteNameKey }) }).catch(() => {});
+  updateSettings({ inviteName: '' });
+}
+
+/** Adres değişmiş olabilir (DHCP, dış IP): açılışta ve 6 saatte bir tazele */
+let dirTimer: ReturnType<typeof setInterval> | null = null;
+export function startDirectoryRefresh() {
+  const tick = () => {
+    const { inviteName } = S().settings;
+    if (inviteName && DIRECTORY_URL) registerInviteName(inviteName).catch(() => {});
+  };
+  setTimeout(tick, 4000);
+  dirTimer ??= setInterval(tick, 6 * 3600 * 1000);
+}
+
 export interface InviteHostOption {
   host: string; // "ip:port" ya da "alan.adi:port"
   label: string;
@@ -1304,6 +1378,8 @@ export function makeInvite(cid: ID, hostPick?: string): string {
   if (!host) return '';
   const opts = inviteHostOptions(cid);
   if (c?.inviteCode && opts.length) {
+    // kendi kovanımızdaki topluluk ve davet adımız varsa: "xanaphian/s3gas25"
+    if (host === localHost() && s.settings.inviteName && !hostPick) return `${s.settings.inviteName}/${c.inviteCode}`;
     const want = hostPick || s.settings.inviteHost;
     const h = opts.find((o) => o.host === want)?.host || opts[0].host;
     return `${encodeHostToken(h)}/${c.inviteCode}`;
@@ -1313,13 +1389,31 @@ export function makeInvite(cid: ID, hostPick?: string): string {
   return encodeInvite({ h: opts.map((o) => o.host), c: cid, k: c.inviteKey });
 }
 
-async function joinShort(host: string | null, code: string): Promise<ID> {
+async function joinShort(tokenHost: string | null, code: string, prefix?: string): Promise<ID> {
   const s = S();
-  // kendi bilgisayarımızdaki kovan mı?
-  if (host) {
-    const [ip, port] = host.split(':');
-    if (Number(port) === s.info?.hubPort && (ip === '127.0.0.1' || (s.info?.lan || []).includes(ip))) host = localHost();
+  const own = (h: string) => {
+    const [ip, port] = h.split(':');
+    return Number(port) === s.info?.hubPort && (ip === '127.0.0.1' || (s.info?.lan || []).includes(ip)) ? localHost() : h;
+  };
+  // aday adresler: davet adı rehberden çözülür, ön ek bir adres de olabilir
+  const cands: string[] = [];
+  if (prefix && INVITE_NAME_RE.test(prefix)) {
+    if (prefix === s.settings.inviteName) cands.push(localHost());
+    else {
+      const r = await resolveInviteName(prefix).catch(() => null);
+      if (r) cands.push(...r.map(own));
+    }
   }
+  if (tokenHost) cands.push(own(tokenHost));
+  const uniq = [...new Set(cands)];
+  let host: string | null = null;
+  if (uniq.includes(localHost())) host = localHost();
+  else if (uniq.length) {
+    // hepsini aynı anda dene, sıradaki ilk ulaşılabilir olanı seç
+    const ok = await Promise.all(uniq.map((h) => probeHost(h).then((x) => !!x).catch(() => false)));
+    host = uniq.find((_, i) => ok[i]) || null;
+  }
+  const triedSomething = uniq.length > 0;
   const tryHost = async (h: string) => {
     const conn = ensureConn(h, h === localHost());
     saveHosts();
@@ -1335,7 +1429,7 @@ async function joinShort(host: string | null, code: string): Promise<ID> {
     selectCommunity(r.data);
     return r.data;
   };
-  if (host && (host === localHost() || (await probeHost(host)))) return tryHost(host);
+  if (host) return tryHost(host);
   // adres ulaşılamadıysa ya da yalnızca kod verildiyse: bağlı olduğumuz sunuculara sor
   for (const [h, c] of Object.entries(S().conns)) {
     if (c.status !== 'online' || h === host) continue;
@@ -1346,15 +1440,17 @@ async function joinShort(host: string | null, code: string): Promise<ID> {
     }
   }
   throw new Error(
-    host
-      ? "Davetin sahibine ulaşılamadı. Aynı ağda (ya da aynı Radmin/Hamachi ağında) olduğunuzdan ve onun Kovan'ının açık olduğundan emin ol."
-      : 'Bu kod bağlı olduğun sunucularda bulunamadı. Kodu adresiyle birlikte (ör. 2ld8x1k/s3gas25) yapıştır.',
+    prefix && INVITE_NAME_RE.test(prefix) && !tokenHost && !triedSomething
+      ? `"${prefix}" adında bir davet adı bulunamadı. Kodu doğru yazdığından emin ol.`
+      : triedSomething
+        ? "Davetin sahibine ulaşılamadı. Aynı ağda (ya da aynı Radmin/Hamachi ağında) olduğunuzdan, internetten bağlanıyorsan onun modeminde portun yönlendirildiğinden ve Kovan'ının açık olduğundan emin ol."
+        : 'Bu kod bağlı olduğun sunucularda bulunamadı. Kodu adresiyle birlikte (ör. 2ld8x1k/s3gas25) yapıştır.',
   );
 }
 
 export async function joinByInvite(code: string): Promise<ID> {
   const short = parseShortInvite(code);
-  if (short) return joinShort(short.host, short.code);
+  if (short) return joinShort(short.host, short.code, short.prefix);
   const d = decodeInvite(code);
   if (!d) throw new Error('Davet kodu okunamadı.');
   const s = S();

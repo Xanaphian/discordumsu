@@ -442,7 +442,11 @@ export function decodeHostToken(tok: string, defaultPort = DEFAULT_PORT): string
 export interface ShortInvite {
   host: string | null; // çözülmüş "ip:port" (yalnızca kod verildiyse null)
   code: string;
+  prefix?: string; // "/" öncesi ham kısım (ör. davet adı "xanaphian")
 }
+
+/** Davet rehberine kaydedilebilen ad: "xanaphian/s3gas25" */
+export const INVITE_NAME_RE = /^[a-z][a-z0-9-]{2,23}$/;
 
 /** "2ld8x1k/s3gas25", "kovan://invite/2ld8x1k/s3gas25" ya da yalnızca "s3gas25" */
 export function parseShortInvite(input: string): ShortInvite | null {
@@ -453,7 +457,8 @@ export function parseShortInvite(input: string): ShortInvite | null {
   if (!SHORT_CODE_RE.test(code)) return null;
   if (i < 0) return { host: null, code };
   // çözülemeyen ön ek (ör. bir ad) yalnızca kod gibi davranır: bağlı sunucularda aranır
-  return { host: decodeHostToken(s.slice(0, i)), code };
+  const prefix = s.slice(0, i).toLowerCase();
+  return { host: decodeHostToken(prefix), code, prefix };
 }
 
 export interface InviteData {

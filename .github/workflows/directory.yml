@@ -1,0 +1,64 @@
+name: Davet rehberi
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['tools/davet-rehberi/**', '.github/workflows/directory.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gizli değerler var mı?
+        id: chk
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "CLOUDFLARE_API_TOKEN ve CLOUDFLARE_ACCOUNT_ID eklenmemiş; atlanıyor." >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.chk.outputs.skip != '1'
+        with:
+          node-version: 20
+      - name: KV alanı
+        if: steps.chk.outputs.skip != '1'
+        working-directory: tools/davet-rehberi
+        run: |
+          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID"
+          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          ID=$(curl -fsS -H "$AUTH" "$API/storage/kv/namespaces?per_page=100" | jq -r '.result[] | select(.title=="kovan-davet-adlar") | .id' | head -1)
+          if [ -z "$ID" ]; then
+            ID=$(curl -fsS -X POST -H "$AUTH" -H "Content-Type: application/json" -d '{"title":"kovan-davet-adlar"}' "$API/storage/kv/namespaces" | jq -r '.result.id')
+          fi
+          test -n "$ID" && test "$ID" != "null"
+          cat > wrangler.toml <<TOML
+          name = "kovan-davet"
+          main = "worker.js"
+          compatibility_date = "2024-09-01"
+          workers_dev = true
+
+          [[kv_namespaces]]
+          binding = "NAMES"
+          id = "$ID"
+          TOML
+          sed -i 's/^          //' wrangler.toml
+          cat wrangler.toml
+      - name: Yayınla
+        if: steps.chk.outputs.skip != '1'
+        working-directory: tools/davet-rehberi
+        run: |
+          npx --yes wrangler@3 deploy
+          SUB=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain')
+          URL="https://kovan-davet.$SUB.workers.dev"
+          echo "Rehber adresi: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "REHBER_URL=$URL"
+          sleep 5
+          curl -fsS "$URL/" || true

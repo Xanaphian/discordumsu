@@ -169,7 +169,7 @@ function InviteModal({ cid }: { cid: string }) {
             </button>
           </div>
         </label>
-        {c.inviteCode && opts.length > 1 && (
+        {c.inviteCode && opts.length > 1 && !(local && useStore.getState().settings.inviteName) && (
           <label className="field">
             <span>Bu kod hangi ağ için?</span>
             <select value={opts.some((o) => o.host === inviteHost) ? inviteHost : opts[0].host} onChange={(e) => updateSettings({ inviteHost: e.target.value })}>
