@@ -189,6 +189,7 @@ export type Modal =
   | { type: 'invite'; cid: ID }
   | { type: 'settings'; tab?: string }
   | { type: 'commSettings'; cid: ID; tab?: string }
+  | { type: 'commProfile'; cid: ID }
   | { type: 'createChannel'; cid: ID; categoryId: ID | null; kind?: ChannelType }
   | { type: 'editChannel'; cid: ID; chId: ID; tab?: string }
   | { type: 'editCategory'; cid: ID; catId: ID; tab?: string }

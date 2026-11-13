@@ -14,7 +14,7 @@ import {
   hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
   DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo,
 } from '../shared/protocol';
-import { sanitizeProfile, BIO_MAX } from '../shared/profile';
+import { sanitizeProfile, sanitizeCommunityProfile, BIO_MAX } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
 
 const MAX_CONTENT = 4000;
@@ -1402,6 +1402,12 @@ export class Hub {
           c.name = n;
         }
         if (f.description !== undefined) (c.description = clampStr(f.description, 300)), changed.push('açıklama');
+        if (f.profile !== undefined) {
+          const p = f.profile === null ? undefined : sanitizeCommunityProfile(f.profile);
+          if (p) c.profile = p;
+          else delete c.profile;
+          changed.push('sunucu profili');
+        }
         if (f.color !== undefined && /^#[0-9a-f]{6}$/i.test(f.color)) (c.color = f.color), changed.push('renk');
         if (f.icon !== undefined) {
           if (f.icon === null) delete c.icon;

@@ -73,7 +73,7 @@ function resizeCover(file: File, w: number, h: number, max = BANNER_MAX, quality
 }
 
 /** Hareketli GIF sığıyorsa olduğu gibi kalır (animasyon korunur), yoksa kırpılıp küçültülür. */
-function readImage(file: File, w: number, h: number, max: number): Promise<string> {
+export function readImage(file: File, w: number, h: number, max: number): Promise<string> {
   if (file.type === 'image/gif' && Math.ceil(file.size / 3) * 4 + 30 <= max) {
     return new Promise((resolve, reject) => {
       const r = new FileReader();
@@ -124,7 +124,7 @@ function resizeFit(file: File, w: number, h: number, max: number): Promise<strin
 type Framing = { x?: number; y?: number; zoom?: number };
 
 /** Resmi sürükleyerek konumlandırma, tekerlek ya da kaydırıcıyla yakınlaştırma */
-function ImageFramer({ src, value, onChange, aspect, tall }: { src: string; value: Framing; onChange: (f: Framing) => void; aspect: number; tall?: boolean }) {
+export function ImageFramer({ src, value, onChange, aspect, tall }: { src: string; value: Framing; onChange: (f: Framing) => void; aspect: number; tall?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
   const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
@@ -222,7 +222,7 @@ export function focusProfileSection(id: string) {
 }
 
 
-function Section({ id, title, sub, children, right }: { id?: string; title: string; sub?: string; children: React.ReactNode; right?: React.ReactNode }) {
+export function Section({ id, title, sub, children, right }: { id?: string; title: string; sub?: string; children: React.ReactNode; right?: React.ReactNode }) {
   const tab = useContext(TabCtx);
   if (id && TAB_OF[id] && TAB_OF[id] !== tab) return null;
   return (
@@ -239,7 +239,7 @@ function Section({ id, title, sub, children, right }: { id?: string; title: stri
   );
 }
 
-function ColorPick({ value, onChange, label }: { value: string; onChange: (v: string) => void; label?: string }) {
+export function ColorPick({ value, onChange, label }: { value: string; onChange: (v: string) => void; label?: string }) {
   return (
     <label className="pe-color" title={label}>
       <span style={{ background: value }} />
@@ -249,7 +249,7 @@ function ColorPick({ value, onChange, label }: { value: string; onChange: (v: st
   );
 }
 
-function Seg<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) {
+export function Seg<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) {
   return (
     <div className="pe-seg">
       {options.map(([v, l]) => (

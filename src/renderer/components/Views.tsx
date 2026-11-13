@@ -7,6 +7,7 @@ import { Avatar, CommunityIcon, Logo, Tooltip } from './Common';
 import { cx, COLORS, displayName, resizeImage, modKey } from '../lib/util';
 import type { Channel, Community } from '../../shared/protocol';
 import { useUnread } from './ServerRail';
+import { Banner } from './profile/ProfileCard';
 
 export function HomeView() {
   const tab = useStore((s) => s.homeTab);
@@ -52,7 +53,11 @@ function HomeStart() {
             const online = c.members.filter((m) => presence[m.userId] && presence[m.userId] !== 'offline').length;
             return (
               <button key={c.id} className="comm-card" onClick={() => selectCommunity(c.id)}>
-                <div className="cc-banner" style={{ background: `linear-gradient(135deg, ${c.color}, color-mix(in srgb, ${c.color} 30%, #000))` }} />
+                {c.profile?.banner ? (
+                  <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} className="cc-banner" />
+                ) : (
+                  <div className="cc-banner" style={{ background: `linear-gradient(135deg, ${c.color}, color-mix(in srgb, ${c.color} 30%, #000))` }} />
+                )}
                 <div className="cc-icon hex">
                   <CommunityIcon c={c} size={52} />
                 </div>

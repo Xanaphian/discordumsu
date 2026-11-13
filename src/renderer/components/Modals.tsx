@@ -9,6 +9,7 @@ import { renderMarkdown } from '../lib/markdown';
 import { can, Perm, isVoiceLike, hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, type ChannelType, type Message } from '../../shared/protocol';
 import { UserSettings } from './Settings';
 import { CommunitySettings } from './CommunitySettings';
+import { CommunityProfileModal } from './CommunityProfile';
 import { ChannelSettings, CategorySettings } from './ChannelSettings';
 import { ModerateModal, NotifyModal } from './Moderation';
 import { Toggle } from './Common';
@@ -527,6 +528,8 @@ export function Modals() {
       return <SearchModal cid={m.cid} q={m.q} />;
     case 'settings':
       return <UserSettings tab={m.tab} />;
+    case 'commProfile':
+      return <CommunityProfileModal cid={m.cid} />;
     case 'commSettings':
       return <CommunitySettings cid={m.cid} tab={m.tab} />;
     case 'profile':

@@ -1,0 +1,252 @@
+/* ---------------- 1.17 sunucu profili ---------------- */
+.modal.cp-modal {
+  width: 620px;
+  max-width: calc(100vw - 40px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  position: relative;
+}
+.cp-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--x-panel, var(--bg-elev));
+  border: 1px solid var(--x-panel-line, var(--line));
+  border-top-color: var(--x-panel-top, var(--line-2));
+  box-shadow: var(--x-panel-shadow, 0 18px 50px rgba(0, 0, 0, 0.4));
+  overflow: hidden;
+}
+.cp-modal .cp-card {
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.cp-card .cp-banner {
+  flex: none;
+  height: calc(var(--bh, 108px) * 1.45);
+}
+.cp-card.cp-preview .cp-banner {
+  height: var(--bh, 108px);
+}
+.cp-card .cp-banner::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 55%;
+  z-index: 1;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--x-panel, var(--bg-elev)) 70%, transparent));
+  pointer-events: none;
+}
+.cp-head {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -48px;
+  padding: 0 24px;
+}
+.cp-preview .cp-head {
+  margin-top: -40px;
+  padding: 0 18px;
+}
+.cp-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border-radius: 24px;
+  background: var(--x-panel, var(--bg-elev));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.cp-icon > * {
+  border-radius: 20px;
+  overflow: hidden;
+}
+.cp-actions {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+.cp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 24px 24px;
+}
+.cp-preview .cp-body {
+  padding: 12px 18px 18px;
+  gap: 12px;
+}
+.cp-name {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.cp-preview .cp-name {
+  font-size: 24px;
+}
+.cp-tagline {
+  margin: -8px 0 0;
+  color: var(--text-2);
+  font-size: 14.5px;
+  font-style: italic;
+  line-height: 1.4;
+}
+.cp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.cp-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cp-stats svg {
+  color: var(--accent);
+}
+.cp-tags .pc-tag {
+  border-radius: 0;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.cp-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cp-sec h4 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.cp-desc {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cp-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--line);
+}
+.cp-rules li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 12px;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.cp-rules li + li {
+  border-top: 1px solid var(--line);
+}
+.cp-rules b {
+  flex: none;
+  min-width: 18px;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.2;
+  color: var(--accent);
+}
+.cp-rules span {
+  overflow-wrap: anywhere;
+}
+.cp-empty {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.cp-owner {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px 4px 4px;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.cp-owner:not(:disabled):hover {
+  background: var(--bg-hover);
+}
+.cp-editor .pe-preview .cp-card {
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* kenar çubuğu başlığında afiş */
+.side-header.comm-head.has-banner {
+  position: relative;
+  height: 118px;
+  align-items: flex-end;
+  padding-bottom: 12px;
+  overflow: hidden;
+  background: var(--bg-side);
+}
+.side-header.comm-head.has-banner > :not(.sh-banner) {
+  position: relative;
+  z-index: 2;
+}
+.comm-head .sh-banner {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  z-index: 0;
+}
+.comm-head .sh-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, transparent 30%, color-mix(in srgb, var(--bg-side) 55%, transparent) 68%, color-mix(in srgb, var(--bg-side) 92%, transparent));
+}
+.side-header.comm-head.has-banner:hover .sh-banner {
+  filter: brightness(1.08);
+}
+.comm-card .cc-banner.pc-banner {
+  height: 70px;
+}
+.cp-editor {
+  padding-bottom: 72px;
+}
+[data-style] .pe-sec {
+  border-radius: 0;
+}

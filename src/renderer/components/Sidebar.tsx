@@ -263,6 +263,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
   const headerMenu = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     openMenu({ clientX: r.left + 8, clientY: r.bottom + 4 }, [
+      { label: 'Sunucu profili', icon: 'profile', onClick: () => openModal({ type: 'commProfile', cid: c.id }) },
       ...(c.inviteKey ? [{ label: 'Davet et', icon: 'invite', onClick: () => openModal({ type: 'invite', cid: c.id }) }] : []),
       { label: 'Topluluk ayarları', icon: 'settings', onClick: () => openModal({ type: 'commSettings', cid: c.id }) },
       ...(can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Roller', icon: 'roles', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) }] : []),
@@ -292,7 +293,8 @@ export function ChannelSidebar({ c }: { c: Community }) {
 
   return (
     <>
-      <button className="side-header comm-head" onClick={headerMenu} style={{ ['--cc' as any]: c.color }}>
+      <button className={cx('side-header comm-head', c.profile?.banner && 'has-banner')} onClick={headerMenu} style={{ ['--cc' as any]: c.color }}>
+        {c.profile?.banner && <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} className="sh-banner" />}
         <span className="sh-icon">
           <CommunityIcon c={c} size={34} />
         </span>
