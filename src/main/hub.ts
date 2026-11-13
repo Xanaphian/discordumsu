@@ -1063,6 +1063,10 @@ export class Hub {
         if (!room || !vm) return;
         vm.muted = s.voice.muted;
         vm.deaf = s.voice.deaf;
+        vm.cam = !!f.cam;
+        vm.screen = typeof f.screen === 'string' ? clampStr(f.screen, 24) : null;
+        const sid = (v: unknown) => (typeof v === 'string' && /^[\w{}-]{1,64}$/.test(v) ? v : undefined);
+        vm.streams = f.streams ? { mic: sid(f.streams.mic), cam: sid(f.streams.cam), screen: sid(f.streams.screen) } : undefined;
         const cid = this.chanToComm.get(s.voice.ch);
         const c = cid && this.comms.get(cid);
         if (c) this.broadcast(c, { t: 'vc', ch: s.voice.ch, members: [...room.values()] });
