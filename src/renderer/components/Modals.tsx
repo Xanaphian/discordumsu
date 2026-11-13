@@ -65,7 +65,7 @@ function CreateCommunityModal() {
   };
   return (
     <Modal onClose={close}>
-      <ModalHead title="Topluluğunu oluştur" sub="Topluluk senin bilgisayarında barındırılır. Arkadaşların davet koduyla katılır." />
+      <ModalHead title="Topluluğunu oluştur" sub="Topluluk sunucuda durur; bilgisayarın kapalıyken de arkadaşların sohbet edebilir. Arkadaşların davet koduyla katılır." />
       <div className="modal-body center">
         <button className="icon-upload hex" onClick={() => file.current?.click()}>
           {icon ? <CommunityIcon c={{ name, icon, color }} size={84} /> : <div className="icon-upload-empty" style={{ background: color }}><ImagePlus size={26} /><span>YÜKLE</span></div>}
@@ -118,12 +118,11 @@ function JoinModal({ code: initial }: { code?: string }) {
       <div className="modal-body">
         <label className="field">
           <span>Davet kodu</span>
-          <input autoFocus placeholder="ör. 2ld8x1k/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} className={cx(err && 'invalid')} />
+          <input autoFocus placeholder="ör. xanaphian/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} className={cx(err && 'invalid')} />
         </label>
         {err && <div className="field-err">{err}</div>}
         <div className="hint-card">
-          <b>Nasıl çalışır?</b> Davet kodunun "/" işaretinden önceki kısmı, topluluğu barındıran bilgisayarın kısaltılmış adresidir. Aynı ağdaysanız (ev, okul, LAN) doğrudan bağlanırsın. Farklı ağlar için barındıran kişinin
-          modemde <code>{useStore.getState().info?.hubPort}</code> portunu yönlendirip Ayarlar → Bağlantı'ya dış IP'sini yazması gerekir.
+          Davet kodları <code>xanaphian/s3gas25</code> gibi görünür. Kodu yapıştırıp Katıl'a basman yeterli; arkadaşının bilgisayarının açık olması gerekmez.
         </div>
       </div>
       <div className="modal-foot">
@@ -169,7 +168,7 @@ function InviteModal({ cid }: { cid: string }) {
             </button>
           </div>
         </label>
-        {c.inviteCode && opts.length > 1 && !(local && useStore.getState().settings.inviteName) && (
+        {c.inviteCode && opts.length > 1 && (
           <label className="field">
             <span>Bu kod hangi ağ için?</span>
             <select value={opts.some((o) => o.host === inviteHost) ? inviteHost : opts[0].host} onChange={(e) => updateSettings({ inviteHost: e.target.value })}>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleCheck, Mic } from 'lucide-react';
 import {
-  useStore, openModal, registerInviteName, releaseInviteName, DIRECTORY_URL, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT,
+  useStore, openModal, moveToServer, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT,
 } from '../lib/store';
 import { VoiceTab } from './VoiceSettings';
 import { Avatar, CommunityIcon, Toggle, Logo, STATUS_LABEL } from './Common';
@@ -9,7 +9,7 @@ import { ProfileEditor } from './profile/ProfileEditor';
 import { AppearanceTab } from './Appearance';
 import { cx, COLORS, resizeImage, copyText, fmtSize, fmtDay, displayName, modKey } from '../lib/util';
 import { playSound } from '../lib/sound';
-import { can, Perm, type Role } from '../../shared/protocol';
+import { can, Perm, type Role, type Community } from '../../shared/protocol';
 
 export const close = () => openModal(null);
 // Sohbet / Gizlilik / Gelişmiş sekmeleri ayrı dosyada (MoreSettings.tsx)
@@ -106,117 +106,121 @@ function NotificationsTab() {
   );
 }
 
-function InviteNameCard() {
-  const name = useStore((x) => x.settings.inviteName);
-  const [val, setVal] = useState(name);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const ready = !!DIRECTORY_URL;
-  const save = async () => {
-    setBusy(true);
-    setErr('');
-    try {
-      await registerInviteName(val);
-      toast(`Davet adın "${val.trim().toLowerCase()}" oldu. Davet kodların artık bu adla başlıyor.`, 'ok');
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-    setBusy(false);
-  };
-  return (
-    <label className="field" style={{ marginTop: 18 }}>
-      <span>Davet adı</span>
-      <div className="copy-row">
-        <input
-          placeholder="ör. xanaphian"
-          value={val}
-          maxLength={24}
-          disabled={!ready || busy}
-          onChange={(e) => setVal(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-          onKeyDown={(e) => e.key === 'Enter' && save()}
-        />
-        <button className="btn primary" disabled={!ready || busy || !val.trim() || val === name} onClick={save}>
-          {name ? 'Değiştir' : 'Al'}
-        </button>
-        {name && (
-          <button className="btn ghost" disabled={busy} onClick={() => (releaseInviteName(), setVal(''))}>
-            Bırak
-          </button>
-        )}
-      </div>
-      {err && <div className="field-err">{err}</div>}
-      <small className="note">
-        {!ready
-          ? 'Davet rehberi henüz kurulmadı; kurulunca bu alan açılacak.'
-          : name
-            ? `Davet kodların "${name}/kod" biçiminde. Adresin değişse bile ad seni bulur.`
-            : 'Bir ad alırsan davet kodların "xanaphian/s3gas25" gibi görünür. Ad, Xanaphian davet rehberinde bilgisayarının adreslerine eşlenir.'}
-      </small>
-    </label>
-  );
-}
-
 function ConnectionTab() {
   const info = useStore((x) => x.info);
   const s = useStore((x) => x.settings);
   const conns = useStore((x) => x.conns);
+  const commHost = useStore((x) => x.commHost);
+  const communities = useStore((x) => x.communities);
   const [pub, setPub] = useState(s.publicAddress);
+  const home = Object.values(conns).find((c) => c.home);
+  const local = Object.values(conns).find((c) => c.local);
+  const localComms = local ? Object.values(communities).filter((c) => !c.dm && commHost[c.id] === local.host) : [];
+  const others = Object.values(conns).filter((c) => !c.local && !c.home);
+  const stText = (st?: string) => (st === 'online' ? 'Bağlı' : st === 'connecting' ? 'Bağlanıyor…' : 'Bağlantı yok');
   return (
     <>
       <h1>Bağlantı</h1>
       <div className="info-card">
         <div className="ic-row">
-          <span>Kendi sunucun</span>
-          <b className="ok">
-            <CircleCheck size={14} /> Çalışıyor · port {info?.hubPort}
+          <span>Sunucu</span>
+          <b className={home?.status === 'online' ? 'ok' : ''}>
+            {home?.status === 'online' && <CircleCheck size={14} />} {stText(home?.status)}
           </b>
         </div>
         <div className="ic-row">
-          <span>Yerel ağ adreslerin</span>
-          <b>{info?.lan.length ? info.lan.map((x) => `${x}:${info.hubPort}`).join(', ') : 'Ağ bulunamadı'}</b>
+          <span>Adres</span>
+          <b>{home?.host.replace(/^https?:\/\//, '') || '—'}</b>
         </div>
       </div>
-      <label className="field">
-        <span>Dış adres (isteğe bağlı)</span>
-        <div className="copy-row">
-          <input placeholder="ör. 85.100.20.30 veya alanadi.com:47820" value={pub} onChange={(e) => setPub(e.target.value)} />
-          <button
-            className="btn primary"
-            onClick={() => {
-              updateSettings({ publicAddress: pub.trim() });
-              toast('Kaydedildi. Yeni davet kodları bu adresi de içerecek.', 'ok');
-            }}
-          >
-            Kaydet
-          </button>
-        </div>
-        <small className="note">
-          Farklı ağlardaki arkadaşların için: modeminde TCP {info?.hubPort} portunu bu bilgisayara yönlendir ve dış IP'ni buraya yaz. Aynı ağdaysanız gerek yok.
-        </small>
-      </label>
-      <InviteNameCard />
-      <h3>Bağlı olduğun sunucular</h3>
-      <div className="list-card">
-        {Object.values(conns)
-          .filter((c) => !c.local)
-          .map((c) => (
-            <div key={c.host} className="lc-row">
-              <span className={cx('dot', c.status)} />
-              <div className="lc-text">
-                <b>{c.hubName ? `${c.hubName} sunucusu` : c.host}</b>
-                <span>
-                  {c.host} · {c.status === 'online' ? 'bağlı' : c.status === 'connecting' ? 'bağlanıyor' : 'çevrimdışı'}
-                </span>
+      <p className="note">
+        Toplulukların, mesajların ve dosyaların sunucuda durur; bilgisayarın kapalıyken de arkadaşların sohbet etmeye devam eder. Sesli sohbet ve ekran paylaşımı kişiler arasında doğrudan akar.
+      </p>
+      {localComms.length > 0 && <LocalCommunities comms={localComms} />}
+      {localComms.length > 0 && (
+        <label className="field" style={{ marginTop: 18 }}>
+          <span>Bilgisayarındaki topluluklar için dış adres (isteğe bağlı)</span>
+          <div className="copy-row">
+            <input placeholder="ör. 85.100.20.30 veya alanadi.com:47820" value={pub} onChange={(e) => setPub(e.target.value)} />
+            <button
+              className="btn primary"
+              onClick={() => {
+                updateSettings({ publicAddress: pub.trim() });
+                toast('Kaydedildi.', 'ok');
+              }}
+            >
+              Kaydet
+            </button>
+          </div>
+          <small className="note">Yalnızca sunucuya taşımadığın, bilgisayarında duran topluluklar için. Port: {info?.hubPort}.</small>
+        </label>
+      )}
+      {others.length > 0 && (
+        <>
+          <h3>Bağlı olduğun diğer sunucular</h3>
+          <div className="list-card">
+            {others.map((c) => (
+              <div key={c.host} className="lc-row">
+                <span className={cx('dot', c.status)} />
+                <div className="lc-text">
+                  <b>{c.hubName ? `${c.hubName} sunucusu` : c.host}</b>
+                  <span>
+                    {c.host} · {c.status === 'online' ? 'bağlı' : c.status === 'connecting' ? 'bağlanıyor' : 'çevrimdışı'}
+                  </span>
+                </div>
+                <button
+                  className="btn ghost sm"
+                  onClick={() => confirmDialog('Bu sunucuyu unut?', 'Bu sunucudaki topluluklar listenden kalkar. Tekrar katılmak için davet gerekir.', () => forgetHost(c.host), 'Unut')}
+                >
+                  Unut
+                </button>
               </div>
-              <button
-                className="btn ghost sm"
-                onClick={() => confirmDialog('Bu sunucuyu unut?', 'Bu sunucudaki topluluklar listenden kalkar. Tekrar katılmak için davet gerekir.', () => forgetHost(c.host), 'Unut')}
-              >
-                Unut
-              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+function LocalCommunities({ comms }: { comms: Community[] }) {
+  const me = useStore((x) => x.me.id);
+  const [busy, setBusy] = useState('');
+  const move = (c: Community) =>
+    confirmDialog(
+      `"${c.name}" sunucuya taşınsın mı?`,
+      'Kanallar, roller, üyeler, mesajlar ve dosyalar sunucuya kopyalanır. Üyeler topluluğu sunucuda görmeye devam eder; bilgisayarın kapalıyken de sohbet sürer. Bilgisayarındaki kopya yedek olarak kalır.',
+      async () => {
+        setBusy(c.id);
+        try {
+          const r = await moveToServer(c.id);
+          toast(r.failed ? `"${c.name}" taşındı, ${r.failed} dosya aktarılamadı.` : `"${c.name}" sunucuya taşındı.`, 'ok');
+        } catch (e) {
+          toast((e as Error).message, 'err');
+        }
+        setBusy('');
+      },
+      'Taşı',
+      false,
+    );
+  return (
+    <>
+      <h3>Bilgisayarında duran topluluklar</h3>
+      <div className="list-card">
+        {comms.map((c) => (
+          <div key={c.id} className="lc-row">
+            <span className="dot online" />
+            <div className="lc-text">
+              <b>{c.name}</b>
+              <span>{c.members.length} üye · bilgisayarın kapanınca ulaşılamaz</span>
             </div>
-          ))}
-        {!Object.values(conns).some((c) => !c.local) && <div className="empty-note">Henüz başka bir sunucuya bağlanmadın.</div>}
+            {c.ownerId === me && (
+              <button className="btn primary sm" disabled={!!busy} onClick={() => move(c)}>
+                {busy === c.id ? 'Taşınıyor…' : 'Sunucuya taşı'}
+              </button>
+            )}
+          </div>
+        ))}
       </div>
     </>
   );

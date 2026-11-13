@@ -114,7 +114,7 @@ export function Onboarding() {
           <>
             <Logo size={64} />
             <h1>Xanaphian'a hoş geldin</h1>
-            <p>Arkadaşlarınla topluluklar kur, kanallarda yazış, sesli sohbet et. Hızlı, hafif ve verilerin kendi bilgisayarında.</p>
+            <p>Arkadaşlarınla topluluklar kur, kanallarda yazış, sesli sohbet et. Hızlı ve hafif; bilgisayarın kapalıyken de toplulukların açık kalır.</p>
             <ul className="ob-list">
               <li>Topluluklar, kategoriler, metin / ses / duyuru kanalları</li>
               <li>Yanıtlar, tepkiler, bahsetmeler, dosya paylaşımı, markdown</li>

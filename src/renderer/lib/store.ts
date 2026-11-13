@@ -2,11 +2,11 @@ import { create } from 'zustand';
 import {
   type AvatarLook,
   Attachment, ChannelType, ClientFrame, Community, ID, Message, ServerFrame, Status, UserPublic, VoiceMember,
-  decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite, INVITE_NAME_RE, Perm,
+  decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite, Perm,
   type AuditEntry, type Ban, type DmInfo, type FriendInfo,
 } from '../../shared/protocol';
 import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
-import { HostConn, probeHost, ConnStatus } from './net';
+import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
 
@@ -31,8 +31,7 @@ export interface Settings {
   openAtLogin: boolean;
   publicAddress: string;
   inviteHost: string; // kısa davette kullanılacak adres ("" = otomatik)
-  inviteName: string; // davet rehberindeki adın (ör. "xanaphian"); "" = yok
-  inviteNameKey: string; // adın sahiplik anahtarı
+  serverUrl: string; // merkezi sunucu ("" = varsayılan)
   railOrder: ID[];
   collapsed: ID[];
   membersOpen: boolean;
@@ -105,8 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openAtLogin: false,
   publicAddress: '',
   inviteHost: '',
-  inviteName: '',
-  inviteNameKey: '',
+  serverUrl: '',
   railOrder: [],
   collapsed: [],
   membersOpen: true,
@@ -231,6 +229,8 @@ export interface AppInfo {
   dev: boolean;
   exePath?: string;
   mcpBridge?: string;
+  /** KOVAN_SERVER ortam değişkeniyle verilen sunucu (deneme için) */
+  server?: string;
 }
 
 interface Conn {
@@ -240,6 +240,8 @@ interface Conn {
   hubId?: string;
   hubName?: string;
   local: boolean;
+  /** merkezi sunucu */
+  home?: boolean;
 }
 
 export interface State {
@@ -340,7 +342,18 @@ export function connFor(cidOrCh: ID): HostConn | undefined {
 
 export function hostHttp(cid: ID): string {
   const h = S().commHost[cid];
-  return h ? `http://${h}` : '';
+  return h ? httpBase(h) : '';
+}
+
+/** Herkesin bağlandığı merkezi sunucu */
+export const DEFAULT_SERVER = 'https://45-87-173-18.sslip.io/kovan';
+/** Davet ve arkadaş kodlarının ön eki: "xanaphian/s3gas25" */
+export const INVITE_PREFIX = 'xanaphian';
+const HOME_PREFIXES = new Set([INVITE_PREFIX, 'kovan']);
+
+export function homeHost() {
+  const s = S();
+  return (s.settings.serverUrl || s.info?.server || DEFAULT_SERVER).trim().replace(/\/+$/, '');
 }
 
 export function localHost() {
@@ -372,17 +385,19 @@ function hello(): ClientFrame {
 function ensureConn(host: string, local = false): HostConn {
   let c = conns.get(host);
   if (c) return c;
+  const home = host === homeHost();
   c = new HostConn(host, hello, onFrame, (h, status, error) => {
-    set((s) => ({ conns: { ...s.conns, [h]: { ...(s.conns[h] || { host: h, local }), status, error } } }));
+    set((s) => ({ conns: { ...s.conns, [h]: { ...(s.conns[h] || { host: h, local, home }), status, error } } }));
   });
   conns.set(host, c);
-  set((s) => ({ conns: { ...s.conns, [host]: { host, status: 'connecting', local } } }));
+  set((s) => ({ conns: { ...s.conns, [host]: { host, status: 'connecting', local, home } } }));
   return c;
 }
 
 function saveHosts() {
   const local = localHost();
-  const hosts = [...conns.keys()].filter((h) => h !== local).map((url) => ({ url }));
+  const home = homeHost();
+  const hosts = [...conns.keys()].filter((h) => h !== local && h !== home).map((url) => ({ url }));
   window.kovan.setConfig({ hosts });
 }
 
@@ -446,15 +461,16 @@ export async function boot() {
   activity();
 
   if (S().onboarded) connectAll(cfg.hosts || []);
-  startDirectoryRefresh();
   const pending = await window.kovan.pendingInvite();
   if (pending) set({ modal: { type: 'join', code: pending } });
 }
 
 function connectAll(hosts: { url: string }[]) {
+  ensureConn(homeHost());
   const local = localHost();
+  // kendi bilgisayarındaki eski kovan: yalnızca içinde topluluk varsa görünür (taşıma için)
   if (local) ensureConn(local, true);
-  for (const h of hosts) if (h.url !== local) ensureConn(h.url);
+  for (const h of hosts) if (h.url !== local && h.url !== homeHost()) ensureConn(h.url);
 }
 
 export async function finishOnboarding(p: { name: string; color: string; avatar?: string }) {
@@ -582,6 +598,8 @@ function sharedHost(uid: ID): string | null {
     if (conn && conn.status === 'online') hosts.set(h, conn.hubId || h);
   }
   if (!hosts.size) return null;
+  const home = homeHost();
+  if (hosts.has(home)) return home;
   return [...hosts.entries()].sort((a, b) => (a[1] < b[1] ? -1 : 1))[0][0];
 }
 
@@ -614,18 +632,13 @@ export function removeFriend(uid: ID) {
 }
 
 /** Kendi kovanındaki arkadaş kodun: "adres/kod" biçiminde */
-export async function myFriendCode(reset = false, hostPick?: string): Promise<string> {
-  const local = localHost();
-  const conn = conns.get(local);
-  if (!conn) throw new Error('Kendi sunucun henüz açılmadı.');
-  await waitOnline(local);
+export async function myFriendCode(reset = false): Promise<string> {
+  const home = homeHost();
+  const conn = conns.get(home);
+  if (!conn) throw new Error('Sunucuya bağlanılmadı.');
+  await waitOnline(home);
   const r = await conn.request<{ data: string }>({ t: 'friend.code', reset, rid: '' });
-  const name = S().settings.inviteName;
-  if (name && !hostPick) return `${name}/${r.data}`;
-  const opts = hostOptions(local);
-  const want = hostPick || S().settings.inviteHost;
-  const h = opts.find((o) => o.host === want)?.host || opts[0]?.host || local;
-  return `${encodeHostToken(h)}/${r.data}`;
+  return `${INVITE_PREFIX}/${r.data}`;
 }
 
 /** Gerçek topluluklar (özel mesajlar hariç) */
@@ -766,7 +779,8 @@ function onFrame(host: string, f: ServerFrame) {
         }
       // ilk açılışta yerel kovanda hiç topluluk yoksa karşılama lobisi kur
       const conn = S().conns[host];
-      if (conn?.local && f.communities.length === 0 && !localStorage.getItem('kovan.seeded')) {
+      // (eski sürümde yerel lobisi kurulmuş kişilere ikinci bir lobi açılmaz; onlar taşıyabilir)
+      if (conn?.home && f.communities.length === 0 && !localStorage.getItem('kovan.seeded')) {
         localStorage.setItem('kovan.seeded', '1');
         conns.get(host)?.request({ t: 'comm.create', name: `${S().me.name || 'Benim'} Topluluğu`, color: '#c9a35a', template: 'lobby' }).then((r: any) => {
           if (r?.data) selectCommunity(r.data);
@@ -807,6 +821,15 @@ function onFrame(host: string, f: ServerFrame) {
       set((s) => (s.friends[f.uid]?.host === host ? { friends: omit(s.friends, f.uid) } : {}));
       updateBadge();
       return;
+    case 'comm.moved': {
+      // topluluk merkezi sunucuya taşındı: buradaki kopyayı bırak, sunucudakini kullan
+      if (S().commHost[f.cid] === host) removeCommunity(f.cid);
+      if (/^https:\/\//i.test(f.host) || f.host === homeHost()) {
+        ensureConn(f.host);
+        saveHosts();
+      }
+      return;
+    }
     case 'comm.del': {
       const c = S().communities[f.cid];
       removeCommunity(f.cid);
@@ -1263,79 +1286,24 @@ export function meAsUser(me: Profile = S().me): UserPublic {
 
 // ---------------------------------------------------------------------------
 // topluluklar
+/** Bilgisayardaki topluluğu merkezi sunucuya taşır */
+export async function moveToServer(cid: ID) {
+  const home = homeHost();
+  ensureConn(home);
+  await waitOnline(home);
+  const r = await window.kovan.migrate(cid, home);
+  if (!r.ok) throw new Error(r.error || 'Taşınamadı.');
+  return r;
+}
+
 export async function createCommunity(name: string, color: string, icon?: string) {
-  const conn = conns.get(localHost());
-  if (!conn) throw new Error('Yerel sunucu çalışmıyor.');
+  const home = homeHost();
+  const conn = conns.get(home);
+  if (!conn) throw new Error('Sunucuya bağlanılmadı.');
+  await waitOnline(home);
   const r = await conn.request<{ data: ID }>({ t: 'comm.create', name, color, icon });
   selectCommunity(r.data);
   return r.data;
-}
-
-// ---------------------------------------------------------------------------
-// davet rehberi: "xanaphian/s3gas25" gibi adlı davetler
-/** Cloudflare'de çalışan rehberin adresi ("" = henüz kurulmadı) */
-export const DIRECTORY_URL = '';
-
-async function dirFetch(path: string, init?: RequestInit) {
-  if (!DIRECTORY_URL) throw new Error('Davet rehberi henüz kurulmadı.');
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 6000);
-  try {
-    const r = await fetch(DIRECTORY_URL + path, { ...init, signal: ctl.signal, headers: { 'content-type': 'application/json' } });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || 'Davet rehberine ulaşılamadı.');
-    return j;
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') throw new Error('Davet rehberi yanıt vermedi.');
-    throw e;
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-export async function resolveInviteName(name: string): Promise<string[]> {
-  const j = await dirFetch('/v1/ad/' + encodeURIComponent(name));
-  return Array.isArray(j.hosts) ? j.hosts.filter((h: unknown) => typeof h === 'string') : [];
-}
-
-function myDirHosts(): string[] {
-  const s = S();
-  const port = s.info?.hubPort || 47820;
-  const pub = s.settings.publicAddress.trim();
-  return [...(pub ? [pub.includes(':') ? pub : `${pub}:${port}`] : []), ...(s.info?.lan || []).map((ip) => `${ip}:${port}`)];
-}
-
-/** Adı rehbere kaydeder/günceller. İlk kaydeden sahibi olur. */
-export async function registerInviteName(name: string): Promise<void> {
-  const n = name.trim().toLowerCase();
-  if (!INVITE_NAME_RE.test(n)) throw new Error('Ad 3-24 karakter olmalı; küçük harf, rakam ve tire içerebilir, harfle başlamalı.');
-  let key = S().settings.inviteNameKey;
-  if (!key) {
-    const b = crypto.getRandomValues(new Uint8Array(24));
-    key = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
-    updateSettings({ inviteNameKey: key });
-  }
-  await dirFetch('/v1/ad/' + n, { method: 'PUT', body: JSON.stringify({ key, hosts: myDirHosts(), port: S().info?.hubPort || 47820 }) });
-  const old = S().settings.inviteName;
-  if (old && old !== n) dirFetch('/v1/ad/' + old, { method: 'DELETE', body: JSON.stringify({ key }) }).catch(() => {});
-  updateSettings({ inviteName: n });
-}
-
-export async function releaseInviteName(): Promise<void> {
-  const { inviteName, inviteNameKey } = S().settings;
-  if (inviteName) await dirFetch('/v1/ad/' + inviteName, { method: 'DELETE', body: JSON.stringify({ key: inviteNameKey }) }).catch(() => {});
-  updateSettings({ inviteName: '' });
-}
-
-/** Adres değişmiş olabilir (DHCP, dış IP): açılışta ve 6 saatte bir tazele */
-let dirTimer: ReturnType<typeof setInterval> | null = null;
-export function startDirectoryRefresh() {
-  const tick = () => {
-    const { inviteName } = S().settings;
-    if (inviteName && DIRECTORY_URL) registerInviteName(inviteName).catch(() => {});
-  };
-  setTimeout(tick, 4000);
-  dirTimer ??= setInterval(tick, 6 * 3600 * 1000);
 }
 
 export interface InviteHostOption {
@@ -1377,9 +1345,9 @@ export function makeInvite(cid: ID, hostPick?: string): string {
   const host = s.commHost[cid];
   if (!host) return '';
   const opts = inviteHostOptions(cid);
+  // merkezi sunucudaki topluluk: "xanaphian/s3gas25"
+  if (host === homeHost()) return c?.inviteCode ? `${INVITE_PREFIX}/${c.inviteCode}` : '';
   if (c?.inviteCode && opts.length) {
-    // kendi kovanımızdaki topluluk ve davet adımız varsa: "xanaphian/s3gas25"
-    if (host === localHost() && s.settings.inviteName && !hostPick) return `${s.settings.inviteName}/${c.inviteCode}`;
     const want = hostPick || s.settings.inviteHost;
     const h = opts.find((o) => o.host === want)?.host || opts[0].host;
     return `${encodeHostToken(h)}/${c.inviteCode}`;
@@ -1397,13 +1365,8 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
   };
   // aday adresler: davet adı rehberden çözülür, ön ek bir adres de olabilir
   const cands: string[] = [];
-  if (prefix && INVITE_NAME_RE.test(prefix)) {
-    if (prefix === s.settings.inviteName) cands.push(localHost());
-    else {
-      const r = await resolveInviteName(prefix).catch(() => null);
-      if (r) cands.push(...r.map(own));
-    }
-  }
+  // "xanaphian/kod" ya da yalnızca kod: merkezi sunucu
+  if (!tokenHost && (!prefix || HOME_PREFIXES.has(prefix))) cands.push(homeHost());
   if (tokenHost) cands.push(own(tokenHost));
   const uniq = [...new Set(cands)];
   let host: string | null = null;
@@ -1418,7 +1381,10 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
     const conn = ensureConn(h, h === localHost());
     saveHosts();
     await waitOnline(h);
-    const r = await conn.request<{ data: ID }>({ t: 'join', code });
+    const r = await conn.request<{ data: ID }>({ t: 'join', code }).catch((e) => {
+      if (h === homeHost() && !prefix?.includes('.')) throw new Error(e?.message === 'Zaman aşımı' ? 'Sunucu yanıt vermedi.' : 'Bu davet kodu geçersiz ya da süresi dolmuş.');
+      throw e;
+    });
     if (r.data.startsWith('@')) {
       // arkadaş kodu: arkadaş eklendi, sohbeti aç
       const uid = r.data.slice(1);
@@ -1429,6 +1395,7 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
     selectCommunity(r.data);
     return r.data;
   };
+  if (host === homeHost()) return tryHost(host);
   if (host) return tryHost(host);
   // adres ulaşılamadıysa ya da yalnızca kod verildiyse: bağlı olduğumuz sunuculara sor
   for (const [h, c] of Object.entries(S().conns)) {
@@ -1440,9 +1407,7 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
     }
   }
   throw new Error(
-    prefix && INVITE_NAME_RE.test(prefix) && !tokenHost && !triedSomething
-      ? `"${prefix}" adında bir davet adı bulunamadı. Kodu doğru yazdığından emin ol.`
-      : triedSomething
+    triedSomething
         ? "Davetin sahibine ulaşılamadı. Aynı ağda (ya da aynı Radmin/Hamachi ağında) olduğunuzdan, internetten bağlanıyorsan onun modeminde portun yönlendirildiğinden ve Xanaphian'ının açık olduğundan emin ol."
         : 'Bu kod bağlı olduğun sunucularda bulunamadı. Kodu adresiyle birlikte (ör. 2ld8x1k/s3gas25) yapıştır.',
   );

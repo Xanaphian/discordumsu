@@ -536,9 +536,9 @@ function HomeSidebar() {
   const homeTab = useStore((s) => s.homeTab);
   const friends = useStore((s) => s.friends);
   const conns = useStore((s) => s.conns);
-  const localPort = useStore((s) => s.info?.hubPort);
   const { comm } = useUnread();
-  const remote = Object.values(conns).filter((x) => !x.local);
+  const remote = Object.values(conns).filter((x) => !x.local && !x.home);
+  const home = Object.values(conns).find((x) => x.home);
   const requests = pendingIn(friends);
   const dms = useMemo(() => {
     const hidden = hiddenDms();
@@ -594,11 +594,13 @@ function HomeSidebar() {
         <div className="cat-row static">
           <span>Bağlantılar</span>
         </div>
-        <div className="conn-row">
-          <span className={cx('dot', 'online')} />
-          <span className="conn-name">Kendi sunucun</span>
-          <span className="conn-meta">:{localPort}</span>
-        </div>
+        {home && (
+          <div className="conn-row">
+            <span className={cx('dot', home.status)} />
+            <span className="conn-name">Sunucu</span>
+            <span className="conn-meta">{home.status === 'online' ? 'bağlı' : home.status === 'connecting' ? 'bağlanıyor' : 'çevrimdışı'}</span>
+          </div>
+        )}
         {remote.map((x) => (
           <div key={x.host} className="conn-row">
             <span className={cx('dot', x.status)} />

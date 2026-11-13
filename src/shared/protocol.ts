@@ -361,6 +361,8 @@ export type ServerFrame =
   | { t: 'user'; u: UserPublic }
   | { t: 'comm'; c: Community; lastIds?: Record<ID, ID> }
   | { t: 'comm.del'; cid: ID }
+  /** topluluk başka bir sunucuya taşındı */
+  | { t: 'comm.moved'; cid: ID; host: string }
   | { t: 'ok'; rid: string; data?: unknown }
   | { t: 'err'; msg: string; rid?: string; nonce?: string }
   | { t: 'vc'; ch: ID; members: VoiceMember[] }

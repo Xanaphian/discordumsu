@@ -460,6 +460,34 @@ app.on('window-all-closed', () => {
 
 // ---------- IPC ----------
 function registerIpc() {
+  ipcMain.handle('hub:migrate', async (_e, cid: string, server: string) => {
+    try {
+      if (!/^https?:\/\//i.test(server)) throw new Error('Sunucu adresi geçersiz.');
+      const ex = hub.exportCommunity(cid, config.profile.id);
+      if (!ex) throw new Error('Bu topluluğu yalnızca sahibi taşıyabilir.');
+      const base = server.replace(/\/+$/, '');
+      const auth = { 'x-kovan-user': config.profile.id, 'x-kovan-secret': config.profile.secret };
+      const body = [JSON.stringify(ex.head), ...ex.lines()].join('\n');
+      const r = await fetch(base + '/import', { method: 'POST', headers: { ...auth, 'content-type': 'application/x-ndjson' }, body });
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(j.error || (r.status === 401 ? 'Sunucu seni tanımadı; önce sunucuya bağlan.' : r.status === 413 ? 'Topluluk çok büyük.' : `Sunucu hatası (${r.status}).`));
+      let failed = 0;
+      for (const f of ex.head.files) {
+        try {
+          const buf = await fs.promises.readFile(ex.filePath(f.id));
+          const fr = await fetch(`${base}/import/file?cid=${encodeURIComponent(cid)}&id=${encodeURIComponent(f.id)}`, { method: 'POST', headers: { ...auth, 'content-type': f.mime }, body: buf });
+          if (!fr.ok) failed++;
+        } catch {
+          failed++;
+        }
+      }
+      hub.markMoved(cid, base);
+      return { ok: true, files: ex.head.files.length, failed };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  });
+
   ipcMain.handle('app:info', () => ({
     version: app.getVersion(),
     platform: process.platform,
@@ -471,6 +499,7 @@ function registerIpc() {
     dev: isDev,
     exePath: process.execPath,
     mcpBridge: mcpBridgePath(),
+    server: process.env.KOVAN_SERVER || undefined,
   }));
   ipcMain.handle('mcp:claude-desktop', (_e, a: { name: string; url: string; token: string }) => installClaudeDesktop(a));
   ipcMain.handle('cfg:get', () => config);

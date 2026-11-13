@@ -2,8 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Users, MessageCircle, Check, X, MoreVertical, Search, Copy, RefreshCw, UserPlus, LoaderCircle } from 'lucide-react';
 import {
-  useStore, setHomeTab, openDm, addFriend, acceptFriend, removeFriend, openMenu, confirmDialog, myFriendCode, joinByInvite, toast, hostOptions,
-  localHost, realCommunities, pendingIn, type State,
+  useStore, setHomeTab, openDm, addFriend, acceptFriend, removeFriend, openMenu, confirmDialog, myFriendCode, joinByInvite, toast,
+  realCommunities, pendingIn, type State,
 } from '../lib/store';
 import { Avatar, STATUS_LABEL } from './Common';
 import { activeCustom } from '../../shared/profile';
@@ -230,12 +230,10 @@ function AddFriend() {
 function MyCode() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const opts = hostOptions(localHost());
-  const [host, setHost] = useState(useStore.getState().settings.inviteHost);
   const load = async (reset = false) => {
     setBusy(true);
     try {
-      setCode(await myFriendCode(reset, host));
+      setCode(await myFriendCode(reset));
     } catch (e: any) {
       toast(e?.message || 'Kod alınamadı.', 'err');
     } finally {
@@ -244,7 +242,7 @@ function MyCode() {
   };
   useEffect(() => {
     load();
-  }, [host]);
+  }, []);
   return (
     <div className="fr-card">
       <h4>Senin arkadaş kodun</h4>
@@ -258,18 +256,6 @@ function MyCode() {
           <RefreshCw size={16} />
         </button>
       </div>
-      {opts.length > 1 && (
-        <label className="fr-host">
-          <span>Hangi ağ üzerinden</span>
-          <select value={host || opts[0].host} onChange={(e) => setHost(e.target.value)}>
-            {opts.map((o) => (
-              <option key={o.host} value={o.host}>
-                {o.label} ({o.host})
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
     </div>
   );
 }
@@ -294,7 +280,7 @@ function UseCode() {
       <h4>Arkadaşının kodu</h4>
       <p>Arkadaşının gönderdiği kodu buraya yapıştır. Topluluk davet kodları da burada çalışır.</p>
       <div className="fr-code">
-        <input placeholder="ör. 2ld8x1k/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} />
+        <input placeholder="ör. xanaphian/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} />
         <button className="btn sm primary" disabled={!code.trim() || busy} onClick={go}>
           {busy ? <LoaderCircle size={14} className="spin" /> : <UserPlus size={14} />} Ekle
         </button>

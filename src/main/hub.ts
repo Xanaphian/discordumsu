@@ -6,7 +6,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import os from 'node:os';
-import { WebSocketServer, WebSocket } from 'ws';
+import { WebSocketServer } from 'ws';
 import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
@@ -154,6 +154,15 @@ interface HubData {
   friends?: Record<ID, { from: ID; ok: boolean; ts: number }>;
   /** arkadaş kodları: kod -> kullanıcı */
   friendCodes?: Record<string, ID>;
+  /** merkezi sunucuya taşınan topluluklar: topluluk -> sunucu adresi */
+  moved?: Record<ID, string>;
+}
+
+/** Bir topluluğun taşınma paketi (yerel kovan → merkezi sunucu) */
+export interface CommunityExport {
+  comm: StoredCommunity;
+  users: UserPublic[];
+  files: { id: string; mime: string; size: number }[];
 }
 
 type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number; m112?: number };
@@ -162,9 +171,27 @@ const MAX_TIMEOUT_MIN = 28 * 24 * 60;
 const LINK_RE = /(https?:\/\/|www\.)\S+/i;
 const MENTION_RE = /<@&?[\w-]+>|@(everyone|here|herkes)\b/g;
 
+/** WebSocket bağlantısı: Node'da 'ws', Cloudflare'de WebSocketPair sarmalayıcısı */
+export interface Sock {
+  readyState: number;
+  send(data: string): void;
+  close(code?: number, reason?: string): void;
+  terminate(): void;
+  ping(): void;
+  on(ev: 'message', fn: (raw: { toString(): string }) => void): void;
+  on(ev: 'close' | 'pong' | 'error', fn: (...a: any[]) => void): void;
+}
+
+export interface HubOptions {
+  /** Merkezi sunucu kipi: herkes topluluk kurabilir, sahip bilgisayar yoktur */
+  server?: boolean;
+  /** Sunucu kipinde kişi başı kurulabilecek topluluk sayısı */
+  maxOwned?: number;
+}
+
 interface Session {
   sid: ID;
-  ws: WebSocket;
+  ws: Sock;
   userId: ID | null;
   loopback: boolean;
   status: Status;
@@ -213,8 +240,14 @@ export class Hub {
   crypt: BotHost['crypt'] = null;
   readonly bots: BotManager;
 
-  constructor(baseDir: string) {
+  readonly serverMode: boolean;
+  private maxOwned: number;
+
+  constructor(baseDir: string, opts: HubOptions = {}) {
     this.dir = path.join(baseDir, 'hub');
+    this.serverMode = !!opts.server;
+    this.maxOwned = opts.maxOwned ?? 20;
+    if (this.serverMode) this.ownerName = 'Kovan';
     this.bots = new BotManager(this.botHost());
   }
 
@@ -373,39 +406,10 @@ export class Hub {
   }
 
   // ---------- başlatma ----------
-  async start(preferredPort: number): Promise<number> {
+  /** Verileri yükler ve canlılık denetimini başlatır (HTTP dinlemeden). Cloudflare bunu kullanır. */
+  init() {
     this.load();
     this.bots.load();
-    this.server = http.createServer((req, res) => this.handleHttp(req, res));
-    this.wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: { threshold: 1024 } });
-    this.server.on('upgrade', (req, socket, head) => {
-      if (!req.url?.startsWith('/ws')) return socket.destroy();
-      this.wss!.handleUpgrade(req, socket, head, (ws) => this.onConnection(ws, req));
-    });
-    const tryListen = (port: number) =>
-      new Promise<number>((resolve, reject) => {
-        const onErr = (e: Error) => {
-          this.server!.off('listening', onOk);
-          reject(e);
-        };
-        const onOk = () => {
-          this.server!.off('error', onErr);
-          resolve((this.server!.address() as any).port);
-        };
-        this.server!.once('error', onErr);
-        this.server!.once('listening', onOk);
-        this.server!.listen(port, '0.0.0.0');
-      });
-    let port = 0;
-    for (let i = 0; i < 10 && !port; i++) {
-      try {
-        port = await tryListen(preferredPort + i);
-      } catch {
-        /* sonraki port */
-      }
-    }
-    if (!port) port = await tryListen(0);
-    this.port = port;
     this.heartbeat = setInterval(() => {
       for (const s of this.sessions) {
         if (!s.alive) {
@@ -420,6 +424,40 @@ export class Hub {
         }
       }
     }, 30000);
+  }
+
+  async start(preferredPort: number, host = '0.0.0.0'): Promise<number> {
+    this.init();
+    this.server = http.createServer((req, res) => this.handleHttp(req, res));
+    this.wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: { threshold: 1024 } });
+    this.server.on('upgrade', (req, socket, head) => {
+      if (!req.url?.startsWith('/ws')) return socket.destroy();
+      this.wss!.handleUpgrade(req, socket, head, (ws) => this.attach(ws as unknown as Sock, req.socket.remoteAddress || ''));
+    });
+    const tryListen = (port: number) =>
+      new Promise<number>((resolve, reject) => {
+        const onErr = (e: Error) => {
+          this.server!.off('listening', onOk);
+          reject(e);
+        };
+        const onOk = () => {
+          this.server!.off('error', onErr);
+          resolve((this.server!.address() as any).port);
+        };
+        this.server!.once('error', onErr);
+        this.server!.once('listening', onOk);
+        this.server!.listen(port, host);
+      });
+    let port = 0;
+    for (let i = 0; i < 10 && !port; i++) {
+      try {
+        port = await tryListen(preferredPort + i);
+      } catch {
+        /* sonraki port */
+      }
+    }
+    if (!port) port = await tryListen(0);
+    this.port = port;
     return port;
   }
 
@@ -467,7 +505,7 @@ export class Hub {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   }
 
-  private handleHttp(req: http.IncomingMessage, res: http.ServerResponse) {
+  handleHttp(req: http.IncomingMessage, res: http.ServerResponse) {
     this.cors(res);
     const url = new URL(req.url || '/', 'http://x');
     if (req.method === 'OPTIONS') {
@@ -500,6 +538,49 @@ export class Hub {
           ...(safeInline ? {} : { 'content-disposition': 'attachment' }),
         });
         fs.createReadStream(file).pipe(res);
+      });
+      return;
+    }
+    if (req.method === 'POST' && this.serverMode && (url.pathname === '/import' || url.pathname === '/import/file')) {
+      const uid = String(req.headers['x-kovan-user'] || '');
+      if (!this.checkUser(uid, String(req.headers['x-kovan-secret'] || ''))) return void res.writeHead(401).end();
+      const limit = url.pathname === '/import' ? 200 * 1024 * 1024 : MAX_UPLOAD;
+      if (Number(req.headers['content-length'] || 0) > limit) return void res.writeHead(413).end();
+      if (url.pathname === '/import/file') {
+        const c = this.comms.get(url.searchParams.get('cid') || '');
+        const id = url.searchParams.get('id') || '';
+        if (!c || c.ownerId !== uid || !/^[a-z0-9]{6,40}$/.test(id)) return void res.writeHead(403).end();
+        const file = path.join(this.dir, 'files', id);
+        if (fs.existsSync(file)) return void res.writeHead(200).end('{}');
+      }
+      const chunks: Buffer[] = [];
+      let size = 0;
+      req.on('data', (d: Buffer) => {
+        size += d.length;
+        if (size > limit) {
+          res.writeHead(413).end();
+          req.destroy();
+        } else chunks.push(d);
+      });
+      req.on('end', () => {
+        if (size > limit) return;
+        const body = Buffer.concat(chunks);
+        if (url.pathname === '/import/file') {
+          const id = url.searchParams.get('id')!;
+          const file = path.join(this.dir, 'files', id);
+          fs.writeFileSync(file, body);
+          fs.writeFileSync(file + '.mime', clampStr(req.headers['content-type'] || 'application/octet-stream', 100));
+          return void res.writeHead(200, { 'content-type': 'application/json' }).end('{}');
+        }
+        const lines = body.toString('utf8').split('\n');
+        let head: CommunityExport;
+        try {
+          head = JSON.parse(lines.shift() || '');
+        } catch {
+          return void res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Paket okunamadı.' }));
+        }
+        const err = this.importCommunity(uid, head, lines);
+        res.writeHead(err ? 409 : 200, { 'content-type': 'application/json' }).end(JSON.stringify(err ? { error: err } : { ok: true, inviteCode: this.comms.get(head.comm.id)?.inviteCode }));
       });
       return;
     }
@@ -542,13 +623,13 @@ export class Hub {
   }
 
   // ---------- WebSocket ----------
-  private onConnection(ws: WebSocket, req: http.IncomingMessage) {
-    const ip = req.socket.remoteAddress || '';
+  /** Yeni bir WebSocket bağlantısını hub'a bağlar */
+  attach(ws: Sock, ip: string) {
     const s: Session = {
       sid: makeId(),
       ws,
       userId: null,
-      loopback: ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1',
+      loopback: !this.serverMode && (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1'),
       status: 'online',
       alive: true,
       voice: null,
@@ -607,10 +688,10 @@ export class Hub {
   }
 
   private send(s: Session, f: ServerFrame) {
-    if (s.ws.readyState === WebSocket.OPEN) s.ws.send(JSON.stringify(f));
+    if (s.ws.readyState === 1) s.ws.send(JSON.stringify(f));
   }
   private sendRaw(s: Session, data: string) {
-    if (s.ws.readyState === WebSocket.OPEN) s.ws.send(data);
+    if (s.ws.readyState === 1) s.ws.send(data);
   }
 
   private memberSessions(c: StoredCommunity, except?: Session): Session[] {
@@ -783,6 +864,8 @@ export class Hub {
 
   private sendReady(s: Session) {
     const uid = s.userId!;
+    // taşınmış topluluklar: üyeye yeni adresi bildir
+    for (const [cid, host] of Object.entries(this.data.moved || {})) this.send(s, { t: 'comm.moved', cid, host });
     const comms = this.userComms(uid);
     const presence: Record<ID, Status> = {};
     const lastIds: Record<ID, ID> = {};
@@ -1299,7 +1382,10 @@ export class Hub {
         return;
       }
       case 'comm.create': {
-        if (!s.loopback) return this.send(s, { t: 'err', msg: 'Bu sunucuda topluluk oluşturamazsın.', rid: f.rid });
+        if (this.serverMode) {
+          const owned = [...this.comms.values()].filter((x) => x.ownerId === uid).length;
+          if (owned >= this.maxOwned) return this.send(s, { t: 'err', msg: `En fazla ${this.maxOwned} topluluk kurabilirsin.`, rid: f.rid });
+        } else if (!s.loopback) return this.send(s, { t: 'err', msg: 'Bu sunucuda topluluk oluşturamazsın.', rid: f.rid });
         const c = this.createCommunity(uid, cleanName(f.name, 48) || 'Yeni Topluluk', f.color, f.icon, f.template);
         for (const ch of c.channels) if (ch.type === 'site') this.refreshSiteMeta(c.id, ch.id);
         this.send(s, { t: 'comm', c: this.snapshot(c, uid), lastIds: this.lastIdsFor(c, uid) });
@@ -2016,7 +2102,7 @@ export class Hub {
     const secret = clampStr(f.secret, 200);
     if (!id || id === BOT_ID || secret.length < 16) return this.send(s, { t: 'err', msg: 'Geçersiz kimlik.' });
     const existing = this.data.users[id];
-    if (existing && existing.secretHash !== sha(secret)) {
+    if (existing && existing.secretHash && existing.secretHash !== sha(secret)) {
       this.send(s, { t: 'err', msg: 'Kimlik doğrulanamadı.' });
       return void s.ws.close(4001, 'auth');
     }
@@ -2208,6 +2294,108 @@ export class Hub {
       },
       voice: (ch) => [...(this.voiceRooms.get(ch)?.values() || [])],
     };
+  }
+
+  // ---------- merkezi sunucuya taşıma ----------
+  /** Yerel kovan: topluluğun taşınma paketi ve mesajlarını (NDJSON satırları) hazırlar */
+  exportCommunity(cid: ID, ownerId: ID): { head: CommunityExport; lines: () => Generator<string>; filePath: (id: string) => string } | null {
+    const c = this.comms.get(cid);
+    if (!c || c.ownerId !== ownerId) return null;
+    const users: UserPublic[] = [];
+    for (const m of c.members) {
+      const u = this.data.users[m.userId];
+      if (u && !u.pub.bot && m.userId !== BOT_ID) users.push(u.pub);
+    }
+    const files = new Map<string, { id: string; mime: string; size: number }>();
+    for (const ch of c.channels) {
+      if (isVoiceLike(ch.type)) continue;
+      for (const m of this.log(ch.id).list)
+        for (const a of m.attachments || []) {
+          const id = a.url.split('/')[2] || '';
+          if (/^[a-z0-9]+$/.test(id) && !files.has(id)) files.set(id, { id, mime: a.mime || 'application/octet-stream', size: a.size || 0 });
+        }
+    }
+    const self = this;
+    return {
+      head: { comm: c, users, files: [...files.values()] },
+      *lines() {
+        for (const ch of c.channels) {
+          if (isVoiceLike(ch.type)) continue;
+          for (const m of self.log(ch.id).list) yield JSON.stringify({ ch: ch.id, m });
+        }
+      },
+      filePath: (id: string) => path.join(this.dir, 'files', id),
+    };
+  }
+
+  /** Yerel kovan: topluluk sunucuya taşındı; üyelere haber ver ve listeden kaldır (dosyalar yedek olarak kalır) */
+  markMoved(cid: ID, host: string) {
+    const c = this.comms.get(cid);
+    if (!c) return;
+    for (const s of this.memberSessions(c)) {
+      if (s.voice && c.channels.some((ch) => ch.id === s.voice!.ch)) this.leaveVoice(s);
+      this.send(s, { t: 'comm.moved', cid, host });
+    }
+    this.comms.delete(cid);
+    for (const ch of c.channels) this.chanToComm.delete(ch.id);
+    this.data.communities = this.data.communities.filter((x) => x !== cid);
+    (this.data.moved ||= {})[cid] = host;
+    this.saveHub();
+  }
+
+  /** Sunucu: kimliği doğrular */
+  checkUser(uid: string, secret: string): boolean {
+    const u = this.data.users[uid];
+    return !!u && !!u.secretHash && u.secretHash === sha(secret);
+  }
+
+  /** Sunucu: taşınan topluluğu içeri alır. Hata metni ya da null döner. */
+  importCommunity(uid: ID, head: CommunityExport, lines: string[]): string | null {
+    if (!this.serverMode) return 'Bu kovan taşıma kabul etmiyor.';
+    const c = head?.comm;
+    if (!c || typeof c.id !== 'string' || !/^[a-z0-9]{6,40}$/i.test(c.id)) return 'Paket bozuk.';
+    if (c.ownerId !== uid) return 'Yalnızca topluluğun sahibi taşıyabilir.';
+    if (this.comms.has(c.id)) return 'Bu topluluk zaten sunucuda.';
+    if (!Array.isArray(c.channels) || !Array.isArray(c.members) || !Array.isArray(c.roles)) return 'Paket bozuk.';
+    if (c.channels.some((ch) => this.chanToComm.has(ch.id))) return 'Kanal kimlikleri çakışıyor.';
+    const owned = [...this.comms.values()].filter((x) => x.ownerId === uid).length;
+    if (owned >= this.maxOwned) return `En fazla ${this.maxOwned} topluluk kurabilirsin.`;
+    // kullanıcılar: sunucuda olmayanlar sahipsiz eklenir; ilk bağlandıklarında kendi gizli anahtarlarıyla sahiplenirler
+    const known = new Set<ID>();
+    for (const u of Array.isArray(head.users) ? head.users : []) {
+      if (!u || typeof u.id !== 'string' || u.id === BOT_ID || u.bot) continue;
+      known.add(u.id);
+      if (!this.data.users[u.id]) this.data.users[u.id] = { pub: this.sanitizeUser(u, u.id), secretHash: '' };
+    }
+    c.members = c.members.filter((m) => m && (m.userId === BOT_ID || known.has(m.userId) || this.data.users[m.userId]));
+    if (!c.members.some((m) => m.userId === uid)) c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
+    if (!c.inviteCode || [...this.comms.values()].some((x) => x.inviteCode === c.inviteCode)) c.inviteCode = this.newInviteCode();
+    // mesajlar: kanal başına tek seferde yazılır
+    const chans = new Set(c.channels.map((ch) => ch.id));
+    const per = new Map<ID, string[]>();
+    for (const line of lines) {
+      if (!line) continue;
+      try {
+        const { ch, m } = JSON.parse(line);
+        if (!chans.has(ch) || !m || typeof m.id !== 'string' || m.channelId !== ch) continue;
+        let a = per.get(ch);
+        if (!a) per.set(ch, (a = []));
+        a.push(JSON.stringify({ o: 'm', m }));
+      } catch {
+        /* bozuk satır */
+      }
+    }
+    for (const [ch, list] of per) fs.writeFileSync(path.join(this.dir, 'messages', ch + '.ndjson'), list.join('\n') + '\n');
+    for (const ch of c.channels) this.logs.delete(ch.id);
+    this.comms.set(c.id, c);
+    for (const ch of c.channels) this.chanToComm.set(ch.id, c.id);
+    this.data.communities.push(c.id);
+    this.migrate(c);
+    this.saveHub();
+    this.pushComm(c);
+    for (const m of c.members) if (this.userSessions.has(m.userId)) this.broadcastPresence(m.userId);
+    for (const ch of c.channels) if (ch.type === 'site') this.refreshSiteMeta(c.id, ch.id);
+    return null;
   }
 
   hasCommunities() {

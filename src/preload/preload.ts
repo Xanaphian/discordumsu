@@ -11,6 +11,8 @@ const api = {
   getConfig: () => ipcRenderer.invoke('cfg:get'),
   setConfig: (patch: unknown) => ipcRenderer.invoke('cfg:set', patch),
   pendingInvite: () => ipcRenderer.invoke('app:pending-invite') as Promise<string | null>,
+  /** Bilgisayardaki topluluğu merkezi sunucuya taşır */
+  migrate: (cid: string, server: string) => ipcRenderer.invoke('hub:migrate', cid, server) as Promise<{ ok: boolean; error?: string; files?: number; failed?: number }>,
   setTheme: (theme: string) => ipcRenderer.send('win:overlay', theme),
   notify: (n: { title: string; body: string; tag: string; silent?: boolean }) => ipcRenderer.send('notify', n),
   badge: (count: number) => ipcRenderer.send('badge', count),

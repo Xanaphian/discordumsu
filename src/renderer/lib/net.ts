@@ -2,6 +2,11 @@ import type { ClientFrame, ServerFrame } from '../../shared/protocol';
 
 export type ConnStatus = 'connecting' | 'online' | 'offline';
 
+/** "ip:port" (eski kovanlar) ya da "https://alan/yol" (merkezi sunucu) → HTTP tabanı */
+export const httpBase = (host: string) => (/^https?:\/\//i.test(host) ? host.replace(/\/+$/, '') : `http://${host}`);
+/** Aynı adresin WebSocket ucu */
+export const wsUrl = (host: string) => httpBase(host).replace(/^http/i, 'ws') + '/ws';
+
 /** Tek bir kovan sunucusuna kalıcı WebSocket bağlantısı (yeniden bağlanma + istek/yanıt). */
 export class HostConn {
   ws: WebSocket | null = null;
@@ -14,7 +19,7 @@ export class HostConn {
   private seq = 0;
 
   constructor(
-    public host: string, // "ip:port"
+    public host: string, // "ip:port" ya da "https://alan/yol"
     private hello: () => ClientFrame,
     private onFrame: (host: string, f: ServerFrame) => void,
     private onStatus: (host: string, s: ConnStatus, err?: string) => void,
@@ -23,7 +28,7 @@ export class HostConn {
   }
 
   get http() {
-    return `http://${this.host}`;
+    return httpBase(this.host);
   }
 
   private connect() {
@@ -31,7 +36,7 @@ export class HostConn {
     this.setStatus('connecting');
     let ws: WebSocket;
     try {
-      ws = new WebSocket(`ws://${this.host}/ws`);
+      ws = new WebSocket(wsUrl(this.host));
     } catch (e) {
       return this.scheduleRetry();
     }
@@ -146,7 +151,7 @@ export async function probeHost(host: string, timeout = 2500): Promise<{ hubId: 
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeout);
   try {
-    const r = await fetch(`http://${host}/info`, { signal: ctl.signal });
+    const r = await fetch(`${httpBase(host)}/info`, { signal: ctl.signal });
     const j = await r.json();
     return j?.app === 'kovan' ? { hubId: j.hubId } : null;
   } catch {

@@ -4,6 +4,7 @@ import {
   CircleCheck, CircleAlert, Plug, KeyRound, MessageSquareReply,
 } from 'lucide-react';
 import { useStore, request, toast, confirmDialog, botHooks, connFor } from '../lib/store';
+import { httpBase, wsUrl } from '../lib/net';
 import { Avatar, Toggle } from './Common';
 import { Row } from './Settings';
 import { cx, COLORS, resizeImage, copyText, fmtDay } from '../lib/util';
@@ -552,7 +553,7 @@ function ConnectPane({ cid, bot, freshToken }: { cid: string; bot: BotView; fres
   useEffect(() => {
     if (!token) request<{ data: string }>(cid, { t: 'bot.token', cid, id: bot.id }).then((r) => setToken(r.data), () => {});
   }, [bot.id]);
-  const url = `http://${host}/mcp`;
+  const url = `${httpBase(host)}/mcp`;
   const slug =
     'kovan-' +
     (bot.user.name
@@ -570,7 +571,7 @@ function ConnectPane({ cid, bot, freshToken }: { cid: string; bot: BotView; fres
   );
   const codeCmd = `claude mcp add --transport http ${slug} ${url} --header "Authorization: Bearer ${tok}"`;
   const httpJson = JSON.stringify({ mcpServers: { [slug]: { type: 'http', url, headers: { Authorization: `Bearer ${tok}` } } } }, null, 2);
-  const curl = `curl -X POST http://${host}/api/v1/channels/genel/messages \\\n  -H "Authorization: Bot ${tok}" -H "content-type: application/json" \\\n  -d "{\\"content\\": \\"Merhaba!\\"}"`;
+  const curl = `curl -X POST ${httpBase(host)}/api/v1/channels/genel/messages \\\n  -H "Authorization: Bot ${tok}" -H "content-type: application/json" \\\n  -d "{\\"content\\": \\"Merhaba!\\"}"`;
 
   const addDesktop = async () => {
     if (!token) return;
@@ -640,7 +641,7 @@ function ConnectPane({ cid, bot, freshToken }: { cid: string; bot: BotView; fres
       <CodeBox label="Mesaj gönder" text={curl} secret={token} />
       <p className="note">
         Uç noktalar: <code>GET /api/v1/channels</code>, <code>GET|POST /api/v1/channels/:kanal/messages</code>, <code>GET /api/v1/members</code>, <code>GET /api/v1/updates?timeout=25</code>{' '}
-        (yeni mesajları bekler). Gerçek zamanlı olaylar için WebSocket'e (<code>ws://{host}/ws</code>) bot kimliği ve belirtecin son parçasıyla <code>hello</code> gönderebilirsin.
+        (yeni mesajları bekler). Gerçek zamanlı olaylar için WebSocket'e (<code>{wsUrl(host)}</code>) bot kimliği ve belirtecin son parçasıyla <code>hello</code> gönderebilirsin.
       </p>
     </div>
   );
