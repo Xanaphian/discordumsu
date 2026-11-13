@@ -261,7 +261,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
             <b className="clickable" onClick={popUser} style={{ color: color || undefined }}>
               {name}
             </b>{' '}
-            kovana katıldı. Hoş geldin! 🐝
+            aramıza katıldı. Hoş geldin! 👋
           </span>
           <span className="msg-time-inline">{fmtTime(m.ts)}</span>
         </div>

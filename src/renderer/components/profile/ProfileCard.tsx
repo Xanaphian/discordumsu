@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
-  Gamepad2, Headphones, Tv, Briefcase, BookOpen, Clock, Cake, Globe, Crown, Pencil, Copy, Maximize2, AtSign, Sparkles, Hexagon, Bot,
+  Gamepad2, Headphones, Tv, Briefcase, BookOpen, Clock, Cake, Globe, Crown, Pencil, Copy, Maximize2, AtSign, Sparkles, Bot,
   MessageCircle, UserPlus, UserCheck, Check,
 } from 'lucide-react';
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
@@ -128,11 +128,11 @@ interface Badge {
 function useBadges(uid: string, c: Community | undefined, profile?: ProfileExtra, bot?: boolean): Badge[] {
   const ownsAny = useStore((s) => Object.values(s.communities).some((x) => x.ownerId === uid && x.members.length > 1));
   const out: Badge[] = [];
-  if (uid === 'kovan-asistan') out.push({ id: 'bot', label: 'Kovan Asistanı', icon: <Sparkles size={14} /> });
+  if (uid === 'kovan-asistan') out.push({ id: 'bot', label: 'Asistan', icon: <Sparkles size={14} /> });
   else if (bot) out.push({ id: 'bot', label: 'Bot', icon: <Bot size={14} /> });
   if (c?.ownerId === uid) out.push({ id: 'owner', label: 'Topluluk sahibi', icon: <Crown size={14} /> });
-  else if (ownsAny) out.push({ id: 'founder', label: 'Kovan kurucusu', icon: <Crown size={14} /> });
-  if (/^[0-9a-z]{14}$/.test(uid) && idTime(uid) < Date.UTC(2027, 0, 1)) out.push({ id: 'early', label: 'Erken arı (2026)', icon: <Hexagon size={14} /> });
+  else if (ownsAny) out.push({ id: 'founder', label: 'Topluluk kurucusu', icon: <Crown size={14} /> });
+  if (/^[0-9a-z]{14}$/.test(uid) && idTime(uid) < Date.UTC(2027, 0, 1)) out.push({ id: 'early', label: 'İlk gelenlerden (2026)', icon: <Sparkles size={14} /> });
   if (isBirthday(profile)) out.push({ id: 'bday', label: 'Bugün doğum günü!', icon: <Cake size={14} /> });
   return out;
 }
@@ -309,7 +309,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
       {variant !== 'popout' && <section className="pc-sec pc-dates">
         {/^[0-9a-z]{14}$/.test(uid) && (
           <div>
-            <h4>Kovan'a katıldı</h4>
+            <h4>Xanaphian'a katıldı</h4>
             <span>{fmtDay(idTime(uid))}</span>
           </div>
         )}

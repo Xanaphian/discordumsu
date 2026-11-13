@@ -159,7 +159,7 @@ function createWindow() {
     minWidth: 940,
     minHeight: 560,
     show: false,
-    title: 'Kovan',
+    title: 'Xanaphian',
     icon: iconPath(),
     backgroundColor: themeBg(theme),
     titleBarStyle: 'hidden',
@@ -238,10 +238,10 @@ function showWindow() {
 function createTray() {
   const img = nativeImage.createFromPath(iconPath()).resize({ width: 16, height: 16 });
   tray = new Tray(img);
-  tray.setToolTip('Kovan');
+  tray.setToolTip('Xanaphian');
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Kovan\'ı aç', click: showWindow },
+      { label: 'Xanaphian\'ı aç', click: showWindow },
       { type: 'separator' },
       { label: 'Güncellemeleri denetle', click: () => updater?.check(true) },
       { label: 'Çıkış', click: () => ((quitting = true), app.quit()) },
@@ -435,7 +435,7 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.error('Hub başlatılamadı', e);
   }
-  hub.ownerName = config.profile.name || 'Kovan';
+  hub.ownerName = config.profile.name || 'Xanaphian';
   hub.siteMeta = fetchSiteMeta;
   setTimeout(() => hub.refreshAllSiteMeta(), 4000);
   setInterval(() => hub.refreshAllSiteMeta(), 6 * 3600_000);
@@ -517,7 +517,7 @@ function registerIpc() {
     const srcs = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 400, height: 225 }, fetchWindowIcons: true });
     const displays = screen.getAllDisplays();
     return srcs
-      .filter((s) => s.name !== 'Kovan' || s.id.startsWith('screen'))
+      .filter((s) => (s.name !== 'Kovan' && s.name !== 'Xanaphian') || s.id.startsWith('screen'))
       .map((s) => {
         const d = displays.find((x) => String(x.id) === s.display_id);
         return {
@@ -548,7 +548,7 @@ function registerIpc() {
     if (process.platform === 'win32') {
       if (count > 0 && !win?.isFocused()) win?.flashFrame(true);
     } else app.setBadgeCount(count);
-    tray?.setToolTip(count > 0 ? `Kovan (${count} bahsetme)` : 'Kovan');
+    tray?.setToolTip(count > 0 ? `Xanaphian (${count} bahsetme)` : 'Xanaphian');
   });
   ipcMain.on('open-external', (_e, url: string) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);

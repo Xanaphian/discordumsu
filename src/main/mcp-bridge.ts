@@ -47,7 +47,7 @@ async function forward(text: string) {
     if (!body) return;
     process.stdout.write(body.trim() + '\n');
   } catch (e) {
-    const message = `Kovan'a ulaşılamadı (${url}). Kovan açık mı? ${(e as Error).message}`;
+    const message = `Xanaphian'a ulaşılamadı (${url}). Xanaphian açık mı? ${(e as Error).message}`;
     log(message);
     for (const id of ids) write({ jsonrpc: '2.0', id, error: { code: -32000, message } });
   }

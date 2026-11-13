@@ -193,7 +193,7 @@ function InviteModal({ cid }: { cid: string }) {
               <> · İnternet üzerinden davet için Ayarlar → Bağlantı'dan dış adres ekleyebilirsin.</>
             )}
             <br />
-            Arkadaşların bağlıyken Kovan'ın açık kalması gerekir (kapatınca tepside çalışmaya devam eder).
+            Arkadaşların bağlıyken Xanaphian'ın açık kalması gerekir (kapatınca tepside çalışmaya devam eder).
           </div>
         )}
         {can(c, me, Perm.MANAGE_COMMUNITY) && (
@@ -258,7 +258,7 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
           <span>Kanal adı</span>
           <div className="input-icon">
             {type === 'voice' ? <Volume2 size={16} /> : type === 'space' ? <Box size={16} /> : type === 'site' ? <Globe size={16} /> : type === 'announce' ? <Megaphone size={16} /> : <Hash size={16} />}
-            <input autoFocus placeholder={type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Kovan Meydanı' : type === 'site' ? 'Boş bırakırsan sitenin adı kullanılır' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+            <input autoFocus placeholder={type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Meydan' : type === 'site' ? 'Boş bırakırsan sitenin adı kullanılır' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
           </div>
         </label>
         {type === 'site' && (

@@ -150,7 +150,7 @@ function InviteNameCard() {
           ? 'Davet rehberi henüz kurulmadı; kurulunca bu alan açılacak.'
           : name
             ? `Davet kodların "${name}/kod" biçiminde. Adresin değişse bile ad seni bulur.`
-            : 'Bir ad alırsan davet kodların "xanaphian/s3gas25" gibi görünür. Ad, Kovan davet rehberinde bilgisayarının adreslerine eşlenir.'}
+            : 'Bir ad alırsan davet kodların "xanaphian/s3gas25" gibi görünür. Ad, Xanaphian davet rehberinde bilgisayarının adreslerine eşlenir.'}
       </small>
     </label>
   );
@@ -166,7 +166,7 @@ function ConnectionTab() {
       <h1>Bağlantı</h1>
       <div className="info-card">
         <div className="ic-row">
-          <span>Kendi kovanın</span>
+          <span>Kendi sunucun</span>
           <b className="ok">
             <CircleCheck size={14} /> Çalışıyor · port {info?.hubPort}
           </b>
@@ -195,7 +195,7 @@ function ConnectionTab() {
         </small>
       </label>
       <InviteNameCard />
-      <h3>Bağlı olduğun kovanlar</h3>
+      <h3>Bağlı olduğun sunucular</h3>
       <div className="list-card">
         {Object.values(conns)
           .filter((c) => !c.local)
@@ -203,20 +203,20 @@ function ConnectionTab() {
             <div key={c.host} className="lc-row">
               <span className={cx('dot', c.status)} />
               <div className="lc-text">
-                <b>{c.hubName ? `${c.hubName} kovanı` : c.host}</b>
+                <b>{c.hubName ? `${c.hubName} sunucusu` : c.host}</b>
                 <span>
                   {c.host} · {c.status === 'online' ? 'bağlı' : c.status === 'connecting' ? 'bağlanıyor' : 'çevrimdışı'}
                 </span>
               </div>
               <button
                 className="btn ghost sm"
-                onClick={() => confirmDialog('Bu kovanı unut?', 'Bu kovandaki topluluklar listenden kalkar. Tekrar katılmak için davet gerekir.', () => forgetHost(c.host), 'Unut')}
+                onClick={() => confirmDialog('Bu sunucuyu unut?', 'Bu sunucudaki topluluklar listenden kalkar. Tekrar katılmak için davet gerekir.', () => forgetHost(c.host), 'Unut')}
               >
                 Unut
               </button>
             </div>
           ))}
-        {!Object.values(conns).some((c) => !c.local) && <div className="empty-note">Henüz başka bir kovana bağlanmadın.</div>}
+        {!Object.values(conns).some((c) => !c.local) && <div className="empty-note">Henüz başka bir sunucuya bağlanmadın.</div>}
       </div>
     </>
   );
@@ -227,10 +227,10 @@ function AppTab() {
   return (
     <>
       <h1>Uygulama</h1>
-      <Row title="Kapatınca tepside çalış" sub="Pencereyi kapatınca Kovan arka planda çalışmaya devam eder; topluluğuna gelenler sohbet edebilir.">
+      <Row title="Kapatınca tepside çalış" sub="Pencereyi kapatınca Xanaphian arka planda çalışmaya devam eder; topluluğuna gelenler sohbet edebilir.">
         <Toggle value={s.closeToTray} onChange={(v) => updateSettings({ closeToTray: v })} />
       </Row>
-      <Row title="Bilgisayar açılınca başlat" sub="Windows oturumu açıldığında Kovan tepside başlar.">
+      <Row title="Bilgisayar açılınca başlat" sub="Windows oturumu açıldığında Xanaphian tepside başlar.">
         <Toggle value={s.openAtLogin} onChange={(v) => updateSettings({ openAtLogin: v })} />
       </Row>
       <Row title="Enter ile gönder" sub="Kapalıyken Ctrl+Enter ile gönderilir, Enter yeni satır açar.">
@@ -268,10 +268,10 @@ function UpdatesTab() {
       <div className="update-card">
         <Logo size={56} />
         <div className="uc-text">
-          <div className="uc-title">Kovan v{info?.version}</div>
+          <div className="uc-title">Xanaphian v{info?.version}</div>
           <div className="uc-sub">
             {u.state === 'checking' && 'Güncellemeler denetleniyor…'}
-            {u.state === 'none' && 'Kovan güncel.'}
+            {u.state === 'none' && 'Xanaphian güncel.'}
             {u.state === 'available' && `Yeni sürüm hazır: v${u.version}${u.size ? ` (${fmtSize(u.size)})` : ''}`}
             {u.state === 'downloading' && `v${u.version} indiriliyor… %${Math.floor(u.percent)} · ${fmtSize(u.bps)}/sn`}
             {u.state === 'ready' && `v${u.version} indirildi. Yeniden başlatınca yüklenecek.`}
@@ -336,7 +336,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
     { id: 'chat', label: 'Sohbet', group: 'Uygulama Ayarları' },
     { id: 'advanced', label: 'Gelişmiş', group: 'Uygulama Ayarları' },
     { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama Ayarları' },
-    { id: 'updates', label: 'Güncellemeler', group: 'Kovan' },
+    { id: 'updates', label: 'Güncellemeler', group: 'Xanaphian' },
   ];
   const version = useStore((x) => x.info?.version);
   return (
@@ -350,7 +350,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
           <button className="sn-item danger" onClick={() => confirmDialog('Kovan kapatılsın mı?', 'Uygulama tamamen kapanır; senin barındırdığın topluluklara kimse bağlanamaz.', () => window.kovan.quit(), 'Kapat')}>
             Uygulamadan çık
           </button>
-          <div className="sn-version">Kovan v{version}</div>
+          <div className="sn-version">Xanaphian v{version}</div>
         </>
       }
     >

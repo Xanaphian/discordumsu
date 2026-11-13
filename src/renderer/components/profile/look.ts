@@ -4,7 +4,7 @@ import type {
   ActivityKind, AvatarFrame, AvatarShape, BannerPattern, CardEffect, NameFont, NameFx, ProfileBanner, ProfileExtra,
 } from '../../../shared/profile';
 
-export const SHAPE_LABEL: Record<AvatarShape, string> = { hex: 'Petek', circle: 'Daire', squircle: 'Yumuşak kare', diamond: 'Elmas' };
+export const SHAPE_LABEL: Record<AvatarShape, string> = { hex: 'Altıgen', circle: 'Daire', squircle: 'Yumuşak kare', diamond: 'Elmas' };
 export const FRAME_LABEL: Record<AvatarFrame, string> = {
   none: 'Yok',
   ring: 'Halka',
@@ -15,7 +15,7 @@ export const FRAME_LABEL: Record<AvatarFrame, string> = {
 };
 export const PATTERN_LABEL: Record<BannerPattern, string> = {
   none: 'Yok',
-  honeycomb: 'Petek',
+  honeycomb: 'Altıgen',
   dots: 'Noktalar',
   waves: 'Dalgalar',
   grid: 'Izgara',
@@ -73,7 +73,7 @@ export function imgFrameStyle(f: { x?: number; y?: number; zoom?: number } | und
 }
 
 export function bannerClass(b: ProfileBanner | undefined) {
-  const pat = b ? b.pattern : 'honeycomb';
+  const pat = b ? b.pattern : 'none';
   return pat && pat !== 'none' && b?.kind !== 'image' ? 'pat-' + pat : '';
 }
 
@@ -146,8 +146,8 @@ export interface Preset {
 export const PRESETS: Preset[] = [
   {
     id: 'bal',
-    name: 'Bal',
-    extra: { banner: { kind: 'gradient', a: '#f5a524', b: '#b45309', angle: 135, pattern: 'honeycomb' }, theme: { a: '#2b1d07', b: '#140f08' }, frame: 'ring', nameFx: 'gradient', nameB: '#fde68a', effect: 'bees' },
+    name: 'Altın',
+    extra: { banner: { kind: 'gradient', a: '#c9a35a', b: '#6b4e1f', angle: 135, pattern: 'none' }, theme: { a: '#1d1709', b: '#0d0b07' }, frame: 'ring', nameFx: 'gradient', nameB: '#f3dca2', effect: 'sparkle' },
   },
   {
     id: 'gece',

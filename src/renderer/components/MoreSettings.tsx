@@ -15,7 +15,7 @@ export function ChatTab() {
       <Row title="Görselleri sohbette göster" sub="Kapalıyken görseller küçük bir dosya kartı olarak görünür; tıklayınca açılır.">
         <Toggle value={s.inlineMedia} onChange={(v) => updateSettings({ inlineMedia: v })} />
       </Row>
-      <Row title="Katılma mesajlarını göster" sub='"… kovana katıldı" satırları.'>
+      <Row title="Katılma mesajlarını göster" sub='"… aramıza katıldı" satırları.'>
         <Toggle value={s.showJoinMessages} onChange={(v) => updateSettings({ showJoinMessages: v })} />
       </Row>
       <Row title="Rol rozetlerini göster" sub="Rolü olan üyelerin adının yanında rol emojisi görünür.">
