@@ -37,6 +37,17 @@ const api = {
     apps: () => ipcRenderer.invoke('act:apps'),
     onUpdate: (cb: (s: any) => void) => on('act:update', cb),
   },
+  /** v1.27 oyun içi kaplama */
+  overlay: {
+    state: (st: unknown) => ipcRenderer.send('ovl:state', st),
+    message: (m: unknown) => ipcRenderer.send('ovl:msg', m),
+    shortcut: (acc: string) => ipcRenderer.send('ovl:shortcut', acc),
+    onState: (cb: (st: any) => void) => on('ovl:state', cb),
+    onMessage: (cb: (m: any) => void) => on('ovl:msg', cb),
+    onHidden: (cb: (hidden: boolean) => void) => on('ovl:hidden', cb),
+  },
+  /** v1.27 Discord şablonu */
+  discordTemplate: (code: string) => ipcRenderer.invoke('tpl:discord', code) as Promise<{ ok: boolean; data?: unknown; error?: string }>,
   platform: process.platform,
   update: {
     check: () => ipcRenderer.invoke('upd:check'),

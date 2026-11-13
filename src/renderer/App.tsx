@@ -15,6 +15,8 @@ import { SiteView } from './components/SiteView';
 import { Logo } from './components/Common';
 import { DESTAN_FAMILY } from './components/Appearance';
 import { isVoiceLike } from '../shared/protocol';
+import { startOverlay } from './lib/overlay';
+import { ExploreView, startCommunityWatch } from './components/ToplulukAraclari';
 
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
@@ -104,6 +106,7 @@ function Main() {
   const c = useStore((s) => (s.current !== 'home' ? s.communities[s.current] : undefined));
   const chId = useStore((s) => (s.current !== 'home' ? s.chanByComm[s.current] : undefined));
   const membersOpen = useStore((s) => s.settings.membersOpen);
+  if (current === 'explore') return <ExploreView />;
   if (current === 'home' || !c) return <HomeView />;
   const ch = c.channels.find((x) => x.id === chId);
   if (!ch)
@@ -136,6 +139,11 @@ export function App() {
   const onboarded = useStore((s) => s.onboarded);
   useTheme();
   useShortcuts();
+  useEffect(() => {
+    if (!booted) return;
+    startOverlay();
+    startCommunityWatch();
+  }, [booted]);
   if (!booted)
     return (
       <div className="splash">

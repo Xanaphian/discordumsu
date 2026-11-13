@@ -1,6 +1,7 @@
 // Kovan ağ protokolü: istemci <-> kovan sunucusu (hub) arasında JSON çerçeveler.
 import type { LiveActivity, ProfileExtra, CommunityProfile } from './profile';
 import type { BotClientFrame, BotServerFrame } from './bots';
+import type { JoinGuard, Listing, Blueprint } from './topluluk';
 
 export type ID = string;
 
@@ -204,6 +205,12 @@ export interface Community {
   description?: string;
   /** sunucu profili: afiş, kısa tanıtım, etiketler, bağlantılar, kurallar */
   profile?: CommunityProfile;
+  /** katılma koruması (v1.27) */
+  joinGuard?: JoinGuard;
+  /** baskın algılandı: bu ana kadar yeni üye alınmaz (ms) */
+  raidUntil?: number;
+  /** keşfet sayfasında listelenir (v1.27) */
+  listing?: Listing;
   roles: Role[]; // roles[0] her zaman @herkes (id === community.id)
   categories: Category[];
   channels: Channel[];
@@ -305,11 +312,15 @@ export type ClientFrame =
   /** anlık etkinlik (oyun, müzik, yayın); boş dizi temizler */
   | { t: 'activity'; acts: LiveActivity[] }
   | { t: 'profile'; user: UserPublic }
-  | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; rid?: string }
+  | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; blueprint?: Blueprint; rid?: string }
   | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod }
   | { t: 'comm.delete'; cid: ID }
   | { t: 'comm.leave'; cid: ID }
   | { t: 'comm.invite.reset'; cid: ID }
+  /** v1.27: katılma koruması, baskın kilidini kaldırma, keşfet listesi */
+  | { t: 'comm.guard'; cid: ID; guard?: JoinGuard; unlock?: boolean }
+  | { t: 'comm.listing'; cid: ID; listing: Listing | null }
+  | { t: 'explore'; rid: string }
   | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; url?: string; rid?: string; private?: boolean; clone?: ID }
   | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string; overwrites?: Overwrite[]; userLimit?: number; type?: ChannelType }
   | { t: 'chan.delete'; cid: ID; id: ID }

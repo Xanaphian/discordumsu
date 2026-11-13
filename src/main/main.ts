@@ -5,6 +5,8 @@ import crypto from 'node:crypto';
 import { Hub } from './hub';
 import { initActivity, configureActivity, getActivity, runningApps, stopActivity, type ActivityConfig } from './activity';
 import { Updater } from './updater';
+import { initOverlay, destroyOverlay } from './overlay';
+import { initTemplateFetch } from './sablon';
 import { DEFAULT_PORT, makeId } from '../shared/protocol';
 
 const isDev = !app.isPackaged;
@@ -447,6 +449,8 @@ app.whenReady().then(async () => {
   registerIpc();
   initActivity((st) => win?.webContents.send('act:update', st));
   createWindow();
+  initOverlay(() => win, isDev);
+  initTemplateFetch();
   createTray();
   updater = new Updater(() => win, isDev);
   updater.start();
@@ -458,6 +462,7 @@ app.on('before-quit', () => {
 });
 app.on('will-quit', () => {
   if (saveTimer) saveConfig(true);
+  destroyOverlay();
   stopActivity();
   hub.stop();
 });

@@ -16,6 +16,7 @@ import {
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
+import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
 const MAX_CONTENT = 4000;
 const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -142,6 +143,8 @@ class ChannelLog {
 interface StoredUser {
   pub: UserPublic;
   secretHash: string;
+  /** bu sunucuyu ilk kullandığı an (katılma korumasındaki hesap yaşı); 1 = sürüm 1.27'den önce gelmiş eski hesap */
+  since?: number;
 }
 
 interface HubData {
@@ -219,6 +222,8 @@ export class Hub {
   private dir: string;
   private data!: HubData;
   private comms = new Map<ID, StoredCommunity>();
+  /** katılma koruması: topluluk başına son bir dakikadaki katılım anları */
+  private joinTimes = new Map<ID, number[]>();
   private chanToComm = new Map<ID, ID>();
   private logs = new Map<ID, ChannelLog>();
   private sessions = new Set<Session>();
@@ -767,6 +772,37 @@ export class Hub {
     if (list.length > 300) list.splice(0, list.length - 300);
   }
 
+  /** Katılma koruması: baskın kilidi, hesap yaşı ve dakikalık katılım sınırı. Sorun yoksa null. */
+  private joinGuardCheck(c: StoredCommunity, uid: ID): string | null {
+    const now = Date.now();
+    if (c.raidUntil && c.raidUntil > now) {
+      const m = Math.max(1, Math.ceil((c.raidUntil - now) / 60_000));
+      return `Bu toplulukta katılma koruması devrede: kısa sürede çok fazla kişi katılmaya çalıştı. ${m} dakika sonra tekrar dene.`;
+    }
+    if (c.raidUntil) delete c.raidUntil;
+    const g = c.joinGuard;
+    if (!g) return null;
+    if (g.minAgeH) {
+      const since = this.data.users[uid]?.since || 1;
+      const ageH = (now - since) / 3_600_000;
+      if (since > 1 && ageH < g.minAgeH)
+        return `Bu topluluk yalnızca en az ${fmtHours(g.minAgeH)} önce açılmış hesapları kabul ediyor. Yaklaşık ${fmtHours(Math.ceil(g.minAgeH - ageH))} sonra tekrar dene.`;
+    }
+    if (g.perMin) {
+      const list = (this.joinTimes.get(c.id) || []).filter((t) => now - t < 60_000);
+      if (list.length >= g.perMin) {
+        c.raidUntil = now + g.lockMin * 60_000;
+        this.joinTimes.delete(c.id);
+        this.audit(c, BOT_ID, 'comm.update', c.name, `baskın algılandı: bir dakikada ${list.length} katılım, yeni üyeler ${g.lockMin} dakika durduruldu`);
+        this.pushComm(c);
+        return `Bu toplulukta katılma koruması devrede: kısa sürede çok fazla kişi katılmaya çalıştı. ${g.lockMin} dakika sonra tekrar dene.`;
+      }
+      list.push(now);
+      this.joinTimes.set(c.id, list);
+    }
+    return null;
+  }
+
   private userName(c: StoredCommunity, uid: ID): string {
     return c.members.find((m) => m.userId === uid)?.nick || this.data.users[uid]?.pub.name || 'bilinmeyen';
   }
@@ -1229,10 +1265,12 @@ export class Hub {
           if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: '@' + friendOf });
           return;
         }
-        if (!c || (!code && c.inviteKey !== f.key)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
+        if (!c || (!code && c.inviteKey !== f.key && !c.listing)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           if (c.bans?.some((b) => b.userId === uid)) return this.send(s, { t: 'err', msg: 'Bu topluluktan yasaklandın.', rid: f.rid });
           if (c.invitesPaused) return this.send(s, { t: 'err', msg: 'Bu topluluk şu an yeni üye kabul etmiyor.', rid: f.rid });
+          const guardErr = this.joinGuardCheck(c, uid);
+          if (guardErr) return this.send(s, { t: 'err', msg: guardErr, rid: f.rid });
           c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
           const sys = c.systemChannelId ? c.channels.find((x) => x.id === c.systemChannelId && !isVoiceLike(x.type)) : undefined;
           const first = sys || c.channels.find((x) => !isVoiceLike(x.type) && this.canView(c, uid, x));
@@ -1415,7 +1453,7 @@ export class Hub {
           const owned = [...this.comms.values()].filter((x) => x.ownerId === uid).length;
           if (owned >= this.maxOwned) return this.send(s, { t: 'err', msg: `En fazla ${this.maxOwned} topluluk kurabilirsin.`, rid: f.rid });
         } else if (!s.loopback) return this.send(s, { t: 'err', msg: 'Bu sunucuda topluluk oluşturamazsın.', rid: f.rid });
-        const c = this.createCommunity(uid, cleanName(f.name, 48) || 'Yeni Topluluk', f.color, f.icon, f.template);
+        const c = this.createCommunity(uid, cleanName(f.name, 48) || 'Yeni Topluluk', f.color, f.icon, f.template, f.blueprint);
         for (const ch of c.channels) if (ch.type === 'site') this.refreshSiteMeta(c.id, ch.id);
         this.send(s, { t: 'comm', c: this.snapshot(c, uid), lastIds: this.lastIdsFor(c, uid) });
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: c.id });
@@ -1464,6 +1502,57 @@ export class Hub {
         }
         if (changed.length) this.audit(c, uid, 'comm.update', c.name, changed.join(', '));
         this.pushComm(c);
+        return;
+      }
+      case 'comm.guard': {
+        const c = this.commFor(s, f.cid, Perm.MANAGE_COMMUNITY);
+        if (!c) return;
+        if (f.guard !== undefined) {
+          const g = sanitizeGuard(f.guard);
+          if (!g.minAgeH && !g.perMin) delete c.joinGuard;
+          else c.joinGuard = g;
+          this.audit(c, uid, 'comm.update', c.name, `katılma koruması: ${g.minAgeH ? 'hesap en az ' + fmtHours(g.minAgeH) : 'hesap yaşı serbest'}, ${g.perMin ? 'dakikada en çok ' + g.perMin + ' katılım' : 'hız sınırı yok'}`);
+        }
+        if (f.unlock && c.raidUntil) {
+          delete c.raidUntil;
+          this.joinTimes.delete(c.id);
+          this.audit(c, uid, 'comm.update', c.name, 'baskın kilidi kaldırıldı');
+        }
+        this.pushComm(c);
+        return;
+      }
+      case 'comm.listing': {
+        const c = this.commFor(s, f.cid, Perm.MANAGE_COMMUNITY);
+        if (!c) return;
+        const cat = f.listing && EXPLORE_CATS.some((x) => x.id === f.listing!.cat) ? f.listing.cat : null;
+        if (cat) c.listing = { cat, at: c.listing?.at || Date.now() };
+        else delete c.listing;
+        this.audit(c, uid, 'comm.update', c.name, cat ? `keşfette listelendi (${catLabel(cat)})` : 'keşfetten kaldırıldı');
+        this.pushComm(c);
+        return;
+      }
+      case 'explore': {
+        const out: ExploreItem[] = [];
+        for (const c of this.comms.values()) {
+          if (!c.listing) continue;
+          let online = 0;
+          for (const m of c.members) {
+            const set = this.userSessions.get(m.userId);
+            if (set && [...set].some((x) => x.status !== 'invisible')) online++;
+          }
+          const it: ExploreItem = { id: c.id, name: c.name, color: c.color, cat: c.listing.cat, members: c.members.filter((m) => m.userId !== BOT_ID).length, online, createdAt: c.createdAt };
+          if (c.icon) it.icon = c.icon;
+          if (c.description) it.description = c.description;
+          const p = c.profile;
+          // büyük afiş resimleri listeyi şişirmesin (kart rengiyle düz afiş gösterilir)
+          if (p?.banner && !(p.banner.image && p.banner.image.length > 250_000)) it.banner = p.banner;
+          if (p?.tagline) it.tagline = p.tagline;
+          if (p?.tags?.length) it.tags = p.tags;
+          if (c.members.some((m) => m.userId === uid)) it.joined = true;
+          out.push(it);
+        }
+        out.sort((a, b) => b.online - a.online || b.members - a.members);
+        this.send(s, { t: 'ok', rid: f.rid, data: out.slice(0, 200) });
         return;
       }
       case 'comm.invite.reset': {
@@ -2144,8 +2233,8 @@ export class Hub {
     // bot hesapları (belirteçle bağlanan bot programları) profillerini değiştiremez
     const pub = existing?.pub.bot ? existing.pub : this.sanitizeUser(f.user, id);
     const changed = !existing || JSON.stringify(existing.pub) !== JSON.stringify(pub);
-    this.data.users[id] = { pub, secretHash: sha(secret) };
-    if (changed) this.saveHub();
+    this.data.users[id] = { pub, secretHash: sha(secret), since: existing ? existing.since || 1 : Date.now() };
+    if (changed || !existing?.since) this.saveHub();
     s.userId = id;
     s.status = ['online', 'idle', 'dnd', 'invisible'].includes(f.status) ? f.status : 'online';
     let set = this.userSessions.get(id);
@@ -2163,7 +2252,7 @@ export class Hub {
   }
 
   // ---------- topluluk oluşturma ----------
-  private createCommunity(ownerId: ID, name: string, color: string, icon: string | undefined, template: 'default' | 'lobby' = 'default'): StoredCommunity {
+  private createCommunity(ownerId: ID, name: string, color: string, icon: string | undefined, template: 'default' | 'lobby' = 'default', bp?: Blueprint): StoredCommunity {
     const id = makeId();
     const roles: Role[] = [
       { id, name: '@herkes', color: '', perms: DEFAULT_EVERYONE, hoist: false, position: 0 },
@@ -2190,7 +2279,55 @@ export class Hub {
       return c;
     };
     let welcome: Channel | null = null;
-    if (template === 'lobby') {
+    if (bp && typeof bp === 'object' && Array.isArray(bp.channels)) {
+      // Discord şablonundan: @herkes, roller, kategoriler ve kanallar şablondaki gibi
+      roles.length = 1;
+      const ev = Number(bp.everyone) & ALL_PERMS & ~Perm.ADMIN;
+      roles[0].perms = ev & Perm.VIEW_CHANNEL ? ev : DEFAULT_EVERYONE;
+      const list = (Array.isArray(bp.roles) ? bp.roles : []).slice(0, BLUEPRINT_LIMITS.roles);
+      list.forEach((r, i) => {
+        const role: Role = {
+          id: makeId(),
+          name: cleanName(r?.name, 32) || 'rol',
+          color: typeof r?.color === 'string' && /^#[0-9a-f]{6}$/i.test(r.color) ? r.color : '',
+          perms: (Number(r?.perms) | 0) & ALL_PERMS,
+          hoist: !!r?.hoist,
+          position: i + 1,
+        };
+        if (r?.mentionable) role.mentionable = true;
+        roles.push(role);
+      });
+      const ow = (x: BlueprintOverwrite[] | undefined): Overwrite[] | undefined => {
+        const out: Overwrite[] = [];
+        for (const o of Array.isArray(x) ? x.slice(0, 30) : []) {
+          const rid = o?.role === -1 ? id : roles[(Number(o?.role) | 0) + 1]?.id;
+          if (!rid || out.some((y) => y.id === rid)) continue;
+          const allow = (Number(o.allow) | 0) & CHANNEL_PERMS;
+          const deny = (Number(o.deny) | 0) & CHANNEL_PERMS & ~allow;
+          if (allow || deny) out.push({ id: rid, type: 'role', allow, deny });
+        }
+        return out.length ? out : undefined;
+      };
+      const catIds = (Array.isArray(bp.categories) ? bp.categories : []).slice(0, BLUEPRINT_LIMITS.categories).map((k) => {
+        const cid = cat(cleanName(k?.name, 40) || 'Kategori');
+        const o = ow(k?.ow);
+        if (o) categories[categories.length - 1].overwrites = o;
+        return cid;
+      });
+      for (const x of bp.channels.slice(0, BLUEPRINT_LIMITS.channels)) {
+        const type: ChannelType = x?.type === 'voice' || x?.type === 'announce' ? x.type : 'text';
+        const catId = typeof x?.cat === 'number' ? catIds[x.cat] ?? null : null;
+        const ch = chan(type === 'voice' ? cleanName(x?.name, 48) || 'Ses' : channelSlug(x?.name), type, catId, x?.topic ? clampStr(x.topic, 512) : undefined);
+        if (!ch.topic) delete ch.topic;
+        const sm = Math.max(0, Math.min(21600, Number(x?.slowmode) || 0));
+        if (sm) ch.slowmode = sm;
+        const ul = Math.max(0, Math.min(99, Number(x?.userLimit) || 0));
+        if (ul && type === 'voice') ch.userLimit = ul;
+        const o = ow(x?.ow);
+        if (o) ch.overwrites = o;
+      }
+      if (!channels.some((x) => !isVoiceLike(x.type))) chan('genel', 'text', null);
+    } else if (template === 'lobby') {
       roles.push({ id: makeId(), name: 'Bot', color: '#f5a524', perms: 0, hoist: true, position: 3 });
       const info = cat('Bilgi');
       welcome = chan('hoş-geldin', 'announce', info, 'Xanaphian\'a hoş geldin! Buradan başla.');

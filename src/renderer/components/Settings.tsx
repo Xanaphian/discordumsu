@@ -15,6 +15,7 @@ import { can, Perm, type Role, type Community } from '../../shared/protocol';
 export const close = () => openModal(null);
 // Sohbet / Gizlilik / Gelişmiş sekmeleri ayrı dosyada (MoreSettings.tsx)
 import { ChatTab, PrivacyTab, AdvancedTab, NotifyExtras } from './MoreSettings';
+import { OverlayTab } from './Kaplama';
 
 export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: string; label: string; group?: string; danger?: boolean }[]; tab: string; setTab: (t: string) => void; children: React.ReactNode; footer?: React.ReactNode }) {
   useEffect(() => {
@@ -339,6 +340,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
     { id: 'appearance', label: 'Görünüm', group: 'Uygulama Ayarları' },
     { id: 'notifications', label: 'Bildirimler', group: 'Uygulama Ayarları' },
     { id: 'voice', label: 'Ses ve Görüntü', group: 'Uygulama Ayarları' },
+    { id: 'overlay', label: 'Oyun İçi Kaplama', group: 'Uygulama Ayarları' },
     { id: 'chat', label: 'Sohbet', group: 'Uygulama Ayarları' },
     { id: 'advanced', label: 'Gelişmiş', group: 'Uygulama Ayarları' },
     { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama Ayarları' },
@@ -365,6 +367,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       {tab === 'appearance' && <AppearanceTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'voice' && <VoiceTab />}
+      {tab === 'overlay' && <OverlayTab />}
       {tab === 'connection' && <ConnectionTab />}
       {tab === 'app' && <AppTab />}
       {tab === 'updates' && <UpdatesTab />}

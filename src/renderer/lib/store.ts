@@ -9,6 +9,7 @@ import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
 import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
+import type { Blueprint } from '../../shared/topluluk';
 
 export interface Profile {
   id: ID;
@@ -1043,6 +1044,8 @@ function callWatch(c: Community, ch: ID, before: VoiceMember[], now: VoiceMember
 export const botHooks = new Set<(f: Extract<ServerFrame, { t: 'bots' }>) => void>();
 export const spaceHooks: { onFrame?: (host: string, f: ServerFrame) => void } = {};
 export const siteHooks: { onFrame?: (f: ServerFrame) => void } = {};
+/** v1.27 oyun içi kaplama: bildirime düşen her mesaj (lib/overlay.ts) */
+export const overlayHooks: { onNotify?: (m: Message, c: Community | undefined, author: string, body: string, mentioned: boolean) => void } = {};
 /** anlık etkinlik (lib/activity.ts) */
 export const actHooks: {
   onReady?: (host: string, f: Extract<ServerFrame, { t: 'ready' }>) => void;
@@ -1100,6 +1103,7 @@ function notifyFor(m: Message, c: Community | undefined, mentioned: boolean) {
   const body = !settings.notifyPreview ? 'Yeni mesaj' : plainText(m.content, c) || (m.attachments?.length ? `📎 ${m.attachments.length} dosya` : '');
   if (settings.sounds) playSound(mentioned ? 'mention' : 'message');
   const title = c?.dm ? `${author} (özel mesaj)` : `${author} (#${ch?.name || 'kanal'}, ${c?.name || ''})`;
+  overlayHooks.onNotify?.(m, c, author, body, mentioned);
   window.kovan.notify({ title, body, tag: m.channelId, silent: true });
 }
 
@@ -1355,14 +1359,22 @@ export async function moveToServer(cid: ID) {
   return r;
 }
 
-export async function createCommunity(name: string, color: string, icon?: string) {
+export async function createCommunity(name: string, color: string, icon?: string, blueprint?: Blueprint) {
   const home = homeHost();
   const conn = conns.get(home);
   if (!conn) throw new Error('Sunucuya bağlanılmadı.');
   await waitOnline(home);
-  const r = await conn.request<{ data: ID }>({ t: 'comm.create', name, color, icon });
+  const r = await conn.request<{ data: ID }>({ t: 'comm.create', name, color, icon, ...(blueprint ? { blueprint } : {}) });
   selectCommunity(r.data);
   return r.data;
+}
+
+/** v1.27: merkezi sunucuya istek (keşfet listesi, listeden katılma) */
+export async function homeRequest<T = any>(f: ClientFrame): Promise<T> {
+  const home = homeHost();
+  const conn = ensureConn(home, home === localHost());
+  await waitOnline(home);
+  return conn.request<T>(f);
 }
 
 export interface InviteHostOption {
