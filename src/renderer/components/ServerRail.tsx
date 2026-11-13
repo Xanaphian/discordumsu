@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useState } from 'react';
-import { Plus, LogIn, WifiOff } from 'lucide-react';
+import { Plus, LogIn, WifiOff, Home } from 'lucide-react';
 import { useStore, selectCommunity, openModal, openMenu, markCommunityRead, updateSettings, leaveCommunity, deleteCommunity, confirmDialog } from '../lib/store';
-import { CommunityIcon, Logo, Tooltip } from './Common';
+import { CommunityIcon, Tooltip } from './Common';
 import { cx, copyText } from '../lib/util';
 import type { Community } from '../../shared/protocol';
 import { can, Perm, isVoiceLike } from '../../shared/protocol';
@@ -70,9 +70,13 @@ const RailItem = memo(function RailItem({
       { sep: true },
       { label: 'Kimliği kopyala', hint: c.id.slice(-6), onClick: () => copyText(c.id) },
     ]);
-  return (
-    <div
-      className={cx('rail-item', active && 'active', unread && 'unread', over && 'drop-over')}
+  const btn = (
+    <button
+      className={cx('pt-btn', active && 'on', unread && 'unread', offline && 'offline', over && 'drop-over')}
+      style={{ ['--cc' as any]: c.color }}
+      onClick={() => selectCommunity(c.id)}
+      onContextMenu={menu}
+      aria-label={c.name}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move';
@@ -89,22 +93,23 @@ const RailItem = memo(function RailItem({
         onDrop();
       }}
     >
-      <span className="rail-pill" />
-      <Tooltip text={c.name}>
-        <button className={cx('rail-btn hex', offline && 'offline')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} aria-label={c.name}>
-          <CommunityIcon c={c} size={48} />
-          {offline && (
-            <span className="rail-offline">
-              <WifiOff size={12} />
-            </span>
-          )}
-        </button>
-      </Tooltip>
-      {mentions > 0 && <span className="badge rail-badge">{mentions > 99 ? '99+' : mentions}</span>}
-    </div>
+      <span className="pt-hex">
+        <CommunityIcon c={c} size={30} />
+      </span>
+      <span className="pt-name">{c.name}</span>
+      {offline && (
+        <span className="pt-offline">
+          <WifiOff size={10} />
+        </span>
+      )}
+      {mentions > 0 && <span className="badge pt-badge">{mentions > 99 ? '99+' : mentions}</span>}
+      {unread && !active && <span className="pt-dot" />}
+    </button>
   );
+  return btn;
 });
 
+/** Üst çubuktaki topluluk şeridi (petek şeridi) */
 export function ServerRail() {
   const current = useStore((s) => s.current);
   const communities = useStore((s) => s.communities);
@@ -118,7 +123,6 @@ export function ServerRail() {
     for (const id of Object.keys(communities)) if (!ids.includes(id)) ids.push(id);
     return ids.map((id) => communities[id]);
   }, [order, communities]);
-  const totalMentions = Object.values(comm).reduce((a, b) => a + b.mentions, 0);
 
   const drop = (target: string) => {
     if (!drag || drag === target) return;
@@ -129,18 +133,22 @@ export function ServerRail() {
   };
 
   return (
-    <nav className="rail">
-      <div className={cx('rail-item', current === 'home' && 'active')}>
-        <span className="rail-pill" />
-        <Tooltip text="Ana Sayfa">
-          <button className="rail-btn home" onClick={() => selectCommunity('home')} aria-label="Ana Sayfa">
-            <Logo size={28} />
-          </button>
-        </Tooltip>
-        {totalMentions > 0 && current !== 'home' ? null : null}
-      </div>
-      <div className="rail-sep" />
-      <div className="rail-list">
+    <nav
+      className="petek"
+      onWheel={(e) => {
+        const el = e.currentTarget.querySelector('.pt-list') as HTMLElement | null;
+        if (el && Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY;
+      }}
+    >
+      <Tooltip text="Ana Sayfa" side="bottom">
+        <button className={cx('pt-btn pt-home', current === 'home' && 'on')} onClick={() => selectCommunity('home')} aria-label="Ana Sayfa">
+          <span className="pt-hex">
+            <Home size={16} />
+          </span>
+        </button>
+      </Tooltip>
+      <span className="pt-sep" />
+      <div className="pt-list">
         {list.map((c) => (
           <RailItem
             key={c.id}
@@ -153,21 +161,21 @@ export function ServerRail() {
             onDrop={() => drop(c.id)}
           />
         ))}
-        <div className="rail-item">
-          <Tooltip text="Topluluk oluştur">
-            <button className="rail-btn action hex" onClick={() => openModal({ type: 'createCommunity' })} aria-label="Topluluk oluştur">
-              <Plus size={22} />
-            </button>
-          </Tooltip>
-        </div>
-        <div className="rail-item">
-          <Tooltip text="Davetle katıl">
-            <button className="rail-btn action hex" onClick={() => openModal({ type: 'join' })} aria-label="Davetle katıl">
-              <LogIn size={20} />
-            </button>
-          </Tooltip>
-        </div>
       </div>
+      <Tooltip text="Topluluk oluştur" side="bottom">
+        <button className="pt-btn pt-act" onClick={() => openModal({ type: 'createCommunity' })} aria-label="Topluluk oluştur">
+          <span className="pt-hex">
+            <Plus size={16} />
+          </span>
+        </button>
+      </Tooltip>
+      <Tooltip text="Davetle katıl" side="bottom">
+        <button className="pt-btn pt-act" onClick={() => openModal({ type: 'join' })} aria-label="Davetle katıl">
+          <span className="pt-hex">
+            <LogIn size={15} />
+          </span>
+        </button>
+      </Tooltip>
     </nav>
   );
 }

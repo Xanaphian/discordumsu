@@ -36,9 +36,13 @@ export const Avatar = memo(function Avatar({
   const prof = user?.profile ?? user?.extra;
   const sh = shape || prof?.shape || 'hex';
   const frame = !plain && size >= 28 ? prof?.frame : undefined;
-  const style = { width: size, height: size, ['--av-c' as any]: prof?.frameColor || user?.color || '#f5a524' };
+  const style = { width: size, height: size, ['--av-c' as any]: prof?.frameColor || `color-mix(in srgb, ${user?.color || '#f5a524'} 55%, #fff)` };
   return (
-    <div className={cx('avatar', 'shape-' + sh, frame && 'frame-' + frame, speaking && 'speaking', onClick && 'clickable')} style={style} onClick={onClick}>
+    <div
+      className={cx('avatar', 'shape-' + sh, frame && 'frame-' + frame, size >= 64 && 'big', speaking && 'speaking', onClick && 'clickable')}
+      style={style}
+      onClick={onClick}
+    >
       <div className="av-clip">
         {user?.avatar ? (
           <img src={user.avatar} alt="" draggable={false} loading="lazy" decoding="async" />

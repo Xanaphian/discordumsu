@@ -306,7 +306,7 @@ export function updateSettings(patch: Partial<Settings>) {
   const settings = { ...S().settings, ...patch };
   set({ settings });
   persistSettings(settings);
-  if (patch.theme) window.kovan.setTheme(patch.theme === 'light' ? 'light' : 'dark');
+  if (patch.theme) window.kovan.setTheme(patch.theme);
 }
 
 function hello(): ClientFrame {
@@ -345,7 +345,7 @@ export async function boot() {
     update: upd || { state: 'idle' },
     booted: true,
   });
-  window.kovan.setTheme(settings.theme === 'light' ? 'light' : 'dark');
+  window.kovan.setTheme(settings.theme);
   readSaver = debounce(() => localStorage.setItem('kovan.read', JSON.stringify(S().read)), 1000);
   window.kovan.update.onStatus((u) => set({ update: u as UpdateState }));
   window.kovan.onInvite((code) => set({ modal: { type: 'join', code } }));

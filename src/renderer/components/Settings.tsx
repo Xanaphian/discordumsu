@@ -5,6 +5,8 @@ import {
 } from '../lib/store';
 import { VoiceTab } from './VoiceSettings';
 import { Avatar, CommunityIcon, Toggle, Logo, STATUS_LABEL } from './Common';
+import { ProfileEditor } from './profile/ProfileEditor';
+import { AppearanceTab } from './Appearance';
 import { cx, COLORS, resizeImage, copyText, fmtSize, fmtDay, displayName, modKey } from '../lib/util';
 import { playSound } from '../lib/sound';
 import { can, Perm, type Role } from '../../shared/protocol';
@@ -59,140 +61,8 @@ export function Row({ title, sub, children }: { title: string; sub?: React.React
   );
 }
 
-// ---------------------------------------------------------------------------
-function ProfileTab() {
-  const me = useStore((s) => s.me);
-  const [name, setName] = useState(me.name);
-  const [bio, setBio] = useState(me.bio || '');
-  const [color, setColor] = useState(me.color);
-  const [avatar, setAvatar] = useState(me.avatar);
-  const file = useRef<HTMLInputElement>(null);
-  const dirty = name !== me.name || bio !== (me.bio || '') || color !== me.color || avatar !== me.avatar;
-  const save = async () => {
-    if (!name.trim()) return toast('Kullanıcı adı boş olamaz.', 'err');
-    await updateProfile({ name: name.trim(), bio: bio.trim(), color, avatar });
-    toast('Profil kaydedildi', 'ok');
-  };
-  return (
-    <>
-      <h1>Profilim</h1>
-      <div className="profile-edit">
-        <div className="profile-form">
-          <label className="field">
-            <span>Görünen ad</span>
-            <input value={name} maxLength={32} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <div className="field">
-            <span>Profil resmi</span>
-            <div className="btn-row">
-              <button className="btn primary sm" onClick={() => file.current?.click()}>
-                Resim yükle
-              </button>
-              {avatar && (
-                <button className="btn ghost sm" onClick={() => setAvatar(undefined)}>
-                  Kaldır
-                </button>
-              )}
-            </div>
-            <input ref={file} hidden type="file" accept="image/*" onChange={async (e) => e.target.files?.[0] && setAvatar(await resizeImage(e.target.files[0], 128))} />
-          </div>
-          <div className="field">
-            <span>Profil rengi</span>
-            <div className="swatches">
-              {COLORS.map((c) => (
-                <button key={c} className={cx('swatch', c === color && 'on')} style={{ background: c }} onClick={() => setColor(c)} aria-label={c} />
-              ))}
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
-            </div>
-          </div>
-          <label className="field">
-            <span>Hakkımda</span>
-            <textarea rows={3} maxLength={190} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Kendinden biraz bahset" />
-            <small className="counter">{190 - bio.length}</small>
-          </label>
-        </div>
-        <div className="profile-preview">
-          <div className="popout static">
-            <div className="popout-banner" style={{ background: `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 40%, #000))` }} />
-            <div className="popout-avatar">
-              <Avatar user={{ name: name || '?', color, avatar }} size={80} status={me.status === 'invisible' ? 'offline' : me.status} />
-            </div>
-            <div className="popout-body">
-              <div className="popout-name">{name || 'İsimsiz'}</div>
-              <div className="popout-user">{STATUS_LABEL[me.status]}</div>
-              {bio && (
-                <div className="popout-section">
-                  <div className="popout-label">Hakkında</div>
-                  <div className="popout-bio">{bio}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-      {dirty && (
-        <div className="save-bar">
-          <span>Dikkat, kaydedilmemiş değişikliklerin var!</span>
-          <button
-            className="btn ghost sm"
-            onClick={() => {
-              setName(me.name);
-              setBio(me.bio || '');
-              setColor(me.color);
-              setAvatar(me.avatar);
-            }}
-          >
-            Sıfırla
-          </button>
-          <button className="btn success sm" onClick={save}>
-            Değişiklikleri kaydet
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
-
-const ACCENTS = ['#f5a524', '#3ecf8e', '#6cb6ff', '#c084fc', '#fb7185', '#22d3ee'];
-
-function AppearanceTab() {
-  const s = useStore((x) => x.settings);
-  return (
-    <>
-      <h1>Görünüm</h1>
-      <h3>Tema</h3>
-      <div className="theme-cards">
-        {(
-          [
-            ['dark', 'Koyu', '#1e1d23', '#111014'],
-            ['midnight', 'Gece', '#000000', '#0a0a0c'],
-            ['light', 'Açık', '#ffffff', '#e9e6e0'],
-          ] as const
-        ).map(([id, label, a, b]) => (
-          <button key={id} className={cx('theme-card', s.theme === id && 'on')} onClick={() => updateSettings({ theme: id })}>
-            <span className="tc-preview" style={{ background: `linear-gradient(135deg, ${a} 50%, ${b} 50%)` }} />
-            {label}
-          </button>
-        ))}
-      </div>
-      <h3>Vurgu rengi</h3>
-      <div className="swatches big">
-        {ACCENTS.map((c) => (
-          <button key={c} className={cx('swatch', s.accent === c && 'on')} style={{ background: c }} onClick={() => updateSettings({ accent: c })} aria-label={c} />
-        ))}
-      </div>
-      <h3>Yazı boyutu: {s.fontSize}px</h3>
-      <input type="range" min={12} max={20} step={1} value={s.fontSize} onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })} />
-      <div className="divider" />
-      <Row title="Sıkışık mod" sub="Mesajlar arasında daha az boşluk, avatarlar gizli.">
-        <Toggle value={s.compact} onChange={(v) => updateSettings({ compact: v })} />
-      </Row>
-      <Row title="Hareketi azalt" sub="Animasyonları ve geçişleri en aza indirir.">
-        <Toggle value={s.reduceMotion} onChange={(v) => updateSettings({ reduceMotion: v })} />
-      </Row>
-    </>
-  );
-}
+// Profil ve görünüm sekmeleri ayrı dosyalarda (profile/ProfileEditor.tsx, Appearance.tsx)
+const ProfileTab = ProfileEditor;
 
 function NotificationsTab() {
   const s = useStore((x) => x.settings);

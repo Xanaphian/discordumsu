@@ -298,7 +298,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
         {badges.length > 0 && (
           <div className="pc-badges">
             {badges.map((b) => (
-              <Tooltip key={b.id} text={b.label} side="bottom">
+              <Tooltip key={b.id} text={b.label} side="left">
                 <span className={cx('pc-badge', 'b-' + b.id)}>{b.icon}</span>
               </Tooltip>
             ))}

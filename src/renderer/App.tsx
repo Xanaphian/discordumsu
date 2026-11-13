@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { useStore, openModal, selectChannel, sortedChannels } from './lib/store';
 import { toggleMute, toggleDeaf, useVoice } from './lib/voice';
 import { TitleBar } from './components/TitleBar';
-import { ServerRail } from './components/ServerRail';
 import { Sidebar } from './components/Sidebar';
 import { ChatView, PickerHost } from './components/Chat';
 import { MemberList } from './components/Members';
@@ -20,6 +19,15 @@ function useTheme() {
   const fontSize = useStore((s) => s.settings.fontSize);
   const compact = useStore((s) => s.settings.compact);
   const reduceMotion = useStore((s) => s.settings.reduceMotion);
+  const msgStyle = useStore((s) => s.settings.msgStyle);
+  const layout = useStore((s) => s.settings.layout);
+  const backdrop = useStore((s) => s.settings.backdrop);
+  useEffect(() => {
+    const r = document.documentElement;
+    r.dataset.msgstyle = msgStyle || 'petek';
+    r.dataset.layout = layout || 'float';
+    r.classList.toggle('backdrop', backdrop !== false);
+  }, [msgStyle, layout, backdrop]);
   useEffect(() => {
     const r = document.documentElement;
     r.dataset.theme = theme;
@@ -130,7 +138,6 @@ export function App() {
         <Onboarding />
       ) : (
         <div className="shell">
-          <ServerRail />
           <Sidebar />
           <div className="content">
             <Main />

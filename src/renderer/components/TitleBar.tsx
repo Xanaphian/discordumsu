@@ -1,7 +1,8 @@
 import React from 'react';
-import { Download, RefreshCw, RotateCw, CircleAlert, LoaderCircle, Hash, Volume2, Megaphone, Box } from 'lucide-react';
+import { Download, RefreshCw, RotateCw, CircleAlert, LoaderCircle } from 'lucide-react';
 import { useStore, toast } from '../lib/store';
 import { Logo, Tooltip } from './Common';
+import { ServerRail } from './ServerRail';
 import { fmtSize } from '../lib/util';
 
 export function UpdateButton() {
@@ -65,10 +66,6 @@ function UpdateIdle({ version, dev }: { version?: string; dev?: boolean }) {
 }
 
 export function TitleBar() {
-  const current = useStore((s) => s.current);
-  const comm = useStore((s) => (s.current !== 'home' ? s.communities[s.current] : undefined));
-  const chId = useStore((s) => (s.current !== 'home' ? s.chanByComm[s.current] : undefined));
-  const ch = comm?.channels.find((x) => x.id === chId);
   const u = useStore((s) => s.update);
   // elle denetimde "güncelsin" bildirimi
   const lastNone = React.useRef(0);
@@ -79,29 +76,15 @@ export function TitleBar() {
     }
     if (u.state === 'error' && u.manual) toast('Güncelleme denetlenemedi: ' + u.message, 'err');
   }, [u]);
-  const Icon = ch?.type === 'voice' ? Volume2 : ch?.type === 'space' ? Box : ch?.type === 'announce' ? Megaphone : Hash;
+  const onboarded = useStore((s) => s.onboarded);
   return (
     <header className="titlebar">
       <div className="tb-brand">
-        <Logo size={18} />
-        <span>Kovan</span>
+        <Logo size={20} />
+        <span>kovan</span>
       </div>
-      <div className="tb-crumb">
-        {current === 'home' ? (
-          <span>Ana Sayfa</span>
-        ) : comm ? (
-          <>
-            <span>{comm.name}</span>
-            {ch && (
-              <>
-                <span className="tb-sep">/</span>
-                <Icon size={13} />
-                <span>{ch.name}</span>
-              </>
-            )}
-          </>
-        ) : null}
-      </div>
+      {onboarded && <ServerRail />}
+      <div className="tb-drag" />
       <div className="tb-actions">
         <UpdateButton />
       </div>

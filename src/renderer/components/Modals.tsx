@@ -11,6 +11,7 @@ import { UserSettings } from './Settings';
 import { CommunitySettings } from './CommunitySettings';
 import { joinVoice } from '../lib/voice';
 import { ScreenPickerModal } from './Media';
+import { ProfileModal, CustomStatusModal } from './profile/ProfileModal';
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
   useEffect(() => {
@@ -527,5 +528,9 @@ export function Modals() {
       return <UserSettings tab={m.tab} />;
     case 'commSettings':
       return <CommunitySettings cid={m.cid} tab={m.tab} />;
+    case 'profile':
+      return <ProfileModal uid={m.uid} cid={m.cid} />;
+    case 'customStatus':
+      return <CustomStatusModal />;
   }
 }
