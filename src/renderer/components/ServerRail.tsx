@@ -110,10 +110,14 @@ const RailItem = memo(function RailItem({
       {unread && !active && <span className="pt-dot" />}
     </button>
   );
-  return btn;
+  return (
+    <Tooltip text={c.name} side="right">
+      {btn}
+    </Tooltip>
+  );
 });
 
-/** Üst çubuktaki topluluk şeridi (petek şeridi) */
+/** Soldaki dikey topluluk listesi (1.9'da üst çubuktan geri taşındı) */
 export function ServerRail() {
   const current = useStore((s) => s.current);
   const communities = useStore((s) => s.communities);
@@ -137,14 +141,8 @@ export function ServerRail() {
   };
 
   return (
-    <nav
-      className="petek"
-      onWheel={(e) => {
-        const el = e.currentTarget.querySelector('.pt-list') as HTMLElement | null;
-        if (el && Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY;
-      }}
-    >
-      <Tooltip text="Ana Sayfa" side="bottom">
+    <nav className="petek rail-v">
+      <Tooltip text="Ana Sayfa" side="right">
         <button className={cx('pt-btn pt-home', current === 'home' && 'on')} onClick={() => selectCommunity('home')} aria-label="Ana Sayfa">
           <span className="pt-hex">
             <Home size={16} />
@@ -166,14 +164,14 @@ export function ServerRail() {
           />
         ))}
       </div>
-      <Tooltip text="Topluluk oluştur" side="bottom">
+      <Tooltip text="Topluluk oluştur" side="right">
         <button className="pt-btn pt-act" onClick={() => openModal({ type: 'createCommunity' })} aria-label="Topluluk oluştur">
           <span className="pt-hex">
             <Plus size={16} />
           </span>
         </button>
       </Tooltip>
-      <Tooltip text="Davetle katıl" side="bottom">
+      <Tooltip text="Davetle katıl" side="right">
         <button className="pt-btn pt-act" onClick={() => openModal({ type: 'join' })} aria-label="Davetle katıl">
           <span className="pt-hex">
             <LogIn size={15} />

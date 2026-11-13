@@ -150,364 +150,108 @@
   color-scheme: dark;
 }
 
-/* ---------------- Destan ailesi: ortak dil ---------------- */
+/* ---------------- Destan ailesi: sade, yalnızca ince dokunuşlar ----------------
+   1.7'deki ağır süslemeler (çift çerçeveler, büyük harfli süslü başlıklar, kesik köşeler)
+   1.9'da kaldırıldı. Kalan: lacivert tonlar, ince altın vurgu, amblem ve logo yazısı. */
 [data-style='destan'] {
-  --display: 'Cinzel Variable', 'Trajan Pro', Georgia, serif;
-  --r-card: 4px;
-  --r: 4px;
-  --r-sm: 3px;
+  --brand-font: 'Cinzel Variable', Georgia, serif;
   --accent-ink: #0a0f16;
-  --metal: linear-gradient(180deg, var(--orn-hi), var(--orn) 45%, var(--orn-lo));
-  --metal-x: linear-gradient(90deg, transparent, var(--orn-lo) 18%, var(--orn) 50%, var(--orn-lo) 82%, transparent);
-  /* ikon maskesi: kesik köşeli kalkan rozeti */
-  --m-hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M22 2H78L98 22V78L78 98H22L2 78V22Z'/%3E%3C/svg%3E");
-  --lattice: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cpath d='M24 0L48 24L24 48L0 24Z' fill='none' stroke='white' stroke-width='.6'/%3E%3Ccircle cx='24' cy='24' r='1.2' fill='white'/%3E%3C/svg%3E");
+  --r-card: 14px;
+  --r: 10px;
+  --r-sm: 8px;
+  --hair: linear-gradient(90deg, transparent, color-mix(in srgb, var(--orn) 45%, transparent) 50%, transparent);
 }
 
-/* metin başlıkları */
-[data-style='destan'] h1,
-[data-style='destan'] h2,
-[data-style='destan'] .modal-head h2,
-[data-style='destan'] .settings-content h1 {
-  font-family: var(--display);
-  font-weight: 700;
-  letter-spacing: 0.4px;
-}
-[data-style='destan'] .settings-content h1,
-[data-style='destan'] .modal-head h2,
-[data-style='destan'] .home h1,
-[data-style='destan'] .home-hero h1,
-[data-style='destan'] .ch-start h1 {
-  background: var(--metal);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-}
-
-/* zemin: büyü ışığı + rün ızgarası */
+/* zemin: üstte çok hafif bir ışık */
 [data-style='destan'] .app {
   background:
-    radial-gradient(1100px 520px at 50% -18%, rgba(var(--glow), 0.13), transparent 70%),
-    radial-gradient(800px 600px at 105% 110%, color-mix(in srgb, var(--orn) 8%, transparent), transparent 70%),
-    radial-gradient(700px 500px at -5% 105%, rgba(var(--glow), 0.06), transparent 70%),
+    radial-gradient(1000px 460px at 50% -20%, rgba(var(--glow), 0.07), transparent 70%),
     var(--bg-app);
 }
 [data-style='destan'].backdrop .app::before {
-  background-image: var(--lattice);
-  background-size: 48px 48px;
-  opacity: 0.045;
-  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000, transparent 75%);
-  mask-image: radial-gradient(ellipse at 50% 0%, #000, transparent 75%);
+  display: none;
 }
 
-/* kaydırma çubukları */
-[data-style='destan'] ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--orn) 30%, transparent);
-  border-color: transparent;
-}
-[data-style='destan'] ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--orn) 50%, transparent);
-}
-
-/* ---------------- üst çubuk ---------------- */
+/* üst çubuk: logo yazısı ve seçili sekmede ince altın çizgi */
 [data-style='destan'] .titlebar {
-  background:
-    var(--metal-x) bottom / 100% 1px no-repeat,
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-side) 92%, #000), color-mix(in srgb, var(--bg-app) 70%, transparent));
-  box-shadow: 0 8px 24px -16px #000;
-}
-/* alt çizginin ortasında küçük elmas */
-[data-style='destan'] .titlebar::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -3px;
-  width: 7px;
-  height: 7px;
-  translate: -50% 0;
-  rotate: 45deg;
-  background: var(--orn);
-  box-shadow: 0 0 8px rgba(var(--glow), 0.7);
-  pointer-events: none;
-}
-[data-style='destan'] .titlebar {
-  position: relative;
-}
-[data-style='destan'] .tb-brand {
-  gap: 9px;
-  padding-right: 6px;
+  background: var(--hair) bottom / 100% 1px no-repeat;
 }
 [data-style='destan'] .tb-brand span {
-  font-family: var(--display);
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 3px;
+  font-family: var(--brand-font);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
   text-transform: uppercase;
-  background: var(--metal);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-}
-[data-style='destan'] .tb-brand .logo-wrap {
-  filter: drop-shadow(0 0 6px rgba(var(--glow), 0.45));
-}
-[data-style='destan'] .pt-sep {
-  width: 6px;
-  height: 6px;
-  rotate: 45deg;
-  background: none;
-  border: 1px solid var(--orn-lo);
-  margin: 0 6px;
-}
-/* sekmeler: alttan ışıyan başlık sancakları */
-[data-style='destan'] .pt-btn {
-  height: 46px;
-  border-radius: 0;
-  padding: 0 14px 0 6px;
-  gap: 9px;
-  color: var(--text-3);
-  background: transparent;
-  box-shadow: none;
-}
-[data-style='destan'] .pt-btn:hover {
-  background: linear-gradient(180deg, transparent 30%, color-mix(in srgb, var(--orn) 8%, transparent));
-  color: var(--text);
+  color: var(--orn-hi);
 }
 [data-style='destan'] .pt-btn.on {
-  color: var(--orn-hi);
-  background:
-    var(--metal-x) bottom / 100% 2px no-repeat,
-    linear-gradient(180deg, transparent 10%, color-mix(in srgb, var(--cc, var(--orn)) 16%, transparent) 100%);
-  box-shadow: none;
-}
-[data-style='destan'] .pt-btn.on::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: -2px;
-  width: 6px;
-  height: 6px;
-  translate: -50% 0;
-  rotate: 45deg;
-  background: var(--orn-hi);
-  box-shadow: 0 0 10px rgba(var(--glow), 0.9);
-  z-index: 2;
-}
-[data-style='destan'] .pt-name {
-  font-family: var(--display);
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-}
-/* simgeler: metal halkalı rozet */
-[data-style='destan'] .pt-hex {
-  width: 30px;
-  height: 30px;
-  padding: 1.5px;
-  background: linear-gradient(160deg, var(--orn-lo), color-mix(in srgb, var(--orn-lo) 60%, #000));
-}
-[data-style='destan'] .pt-btn.on .pt-hex,
-[data-style='destan'] .pt-btn:hover .pt-hex {
-  background: var(--metal);
-}
-[data-style='destan'] .pt-hex > * {
-  -webkit-mask: var(--m-hex) center / 100% 100% no-repeat;
-  mask: var(--m-hex) center / 100% 100% no-repeat;
-}
-[data-style='destan'] .pt-hex > svg {
-  -webkit-mask: none;
-  mask: none;
-}
-[data-style='destan'] .pt-btn:hover .pt-hex {
-  transform: none;
-}
-[data-style='destan'] .pt-home .pt-hex,
-[data-style='destan'] .pt-act .pt-hex {
-  width: 28px;
-  height: 28px;
-  padding: 0;
+  color: var(--text);
   background: color-mix(in srgb, var(--orn) 10%, var(--bg-elev));
-  color: var(--orn);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--orn) 30%, transparent);
 }
 [data-style='destan'] .pt-home.on .pt-hex,
 [data-style='destan'] .pt-act:hover .pt-hex {
-  background: var(--metal);
+  background: var(--orn);
   color: var(--accent-ink);
 }
-[data-style='destan'] .pt-home.on {
-  background: none;
+[data-style='destan'] .pt-home .pt-hex,
+[data-style='destan'] .pt-act .pt-hex {
+  -webkit-mask: none;
+  mask: none;
+  border-radius: 9px;
 }
-[data-style='destan'] .pt-home.on::after {
-  display: none;
+[data-style='destan'] .pt-hex,
+[data-style='destan'] .sh-icon,
+[data-style='destan'] .ch-icon,
+[data-style='destan'] .ch-head-icon,
+[data-style='destan'] .settings-close svg {
+  -webkit-mask: none;
+  mask: none;
+  border-radius: 9px;
 }
-[data-style='destan'] .pt-dot {
-  border-radius: 0;
-  rotate: 45deg;
-  bottom: 4px;
-  left: 21px;
-  background: var(--arc);
-  box-shadow: 0 0 6px var(--arc);
+[data-style='destan'] .pt-hex {
+  border-radius: 8px;
 }
-[data-style='destan'] .pt-badge {
-  top: 3px;
-  left: 24px;
+[data-style='destan'] .ch-icon {
+  border-radius: 7px;
 }
-[data-style='destan'] .pt-offline {
-  left: 26px;
-  bottom: 5px;
-}
-[data-style='destan'] .tb-icon.on,
-[data-style='destan'] .tb-icon:hover {
-  color: var(--orn-hi);
-}
-[data-style='destan'] .upd-btn {
-  border-radius: 3px;
-  font-family: var(--display);
-  font-weight: 700;
-  letter-spacing: 0.4px;
-}
-[data-style='destan'] .upd-btn.available,
-[data-style='destan'] .upd-btn.ready {
-  color: var(--accent-ink);
-  background: var(--metal);
-  box-shadow: 0 0 14px -2px rgba(var(--glow), 0.5);
+[data-style='destan'] .avatar.big .status-dot {
+  -webkit-mask: none;
+  mask: none;
+  border-radius: 50%;
 }
 
-/* ---------------- paneller ---------------- */
+/* paneller: ince, hafif altın tonlu kenar */
 [data-style='destan'] .sidebar,
 [data-style='destan'] .content > * {
-  border-radius: var(--r-card);
-  border: 1px solid var(--line-2);
-  box-shadow: 0 0 0 1px color-mix(in srgb, #000 50%, transparent), 0 18px 40px -24px #000, inset 0 1px 0 color-mix(in srgb, var(--orn-hi) 8%, transparent);
-}
-[data-style='destan'] .sidebar {
-  background: var(--metal-x) top / 100% 1px no-repeat, linear-gradient(180deg, color-mix(in srgb, var(--bg-side) 100%, #000), var(--bg-side));
-}
-[data-style='destan'] .content > * {
-  background: var(--metal-x) top / 100% 1px no-repeat, var(--bg-chat);
-}
-[data-style='destan'] .content > .members {
-  background: var(--metal-x) top / 100% 1px no-repeat, var(--bg-side);
-}
-[data-style='destan'][data-layout='flush'] .sidebar,
-[data-style='destan'][data-layout='flush'] .content > * {
-  border-radius: 0;
-  box-shadow: none;
-}
-
-/* ---------------- kenar çubuğu ---------------- */
-[data-style='destan'] .side-header.comm-head {
-  height: 70px;
-  background:
-    var(--metal-x) bottom / 100% 1px no-repeat,
-    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--cc, var(--orn)) 24%, transparent), transparent 70%);
-  border-bottom: 0;
-}
-[data-style='destan'] .side-header.comm-head:hover {
-  background:
-    var(--metal-x) bottom / 100% 1px no-repeat,
-    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--cc, var(--orn)) 34%, transparent), transparent 75%);
-}
-[data-style='destan'] .sh-icon {
-  width: 40px;
-  height: 40px;
-  padding: 1.5px;
-  background: var(--metal);
-}
-[data-style='destan'] .sh-icon > * {
-  -webkit-mask: var(--m-hex) center / 100% 100% no-repeat;
-  mask: var(--m-hex) center / 100% 100% no-repeat;
+  border-color: var(--line);
 }
 [data-style='destan'] .comm-head .side-title,
 [data-style='destan'] .side-header.static .side-title {
-  font-family: var(--display);
-  font-size: 15.5px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  color: var(--orn-hi);
-}
-[data-style='destan'] .side-header {
-  border-bottom-color: var(--line-2);
-}
-[data-style='destan'] .cat-row {
-  font-family: var(--display);
-  text-transform: uppercase;
-  letter-spacing: 1.4px;
-  font-size: 10.5px;
-  font-weight: 800;
-  color: color-mix(in srgb, var(--orn) 80%, var(--text-3));
-}
-[data-style='destan'] .cat-row > span:not(.tip-wrap)::before {
-  content: '';
-  width: 5px;
-  height: 5px;
-  flex: none;
-  rotate: 45deg;
-  background: var(--orn);
-}
-[data-style='destan'] .cat-row > span:not(.tip-wrap)::after {
-  background: linear-gradient(90deg, var(--orn-lo), transparent);
-}
-[data-style='destan'] .ch-row {
-  border-radius: 3px;
+  color: var(--text);
 }
 [data-style='destan'] .ch-row:not(.room).active {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--orn) 18%, transparent), transparent 85%);
+  background: color-mix(in srgb, var(--orn) 12%, transparent);
   box-shadow: inset 2px 0 0 var(--orn);
 }
 [data-style='destan'] .ch-row:not(.room).active .ch-icon {
-  background: var(--metal);
+  background: var(--orn);
   color: var(--accent-ink);
 }
-[data-style='destan'] .ch-row:not(.room) .ch-icon {
-  background: color-mix(in srgb, var(--orn) 7%, var(--bg-elev));
+[data-style='destan'] .composer-box:focus-within {
+  border-color: color-mix(in srgb, var(--orn) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--orn) 12%, transparent);
 }
-[data-style='destan'] .ch-unread-pill {
-  border-radius: 0;
-  rotate: 45deg;
-  width: 6px;
-  height: 6px;
-  background: var(--arc);
-  box-shadow: 0 0 6px var(--arc);
+[data-style='destan'] .settings-content h1 {
+  color: var(--text);
 }
-/* odalar: kesik köşeli kartlar */
-[data-style='destan'] .ch-row.room {
-  border-radius: 2px;
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-}
-[data-style='destan'] .ch-row.room::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 12px;
-  height: 12px;
-  background: linear-gradient(135deg, var(--rk) 0 35%, transparent 36%);
-  opacity: 0.8;
-  pointer-events: none;
-}
-[data-style='destan'] .room-tag {
-  border-radius: 2px;
-  font-family: var(--display);
-}
-[data-style='destan'] .voice-panel,
-[data-style='destan'] .user-panel {
-  border-radius: 3px;
-}
-[data-style='destan'] .user-panel {
-  border-color: var(--line-2);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--orn-hi) 10%, transparent);
-}
-[data-style='destan'] .up-name {
-  font-family: var(--display);
-  font-weight: 800;
-  letter-spacing: 0.3px;
+[data-style='destan'] .modal,
+[data-style='destan'] .settings,
+[data-style='destan'] .pcard {
+  border-color: color-mix(in srgb, var(--orn) 22%, var(--line-2));
 }
 
-/* ---------------- avatarlar: temaya göre daire + metal halka ---------------- */
+/* avatarlar: temaya göre daire */
 [data-style='destan'] .avatar.shape-auto .av-clip,
 [data-style='destan'] .avatar.shape-auto::before,
 [data-style='destan'] .avatar.shape-auto::after {
@@ -515,303 +259,12 @@
   mask: none;
   border-radius: 50%;
 }
-[data-style='destan'] .avatar.big .status-dot {
-  -webkit-mask: none;
-  mask: none;
-  border-radius: 50%;
-}
-[data-style='destan'] .avatar.big:not([class*='frame-']):not(.speaking)::before {
-  content: '';
-  inset: -3px;
-  background: var(--metal);
-}
 [data-style='destan'] .avatar.speaking::before {
   background: var(--arc) !important;
-  box-shadow: 0 0 14px var(--arc);
-}
-
-/* ---------------- sohbet ---------------- */
-[data-style='destan'] .chat-header {
-  background: var(--metal-x) bottom / 100% 1px no-repeat, color-mix(in srgb, var(--bg-side) 55%, transparent);
-  border-bottom: 0;
-}
-[data-style='destan'] .chat-header h2 {
-  font-family: var(--display);
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-}
-[data-style='destan'] .ch-head-icon {
-  background: var(--metal);
-  color: var(--accent-ink);
-}
-[data-style='destan'] .day-divider span {
-  border-radius: 2px;
-  font-family: var(--display);
-  letter-spacing: 1px;
-  font-size: 10.5px;
-  text-transform: uppercase;
-  color: var(--orn);
-  border-color: var(--orn-lo);
-  background: var(--bg-chat);
-}
-[data-style='destan'] .day-divider::before,
-[data-style='destan'] .day-divider::after {
-  background: linear-gradient(90deg, transparent, var(--orn-lo));
-}
-[data-style='destan'] .day-divider::after {
-  background: linear-gradient(90deg, var(--orn-lo), transparent);
-}
-[data-style='destan'][data-msgstyle='petek'] .msg-body:not(.jumbo),
-[data-style='destan'][data-msgstyle='balon'] .msg-body:not(.jumbo) {
-  border-radius: 2px 10px 10px 10px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 100%, #fff 2%), var(--bg-elev));
-}
-[data-style='destan'][data-msgstyle='petek'] .msg.grouped .msg-body:not(.jumbo),
-[data-style='destan'][data-msgstyle='balon'] .msg.grouped .msg-body:not(.jumbo) {
-  border-radius: 2px 10px 10px 2px;
-}
-[data-style='destan'][data-msgstyle='petek'] .msg.mine .msg-body:not(.jumbo),
-[data-style='destan'][data-msgstyle='balon'] .msg.mine .msg-body:not(.jumbo) {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--orn) 14%, var(--bg-elev)), color-mix(in srgb, var(--orn) 7%, var(--bg-elev)));
-  border-color: color-mix(in srgb, var(--orn) 32%, transparent);
-}
-[data-style='destan'][data-msgstyle='balon'] .msg.mine .msg-body:not(.jumbo) {
-  border-radius: 10px 2px 10px 10px;
-}
-[data-style='destan'] .composer-box {
-  border-radius: 3px;
-  border-color: var(--line-2);
-  background: linear-gradient(180deg, var(--bg-input), color-mix(in srgb, var(--bg-input) 70%, #000));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--orn-hi) 6%, transparent), 0 10px 30px -18px #000;
-}
-[data-style='destan'] .composer-box:focus-within {
-  border-color: color-mix(in srgb, var(--orn) 70%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--orn) 25%, transparent), 0 0 22px -8px rgba(var(--glow), 0.55);
-}
-[data-style='destan'] .composer-btn.cp-send {
-  background: var(--metal);
-  border-radius: 3px;
-}
-[data-style='destan'] .cp-plus,
-[data-style='destan'] .cp-fmt {
-  border-radius: 3px;
-  border-color: var(--orn-lo);
-}
-[data-style='destan'] .cp-plus button > svg {
-  border-radius: 3px;
-  color: var(--orn-hi);
-  background: color-mix(in srgb, var(--orn) 14%, var(--bg-elev));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--orn) 35%, transparent);
-}
-[data-style='destan'] .member-group-title,
-[data-style='destan'] .home-h,
-[data-style='destan'] .sn-group {
-  font-family: var(--display) !important;
-  text-transform: uppercase !important;
-  letter-spacing: 1.3px !important;
-  font-size: 10.5px !important;
-  font-weight: 800;
-  color: color-mix(in srgb, var(--orn) 80%, var(--text-3)) !important;
-}
-[data-style='destan'] .member,
-[data-style='destan'] .vc-member,
-[data-style='destan'] .sn-item,
-[data-style='destan'] .ctx-item {
-  border-radius: 3px;
-}
-
-/* ---------------- düğmeler ---------------- */
-[data-style='destan'] .btn {
-  border-radius: 3px;
-  font-weight: 700;
-}
-[data-style='destan'] .btn.primary {
-  color: var(--orn-hi);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--arc) 18%, var(--bg-elev-2)), color-mix(in srgb, var(--arc) 6%, var(--bg-elev))) padding-box,
-    var(--metal) border-box;
-  border: 1.5px solid transparent;
-  font-family: var(--display);
-  letter-spacing: 0.6px;
-  text-shadow: 0 1px 0 #000;
-}
-[data-style='destan'] .btn.primary:hover:not(:disabled) {
-  filter: none;
-  box-shadow: 0 0 16px -2px rgba(var(--glow), 0.55), inset 0 0 12px rgba(var(--glow), 0.18);
-  color: #fff;
-}
-[data-style='destan'] .btn.ghost {
-  border: 1px solid var(--line-2);
-}
-[data-style='destan'] .btn.ghost:hover {
-  border-color: var(--orn);
-}
-[data-style='destan'] .icon-btn,
-[data-style='destan'] .composer-btn {
-  border-radius: 3px;
-}
-[data-style='destan'] .field input:not([type='range']):not([type='color']),
-[data-style='destan'] .field textarea,
-[data-style='destan'] .field select,
-[data-style='destan'] .search-box input,
-[data-style='destan'] .filter-input {
-  border-radius: 3px;
-}
-
-/* ---------------- pencereler: çift metal çerçeve ---------------- */
-[data-style='destan'] .modal,
-[data-style='destan'] .pcard,
-[data-style='destan'] .ctx-menu,
-[data-style='destan'] .emoji-picker,
-[data-style='destan'] .popout:not(.pc-pop),
-[data-style='destan'] .tq {
-  border-radius: 4px;
-  border: 1px solid var(--orn-lo);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--bg-app) 92%, transparent),
-    0 0 0 4px color-mix(in srgb, var(--orn) 22%, transparent),
-    0 28px 70px -10px #000;
-}
-[data-style='destan'] .popout.pc-pop {
-  border-radius: 4px;
-}
-[data-style='destan'] .modal {
-  background: var(--metal-x) top / 100% 1px no-repeat, linear-gradient(180deg, var(--bg-float), color-mix(in srgb, var(--bg-float) 80%, #000));
-}
-[data-style='destan'] .modal-backdrop {
-  background: radial-gradient(circle at 50% 40%, rgba(var(--glow), 0.08), rgba(0, 0, 0, 0.72) 70%);
-}
-[data-style='destan'] .toast {
-  border-radius: 3px;
-  border: 1px solid var(--orn-lo);
-}
-[data-style='destan'] .tip {
-  border-radius: 3px;
-  border: 1px solid var(--orn-lo);
-}
-
-/* ayarlar */
-[data-style='destan'] .settings {
-  border-radius: 4px;
-  border: 1px solid var(--orn-lo);
-  box-shadow: 0 0 0 3px var(--bg-app), 0 0 0 4px color-mix(in srgb, var(--orn) 22%, transparent), 0 30px 90px rgba(0, 0, 0, 0.6);
-}
-[data-style='destan'] .settings-nav {
-  background: var(--metal-x) right / 1px 100% no-repeat, linear-gradient(180deg, color-mix(in srgb, var(--bg-side) 100%, #000), var(--bg-side));
-  border-right: 0;
-}
-[data-style='destan'] .sn-item.on {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--orn) 18%, transparent), transparent);
-  box-shadow: inset 2px 0 0 var(--orn);
-  color: var(--orn-hi);
-}
-[data-style='destan'] .settings-close svg {
-  background: color-mix(in srgb, var(--orn) 12%, var(--bg-elev));
-  color: var(--orn);
-}
-[data-style='destan'] .pe-sec,
-[data-style='destan'] .ap-theme,
-[data-style='destan'] .ap-choice,
-[data-style='destan'] .pe-tile,
-[data-style='destan'] .pe-preset {
-  border-radius: 4px;
-}
-[data-style='destan'] .pe-sec h3,
-[data-style='destan'] .settings-content h3 {
-  font-family: var(--display);
-  letter-spacing: 0.6px;
-  color: var(--orn-hi);
-}
-
-/* profil kartı */
-[data-style='destan'] .pcard {
-  background: var(--metal-x) top / 100% 1px no-repeat, var(--bg-float);
-}
-[data-style='destan'] .pcard.themed {
-  background: linear-gradient(180deg, var(--pc-a), var(--pc-b));
-}
-[data-style='destan'] .pc-name {
-  letter-spacing: 0.2px;
-}
-[data-style='destan'] .pc-sec {
-  border-radius: 3px;
-}
-[data-style='destan'] .pc-sec h4 {
-  font-family: var(--display);
-  letter-spacing: 1px;
-  color: color-mix(in srgb, var(--orn) 85%, var(--text-3));
-}
-
-/* ---------------- görüşme ekranı ---------------- */
-[data-style='destan'] .voice-view {
-  background:
-    radial-gradient(900px 520px at 50% -10%, rgba(var(--glow), 0.1), transparent 70%),
-    var(--lattice) center / 48px 48px,
-    var(--bg-rail);
-  background-blend-mode: normal, soft-light, normal;
-}
-[data-style='destan'] .vt {
-  border-radius: 3px;
-}
-[data-style='destan'] .vt:not(.has-video):not(.vt-screen) {
-  background:
-    radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--tile) 22%, transparent) 0, transparent 44%),
-    radial-gradient(circle at 50% 120%, rgba(var(--glow), 0.12), transparent 60%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 90%, #000), color-mix(in srgb, var(--bg-side) 80%, #000));
-  box-shadow: inset 0 0 0 1px var(--orn-lo), inset 0 0 0 4px color-mix(in srgb, var(--bg-app) 70%, transparent), inset 0 0 0 5px color-mix(in srgb, var(--orn) 18%, transparent);
-}
-/* köşe süsleri */
-[data-style='destan'] .vt:not(.has-video):not(.vt-screen)::after {
-  content: '';
-  position: absolute;
-  inset: 9px;
-  pointer-events: none;
-  background:
-    linear-gradient(var(--orn), var(--orn)) left top / 14px 1.5px no-repeat,
-    linear-gradient(var(--orn), var(--orn)) left top / 1.5px 14px no-repeat,
-    linear-gradient(var(--orn), var(--orn)) right top / 14px 1.5px no-repeat,
-    linear-gradient(var(--orn), var(--orn)) right top / 1.5px 14px no-repeat,
-    linear-gradient(var(--orn), var(--orn)) left bottom / 14px 1.5px no-repeat,
-    linear-gradient(var(--orn), var(--orn)) left bottom / 1.5px 14px no-repeat,
-    linear-gradient(var(--orn), var(--orn)) right bottom / 14px 1.5px no-repeat,
-    linear-gradient(var(--orn), var(--orn)) right bottom / 1.5px 14px no-repeat;
-  opacity: 0.7;
-}
-[data-style='destan'] .vt:not(.has-video):not(.vt-screen)::before {
-  background: repeating-radial-gradient(circle, transparent 0 58px, color-mix(in srgb, var(--orn) 22%, transparent) 58px 59px, transparent 59px 84px);
 }
 [data-style='destan'] .vt.speaking {
   outline-color: var(--arc);
-  box-shadow: 0 0 0 1px var(--arc), 0 0 30px -6px var(--arc);
-}
-[data-style='destan'] .vt.speaking:not(.has-video):not(.vt-screen)::before {
-  background: repeating-radial-gradient(circle, transparent 0 58px, color-mix(in srgb, var(--arc) 45%, transparent) 58px 59.5px, transparent 59.5px 84px);
-}
-[data-style='destan'] .vt-name {
-  border-radius: 2px;
-  font-family: var(--display);
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  color: var(--orn-hi);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 85%, transparent), color-mix(in srgb, var(--bg-app) 90%, transparent));
-  box-shadow: inset 0 0 0 1px var(--orn-lo);
-  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%);
-  padding: 5px 18px;
-}
-[data-style='destan'] .vv-btn {
-  background: radial-gradient(circle at 50% 30%, var(--bg-elev-2), var(--bg-side));
-  box-shadow: inset 0 0 0 1.5px var(--orn-lo), 0 6px 16px -8px #000;
-  color: var(--orn-hi);
-}
-[data-style='destan'] .vv-btn:hover {
-  box-shadow: inset 0 0 0 1.5px var(--orn), 0 0 16px -4px rgba(var(--glow), 0.6);
-}
-[data-style='destan'] .vv-btn.leave {
-  border-radius: 3px;
-  background: linear-gradient(180deg, #c2413a, #7d1f1a);
-  color: #fff;
-  box-shadow: inset 0 0 0 1.5px #e7a08a;
+  box-shadow: 0 0 0 1px var(--arc), 0 0 24px -8px var(--arc);
 }
 
 /* ---------------- tema seçici (hepsinde) ---------------- */

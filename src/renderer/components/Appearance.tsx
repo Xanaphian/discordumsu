@@ -69,7 +69,7 @@ function ThemeGrid({ compact }: { compact?: boolean }) {
         <div key={fam} className="ap-fam">
           <div className="ap-fam-h">
             <b>{fam === 'destan' ? 'Destan temaları' : 'Klasik temalar'}</b>
-            <span>{fam === 'destan' ? 'Metal çerçeveler, keskin hatlar, oyun havası' : 'Yumuşak köşeler, sade paneller'}</span>
+            <span>{fam === 'destan' ? 'Derin tonlar, ince altın vurgular' : 'Yumuşak köşeler, sade paneller'}</span>
           </div>
           <div className={cx('ap-themes', compact && 'compact')}>
             {THEMES.filter((t) => t.family === fam).map((t) => (

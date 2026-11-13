@@ -16,6 +16,10 @@ export interface ProfileBanner {
   angle?: number;
   pattern?: BannerPattern;
   image?: string; // data:image/...
+  x?: number; // resmin görünen kısmı, yatay % (0-100)
+  y?: number; // dikey % (0-100)
+  zoom?: number; // % (20-300); 100 = alanı doldurur, altı resmin tamamını gösterir
+  h?: number; // açılır karttaki afiş yüksekliği px (72-220); tam profilde ~1.85 katı
 }
 
 /** Tüm profil kartının arkasına konan resim */
@@ -23,6 +27,20 @@ export interface ProfileBg {
   image: string; // data:image/...
   dim?: number; // 0-85: resmin üstüne koyulan karartma yüzdesi
   blur?: number; // 0-16 px
+  x?: number;
+  y?: number;
+  zoom?: number;
+}
+
+export const BANNER_H = { min: 72, max: 220, def: 108 };
+
+/** Konum ve yakınlaştırma alanlarını doğrular */
+function framing(src: any, out: { x?: number; y?: number; zoom?: number }) {
+  const num = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : undefined);
+  const x = num(src?.x, 0, 100), y = num(src?.y, 0, 100), z = num(src?.zoom, 20, 300);
+  if (x !== undefined && x !== 50) out.x = x;
+  if (y !== undefined && y !== 50) out.y = y;
+  if (z !== undefined && z !== 100) out.zoom = z;
 }
 
 export interface ProfileLink {
@@ -111,8 +129,14 @@ export function sanitizeProfile(p: unknown): ProfileExtra | undefined {
       const pat = pick(b.pattern, PATTERNS);
       if (pat && pat !== 'none') banner.pattern = pat;
       if (kind === 'image') {
-        if (typeof b.image === 'string' && b.image.length <= BANNER_MAX && IMG.test(b.image)) banner.image = b.image;
-        else banner.kind = bb ? 'gradient' : 'solid';
+        if (typeof b.image === 'string' && b.image.length <= BANNER_MAX && IMG.test(b.image)) {
+          banner.image = b.image;
+          framing(b, banner);
+        } else banner.kind = bb ? 'gradient' : 'solid';
+      }
+      if (typeof b.h === 'number' && isFinite(b.h)) {
+        const h = Math.max(BANNER_H.min, Math.min(BANNER_H.max, Math.round(b.h)));
+        if (h !== BANNER_H.def) banner.h = h;
       }
       out.banner = banner;
     }
@@ -121,6 +145,7 @@ export function sanitizeProfile(p: unknown): ProfileExtra | undefined {
     const bg: ProfileBg = { image: x.bg.image };
     if (typeof x.bg.dim === 'number' && isFinite(x.bg.dim)) bg.dim = Math.max(0, Math.min(85, Math.round(x.bg.dim)));
     if (typeof x.bg.blur === 'number' && isFinite(x.bg.blur)) bg.blur = Math.max(0, Math.min(16, Math.round(x.bg.blur)));
+    framing(x.bg, bg);
     out.bg = bg;
   }
   if (x.theme && typeof x.theme === 'object') {

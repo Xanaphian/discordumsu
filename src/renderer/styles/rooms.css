@@ -139,32 +139,19 @@
   height: 24px;
   border-radius: 5px;
 }
-/* site simgesinin etrafında dönen geçit halkası */
-.ch-row.room-site .ch-icon::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  z-index: -1;
-  border-radius: 12px;
-  background: conic-gradient(from var(--spin), transparent 0 55%, var(--rk) 85%, #fff 100%);
-  opacity: 0;
-  transition: opacity 0.2s;
-  animation: av-spin 2.6s linear infinite;
-}
-.ch-row.room-site:hover .ch-icon::before,
-.ch-row.room-site.active .ch-icon::before,
-.ch-row.room-site.occupied .ch-icon::before {
-  opacity: 1;
-}
-.ch-row.room-site .ch-icon,
-.ch-row.room-site .ch-icon:has(> .ch-site-icon) {
-  isolation: isolate;
-  overflow: visible;
-}
 .ch-row.room-site .ch-icon:has(> .ch-site-icon),
 .ch-row.room-site.active .ch-icon:has(> .ch-site-icon),
 .ch-row.room-site:hover .ch-icon:has(> .ch-site-icon) {
-  background: #f4f7fb;
+  overflow: hidden;
+  padding: 0;
+  background: transparent;
+}
+/* site logosu simge alanını tam doldurur */
+.ch-row.room-site .ch-icon > .ch-site-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: cover;
 }
 
 /* arka plan sanatı */
@@ -303,8 +290,7 @@
 }
 .reduce-motion .room-art,
 .reduce-motion .room-art::before,
-.reduce-motion .room-eq i,
-.reduce-motion .ch-row.room-site .ch-icon::before {
+.reduce-motion .room-eq i {
   animation: none !important;
 }
 /* odaların altındaki kişiler */
@@ -671,4 +657,263 @@
   flex-direction: column;
   justify-content: center;
   gap: 12px;
+}
+
+/* ---------------- profil düzenleyici: sekmeler ve resim konumlandırma (1.9) ---------------- */
+.pe-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 10px 0;
+  background: var(--bg-chat);
+}
+.pe-tabs button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: var(--r);
+  text-align: left;
+  background: var(--bg-elev);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: box-shadow 0.15s, background 0.15s;
+}
+.pe-tabs button b {
+  font-size: 14px;
+  color: var(--text);
+}
+.pe-tabs button small {
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.pe-tabs button:hover {
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.pe-tabs button.on {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev));
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.pe-height {
+  max-width: 420px;
+}
+.pe-framer {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.pe-frame {
+  position: relative;
+  width: 330px;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--r);
+  background: var(--bg-float);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.pe-frame.tall {
+  width: 200px;
+}
+.pe-frame:active {
+  cursor: grabbing;
+}
+.pe-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.pe-frame-hint {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.pe-frame:hover .pe-frame-hint {
+  opacity: 1;
+}
+.pe-frame-opts {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pe-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pe-bg .pe-framer {
+  flex: none;
+}
+.pe-bg .pe-frame-opts {
+  min-width: 180px;
+}
+
+/* ---------------- 1.9: topluluklar solda dikey liste ---------------- */
+.shell > .petek.rail-v {
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  width: 60px;
+  height: auto;
+  gap: 8px;
+  padding: 2px 0 6px;
+}
+.rail-v .pt-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 0 4px;
+  width: 100%;
+}
+.rail-v .tip-wrap {
+  display: flex;
+}
+.shell .rail-v .pt-btn,
+.shell .rail-v .pt-btn.on,
+.shell .rail-v .pt-btn:hover {
+  width: 48px;
+  height: 48px;
+  max-width: none;
+  padding: 0;
+  justify-content: center;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+}
+.rail-v .pt-name {
+  display: none;
+}
+.rail-v .pt-hex {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  -webkit-mask: none;
+  mask: none;
+  overflow: hidden;
+  transition: border-radius 0.18s var(--ease), box-shadow 0.18s, transform 0.18s var(--ease);
+}
+.rail-v .pt-hex > * {
+  -webkit-mask: none !important;
+  mask: none !important;
+}
+.shell .rail-v .pt-btn:hover .pt-hex {
+  border-radius: 13px;
+  transform: none;
+}
+.shell .rail-v .pt-btn.on .pt-hex {
+  border-radius: 13px;
+  box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--cc, var(--accent));
+}
+/* seçili ya da okunmamış: solda küçük işaret */
+.rail-v .pt-btn::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  width: 4px;
+  height: 0;
+  translate: 0 -50%;
+  border-radius: 0 4px 4px 0;
+  background: var(--text);
+  transition: height 0.18s var(--ease);
+}
+.rail-v .pt-btn.unread::before {
+  height: 8px;
+}
+.rail-v .pt-btn:hover::before {
+  height: 18px;
+}
+.rail-v .pt-btn.on::before {
+  height: 30px;
+  background: var(--accent);
+}
+.rail-v .pt-btn.drop-over::before {
+  left: 4px;
+  right: 4px;
+  top: -5px;
+  width: auto;
+  height: 2px;
+  translate: none;
+  background: var(--accent);
+}
+.rail-v .pt-dot {
+  display: none;
+}
+.rail-v .pt-badge {
+  top: -3px;
+  left: auto;
+  right: -4px;
+  box-shadow: 0 0 0 3px var(--bg-app);
+}
+.rail-v .pt-offline {
+  left: auto;
+  right: -2px;
+  bottom: -2px;
+}
+.rail-v .pt-sep {
+  width: 28px;
+  height: 2px;
+  rotate: none;
+  border: 0;
+  border-radius: 2px;
+  background: var(--line-2);
+  margin: 2px 0;
+}
+.shell .rail-v .pt-home .pt-hex,
+.shell .rail-v .pt-act .pt-hex {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+}
+.shell .rail-v .pt-act .pt-hex {
+  color: var(--green);
+  background: var(--bg-elev);
+}
+.shell .rail-v .pt-act:hover .pt-hex {
+  color: #fff;
+  background: var(--green);
+  border-radius: 13px;
+}
+.shell .rail-v .pt-home.on .pt-hex,
+.shell .rail-v .pt-home:hover .pt-hex {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 13px;
+}
+.rail-v .pt-home::before {
+  display: none;
+}
+[data-layout='flush'] .shell > .petek.rail-v {
+  padding-left: 6px;
+  padding-right: 6px;
 }

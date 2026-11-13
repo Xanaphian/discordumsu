@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useStore, openModal, selectChannel, sortedChannels } from './lib/store';
 import { toggleMute, toggleDeaf, useVoice } from './lib/voice';
 import { TitleBar } from './components/TitleBar';
+import { ServerRail } from './components/ServerRail';
 import { Sidebar } from './components/Sidebar';
 import { ChatView, PickerHost } from './components/Chat';
 import { MemberList } from './components/Members';
@@ -141,6 +142,7 @@ export function App() {
         <Onboarding />
       ) : (
         <div className="shell">
+          <ServerRail />
           <Sidebar />
           <div className="content">
             <Main />
