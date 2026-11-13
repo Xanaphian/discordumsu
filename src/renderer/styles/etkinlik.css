@@ -1020,3 +1020,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.member-marks {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  flex: none;
+}
+.member-marks .member-act-ic {
+  margin-left: 0;
+}
+.member-mark {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+}
+.member-mark.screen {
+  color: #fff;
+  background: #e5484d;
+}
+.member-mark.voice {
+  color: #3ba55d;
+}

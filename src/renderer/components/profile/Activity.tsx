@@ -332,7 +332,7 @@ export const ActivityLine = memo(function ActivityLine({ uid, className }: { uid
   return (
     <span className={cx('act-line', 'act-' + a.kind, className)} title={activityHeading(a) + ': ' + activityShort(a)}>
       {a.icon && a.kind === 'playing' ? <img className="act-line-ic" src={a.icon} alt="" /> : brand ? <BrandLogo k={brand} size={12} plain /> : <Icon size={12} />}
-      <span>{a.kind === 'playing' ? <><em>Oynuyor</em> {a.name}</> : activityShort(a)}</span>
+      <span>{a.kind === 'playing' ? a.name : a.kind === 'streaming' ? a.details || a.name : activityShort(a)}</span>
     </span>
   );
 });
@@ -352,12 +352,34 @@ export function useVoiceOf(uid: string | undefined): '' | 'voice' | 'screen' {
 /** Satırın sağındaki küçük etkinlik simgesi (oyunun kendi simgesi ya da marka logosu) */
 export const ActivityBadge = memo(function ActivityBadge({ uid }: { uid: string }) {
   const a = useActsOf(uid)[0];
-  if (!a) return null;
+  const v = useVoiceOf(uid);
+  const marks = (
+    <>
+      {v === 'screen' && (
+        <span className="member-mark screen" title="Ekranını paylaşıyor">
+          <MonitorUp size={13} />
+        </span>
+      )}
+      {v === 'voice' && a && (
+        <span className="member-mark voice" title="Sesli aramada">
+          <Volume2 size={13} />
+        </span>
+      )}
+    </>
+  );
+  if (!a) return v === 'screen' ? <span className="member-marks">{marks}</span> : null;
   const brand = activityBrand(a);
   const title = activityHeading(a) + ': ' + (a.kind === 'playing' ? a.name : activityShort(a));
-  if (a.icon && a.kind === 'playing') return <img className="member-act-ic" src={a.icon} alt="" title={title} />;
-  if (brand) return <BrandLogo k={brand} size={20} className="member-act-ic" />;
-  return null;
+  return (
+    <span className="member-marks">
+      {marks}
+      {a.icon && a.kind === 'playing' ? (
+        <img className="member-act-ic" src={a.icon} alt="" title={title} />
+      ) : brand ? (
+        <BrandLogo k={brand} size={20} className="member-act-ic" />
+      ) : null}
+    </span>
+  );
 });
 
 /** Üye listesi alt satırı: etkinlik + ses durumu birleşik ("Fortnite oynuyor · ekranı açık") */
@@ -366,11 +388,9 @@ export const PresenceLine = memo(function PresenceLine({ uid, className }: { uid
   const v = useVoiceOf(uid);
   if (a && v === 'screen' && a.kind === 'playing')
     return (
-      <span className={cx('act-line', 'act-screen', className)} title={`${a.name} oynuyor, ekranını paylaşıyor`}>
+      <span className={cx('act-line', 'act-screen', className)} title={`${a.name} · ekranını paylaşıyor`}>
         <MonitorUp size={12} />
-        <span>
-          <b>Ekranı açık</b> <em>· {a.name} oynuyor</em>
-        </span>
+        <span>{a.name}</span>
       </span>
     );
   if (a) return <ActivityLine uid={uid} className={className} />;
