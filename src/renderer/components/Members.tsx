@@ -13,9 +13,7 @@ import { memberMenu } from './Moderation';
 const Row = memo(function Row({ c, uid, user, status, name, color, me }: { c: Community; uid: string; user: UserPublic | undefined; status: Status; name: string; color: string; me: string }) {
   const offline = status === 'offline';
   const menu = (e: React.MouseEvent) => {
-    const items = memberMenu(c, me, uid, { at: { x: e.clientX - 300, y: e.clientY } });
-    items.splice(1, 0, { label: 'Bahset', onClick: () => insertMention(name) });
-    openMenu(e, items);
+    openMenu(e, memberMenu(c, me, uid, { at: { x: e.clientX - 300, y: e.clientY }, onMention: () => insertMention(name) }));
   };
   const mem = c.members.find((x) => x.userId === uid);
   const showIcons = useStore((s) => s.settings.showRoleIcons);

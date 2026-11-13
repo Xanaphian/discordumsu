@@ -4948,3 +4948,36 @@ input[type='range'] {
   width: 18px;
   height: 18px;
 }
+
+/* alt menü */
+.ctx-sub-wrap {
+  position: relative;
+}
+.ctx-item.open {
+  background: var(--bg-hover);
+}
+.ctx-arrow {
+  opacity: 0.7;
+}
+.ctx-menu.ctx-sub {
+  position: absolute;
+  top: -6px;
+  left: calc(100% + 4px);
+  max-width: 260px;
+}
+.ctx-menu.ctx-sub.left {
+  left: auto;
+  right: calc(100% + 4px);
+}
+.ctx-menu.ctx-sub::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -10px;
+  width: 10px;
+}
+.ctx-menu.ctx-sub.left::before {
+  left: auto;
+  right: -10px;
+}

@@ -1044,3 +1044,55 @@
 .member-mark.voice {
   color: #3ba55d;
 }
+.brand-logo.game-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 22%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.brand-logo.game-tile.round {
+  border-radius: 50%;
+}
+
+/* ---- profil kartı: yuvarlak köşe ve profil renklerinden yumuşak geçişli çerçeve ---- */
+.pcard,
+[data-style] .pcard {
+  --frame-a: color-mix(in srgb, var(--accent) 85%, #fff 15%);
+  --frame-b: color-mix(in srgb, var(--accent) 25%, transparent);
+  --card-bg: linear-gradient(var(--bg-float), var(--bg-float));
+  border-radius: 18px !important;
+  border: 2px solid transparent !important;
+  background: var(--card-bg) padding-box, linear-gradient(155deg, var(--frame-a), var(--frame-b) 55%, var(--frame-a)) border-box !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 18px 48px -18px rgba(0, 0, 0, 0.9), 0 0 28px -8px color-mix(in srgb, var(--frame-a) 35%, transparent) !important;
+}
+.pcard.themed,
+[data-style] .pcard.themed {
+  --frame-a: var(--pc-c, color-mix(in srgb, var(--pc-a) 50%, #fff 50%));
+  --frame-b: color-mix(in srgb, var(--pc-a) 70%, #fff 30%);
+  --card-bg: linear-gradient(180deg, var(--pc-a), var(--pc-b));
+}
+.popout.pc-pop {
+  border-radius: 18px;
+}
+.pcard .pc-banner {
+  border-radius: 16px 16px 0 0;
+}
+.pcard .pc-sec,
+[data-style] .pcard .pc-sec {
+  border-radius: 12px !important;
+}
+.pcard .act-card,
+.pcard .voice-status,
+.pcard .pc-note-add,
+.pcard .pc-note {
+  border-radius: 12px;
+}
+.pcard .act-art,
+.pcard .act-art img {
+  border-radius: 10px;
+}
+.pcard .btn,
+[data-style] .pcard .btn {
+  border-radius: 10px !important;
+}

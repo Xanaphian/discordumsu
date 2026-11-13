@@ -238,6 +238,8 @@ export interface MenuItem {
   sep?: boolean;
   emojis?: string[];
   onEmoji?: (e: string) => void;
+  /** üzerine gelince sağda açılan alt menü */
+  sub?: MenuItem[];
 }
 
 export interface Toast {
