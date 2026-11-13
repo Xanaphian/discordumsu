@@ -21,7 +21,8 @@ export interface Profile {
 }
 
 export interface Settings {
-  theme: 'destan' | 'kor' | 'buzul' | 'zumrut' | 'alaca' | 'dark' | 'light' | 'midnight' | 'ocean' | 'forest' | 'rose';
+  /** xanaphian.com temaları: destan = Gece */
+  theme: 'destan' | 'kagit' | 'tozpembe' | 'siyah' | 'bej' | 'bordo' | 'koyuyesil';
   accent: string;
   fontSize: number;
   compact: boolean;
@@ -85,7 +86,7 @@ export interface Settings {
   msgStyle: 'petek' | 'balon' | 'duz';
   layout: 'float' | 'flush';
   backdrop: boolean;
-  /** görünüm göçü: 2 = Destan teması varsayılan oldu (v1.7), 3 = site altını (v1.14) */
+  /** görünüm göçü: 2 = Destan teması varsayılan oldu (v1.7), 3 = site altını (v1.14), 4 = site temaları (v1.16) */
   lookRev: number;
 }
 
@@ -93,6 +94,18 @@ export type NotifyLevel = 'all' | 'mentions' | 'none';
 
 /** xanaphian.com altını */
 export const DESTAN_GOLD = '#c8aa6e';
+/** sitedeki her temanın vurgu rengi (--gold) */
+export const SITE_GOLD: Record<string, string> = {
+  destan: '#c8aa6e',
+  kagit: '#6f5318',
+  tozpembe: '#b0446a',
+  siyah: '#c9ccd6',
+  bej: '#7a5a1e',
+  bordo: '#d6a86e',
+  koyuyesil: '#c8b06a',
+};
+/** 1.16 öncesi temalar → en yakın site teması */
+const THEME_MOVE: Record<string, string> = { kor: 'bordo', buzul: 'siyah', zumrut: 'koyuyesil', alaca: 'bordo', dark: 'destan', midnight: 'siyah', ocean: 'destan', forest: 'koyuyesil', rose: 'tozpembe', light: 'kagit' };
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'destan',
@@ -155,7 +168,7 @@ export const DEFAULT_SETTINGS: Settings = {
   msgStyle: 'petek',
   layout: 'float',
   backdrop: true,
-  lookRev: 3,
+  lookRev: 4,
 };
 
 export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string };
@@ -414,10 +427,13 @@ export async function boot() {
     settings.lookRev = 2;
     window.kovan.setConfig({ settings });
   }
-  if (settings.lookRev < 3) {
-    // v1.14: eski Destan altını sitedeki altına döner (kullanıcının kendi seçtiği renge dokunulmaz)
-    if (settings.accent.toLowerCase() === '#c9a35a') settings.accent = DESTAN_GOLD;
-    settings.lookRev = 3;
+  if (settings.lookRev < 4) {
+    // v1.16: temalar xanaphian.com'dakilerle aynı; eski temalar en yakın site temasına geçer
+    const old = settings.theme as string;
+    const theme = (THEME_MOVE[old] || (old in SITE_GOLD ? old : 'destan')) as Settings['theme'];
+    settings.theme = theme;
+    settings.accent = SITE_GOLD[theme];
+    settings.lookRev = 4;
     window.kovan.setConfig({ settings });
   }
   set({

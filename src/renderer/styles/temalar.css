@@ -1,0 +1,427 @@
+/* ==========================================================================
+   1.16: xanaphian.com temaları birebir
+   Değerler sitenin (Xanaphian/ScuttleLol) assets/css/main.css ve
+   temalar.css dosyalarından aynen alındı (void/void-2/void-3 zemin katmanları,
+   gold vurgu, ink/govde/muted metin katmanları, line ayraçlar, teal ikincil vurgu).
+   ========================================================================== */
+
+/* Gece: gece mavisi · altın */
+[data-theme='destan'] {
+  color-scheme: dark;
+  --site-void: #0a1226;
+  --site-void-2: #0e1830;
+  --site-void-3: #15223f;
+  --bg-app: #0a1226;
+  --bg-rail: #0a1226;
+  --bg-side: #0e1830;
+  --bg-chat: #0e1830;
+  --bg-elev: #15223f;
+  --bg-elev-2: color-mix(in srgb, #15223f 88%, #f0e6d2 12%);
+  --bg-input: color-mix(in srgb, #c8aa6e 4%, #0a1226);
+  --bg-float: #0e1830;
+  --bg-hover: color-mix(in srgb, #f0e6d2 6%, transparent);
+  --bg-active: color-mix(in srgb, #c8aa6e 11%, transparent);
+  --line: rgba(200,170,110,.20);
+  --line-2: color-mix(in srgb, #c8aa6e 32%, transparent);
+  --text: #f0e6d2;
+  --text-2: #cdd4e2;
+  --text-3: #a9b6cc;
+  --text-4: #93a1b9;
+  --code-bg: color-mix(in srgb, #0a1226 70%, #000);
+  --shadow: 0 20px 60px rgba(2,6,18,.60);
+  --orn-hi: #f0e6d2;
+  --orn: #c8aa6e;
+  --orn-lo: #785a28;
+  --arc: #0ac8b9;
+  --glow: 10, 200, 185;
+  --accent-ink: #0a1226;
+  --site-crimson: #c0392b;
+  --site-bar: #16223d;
+}
+
+/* Arşiv Kâğıdı: aydınlık · krem */
+[data-theme='kagit'] {
+  color-scheme: light;
+  --site-void: #f4efe4;
+  --site-void-2: #ebe4d5;
+  --site-void-3: #e2d9c6;
+  --bg-app: #f4efe4;
+  --bg-rail: #f4efe4;
+  --bg-side: #ebe4d5;
+  --bg-chat: #fbf7ee;
+  --bg-elev: #e2d9c6;
+  --bg-elev-2: color-mix(in srgb, #e2d9c6 88%, #1d1813 12%);
+  --bg-input: color-mix(in srgb, #6f5318 4%, #f4efe4);
+  --bg-float: #fbf7ee;
+  --bg-hover: color-mix(in srgb, #1d1813 5%, transparent);
+  --bg-active: color-mix(in srgb, #6f5318 12%, transparent);
+  --line: rgba(120,90,40,.24);
+  --line-2: color-mix(in srgb, #6f5318 32%, transparent);
+  --text: #1d1813;
+  --text-2: #3f3a30;
+  --text-3: #5c5348;
+  --text-4: #6d6459;
+  --code-bg: color-mix(in srgb, #ebe4d5 70%, #e2d9c6);
+  --shadow: 0 18px 44px rgba(70,52,25,.16);
+  --orn-hi: #2a2118;
+  --orn: #6f5318;
+  --orn-lo: #6b5120;
+  --arc: #0a6f78;
+  --glow: 10, 111, 120;
+  --accent-ink: #fffaf0;
+  --site-crimson: #a32a1e;
+  --site-bar: #f6f1e6;
+}
+
+/* Toz Pembe: pudra · gül kurusu */
+[data-theme='tozpembe'] {
+  color-scheme: light;
+  --site-void: #faf0f1;
+  --site-void-2: #f4e4e7;
+  --site-void-3: #ecd8dc;
+  --bg-app: #faf0f1;
+  --bg-rail: #faf0f1;
+  --bg-side: #f4e4e7;
+  --bg-chat: #fff2f5;
+  --bg-elev: #ecd8dc;
+  --bg-elev-2: color-mix(in srgb, #ecd8dc 88%, #33191f 12%);
+  --bg-input: color-mix(in srgb, #b0446a 4%, #faf0f1);
+  --bg-float: #fff2f5;
+  --bg-hover: color-mix(in srgb, #33191f 5%, transparent);
+  --bg-active: color-mix(in srgb, #b0446a 12%, transparent);
+  --line: rgba(150,80,100,.22);
+  --line-2: color-mix(in srgb, #b0446a 32%, transparent);
+  --text: #33191f;
+  --text-2: #4a2c34;
+  --text-3: #6b4a54;
+  --text-4: #7d5c66;
+  --code-bg: color-mix(in srgb, #f4e4e7 70%, #ecd8dc);
+  --shadow: 0 18px 44px rgba(120,60,80,.14);
+  --orn-hi: #5f1f36;
+  --orn: #b0446a;
+  --orn-lo: #d2879d;
+  --arc: #8a5a9e;
+  --glow: 138, 90, 158;
+  --accent-ink: #fffaf0;
+  --site-crimson: #a32a1e;
+  --site-bar: #fbf1f3;
+}
+
+/* Siyah: saf siyah · gümüş */
+[data-theme='siyah'] {
+  color-scheme: dark;
+  --site-void: #000000;
+  --site-void-2: #070708;
+  --site-void-3: #0e0e10;
+  --bg-app: #000000;
+  --bg-rail: #000000;
+  --bg-side: #070708;
+  --bg-chat: #0a0a0c;
+  --bg-elev: #0e0e10;
+  --bg-elev-2: color-mix(in srgb, #0e0e10 88%, #f2f3f6 12%);
+  --bg-input: color-mix(in srgb, #c9ccd6 4%, #000000);
+  --bg-float: #0a0a0c;
+  --bg-hover: color-mix(in srgb, #f2f3f6 6%, transparent);
+  --bg-active: color-mix(in srgb, #c9ccd6 11%, transparent);
+  --line: rgba(200,200,215,.17);
+  --line-2: color-mix(in srgb, #c9ccd6 32%, transparent);
+  --text: #f2f3f6;
+  --text-2: #c6c8d0;
+  --text-3: #9a9da8;
+  --text-4: #84878f;
+  --code-bg: color-mix(in srgb, #000000 70%, #000);
+  --shadow: 0 22px 62px rgba(0,0,0,.85);
+  --orn-hi: #ffffff;
+  --orn: #c9ccd6;
+  --orn-lo: #6a6e7a;
+  --arc: #7fd8e8;
+  --glow: 127, 216, 232;
+  --accent-ink: #000000;
+  --site-crimson: #e0574a;
+  --site-bar: #0d0d0f;
+}
+
+/* Bej: keten · bronz */
+[data-theme='bej'] {
+  color-scheme: light;
+  --site-void: #f2ebdb;
+  --site-void-2: #e9e0cb;
+  --site-void-3: #ded2b8;
+  --bg-app: #f2ebdb;
+  --bg-rail: #f2ebdb;
+  --bg-side: #e9e0cb;
+  --bg-chat: #f6efdf;
+  --bg-elev: #ded2b8;
+  --bg-elev-2: color-mix(in srgb, #ded2b8 88%, #20190f 12%);
+  --bg-input: color-mix(in srgb, #7a5a1e 4%, #f2ebdb);
+  --bg-float: #f6efdf;
+  --bg-hover: color-mix(in srgb, #20190f 5%, transparent);
+  --bg-active: color-mix(in srgb, #7a5a1e 12%, transparent);
+  --line: rgba(110,85,45,.26);
+  --line-2: color-mix(in srgb, #7a5a1e 32%, transparent);
+  --text: #20190f;
+  --text-2: #3c3527;
+  --text-3: #5a4f3c;
+  --text-4: #6c604a;
+  --code-bg: color-mix(in srgb, #e9e0cb 70%, #ded2b8);
+  --shadow: 0 18px 44px rgba(80,65,35,.16);
+  --orn-hi: #2e2415;
+  --orn: #7a5a1e;
+  --orn-lo: #a98a4a;
+  --arc: #2f6b6b;
+  --glow: 47, 107, 107;
+  --accent-ink: #fffaf0;
+  --site-crimson: #9c2f1f;
+  --site-bar: #f5efe1;
+}
+
+/* Bordo: şarap · eski altın */
+[data-theme='bordo'] {
+  color-scheme: dark;
+  --site-void: #1a0508;
+  --site-void-2: #240a0e;
+  --site-void-3: #311015;
+  --bg-app: #1a0508;
+  --bg-rail: #1a0508;
+  --bg-side: #240a0e;
+  --bg-chat: #240a0e;
+  --bg-elev: #311015;
+  --bg-elev-2: color-mix(in srgb, #311015 88%, #f8ecdf 12%);
+  --bg-input: color-mix(in srgb, #d6a86e 4%, #1a0508);
+  --bg-float: #240a0e;
+  --bg-hover: color-mix(in srgb, #f8ecdf 6%, transparent);
+  --bg-active: color-mix(in srgb, #d6a86e 11%, transparent);
+  --line: rgba(214,168,110,.20);
+  --line-2: color-mix(in srgb, #d6a86e 32%, transparent);
+  --text: #f8ecdf;
+  --text-2: #ddc7b6;
+  --text-3: #c2a795;
+  --text-4: #a98d7c;
+  --code-bg: color-mix(in srgb, #1a0508 70%, #000);
+  --shadow: 0 22px 60px rgba(0,0,0,.72);
+  --orn-hi: #f6e3c4;
+  --orn: #d6a86e;
+  --orn-lo: #8a6032;
+  --arc: #5ecfc0;
+  --glow: 94, 207, 192;
+  --accent-ink: #1a0508;
+  --site-crimson: #e8564a;
+  --site-bar: #2f0f14;
+}
+
+/* Koyu Yeşil: orman · pirinç */
+[data-theme='koyuyesil'] {
+  color-scheme: dark;
+  --site-void: #04120c;
+  --site-void-2: #071b12;
+  --site-void-3: #0c2619;
+  --bg-app: #04120c;
+  --bg-rail: #04120c;
+  --bg-side: #071b12;
+  --bg-chat: #071b12;
+  --bg-elev: #0c2619;
+  --bg-elev-2: color-mix(in srgb, #0c2619 88%, #eef6e8 12%);
+  --bg-input: color-mix(in srgb, #c8b06a 4%, #04120c);
+  --bg-float: #071b12;
+  --bg-hover: color-mix(in srgb, #eef6e8 6%, transparent);
+  --bg-active: color-mix(in srgb, #c8b06a 11%, transparent);
+  --line: rgba(196,176,110,.20);
+  --line-2: color-mix(in srgb, #c8b06a 32%, transparent);
+  --text: #eef6e8;
+  --text-2: #c4d8c2;
+  --text-3: #9fb8a4;
+  --text-4: #89a08d;
+  --code-bg: color-mix(in srgb, #04120c 70%, #000);
+  --shadow: 0 22px 60px rgba(0,0,0,.68);
+  --orn-hi: #f2ead0;
+  --orn: #c8b06a;
+  --orn-lo: #7d6a2e;
+  --arc: #3fd6a8;
+  --glow: 63, 214, 168;
+  --accent-ink: #04120c;
+  --site-crimson: #d6553f;
+  --site-bar: #0b2218;
+}
+
+/* ---------------- sitenin zemini ----------------
+   Koyu temalar: zeminden aşağı doğru hafif kararan degrade (koyu-tema.css).
+   Açık temalar: vurgu ve ikincil vurgu renginde yumuşak ışımalar (acik-tema.css). */
+[data-style='destan'] .app {
+  background: linear-gradient(180deg, var(--site-void), color-mix(in srgb, var(--site-void) 82%, #000));
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .app {
+  background:
+    radial-gradient(1000px 700px at 4% -6%, color-mix(in srgb, var(--orn) 52%, transparent), transparent 64%),
+    radial-gradient(900px 700px at 102% 22%, color-mix(in srgb, var(--arc) 42%, transparent), transparent 62%),
+    radial-gradient(800px 600px at 38% 108%, color-mix(in srgb, var(--orn) 36%, transparent), transparent 64%),
+    linear-gradient(180deg, var(--site-void), var(--site-void-2));
+}
+[data-style='destan'].backdrop .app::before {
+  display: none;
+}
+
+/* sitenin gren dokusu ve kenar kararması (Görünüm > Arka plan dokusu ile kapanır) */
+[data-style='destan'].backdrop body::after,
+[data-style='destan'].backdrop body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+[data-style='destan'].backdrop body::after {
+  z-index: 2147483001;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+}
+[data-style='destan'].backdrop body::before {
+  z-index: 2147483000;
+  background:
+    radial-gradient(120% 80% at 50% 42%, transparent 38%, rgba(0, 0, 0, 0.55) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 22%, transparent 78%, rgba(0, 0, 0, 0.6));
+  opacity: 0.55;
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']).backdrop body::after {
+  mix-blend-mode: multiply;
+  opacity: 0.22;
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']).backdrop body::before {
+  background:
+    radial-gradient(120% 80% at 50% 42%, transparent 52%, color-mix(in srgb, var(--orn) 26%, transparent) 100%),
+    linear-gradient(180deg, transparent 0%, transparent 86%, color-mix(in srgb, var(--orn) 14%, transparent) 100%);
+  opacity: 0.5;
+}
+
+/* ---------------- açık temalar: sitenin "derin katmanları" ----------------
+   Paneller zeminden kalkar: üstte beyaz ışık, vurgu renginde uzun gölge. */
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) {
+  --x-panel: linear-gradient(180deg, color-mix(in srgb, var(--bg-chat) 70%, #fff 30%), color-mix(in srgb, var(--bg-chat) 94%, transparent) 62%);
+  --x-panel-line: color-mix(in srgb, var(--orn) 22%, transparent);
+  --x-panel-top: #fff;
+  --x-panel-shadow: inset 0 1px 0 #fff, 0 34px 56px -26px color-mix(in srgb, var(--orn) 55%, transparent), 0 6px 14px color-mix(in srgb, var(--orn) 16%, transparent);
+  --x-pop: color-mix(in srgb, var(--bg-chat) 96%, transparent);
+  --x-btn-bg: color-mix(in srgb, var(--orn) 7%, #fff);
+  --x-btn-bg-hi: color-mix(in srgb, var(--orn) 14%, #fff);
+  --x-field: color-mix(in srgb, var(--bg-chat) 70%, #fff 30%);
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .titlebar {
+  background:
+    radial-gradient(520px 150px at 7% 38%, color-mix(in srgb, var(--orn) 26%, transparent), transparent 72%),
+    radial-gradient(420px 140px at 96% 20%, color-mix(in srgb, var(--arc) 20%, transparent), transparent 74%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), color-mix(in srgb, var(--bg-chat) 68%, transparent));
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, transparent, var(--orn) 18%, var(--arc) 82%, transparent) 1;
+  box-shadow: inset 0 1px 0 #fff, 0 20px 40px -14px color-mix(in srgb, var(--orn) 58%, transparent), 0 3px 10px color-mix(in srgb, var(--orn) 14%, transparent);
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) :is(.modal, .pcard, .popover, .ctx-menu, .emoji-picker, .tq, .toast) {
+  box-shadow: inset 0 1px 0 #fff, 0 24px 50px -20px color-mix(in srgb, var(--orn) 45%, transparent), 0 4px 12px color-mix(in srgb, var(--orn) 14%, transparent);
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .btn.primary {
+  color: #fffaf0;
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .shell .rail-v .pt-home.on .pt-hex {
+  color: #fffaf0;
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) ::selection {
+  background: var(--orn);
+  color: #fffaf0;
+}
+/* Siyah temada altın yerine gümüş: sitedeki gibi */
+[data-theme='siyah'] .xa-art .logo-wrap {
+  filter: grayscale(1) brightness(1.15) drop-shadow(0 10px 30px rgba(255, 255, 255, 0.12));
+}
+
+/* güncelle düğmesi: tema rengi */
+[data-style='destan'] .upd-btn {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #fff 8%), var(--accent));
+  color: var(--accent-ink);
+  border-radius: 9px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ---------------- tema seçici: sitedeki "Temalar" paneli ---------------- */
+.tm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+.tm-list.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+.tm-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  text-align: left;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+}
+.tm-list.grid .tm-row {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--bg-elev) 40%, transparent);
+}
+.tm-row:hover {
+  background: var(--bg-hover);
+}
+.tm-row.on {
+  background: color-mix(in srgb, var(--orn, var(--accent)) 10%, transparent);
+  border-color: color-mix(in srgb, var(--orn, var(--accent)) 55%, transparent);
+  box-shadow: inset 3px 0 0 var(--orn, var(--accent));
+}
+.tm-sw {
+  display: flex;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+}
+.tm-sw i {
+  width: 14px;
+  height: 26px;
+}
+.tm-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.tm-txt b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.tm-txt small {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.tm-ok {
+  flex: none;
+  color: var(--orn, var(--accent));
+}
+.tq {
+  width: 300px;
+  padding: 10px 7px 8px;
+}
+.tq .tq-h {
+  padding: 0 8px 4px;
+}
+.ap-note {
+  margin: -4px 0 6px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+[data-style='destan'] .ap-choice {
+  border-radius: 2px;
+}

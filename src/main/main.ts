@@ -221,11 +221,15 @@ function createWindow() {
 }
 
 // tema -> pencere zemini (başlık çubuğu ve pencere düğmeleri aynı renkte görünsün)
-const THEME_BG: Record<string, string> = { destan: '#05080d', kor: '#0b0706', buzul: '#050a12', zumrut: '#040a08', alaca: '#08060f', dark: '#0c0a07', midnight: '#000000', ocean: '#050b11', forest: '#060a07', rose: '#0e080b', light: '#e8e2d6' };
+// xanaphian.com temaları: pencere zemini ve üst çubuk (pencere düğmeleri) renkleri
+const THEME_BG: Record<string, string> = { destan: '#0a1226', kagit: '#f4efe4', tozpembe: '#faf0f1', siyah: '#000000', bej: '#f2ebdb', bordo: '#1a0508', koyuyesil: '#04120c' };
+const THEME_BAR: Record<string, string> = { destan: '#16223d', kagit: '#f6f1e6', tozpembe: '#fbf1f3', siyah: '#0d0d0f', bej: '#f5efe1', bordo: '#2f0f14', koyuyesil: '#0b2218' };
+const THEME_SYM: Record<string, string> = { destan: '#dac59b', kagit: '#4a3f2c', tozpembe: '#5f1f36', siyah: '#c9ccd6', bej: '#2e2415', bordo: '#e2c08f', koyuyesil: '#d6c48e' };
 const themeBg = (theme: string) => THEME_BG[theme] || THEME_BG.destan;
 
 function overlayFor(theme: string) {
-  return { color: themeBg(theme), symbolColor: theme === 'light' ? '#4a4537' : ['destan', 'kor', 'buzul', 'zumrut', 'alaca'].includes(theme) ? '#c9b78c' : '#b9b1a3', height: 46 };
+  const t = theme in THEME_BAR ? theme : 'destan';
+  return { color: THEME_BAR[t], symbolColor: THEME_SYM[t], height: 46 };
 }
 
 function showWindow() {
