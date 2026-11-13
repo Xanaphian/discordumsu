@@ -158,6 +158,9 @@ export interface Channel {
   overwrites?: Overwrite[];
   userLimit?: number; // ses / 3D oda kişi sınırı (0 = sınırsız)
   url?: string; // site odası: açılış adresi
+  icon?: string; // site odası: sitenin kendi simgesi (küçük data URL, hub doldurur)
+  siteTitle?: string; // site odası: sitenin başlığı (hub doldurur)
+  metaAt?: number; // site bilgisinin son alındığı an
 }
 
 export interface Category {

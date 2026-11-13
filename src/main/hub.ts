@@ -11,7 +11,7 @@ import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
-  hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer,
+  hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost,
 } from '../shared/protocol';
 import { sanitizeProfile, BIO_MAX } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
@@ -193,6 +193,9 @@ export class Hub {
   private spaceRooms = new Map<ID, Map<ID, { s: Session; av: SpaceAvatar }>>();
   private booths = new Map<ID, Booth[]>();
   private webRooms = new Map<ID, Map<ID, WebViewer>>();
+  /** site odası için başlık + simge getirici (main.ts verir; Electron ağı ile) */
+  siteMeta: ((url: string) => Promise<{ title?: string; icon?: string } | null>) | null = null;
+  private metaBusy = new Set<ID>();
   private server: http.Server | null = null;
   private wss: WebSocketServer | null = null;
   private saveTimers = new Map<string, NodeJS.Timeout>();
@@ -975,6 +978,7 @@ export class Hub {
       case 'comm.create': {
         if (!s.loopback) return this.send(s, { t: 'err', msg: 'Bu kovanda topluluk oluşturamazsın.', rid: f.rid });
         const c = this.createCommunity(uid, cleanName(f.name, 48) || 'Yeni Topluluk', f.color, f.icon, f.template);
+        for (const ch of c.channels) if (ch.type === 'site') this.refreshSiteMeta(c.id, ch.id);
         this.send(s, { t: 'comm', c: this.snapshot(c, uid), lastIds: this.lastIdsFor(c, uid) });
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: c.id });
         return;
@@ -1059,7 +1063,9 @@ export class Hub {
         const catId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
         const ch: Channel = {
           id: makeId(),
-          name: hasFreeName(type) ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : type === 'site' ? 'Site' : 'Ses') : channelSlug(f.name),
+          name: hasFreeName(type)
+            ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : type === 'site' ? siteHost(cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL) || 'Site' : 'Ses')
+            : channelSlug(f.name),
           type,
           categoryId: catId,
           position: Math.max(-1, ...c.channels.filter((x) => x.categoryId === catId).map((x) => x.position)) + 1,
@@ -1075,11 +1081,15 @@ export class Hub {
             { id: uid, type: 'member', allow: Perm.VIEW_CHANNEL, deny: 0 },
           ];
         }
-        if (type === 'site') ch.url = cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL;
+        if (type === 'site') {
+          ch.url = cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL;
+          if (src?.url === ch.url && src.icon) (ch.icon = src.icon), (ch.siteTitle = src.siteTitle), (ch.metaAt = src.metaAt);
+        }
         c.channels.push(ch);
         this.chanToComm.set(ch.id, c.id);
         this.audit(c, uid, 'chan.create', (hasFreeName(type) ? '' : '#') + ch.name, src ? 'kopya' : f.private ? 'özel kanal' : undefined);
         this.pushComm(c);
+        if (type === 'site') this.refreshSiteMeta(c.id, ch.id);
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: ch.id });
         return;
       }
@@ -1119,8 +1129,13 @@ export class Hub {
         }
         if (f.url !== undefined && ch.type === 'site') {
           const u = cleanSiteUrl(f.url) || ch.url || DEFAULT_SITE_URL;
-          if (u !== ch.url) changed.push(`adres: ${u}`);
-          ch.url = u;
+          if (u !== ch.url) {
+            changed.push(`adres: ${u}`);
+            ch.url = u;
+            delete ch.icon;
+            delete ch.metaAt;
+            setTimeout(() => this.refreshSiteMeta(c.id, ch.id, true), 0);
+          }
         }
         if (f.categoryId !== undefined) ch.categoryId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
         if (changed.length) this.audit(c, uid, 'chan.update', (hasFreeName(ch.type) ? '' : '#') + ch.name, changed.join(', '));
@@ -1581,6 +1596,39 @@ export class Hub {
       }
     }
     if (!room.size) this.spaceRooms.delete(ch);
+  }
+
+  /** Site odasının başlığını ve simgesini (favicon) getirip kanala yaz. Ad hâlâ varsayılansa başlığı ad yapar. */
+  private refreshSiteMeta(cid: ID, chId: ID, force = false) {
+    const c0 = this.comms.get(cid);
+    const ch0 = c0?.channels.find((x) => x.id === chId);
+    if (!this.siteMeta || !ch0 || ch0.type !== 'site' || !ch0.url || this.metaBusy.has(chId)) return;
+    if (!force && ch0.metaAt && ch0.icon !== undefined && Date.now() - ch0.metaAt < 24 * 3600_000) return;
+    const url = ch0.url;
+    this.metaBusy.add(chId);
+    this.siteMeta(url)
+      .then((m) => {
+        const c = this.comms.get(cid);
+        const ch = c?.channels.find((x) => x.id === chId);
+        if (!c || !ch || ch.url !== url || !m) return;
+        ch.metaAt = Date.now();
+        if (typeof m.icon === 'string' && m.icon.startsWith('data:image/') && m.icon.length <= 120_000) ch.icon = m.icon;
+        const title = cleanName(m.title, 48);
+        if (title) {
+          // kullanıcı adı elle değiştirmediyse (varsayılan ya da önceki site başlığı) sitenin başlığını kullan
+          const auto = ch.name === siteHost(url) || ch.name === 'Site' || ch.name === 'xanaphian.com' || (!!ch.siteTitle && ch.name === ch.siteTitle);
+          if (auto) ch.name = title;
+          ch.siteTitle = title;
+        }
+        this.pushComm(c);
+      })
+      .catch(() => {})
+      .finally(() => this.metaBusy.delete(chId));
+  }
+
+  /** Açılışta ve günde bir: tüm site odalarının bilgisini tazele */
+  refreshAllSiteMeta() {
+    for (const c of this.comms.values()) for (const ch of c.channels) if (ch.type === 'site') this.refreshSiteMeta(c.id, ch.id);
   }
 
   private leaveWeb(s: Session) {

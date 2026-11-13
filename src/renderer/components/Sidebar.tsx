@@ -33,8 +33,10 @@ function tryJoinVoice(c: Community, ch: Channel) {
   joinVoice(c.id, ch.id);
 }
 
-const ChannelIcon = ({ type, size = 18 }: { type: Channel['type']; size?: number }) =>
-  type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
+const ChannelIcon = ({ type, size = 18, icon }: { type: Channel['type']; size?: number; icon?: string }) =>
+  type === 'site' && icon ? (
+    <img className="ch-site-icon" src={icon} alt="" width={size} height={size} draggable={false} />
+  ) : type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
 
 const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chId: string }) {
   const members = useStore((s) => s.voice[chId]);
@@ -151,7 +153,7 @@ const ChannelRow = memo(function ChannelRow({
       >
         {unread && !active && !muted && <span className="ch-unread-pill" />}
         <span className="ch-icon">
-          <ChannelIcon type={ch.type} />
+          <ChannelIcon type={ch.type} icon={ch.icon} />
         </span>
         <span className="ch-name">{ch.name}</span>
         {ch.overwrites?.some((o) => o.id === c.id && o.deny & Perm.VIEW_CHANNEL) && <Lock size={12} className="ch-lock" aria-label="Özel kanal" />}

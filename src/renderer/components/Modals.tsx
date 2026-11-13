@@ -210,7 +210,7 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
   if (!c) return null;
   const urlOk = type !== 'site' || !!cleanSiteUrl(url);
   const submit = async () => {
-    if (!name.trim() || !urlOk) return;
+    if ((!name.trim() && type !== 'site') || !urlOk) return;
     try {
       const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name, type, categoryId: cat, private: priv, ...(type === 'site' ? { url: cleanSiteUrl(url)! } : {}) });
       close();
@@ -244,7 +244,7 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
           <span>Kanal adı</span>
           <div className="input-icon">
             {type === 'voice' ? <Volume2 size={16} /> : type === 'space' ? <Box size={16} /> : type === 'site' ? <Globe size={16} /> : type === 'announce' ? <Megaphone size={16} /> : <Hash size={16} />}
-            <input autoFocus placeholder={type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Kovan Meydanı' : type === 'site' ? 'xanaphian.com' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+            <input autoFocus placeholder={type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Kovan Meydanı' : type === 'site' ? 'Boş bırakırsan sitenin adı kullanılır' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
           </div>
         </label>
         {type === 'site' && (
@@ -277,7 +277,7 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
         <button className="btn ghost" onClick={close}>
           Vazgeç
         </button>
-        <button className="btn primary" disabled={!name.trim() || !urlOk} onClick={submit}>
+        <button className="btn primary" disabled={(!name.trim() && type !== 'site') || !urlOk} onClick={submit}>
           Kanal oluştur
         </button>
       </div>
