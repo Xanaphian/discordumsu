@@ -44,7 +44,7 @@ function HomeStart() {
           <div className="hh-art xa-art" aria-hidden>
             <span className="xa-ring r1" />
             <span className="xa-ring r2" />
-            <Logo size={120} />
+            <Logo size={148} />
           </div>
         </div>
         <h3 className="home-h">Toplulukların</h3>
