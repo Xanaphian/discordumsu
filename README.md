@@ -3,7 +3,9 @@
 Topluluklar, kanallar ve gerçek zamanlı sohbet için hafif bir masaüstü uygulaması (Windows).
 
 ## Özellikler
-- **Topluluklar**: altıgen simgeli sunucu rayı, sürükle-bırak sıralama, okunmamış/bahsetme rozetleri
+- **Kendine özgü görünüm**: üst çubukta petek şeridi (topluluk sekmeleri), yüzen paneller, altıgen avatarlar, balon mesajlar, 6 tema
+- **Gelişmiş profil**: afiş (renk, degrade, resim, desen), kart teması, avatar şekli ve çerçevesi, isim yazı tipi ve efekti, özel durum, etkinlik, zamirler, ilgi alanları, bağlantılar, kart efektleri, yerel saat, doğum günü
+- **Topluluklar**: üst çubukta altıgen simgeli sekmeler, sürükle-bırak sıralama, okunmamış/bahsetme rozetleri
 - **Kanallar**: kategoriler, metin / ses / duyuru kanalları, konu, yavaş mod, sürükle-bırak sıralama
 - **Mesajlaşma**: gruplanan mesajlar, yanıt, düzenleme, silme, sabitleme, tepkiler, @bahsetme, #kanal bağlantısı,
   markdown (kalın, italik, altı çizili, üstü çizili, spoiler, alıntı, liste, başlık, sözdizimi renkli kod blokları),

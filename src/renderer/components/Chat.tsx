@@ -10,6 +10,7 @@ import {
   selectChannel, jumpToPresent, plainText, toggleMuted,
 } from '../lib/store';
 import { Avatar, Tooltip } from './Common';
+import { NameText } from './profile/ProfileCard';
 import { EmojiPicker } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
 import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles } from '../lib/util';
@@ -276,6 +277,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
         className={cx(
           'msg',
           grouped ? 'grouped' : 'head',
+          mine && 'mine',
           compact && 'compact',
           mentioned && 'mentioned',
           highlight && 'flash',
@@ -318,7 +320,9 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
             {!grouped && (
               <div className="msg-head">
                 <span className="msg-author" style={{ color: color || undefined }} onClick={popUser}>
-                  {name}
+                  <NameText profile={author?.profile} color={color || undefined}>
+                    {name}
+                  </NameText>
                 </span>
                 {roleIcon && <span className="role-icon">{roleIcon}</span>}
                 {m.authorId === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}

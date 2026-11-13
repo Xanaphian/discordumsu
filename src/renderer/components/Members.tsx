@@ -2,6 +2,8 @@ import React, { memo, useMemo } from 'react';
 import { Clock, Shield } from 'lucide-react';
 import { useStore, openMenu, openModal } from '../lib/store';
 import { Avatar } from './Common';
+import { NameText, ACTIVITY_ICON } from './profile/ProfileCard';
+import { activeCustom } from '../../shared/profile';
 import { cx, displayName, roleColor, memberRoles } from '../lib/util';
 import { can, isTimedOut, Perm, type Community, type Status, type UserPublic } from '../../shared/protocol';
 import { memberMenu } from './Moderation';
@@ -22,7 +24,9 @@ const Row = memo(function Row({ c, uid, user, status, name, color, me }: { c: Co
       <Avatar user={user} size={34} status={status} />
       <div className="member-text">
         <span className="member-name" style={{ color: color || undefined }}>
-          {name}
+          <NameText profile={user?.profile} color={color || undefined}>
+            {name}
+          </NameText>
           {icon && <span className="role-icon">{icon}</span>}
           {c.ownerId === uid && <span className="owner-crown" title="Topluluk sahibi">♛</span>}
           {isTimedOut(mem) && <Clock size={12} className="timeout-icon" aria-label="Zaman aşımında" />}
@@ -30,11 +34,32 @@ const Row = memo(function Row({ c, uid, user, status, name, color, me }: { c: Co
           {uid === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}
           {user?.bot && <span className="tag-bot">BOT</span>}
         </span>
-        {user?.bio && !offline && <span className="member-sub">{user.bio}</span>}
+        {!offline && <MemberSub user={user} />}
       </div>
     </div>
   );
 });
+
+function MemberSub({ user }: { user: UserPublic | undefined }) {
+  const cs = activeCustom(user?.profile);
+  if (cs)
+    return (
+      <span className="member-sub cs">
+        {cs.emoji && <span className="cs-emoji">{cs.emoji}</span>}
+        {cs.text}
+      </span>
+    );
+  const a = user?.profile?.activity;
+  if (a) {
+    const Icon = ACTIVITY_ICON[a.kind];
+    return (
+      <span className="member-sub act">
+        <Icon size={12} /> <b>{a.text}</b>
+      </span>
+    );
+  }
+  return user?.bio ? <span className="member-sub">{user.bio}</span> : null;
+}
 
 function insertMention(name: string) {
   const el = document.getElementById('composer-input') as HTMLTextAreaElement | null;

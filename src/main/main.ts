@@ -161,7 +161,7 @@ function createWindow() {
     show: false,
     title: 'Kovan',
     icon: iconPath(),
-    backgroundColor: theme === 'light' ? '#f4f2ee' : '#111014',
+    backgroundColor: themeBg(theme),
     titleBarStyle: 'hidden',
     titleBarOverlay: overlayFor(theme),
     webPreferences: {
@@ -220,10 +220,12 @@ function createWindow() {
   else win.loadFile(path.join(__dirname, '../renderer/index.html'));
 }
 
+// tema -> pencere zemini (başlık çubuğu ve pencere düğmeleri aynı renkte görünsün)
+const THEME_BG: Record<string, string> = { dark: '#0c0a07', midnight: '#000000', ocean: '#050b11', forest: '#060a07', rose: '#0e080b', light: '#e8e2d6' };
+const themeBg = (theme: string) => THEME_BG[theme] || THEME_BG.dark;
+
 function overlayFor(theme: string) {
-  return theme === 'light'
-    ? { color: '#e9e6e0', symbolColor: '#4a4752', height: 34 }
-    : { color: '#111014', symbolColor: '#b4b2bd', height: 34 };
+  return { color: themeBg(theme), symbolColor: theme === 'light' ? '#4a4537' : '#b9b1a3', height: 46 };
 }
 
 function showWindow() {
@@ -414,7 +416,7 @@ function registerIpc() {
   ipcMain.on('win:overlay', (_e, theme: string) => {
     try {
       win?.setTitleBarOverlay(overlayFor(theme));
-      win?.setBackgroundColor(theme === 'light' ? '#f4f2ee' : '#111014');
+      win?.setBackgroundColor(themeBg(theme));
     } catch {
       /* desteklenmiyor */
     }

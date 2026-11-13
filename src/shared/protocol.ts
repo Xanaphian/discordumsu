@@ -1,4 +1,5 @@
 // Kovan ağ protokolü: istemci <-> kovan sunucusu (hub) arasında JSON çerçeveler.
+import type { ProfileExtra } from './profile';
 import type { BotClientFrame, BotServerFrame } from './bots';
 
 export type ID = string;
@@ -11,6 +12,7 @@ export interface UserPublic {
   color: string;
   avatar?: string; // küçük data URL
   bio?: string;
+  profile?: ProfileExtra; // gelişmiş profil (afiş, durum, bağlantılar…)
   bot?: boolean; // bot hesabı (yalnızca sunucu atar)
 }
 

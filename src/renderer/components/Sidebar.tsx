@@ -9,8 +9,10 @@ import {
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
 import { enterSpace, exitSpace } from '../lib/space';
-import { Avatar, STATUS_LABEL, Tooltip } from './Common';
+import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
+import { Banner, NameText } from './profile/ProfileCard';
+import { activeCustom } from '../../shared/profile';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName } from '../lib/util';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
@@ -180,6 +182,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
   const collapsed = useStore((s) => s.settings.collapsed);
   const mentions = useStore((s) => s.mentions);
   const connStatus = useStore((s) => s.conns[s.commHost[c.id]]?.status);
+  const onlineCount = useStore((s) => c.members.filter((m) => m.userId === s.me.id || m.userId === 'kovan-asistan' || (s.presence[m.userId] && s.presence[m.userId] !== 'offline')).length);
   const { unreadCh } = useUnread();
   const manage = can(c, me, Perm.MANAGE_CHANNELS);
   const commMuted = useStore((s) => s.settings.mutedIds.includes(c.id));
@@ -235,8 +238,16 @@ export function ChannelSidebar({ c }: { c: Community }) {
 
   return (
     <>
-      <button className="side-header" onClick={headerMenu}>
-        <span className="side-title">{c.name}</span>
+      <button className="side-header comm-head" onClick={headerMenu} style={{ ['--cc' as any]: c.color }}>
+        <span className="sh-icon">
+          <CommunityIcon c={c} size={34} />
+        </span>
+        <span className="sh-text">
+          <span className="side-title">{c.name}</span>
+          <span className="sh-sub">
+            <i className="dot online" /> {onlineCount} çevrimiçi · {c.members.length} üye
+          </span>
+        </span>
         <ChevronDown size={18} />
       </button>
       {connStatus !== 'online' && (
@@ -366,20 +377,33 @@ export function UserPanel() {
   const deaf = useVoice((s) => s.deaf);
   const statusMenu = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openMenu({ clientX: r.left, clientY: r.top - 8 - 4 * 34 - 60 }, [
+    openMenu({ clientX: r.left, clientY: r.top - 8 - 7 * 34 - 60 }, [
       ...STATUSES.map((st) => ({ label: STATUS_LABEL[st], icon: 'status-' + st, checked: me.status === st, onClick: () => setStatus(st) })),
       { sep: true },
+      { label: activeCustom(me.extra) ? 'Özel durumu değiştir' : 'Özel durum ayarla', onClick: () => openModal({ type: 'customStatus' }) },
+      { label: 'Profilimi görüntüle', onClick: () => openModal({ type: 'profile', uid: me.id }) },
       { label: 'Profili düzenle', onClick: () => openModal({ type: 'settings', tab: 'profile' }) },
       { label: 'Kimliğini kopyala', onClick: () => copyText(me.id) },
     ]);
   };
   return (
     <div className="user-panel">
+      <Banner user={me} profile={me.extra} className="up-banner" />
       <button className="up-me" onClick={statusMenu}>
         <Avatar user={me} size={34} status={me.status === 'invisible' ? 'offline' : me.status} />
         <div className="up-text">
-          <div className="up-name">{me.name}</div>
-          <div className="up-status">{STATUS_LABEL[me.status]}</div>
+          <NameText profile={me.extra} className="up-name">
+            {me.name}
+          </NameText>
+          <div className="up-status">
+            {activeCustom(me.extra) ? (
+              <>
+                {activeCustom(me.extra)!.emoji} {activeCustom(me.extra)!.text}
+              </>
+            ) : (
+              STATUS_LABEL[me.status]
+            )}
+          </div>
         </div>
       </button>
       <Tooltip text={muted ? 'Sesi aç' : 'Sustur'} side="top">

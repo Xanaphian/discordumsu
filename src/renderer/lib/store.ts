@@ -5,6 +5,7 @@ import {
   decodeInvite, encodeInvite, makeId, isVoiceLike,
   type AuditEntry, type Ban,
 } from '../../shared/protocol';
+import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
 import { HostConn, probeHost, ConnStatus } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
@@ -15,11 +16,12 @@ export interface Profile {
   color: string;
   avatar?: string;
   bio?: string;
+  extra?: ProfileExtra;
   status: Status;
 }
 
 export interface Settings {
-  theme: 'dark' | 'light' | 'midnight';
+  theme: 'dark' | 'light' | 'midnight' | 'ocean' | 'forest' | 'rose';
   accent: string;
   fontSize: number;
   compact: boolean;
@@ -78,6 +80,9 @@ export interface Settings {
   showJoinMessages: boolean;
   inlineMedia: boolean;
   showRoleIcons: boolean;
+  msgStyle: 'petek' | 'balon' | 'duz';
+  layout: 'float' | 'flush';
+  backdrop: boolean;
 }
 
 export type NotifyLevel = 'all' | 'mentions' | 'none';
@@ -138,6 +143,9 @@ export const DEFAULT_SETTINGS: Settings = {
   showJoinMessages: true,
   inlineMedia: true,
   showRoleIcons: true,
+  msgStyle: 'petek',
+  layout: 'float',
+  backdrop: true,
 };
 
 export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string };
@@ -168,7 +176,9 @@ export type Modal =
   | { type: 'image'; src: string; name: string }
   | { type: 'quick' }
   | { type: 'screenShare' }
-  | { type: 'search'; cid: ID; q?: string };
+  | { type: 'search'; cid: ID; q?: string }
+  | { type: 'profile'; uid: ID; cid?: ID }
+  | { type: 'customStatus' };
 
 export interface MenuItem {
   label?: string;
@@ -331,12 +341,12 @@ export function updateSettings(patch: Partial<Settings>) {
   const settings = { ...S().settings, ...patch };
   set({ settings });
   persistSettings(settings);
-  if (patch.theme) window.kovan.setTheme(patch.theme === 'light' ? 'light' : 'dark');
+  if (patch.theme) window.kovan.setTheme(patch.theme);
 }
 
 function hello(): ClientFrame {
   const { me, secret } = S();
-  return { t: 'hello', user: { id: me.id, name: me.name || 'Arı', color: me.color, avatar: me.avatar, bio: me.bio }, secret, status: me.status, v: 1 };
+  return { t: 'hello', user: { id: me.id, name: me.name || 'Arı', color: me.color, avatar: me.avatar, bio: me.bio, profile: me.extra }, secret, status: me.status, v: 1 };
 }
 
 function ensureConn(host: string, local = false): HostConn {
@@ -364,13 +374,13 @@ export async function boot() {
   set({
     info,
     secret: cfg.profile.secret,
-    me: { id: cfg.profile.id, name: cfg.profile.name, color: cfg.profile.color, avatar: cfg.profile.avatar, bio: cfg.profile.bio, status: (cfg.profile.status as Status) || 'online' },
+    me: { id: cfg.profile.id, name: cfg.profile.name, color: cfg.profile.color, avatar: cfg.profile.avatar, bio: cfg.profile.bio, extra: sanitizeProfile(cfg.profile.extra), status: (cfg.profile.status as Status) || 'online' },
     onboarded: !!cfg.onboarded && !!cfg.profile.name,
     settings,
     update: upd || { state: 'idle' },
     booted: true,
   });
-  window.kovan.setTheme(settings.theme === 'light' ? 'light' : 'dark');
+  window.kovan.setTheme(settings.theme);
   readSaver = debounce(() => localStorage.setItem('kovan.read', JSON.stringify(S().read)), 1000);
   window.kovan.update.onStatus((u) => set({ update: u as UpdateState }));
   window.kovan.onInvite((code) => set({ modal: { type: 'join', code } }));
@@ -949,12 +959,17 @@ export function setStatus(status: Status, auto = false) {
   if (!auto) window.kovan.setConfig({ profile: { status } });
 }
 
-export async function updateProfile(p: Partial<Pick<Profile, 'name' | 'color' | 'avatar' | 'bio'>>) {
+export async function updateProfile(p: Partial<Pick<Profile, 'name' | 'color' | 'avatar' | 'bio' | 'extra'>>) {
   const me = { ...S().me, ...p };
+  if ('extra' in p) me.extra = sanitizeProfile(p.extra);
   set({ me });
-  await window.kovan.setConfig({ profile: { name: me.name, color: me.color, avatar: me.avatar ?? '', bio: me.bio ?? '' } });
-  const user: UserPublic = { id: me.id, name: me.name, color: me.color, avatar: me.avatar || undefined, bio: me.bio || undefined };
-  conns.forEach((c) => c.send({ t: 'profile', user }));
+  await window.kovan.setConfig({ profile: { name: me.name, color: me.color, avatar: me.avatar ?? '', bio: me.bio ?? '', extra: me.extra ?? null } });
+  conns.forEach((c) => c.send({ t: 'profile', user: meAsUser(me) }));
+}
+
+/** Kendi profilimizi herkese görünen kullanıcı biçimine çevirir. */
+export function meAsUser(me: Profile = S().me): UserPublic {
+  return { id: me.id, name: me.name, color: me.color, avatar: me.avatar || undefined, bio: me.bio || undefined, profile: me.extra };
 }
 
 // ---------------------------------------------------------------------------

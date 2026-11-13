@@ -13,6 +13,7 @@ import {
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
   hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer,
 } from '../shared/protocol';
+import { sanitizeProfile, BIO_MAX } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
 
 const MAX_CONTENT = 4000;
@@ -1615,7 +1616,9 @@ export class Hub {
       color: /^#[0-9a-f]{6}$/i.test(u?.color) ? u.color : '#f5a524',
     };
     if (typeof u?.avatar === 'string' && u.avatar.startsWith('data:image/') && u.avatar.length < 200_000) out.avatar = u.avatar;
-    if (u?.bio) out.bio = clampStr(u.bio, 190);
+    if (u?.bio) out.bio = clampStr(u.bio, BIO_MAX);
+    const profile = sanitizeProfile(u?.profile);
+    if (profile) out.profile = profile;
     return out;
   }
 
