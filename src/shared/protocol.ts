@@ -93,12 +93,38 @@ export interface Member {
   timeoutUntil?: number; // zaman aşımı bitişi (ms)
 }
 
-export type ChannelType = 'text' | 'voice' | 'announce' | 'space' | 'site';
+export type ChannelType = 'text' | 'voice' | 'announce' | 'space' | 'site' | ToolType;
+
+/** v1.28 topluluk araçları: öneri panosu, görev panosu, etkinlik planlayıcı, ortak duvar.
+ * Panodaki her öğe kanalın bir mesajıdır ("xn:<tür> {json}"); oylar ve katılım "~" ile başlayan tepkilerdir. */
+export type ToolType = 'ideas' | 'tasks' | 'events' | 'wall';
+export const TOOL_TYPES: ToolType[] = ['ideas', 'tasks', 'events', 'wall'];
+export const isToolChannel = (t: ChannelType): t is ToolType => (TOOL_TYPES as string[]).includes(t);
+/** Başkasının öğesini düzenleyebilmek için gereken yetki: görev ve duvarda yazabilen herkes, öneri ve etkinlikte mesaj yöneticisi */
+export const toolEditPerm = (t: ToolType) => (t === 'tasks' || t === 'wall' ? Perm.SEND_MESSAGES : Perm.MANAGE_MESSAGES);
+
+/** Topluluk istatistikleri (sunucu hesaplar, yalnız görülebilen kanallar) */
+export interface CommunityStats {
+  days: number;
+  /** günlük mesaj sayısı, en eskiden bugüne (yerel değil, UTC+3 günü) */
+  perDay: number[];
+  /** saat başına mesaj (0-23, UTC+3) */
+  perHour: number[];
+  messages: number;
+  /** dönemde yazan farklı üye */
+  activeMembers: number;
+  /** dönemde katılan üye */
+  joined: number;
+  /** dönem başından bugüne günlük üye sayısı */
+  memberCurve: number[];
+  topChannels: { id: ID; n: number }[];
+  topMembers: { id: ID; n: number }[];
+}
 
 /** Sesli bağlantı kurulan kanal türleri (ses ve 3D oda) */
 export const isVoiceLike = (t: ChannelType) => t === 'voice' || t === 'space';
 /** Adı boşluklu serbest metin olan kanal türleri (#slug değil) */
-export const hasFreeName = (t: ChannelType) => isVoiceLike(t) || t === 'site';
+export const hasFreeName = (t: ChannelType) => isVoiceLike(t) || t === 'site' || isToolChannel(t);
 
 // ---- Site odası ----
 export const DEFAULT_SITE_URL = 'https://xanaphian.com/';
@@ -310,7 +336,9 @@ export type ClientFrame =
   | { t: 'del'; ch: ID; id: ID }
   | { t: 'react'; ch: ID; id: ID; e: string; on: boolean }
   | { t: 'pin'; ch: ID; id: ID; on: boolean }
-  | { t: 'hist'; ch: ID; before?: ID; around?: ID; rid: string }
+  /** full: araç kanalları için son 2000 öğeyi tek seferde ister */
+  | { t: 'hist'; ch: ID; before?: ID; around?: ID; rid: string; full?: boolean }
+  | { t: 'stats'; cid: ID; days: number; rid: string }
   | { t: 'pins'; ch: ID; rid: string }
   | { t: 'search'; cid: ID; q: string; rid: string }
   | { t: 'typing'; ch: ID }

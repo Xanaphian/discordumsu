@@ -48,7 +48,7 @@ function namesKey(users: Record<string, { name: string }>) {
   return namesSig;
 }
 
-function useMdCtx(c: Community): MdCtx {
+export function useMdCtx(c: Community): MdCtx {
   const names = useStore((s) => namesKey(s.users));
   const me = useStore((s) => s.me.id);
   const cRef = useRef(c);
