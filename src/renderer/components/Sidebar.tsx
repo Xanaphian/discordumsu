@@ -525,7 +525,7 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
       { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !unread },
       { label: pinned ? 'Sabitlemeyi kaldır' : 'Listenin üstüne sabitle', onClick: () => togglePinDm(c.id) },
       { label: 'Ayrı pencerede aç', onClick: () => c.channels[0] && openPopout(c, c.channels[0]) },
-      { label: 'Profil', onClick: () => useStore.setState({ popout: { uid: c.dm!, cid: c.id, x: e.clientX + 20, y: e.clientY } }) },
+      { label: 'Profil', onClick: () => openModal({ type: 'profile', uid: c.dm!, cid: c.id }) },
       { label: isMutedId(c.id) ? 'Bildirimleri aç' : 'Sessize al', onClick: () => toggleMuted(c.id) },
       { sep: true },
       { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },

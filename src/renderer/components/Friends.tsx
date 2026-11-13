@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Users, MessageCircle, Check, X, MoreVertical, Search, Copy, RefreshCw, UserPlus, LoaderCircle } from 'lucide-react';
 import {
   useStore, setHomeTab, openDm, addFriend, acceptFriend, removeFriend, openMenu, confirmDialog, myFriendCode, joinByInvite, toast,
-  realCommunities, pendingIn, type State,
+  realCommunities, pendingIn, openModal, type State,
 } from '../lib/store';
 import { Avatar, STATUS_LABEL } from './Common';
 import { activeCustom } from '../../shared/profile';
@@ -106,7 +106,7 @@ function FriendRow({ user, state }: { user: UserPublic; state: 'ok' | 'in' | 'ou
   const sub = state === 'in' ? 'Sana arkadaşlık isteği gönderdi' : state === 'out' ? 'İsteğin yanıt bekliyor' : custom?.text ? `${custom.emoji ? custom.emoji + ' ' : ''}${custom.text}` : STATUS_LABEL[status];
   const more = (e: React.MouseEvent) =>
     openMenu(e, [
-      { label: 'Profil', onClick: () => useStore.setState({ popout: { uid: user.id, x: e.clientX - 320, y: e.clientY } }) },
+      { label: 'Profil', onClick: () => openModal({ type: 'profile', uid: user.id }) },
       { label: 'Mesaj gönder', onClick: () => openDm(user.id) },
       { sep: true },
       { label: 'Arkadaşlıktan çıkar', danger: true, onClick: () => confirmDialog(`${user.name} arkadaşlıktan çıkarılsın mı?`, 'Ortak topluluğunuz varsa yine yazışabilirsiniz.', () => removeFriend(user.id), 'Çıkar') },
