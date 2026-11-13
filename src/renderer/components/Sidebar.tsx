@@ -396,11 +396,9 @@ export function VoicePanel() {
         <div className={cx('vp-state', v.state)}>
           <Signal size={15} /> {v.state === 'connected' ? 'Ses bağlı' : 'Bağlanıyor…'}
         </div>
-        <div className="vp-where">
-          {ch?.name} / {c.name}
-        </div>
+        <div className="vp-where">{c.dm ? `@${useStore.getState().users[c.dm]?.name || c.name} ile arama` : `${ch?.name} / ${c.name}`}</div>
       </div>
-      {ch?.type === 'voice' && (
+      {(ch?.type === 'voice' || !!c.dm) && (
         <>
           <Tooltip text={v.cam ? 'Kamerayı kapat' : 'Kamerayı aç'} side="top">
             <button className={cx('icon-btn', v.cam && 'on')} onClick={toggleCamera} aria-label="Kamera">

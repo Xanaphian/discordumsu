@@ -3,7 +3,7 @@ import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
   ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Settings, Bell, BellOff, EyeOff, Globe,
-  Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Dices, Coins, Braces, UserRound,
+  Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Dices, Coins, Braces, UserRound, Phone, Video,
 } from 'lucide-react';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
@@ -11,6 +11,8 @@ import {
   selectChannel, jumpToPresent, plainText, toggleMuted, addFriend, acceptFriend,
 } from '../lib/store';
 import { activeCustom } from '../../shared/profile';
+import { DmCall } from './Media';
+import { useVoice, joinVoice, toggleCamera } from '../lib/voice';
 import { Avatar, Tooltip, STATUS_LABEL } from './Common';
 import { NameText } from './profile/ProfileCard';
 import { EmojiPicker } from './Overlays';
@@ -1242,6 +1244,7 @@ function DmHeader({ c, ch, pins, setPins }: { c: Community; ch: Channel; pins: b
   const chMuted = useStore((s) => s.settings.mutedIds.includes(c.id));
   const custom = activeCustom(user?.profile);
   const pop = (e: React.MouseEvent) => useStore.setState({ popout: { uid, cid: c.id, x: e.clientX, y: e.clientY + 16 } });
+  const inCall = useVoice().ch === ch.id;
   return (
     <div className="chat-header dm-head">
       <span className="dm-head-av" onClick={pop}>
@@ -1252,6 +1255,20 @@ function DmHeader({ c, ch, pins, setPins }: { c: Community; ch: Channel; pins: b
       </h2>
       <span className="dm-head-status">{custom?.text ? `${custom.emoji ? custom.emoji + ' ' : ''}${custom.text}` : STATUS_LABEL[status]}</span>
       <div className="head-actions">
+        {!inCall && (
+          <>
+            <Tooltip text="Sesli arama başlat" side="bottom">
+              <button className="icon-btn" onClick={() => joinVoice(c.id, ch.id)} aria-label="Sesli arama">
+                <Phone size={19} />
+              </button>
+            </Tooltip>
+            <Tooltip text="Görüntülü arama başlat" side="bottom">
+              <button className="icon-btn" onClick={async () => (await joinVoice(c.id, ch.id), toggleCamera())} aria-label="Görüntülü arama">
+                <Video size={20} />
+              </button>
+            </Tooltip>
+          </>
+        )}
         <Tooltip text={chMuted ? 'Bildirimleri aç' : 'Sessize al'} side="bottom">
           <button className={cx('icon-btn', chMuted && 'active')} onClick={() => toggleMuted(c.id)} aria-label="Bildirimler">
             {chMuted ? <BellOff size={19} /> : <Bell size={19} />}
@@ -1367,6 +1384,7 @@ export function ChatView({ c, ch }: { c: Community; ch: Channel }) {
       }}
     >
       <ChatHeader c={c} ch={ch} />
+      {c.dm && <DmCall c={c} ch={ch} />}
       <MessageList c={c} ch={ch} />
       <Composer key={ch.id} c={c} ch={ch} />
       {dragging && (

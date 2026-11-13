@@ -272,6 +272,8 @@ export interface State {
   friends: Record<ID, FriendInfo & { host: string }>;
   /** Ana Sayfa'da açık sekme */
   homeTab: 'home' | 'online' | 'all' | 'pending' | 'add';
+  /** gelen özel arama */
+  ringing: { cid: ID; ch: ID; from: ID } | null;
 }
 
 const conns = new Map<string, HostConn>();
@@ -317,6 +319,7 @@ export const useStore = create<State>(() => ({
   jumpTo: null,
   friends: {},
   homeTab: 'home',
+  ringing: null,
 }));
 
 const S = () => useStore.getState();
@@ -870,10 +873,14 @@ function onFrame(host: string, f: ServerFrame) {
         return { users: { ...s.users, [f.u.id]: f.u }, communities };
       });
       return;
-    case 'vc':
+    case 'vc': {
+      const before = S().voice[f.ch] || [];
       set((s) => ({ voice: { ...s.voice, [f.ch]: f.members } }));
+      const dmC = S().communities[S().chanComm[f.ch]];
+      if (dmC?.dm) callWatch(dmC, f.ch, before, f.members);
       voiceHooks.onRoom?.(host, f.ch, f.members);
       return;
+    }
     case 'web':
       siteHooks.onFrame?.(f);
       return;
@@ -913,6 +920,41 @@ function onFrame(host: string, f: ServerFrame) {
       }
       toast(f.msg, 'err');
       return;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// özel aramalar: karşı taraf aramaya girince (ben yokken) çalar
+let ringTimer: ReturnType<typeof setInterval> | null = null;
+let ringStop: ReturnType<typeof setTimeout> | null = null;
+
+function stopRing() {
+  if (ringTimer) clearInterval(ringTimer);
+  if (ringStop) clearTimeout(ringStop);
+  ringTimer = ringStop = null;
+  if (S().ringing) set({ ringing: null });
+}
+
+export const dismissCall = stopRing;
+
+function callWatch(c: Community, ch: ID, before: VoiceMember[], now: VoiceMember[]) {
+  const me = S().me.id;
+  const peer = c.dm!;
+  const peerIn = now.some((m) => m.userId === peer);
+  const meIn = now.some((m) => m.userId === me);
+  const wasPeerIn = before.some((m) => m.userId === peer);
+  const ringing = S().ringing;
+  if (ringing?.ch === ch && (!peerIn || meIn)) stopRing();
+  if (peerIn && !wasPeerIn && !meIn && !S().settings.blocked.includes(peer)) {
+    if (S().me.status === 'dnd') return;
+    stopRing();
+    set({ ringing: { cid: c.id, ch, from: peer } });
+    const ring = () => S().settings.sounds && playSound('ring', 0.16);
+    ring();
+    ringTimer = setInterval(ring, 2400);
+    ringStop = setTimeout(stopRing, 45_000);
+    const name = S().users[peer]?.name || c.name;
+    window.kovan.notify({ title: `${name} seni arıyor`, body: 'Özel aramaya katılmak için tıkla.', tag: ch, silent: true });
   }
 }
 

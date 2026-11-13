@@ -7,7 +7,7 @@ Topluluklar, kanallar ve gerçek zamanlı sohbet için hafif bir masaüstü uygu
 - **Odalar**: ses, 3D oda ve site odaları kanal listesinde kendine özgü kartlar olarak görünür; görüşme ekranında çerçeveli katılımcı kutuları
 - **Yazma kutusu**: ekle menüsü (dosya, sesli mesaj, kod bloğu, sürpriz metin, zar, yazı tura), biçimlendirme çubuğu, gönder düğmesi
 - **Gelişmiş profil**: afiş (renk, degrade, resim ya da hareketli GIF, desen; yükseklik, konum ve yakınlık ayarı), tüm karta arka plan resmi (konumlanabilir), kart teması, avatar şekli ve çerçevesi, isim yazı tipi ve efekti, özel durum, etkinlik, zamirler, ilgi alanları, bağlantılar, kart efektleri, yerel saat, doğum günü
-- **Özel mesajlar ve arkadaşlar**: birebir özel mesaj (yazan kişi soldaki listenin en üstüne düşer), arkadaş listesi (çevrimiçi, tümü, bekleyen), arkadaşlık istekleri, topluluk dışından eklemek için arkadaş kodu
+- **Özel mesajlar ve arkadaşlar**: birebir özel mesaj, özel sesli ve görüntülü arama (gelen arama kartı ve zil) (yazan kişi soldaki listenin en üstüne düşer), arkadaş listesi (çevrimiçi, tümü, bekleyen), arkadaşlık istekleri, topluluk dışından eklemek için arkadaş kodu
 - **Topluluklar**: solda dikey liste, sürükle-bırak sıralama, okunmamış/bahsetme rozetleri
 - **Kanallar**: kategoriler, metin / ses / duyuru kanalları, konu, yavaş mod, sürükle-bırak sıralama
 - **Mesajlaşma**: gruplanan mesajlar, yanıt, düzenleme, silme, sabitleme, tepkiler, @bahsetme, #kanal bağlantısı,

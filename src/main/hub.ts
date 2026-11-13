@@ -786,6 +786,10 @@ export class Hub {
       }
     }
     for (const p of this.contactsOf(uid)) presence[p] = this.effectiveStatus(p);
+    for (const d of this.dmsFor(uid)) {
+      const room = this.voiceRooms.get(d.ch);
+      if (room && room.size) voice[d.ch] = [...room.values()];
+    }
     this.send(s, {
       t: 'ready',
       hubId: this.data.hubId,
@@ -986,6 +990,7 @@ export class Hub {
     }
     const ch = (f as { ch?: unknown }).ch;
     if (typeof ch !== 'string' || !isDmChannel(ch)) return false;
+    if (!['send', 'edit', 'del', 'react', 'pin', 'hist', 'pins', 'typing'].includes(f.t)) return f.t !== 'vc.join';
     const peer = this.dmAllowed(uid, ch);
     if (!peer) {
       if (f.t === 'hist') this.send(s, { t: 'hist', rid: f.rid, ch, msgs: [], more: false });
@@ -1801,6 +1806,20 @@ export class Hub {
       case 'web.leave':
         return this.leaveWeb(s);
       case 'vc.join': {
+        if (typeof f.ch === 'string' && isDmChannel(f.ch)) {
+          // özel arama: iki taraftan biri ve yazışabiliyorlar
+          const peer = this.dmAllowed(uid, f.ch);
+          if (!peer || !this.canMessage(uid, peer)) return this.send(s, { t: 'err', msg: 'Bu kişiyi arayamazsın.' });
+          if (s.voice) this.leaveVoice(s);
+          s.voice = { ch: f.ch, muted: !!f.muted, deaf: !!f.deaf };
+          let room = this.voiceRooms.get(f.ch);
+          if (!room) this.voiceRooms.set(f.ch, (room = new Map()));
+          room.set(s.sid, { userId: uid, muted: !!f.muted, deaf: !!f.deaf, sessionId: s.sid });
+          this.dmTouch(f.ch, '');
+          this.send(s, { t: 'vc.you', sessionId: s.sid });
+          this.dmBroadcast(f.ch, { t: 'vc', ch: f.ch, members: [...room.values()] });
+          return;
+        }
         const r = this.commOfChannel(s, f.ch);
         if (!r || !isVoiceLike(r.channel.type)) return;
         const deny = r.channel.type === 'voice' ? this.voiceDenied(r.c, r.channel, uid, s.voice?.ch === f.ch) : null;
@@ -1820,7 +1839,7 @@ export class Hub {
         return this.leaveVoice(s);
       case 'vc.state': {
         if (!s.voice) return;
-        const vr = this.commOfChannel(s, s.voice.ch);
+        const vr = isDmChannel(s.voice.ch) ? null : this.commOfChannel(s, s.voice.ch);
         s.voice.muted = !!f.muted || (!!vr && !(channelPerms(vr.c, uid, vr.channel) & Perm.SPEAK));
         s.voice.deaf = !!f.deaf;
         const room = this.voiceRooms.get(s.voice.ch);
@@ -1832,6 +1851,7 @@ export class Hub {
         vm.screen = typeof f.screen === 'string' ? clampStr(f.screen, 24) : null;
         const sid = (v: unknown) => (typeof v === 'string' && /^[\w{}-]{1,64}$/.test(v) ? v : undefined);
         vm.streams = f.streams ? { mic: sid(f.streams.mic), cam: sid(f.streams.cam), screen: sid(f.streams.screen) } : undefined;
+        if (isDmChannel(s.voice.ch)) return this.dmBroadcast(s.voice.ch, { t: 'vc', ch: s.voice.ch, members: [...room.values()] });
         const cid = this.chanToComm.get(s.voice.ch);
         const c = cid && this.comms.get(cid);
         if (c) this.broadcast(c, { t: 'vc', ch: s.voice.ch, members: [...room.values()] });
@@ -1958,6 +1978,7 @@ export class Hub {
     if (!room) return;
     room.delete(s.sid);
     if (!room.size) this.voiceRooms.delete(ch);
+    if (isDmChannel(ch)) return this.dmBroadcast(ch, { t: 'vc', ch, members: [...room.values()] });
     const cid = this.chanToComm.get(ch);
     const c = cid && this.comms.get(cid);
     if (c) this.broadcast(c, { t: 'vc', ch, members: room ? [...room.values()] : [] });
