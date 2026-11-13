@@ -82,8 +82,8 @@ export function TitleBar() {
   return (
     <header className="titlebar">
       <div className="tb-brand">
-        <Logo size={20} />
-        <span>Xanaphian</span>
+        <Logo size={26} />
+        <span lang="en">Xanaphian</span>
       </div>
       <div className="tb-drag" />
       <div className="tb-actions">
