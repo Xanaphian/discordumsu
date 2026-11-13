@@ -1,12 +1,13 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
   Gamepad2, Headphones, Tv, Briefcase, BookOpen, Clock, Cake, Globe, Crown, Pencil, Copy, Maximize2, AtSign, Sparkles, Hexagon, Bot,
+  MessageCircle, UserPlus, UserCheck, Check,
 } from 'lucide-react';
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
 import { idTime } from '../../../shared/protocol';
 import { activeCustom, type ActivityKind, type CardEffect, type ProfileExtra } from '../../../shared/profile';
 import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
-import { useStore, openModal, toast, selectCommunity } from '../../lib/store';
+import { useStore, openModal, toast, selectCommunity, openDm, addFriend, acceptFriend } from '../../lib/store';
 import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
 import { ACTIVITY_LABEL, bannerBackground, bannerClass, cardTheme, imgFrameStyle, linkBrand, linkTitle, nameStyle } from './look';
 
@@ -201,6 +202,38 @@ export interface CardProps {
   extraActions?: React.ReactNode;
 }
 
+/** Profil kartındaki arkadaşlık düğmesi: durumuna göre ekle / kabul et / arkadaşsınız */
+function FriendButton({ uid }: { uid: string }) {
+  const f = useStore((s) => s.friends[uid]);
+  if (f?.state === 'ok')
+    return (
+      <Tooltip text="Arkadaşsınız">
+        <span className="btn sm ghost pc-friend on">
+          <UserCheck size={14} />
+        </span>
+      </Tooltip>
+    );
+  if (f?.state === 'out')
+    return (
+      <span className="btn sm ghost pc-friend wait">
+        <Check size={14} /> İstek gönderildi
+      </span>
+    );
+  if (f?.state === 'in')
+    return (
+      <button className="btn sm ghost pc-friend" onClick={() => acceptFriend(uid)}>
+        <UserCheck size={14} /> İsteği kabul et
+      </button>
+    );
+  return (
+    <Tooltip text="Arkadaş ekle">
+      <button className="btn sm ghost pc-friend" onClick={() => addFriend(uid)} aria-label="Arkadaş ekle">
+        <UserPlus size={14} />
+      </button>
+    </Tooltip>
+  );
+}
+
 export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, displayAs, rolesNode, notice, extraActions }: CardProps) {
   const users = useStore((s) => s.users);
   const communities = useStore((s) => s.communities);
@@ -214,7 +247,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
   const shownName = displayAs ?? (c ? displayName(c, uid, users) : user?.name || 'İsimsiz');
   const color = c ? roleColor(c, uid) : '';
   const mutual = useMemo(
-    () => (variant === 'full' && !isMe ? Object.values(communities).filter((x) => x.members.some((m) => m.userId === uid)) : []),
+    () => (variant === 'full' && !isMe ? Object.values(communities).filter((x) => !x.dm && x.members.some((m) => m.userId === uid)) : []),
     [variant, isMe, communities, uid],
   );
   const full = variant === 'full';
@@ -395,15 +428,30 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
               <button className="btn sm primary" onClick={() => (onClose?.(), openModal({ type: 'settings', tab: 'profile' }))}>
                 <Pencil size={14} /> Profili düzenle
               </button>
-            ) : (
+            ) : user?.bot || uid === 'kovan-asistan' ? (
               <button className="btn sm ghost" onClick={() => (copyText(uid), toast('Kimlik kopyalandı', 'ok'), onClose?.())}>
                 <Copy size={14} /> Kimliği kopyala
               </button>
+            ) : (
+              <>
+                {c?.dm !== uid && (
+                  <button className="btn sm primary" onClick={() => (onClose?.(), openDm(uid))}>
+                    <MessageCircle size={14} /> Mesaj gönder
+                  </button>
+                )}
+                <FriendButton uid={uid} />
+              </>
             )}
             {variant === 'popout' && (
-              <button className="btn sm ghost" onClick={() => (onClose?.(), openModal({ type: 'profile', uid, cid: c?.id }))}>
-                <Maximize2 size={14} /> Tam profil
-              </button>
+              isMe || user?.bot ? (
+                <button className="btn sm ghost" onClick={() => (onClose?.(), openModal({ type: 'profile', uid, cid: c?.id }))}>
+                  <Maximize2 size={14} /> Tam profil
+                </button>
+              ) : (
+                <button className="btn sm ghost pc-more" title="Tam profil" aria-label="Tam profil" onClick={() => (onClose?.(), openModal({ type: 'profile', uid, cid: c?.id }))}>
+                  <Maximize2 size={15} />
+                </button>
+              )
             )}
             {extraActions}
           </div>

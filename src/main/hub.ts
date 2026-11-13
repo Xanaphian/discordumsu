@@ -12,6 +12,7 @@ import {
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
   hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
+  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo,
 } from '../shared/protocol';
 import { sanitizeProfile, BIO_MAX } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
@@ -147,6 +148,12 @@ interface HubData {
   hubId: ID;
   users: Record<ID, StoredUser>;
   communities: ID[];
+  /** özel mesaj kanalları: kanal -> son mesaj kimliği */
+  dms?: Record<ID, ID | ''>;
+  /** arkadaşlıklar: 'd_<a>_<b>' -> kim istedi, kabul edildi mi */
+  friends?: Record<ID, { from: ID; ok: boolean; ts: number }>;
+  /** arkadaş kodları: kod -> kullanıcı */
+  friendCodes?: Record<string, ID>;
 }
 
 type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number };
@@ -749,6 +756,7 @@ export class Hub {
         this.sendRaw(s, data);
       }
     }
+    for (const p of this.contactsOf(uid)) for (const s of this.userSessions.get(p) || []) if (!sent.has(s)) (sent.add(s), this.sendRaw(s, data));
   }
 
   private userComms(uid: ID): StoredCommunity[] {
@@ -777,6 +785,7 @@ export class Hub {
         if (wr && wr.size) web[ch.id] = [...wr.values()];
       }
     }
+    for (const p of this.contactsOf(uid)) presence[p] = this.effectiveStatus(p);
     this.send(s, {
       t: 'ready',
       hubId: this.data.hubId,
@@ -787,8 +796,276 @@ export class Hub {
       lastIds,
       voice,
       web,
+      dms: this.dmsFor(uid),
+      friends: this.friendsFor(uid),
       v: PROTOCOL_VERSION,
     });
+  }
+
+  // ---------- özel mesajlar ----------
+  /** İki kullanıcı bu kovanda en az bir toplulukta birlikte mi? */
+  private shareCommunity(a: ID, b: ID) {
+    return this.userComms(a).some((c) => c.members.some((m) => m.userId === b));
+  }
+
+  private dmsFor(uid: ID): DmInfo[] {
+    const out: DmInfo[] = [];
+    for (const [ch, lastId] of Object.entries(this.data.dms || {})) {
+      const peer = dmPeerOf(ch, uid);
+      const pu = peer && this.data.users[peer];
+      if (pu) out.push({ ch, peer: pu.pub, ...(lastId ? { lastId } : {}) });
+    }
+    return out;
+  }
+
+  private dmInfo(ch: ID, uid: ID): DmInfo | null {
+    const peer = dmPeerOf(ch, uid);
+    const pu = peer && this.data.users[peer];
+    if (!pu) return null;
+    const lastId = this.data.dms?.[ch];
+    return { ch, peer: pu.pub, ...(lastId ? { lastId } : {}) };
+  }
+
+  /** Kullanıcının bu DM'e erişimi var mı (taraflardan biri ve ya kayıtlı DM ya da ortak topluluk) */
+  private dmAllowed(uid: ID, ch: ID): ID | null {
+    const peer = dmPeerOf(ch, uid);
+    if (!peer || peer === uid || peer === BOT_ID || !this.data.users[peer] || this.bots.isBot(peer)) return null;
+    if (this.data.dms && ch in this.data.dms) return peer;
+    return this.canMessage(uid, peer) ? peer : null;
+  }
+
+  private canMessage(a: ID, b: ID) {
+    return !!this.data.friends?.[dmChannelId(a, b)]?.ok || this.shareCommunity(a, b);
+  }
+
+  /** Arkadaşları, istek bekleyenleri ve DM yazışanları (varlık/profil güncellemeleri için) */
+  private contactsOf(uid: ID): ID[] {
+    const out = new Set<ID>();
+    for (const k of Object.keys(this.data.friends || {})) {
+      const p = dmPeerOf(k, uid);
+      if (p) out.add(p);
+    }
+    for (const k of Object.keys(this.data.dms || {})) {
+      const p = dmPeerOf(k, uid);
+      if (p) out.add(p);
+    }
+    out.delete(uid);
+    return [...out];
+  }
+
+  // ---------- arkadaşlar ----------
+  private friendsFor(uid: ID): FriendInfo[] {
+    const out: FriendInfo[] = [];
+    for (const k of Object.keys(this.data.friends || {})) {
+      const fi = this.friendInfo(k, uid);
+      if (fi) out.push(fi);
+    }
+    return out;
+  }
+
+  private friendInfo(key: ID, uid: ID): FriendInfo | null {
+    const r = this.data.friends?.[key];
+    const peer = dmPeerOf(key, uid);
+    const pu = peer && this.data.users[peer];
+    if (!r || !pu) return null;
+    return { user: pu.pub, state: r.ok ? 'ok' : r.from === uid ? 'out' : 'in', ts: r.ts };
+  }
+
+  private pushFriend(key: ID) {
+    const m = /^d_([\w-]+)_([\w-]+)$/.exec(key);
+    if (!m) return;
+    for (const u of [m[1], m[2]]) {
+      const fi = this.friendInfo(key, u);
+      const other = u === m[1] ? m[2] : m[1];
+      for (const x of this.userSessions.get(u) || []) {
+        if (fi) {
+          this.send(x, { t: 'friend', f: fi });
+          this.send(x, { t: 'presence', uid: other, status: this.effectiveStatus(other) });
+        } else this.send(x, { t: 'friend.del', uid: other });
+      }
+    }
+  }
+
+  /** a, b'ye arkadaşlık isteği gönderir; karşı taraf zaten istemişse arkadaş olurlar */
+  private friendRequest(a: ID, b: ID, direct = false): string | null {
+    if (a === b) return 'Kendine arkadaşlık isteği gönderemezsin.';
+    if (!this.data.users[b] || b === BOT_ID || this.bots.isBot(b) || this.bots.isBot(a)) return 'Bu kişi bulunamadı.';
+    const key = dmChannelId(a, b);
+    this.data.friends ||= {};
+    const r = this.data.friends[key];
+    if (r?.ok) return null;
+    if (!direct && !r && !this.shareCommunity(a, b)) return 'Arkadaş eklemek için ortak bir topluluğunuz olmalı ya da onun arkadaş kodunu kullanmalısın.';
+    if (direct || (r && r.from === b)) this.data.friends[key] = { from: r?.from || a, ok: true, ts: Date.now() };
+    else this.data.friends[key] = { from: a, ok: false, ts: Date.now() };
+    this.saveHub();
+    this.pushFriend(key);
+    return null;
+  }
+
+  private friendCodeOf(uid: ID, reset = false): string {
+    this.data.friendCodes ||= {};
+    const codes = this.data.friendCodes;
+    let code = Object.keys(codes).find((k) => codes[k] === uid);
+    if (code && reset) delete codes[code], (code = undefined);
+    if (!code) {
+      do code = makeShortCode((n) => crypto.randomBytes(n));
+      while (codes[code] || [...this.comms.values()].some((c) => c.inviteCode === code));
+      codes[code] = uid;
+      this.saveHub();
+    }
+    return code;
+  }
+
+  private handleFriend(s: Session, uid: ID, f: ClientFrame): boolean {
+    switch (f.t) {
+      case 'friend.req': {
+        const err = this.friendRequest(uid, String(f.to || ''));
+        if (err) this.send(s, { t: 'err', msg: err, rid: f.rid });
+        else if (f.rid) this.send(s, { t: 'ok', rid: f.rid });
+        return true;
+      }
+      case 'friend.accept': {
+        const key = dmChannelId(uid, String(f.to || ''));
+        const r = this.data.friends?.[key];
+        if (r && !r.ok && r.from !== uid) {
+          r.ok = true;
+          r.ts = Date.now();
+          this.saveHub();
+          this.pushFriend(key);
+        }
+        return true;
+      }
+      case 'friend.remove': {
+        const key = dmChannelId(uid, String(f.to || ''));
+        if (this.data.friends?.[key]) {
+          delete this.data.friends[key];
+          this.saveHub();
+          this.pushFriend(key);
+        }
+        return true;
+      }
+      case 'friend.code':
+        this.send(s, { t: 'ok', rid: f.rid, data: this.friendCodeOf(uid, !!f.reset) });
+        return true;
+    }
+    return false;
+  }
+
+  private dmBroadcast(ch: ID, f: ServerFrame, except?: Session) {
+    const m = /^d_([\w-]+)_([\w-]+)$/.exec(ch);
+    if (!m) return;
+    const data = JSON.stringify(f);
+    for (const uid of [m[1], m[2]]) for (const x of this.userSessions.get(uid) || []) if (x !== except) this.sendRaw(x, data);
+  }
+
+  /** DM kaydını oluşturur/günceller; yeni ise iki tarafa da haber verir */
+  private dmTouch(ch: ID, lastId: ID | '') {
+    this.data.dms ||= {};
+    const isNew = !(ch in this.data.dms);
+    this.data.dms[ch] = lastId || this.data.dms[ch] || '';
+    this.saveHub();
+    if (isNew) {
+      const m = /^d_([\w-]+)_([\w-]+)$/.exec(ch)!;
+      for (const uid of [m[1], m[2]]) {
+        const info = this.dmInfo(ch, uid);
+        if (info) for (const x of this.userSessions.get(uid) || []) this.send(x, { t: 'dm', dm: info });
+      }
+    }
+  }
+
+  private handleDm(s: Session, uid: ID, f: ClientFrame): boolean {
+    if (f.t === 'dm.open') {
+      const ch = dmChannelId(uid, String(f.to || ''));
+      if (!this.dmAllowed(uid, ch)) {
+        this.send(s, { t: 'err', msg: 'Bu kişiyle ortak bir topluluğun olmadığı için mesajlaşamazsın.', rid: f.rid });
+        return true;
+      }
+      this.dmTouch(ch, '');
+      this.send(s, { t: 'ok', rid: f.rid, data: this.dmInfo(ch, uid) });
+      return true;
+    }
+    const ch = (f as { ch?: unknown }).ch;
+    if (typeof ch !== 'string' || !isDmChannel(ch)) return false;
+    const peer = this.dmAllowed(uid, ch);
+    if (!peer) {
+      if (f.t === 'hist') this.send(s, { t: 'hist', rid: f.rid, ch, msgs: [], more: false });
+      return true;
+    }
+    const L = this.log(ch);
+    switch (f.t) {
+      case 'send': {
+        if (!this.canMessage(uid, peer))
+          return this.send(s, { t: 'err', msg: 'Bu kişiyle artık ortak bir topluluğunuz yok ve arkadaş değilsiniz, mesaj gönderemezsin.', nonce: f.nonce }), true;
+        if (Date.now() - (s.lastSend[ch] || 0) < 80) return this.send(s, { t: 'err', msg: 'Biraz yavaş yaz.', nonce: f.nonce }), true;
+        s.lastSend[ch] = Date.now();
+        const content = clampStr(f.content, MAX_CONTENT).trim();
+        const atts = Array.isArray(f.attachments) ? f.attachments.slice(0, 10).filter((a) => a && typeof a.url === 'string' && a.url.startsWith('/f/')) : [];
+        if (!content && !atts.length) return true;
+        const m: Message = { id: makeId(), channelId: ch, authorId: uid, content, ts: Date.now() };
+        if (f.replyTo && L.byId.has(f.replyTo)) m.replyTo = f.replyTo;
+        if (atts.length) m.attachments = atts.map((a) => ({ id: clampStr(a.id, 20), name: clampStr(a.name, 120), size: Number(a.size) || 0, mime: clampStr(a.mime, 100), url: clampStr(a.url, 300), w: a.w, h: a.h }));
+        L.add(m);
+        this.dmTouch(ch, m.id);
+        this.dmBroadcast(ch, { t: 'msg', m }, s);
+        this.send(s, { t: 'msg', m, nonce: f.nonce });
+        return true;
+      }
+      case 'edit': {
+        const m = L.byId.get(f.id);
+        const content = clampStr(f.content, MAX_CONTENT).trim();
+        if (!m || m.authorId !== uid || (!content && !m.attachments?.length)) return true;
+        m.content = content;
+        m.editedTs = Date.now();
+        L.update(m);
+        this.dmBroadcast(ch, { t: 'msg.upd', m });
+        return true;
+      }
+      case 'del': {
+        const m = L.byId.get(f.id);
+        if (!m || m.authorId !== uid) return true;
+        L.remove(f.id);
+        this.dmBroadcast(ch, { t: 'msg.del', ch, id: f.id });
+        return true;
+      }
+      case 'react': {
+        const m = L.byId.get(f.id);
+        const e = clampStr(f.e, 32);
+        if (!m || !e) return true;
+        m.reactions ||= {};
+        const arr = m.reactions[e] || [];
+        if (f.on) {
+          if (arr.includes(uid) || (!m.reactions[e] && Object.keys(m.reactions).length >= 20)) return true;
+          m.reactions[e] = [...arr, uid];
+        } else {
+          const next = arr.filter((x) => x !== uid);
+          if (next.length) m.reactions[e] = next;
+          else delete m.reactions[e];
+        }
+        L.update(m);
+        this.dmBroadcast(ch, { t: 'msg.upd', m });
+        return true;
+      }
+      case 'pin': {
+        const m = L.byId.get(f.id);
+        if (!m) return true;
+        m.pinned = !!f.on;
+        L.update(m);
+        this.dmBroadcast(ch, { t: 'msg.upd', m });
+        return true;
+      }
+      case 'hist': {
+        const p = L.page(f.before, f.around);
+        this.send(s, { t: 'hist', rid: f.rid, ch, msgs: p.msgs, more: p.more });
+        return true;
+      }
+      case 'pins':
+        this.send(s, { t: 'pins', rid: f.rid, ch, msgs: L.list.filter((m) => m.pinned).slice(-50).reverse() });
+        return true;
+      case 'typing':
+        this.dmBroadcast(ch, { t: 'typing', ch, uid }, s);
+        return true;
+    }
+    return true;
   }
 
   private commOfChannel(s: Session, ch: ID): { c: StoredCommunity; channel: Channel } | null {
@@ -816,12 +1093,22 @@ export class Hub {
     if (!s.userId) return this.send(s, { t: 'err', msg: 'Önce kimlik doğrulaması gerekli.' });
     const uid = s.userId;
     if (f.t.startsWith('bot.')) return this.bots.handleFrame(uid, f as Extract<ClientFrame, { t: `bot.${string}` }>, (x) => this.send(s, x));
+    if (this.handleFriend(s, uid, f) || this.handleDm(s, uid, f)) return;
 
     switch (f.t) {
       case 'join': {
         const code = typeof f.code === 'string' ? f.code.toLowerCase() : '';
         const c = code ? [...this.comms.values()].find((x) => x.inviteCode === code) : f.cid ? this.comms.get(f.cid) : undefined;
         if (this.bots.isBot(uid)) return this.send(s, { t: 'err', msg: 'Botlar davetle katılamaz.', rid: f.rid });
+        const friendOf = !c && code ? this.data.friendCodes?.[code] : undefined;
+        if (friendOf) {
+          // arkadaş kodu: kodun sahibiyle doğrudan arkadaş olunur
+          if (friendOf === uid) return this.send(s, { t: 'err', msg: 'Bu senin kendi arkadaş kodun. Arkadaşına gönder, o yapıştırsın.', rid: f.rid });
+          const err = this.friendRequest(uid, friendOf, true);
+          if (err) return this.send(s, { t: 'err', msg: err, rid: f.rid });
+          if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: '@' + friendOf });
+          return;
+        }
         if (!c || (!code && c.inviteKey !== f.key)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           if (c.bans?.some((b) => b.userId === uid)) return this.send(s, { t: 'err', msg: 'Bu topluluktan yasaklandın.', rid: f.rid });
@@ -990,6 +1277,7 @@ export class Hub {
         const sent = new Set<Session>();
         for (const c of this.userComms(uid))
           for (const x of this.memberSessions(c)) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
+        for (const p of [uid, ...this.contactsOf(uid)]) for (const x of this.userSessions.get(p) || []) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
         return;
       }
       case 'comm.create': {
@@ -1713,7 +2001,9 @@ export class Hub {
     this.broadcastPresence(id);
     if (changed && existing) {
       const data = JSON.stringify({ t: 'user', u: pub } satisfies ServerFrame);
-      for (const c of this.userComms(id)) for (const x of this.memberSessions(c, s)) this.sendRaw(x, data);
+      const sent = new Set<Session>([s]);
+      for (const c of this.userComms(id)) for (const x of this.memberSessions(c, s)) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
+      for (const p of this.contactsOf(id)) for (const x of this.userSessions.get(p) || []) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
     }
   }
 

@@ -381,6 +381,11 @@ function QuickSwitcher() {
   const items = useMemo(() => {
     const all: { key: string; label: string; sub: string; kind: 'ch' | 'voice' | 'space' | 'site' | 'comm'; cid: string; ch?: string; unread: boolean }[] = [];
     for (const c of Object.values(communities)) {
+      if (c.dm) {
+        const ch = c.channels[0]?.id;
+        all.push({ key: c.id, label: c.name, sub: 'Özel mesaj', kind: 'comm', cid: c.id, unread: !!ch && !!lastIds[ch] && lastIds[ch] > (read[ch] || '') });
+        continue;
+      }
       all.push({ key: c.id, label: c.name, sub: 'Topluluk', kind: 'comm', cid: c.id, unread: false });
       for (const ch of c.channels)
         all.push({ key: ch.id, label: ch.name, sub: c.name, kind: ch.type === 'voice' ? 'voice' : ch.type === 'space' ? 'space' : ch.type === 'site' ? 'site' : 'ch', cid: c.id, ch: ch.id, unread: !!lastIds[ch.id] && lastIds[ch.id] > (read[ch.id] || '') });

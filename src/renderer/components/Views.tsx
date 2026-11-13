@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Plus, LogIn, Users, Zap, Shield, Keyboard, ArrowRight } from 'lucide-react';
-import { useStore, openModal, selectCommunity, finishOnboarding } from '../lib/store';
+import { useStore, openModal, selectCommunity, finishOnboarding, realCommunities, setHomeTab } from '../lib/store';
+import { FriendsView } from './Friends';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf } from '../lib/voice';
 import { Avatar, CommunityIcon, Logo, Tooltip } from './Common';
 import { cx, COLORS, displayName, resizeImage, modKey } from '../lib/util';
@@ -8,11 +9,16 @@ import type { Channel, Community } from '../../shared/protocol';
 import { useUnread } from './ServerRail';
 
 export function HomeView() {
+  const tab = useStore((s) => s.homeTab);
+  return tab === 'home' ? <HomeStart /> : <FriendsView />;
+}
+
+function HomeStart() {
   const me = useStore((s) => s.me);
   const communities = useStore((s) => s.communities);
   const presence = useStore((s) => s.presence);
   const { comm } = useUnread();
-  const list = Object.values(communities);
+  const list = realCommunities(communities);
   return (
     <section className="home scroll-thin">
       <div className="home-inner">
@@ -26,6 +32,9 @@ export function HomeView() {
               </button>
               <button className="btn ghost lg" onClick={() => openModal({ type: 'join' })}>
                 <LogIn size={18} /> Davetle katıl
+              </button>
+              <button className="btn ghost lg" onClick={() => setHomeTab('add')}>
+                <Users size={18} /> Arkadaş ekle
               </button>
             </div>
           </div>

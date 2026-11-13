@@ -1,11 +1,11 @@
 import React, { memo, useMemo, useState } from 'react';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe,
+  Signal, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
-  updateSettings, toggleMuted, toast,
+  updateSettings, toggleMuted, toast, selectCommunity, setHomeTab, dmList, closeDm, pendingIn, hiddenDms, isDmHidden, realCommunities,
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
 import { enterSpace, exitSpace } from '../lib/space';
@@ -485,24 +485,100 @@ export function Sidebar() {
   const c = useStore((s) => (s.current !== 'home' ? s.communities[s.current] : undefined));
   return (
     <aside className="sidebar">
-      {current === 'home' || !c ? <HomeSidebar /> : <ChannelSidebar c={c} />}
+      {current === 'home' || !c || c.dm ? <HomeSidebar /> : <ChannelSidebar c={c} />}
       <VoicePanel />
       <UserPanel />
     </aside>
   );
 }
 
+/** Ana Sayfa kenar çubuğundaki özel sohbet satırı */
+function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean; unread: boolean; mentions: number }) {
+  const user = useStore((s) => s.users[c.dm!] || c.users[c.dm!]);
+  const status = useStore((s) => s.presence[c.dm!]);
+  const custom = activeCustom(user?.profile);
+  const menu = (e: React.MouseEvent) =>
+    openMenu(e, [
+      { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !unread },
+      { label: 'Profil', onClick: () => useStore.setState({ popout: { uid: c.dm!, cid: c.id, x: e.clientX + 20, y: e.clientY } }) },
+      { label: isMutedId(c.id) ? 'Bildirimleri aç' : 'Sessize al', onClick: () => toggleMuted(c.id) },
+      { sep: true },
+      { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
+    ]);
+  return (
+    <div className={cx('ch-row dm-row', active && 'active', unread && 'unread')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} role="button" tabIndex={0}>
+      <Avatar user={user} size={32} status={status || 'offline'} />
+      <span className="dm-text">
+        <span className="ch-name">{user?.name || c.name}</span>
+        {custom?.text ? <span className="ch-sub">{custom.emoji ? custom.emoji + ' ' : ''}{custom.text}</span> : null}
+      </span>
+      {mentions > 0 ? (
+        <span className="badge">{mentions}</span>
+      ) : (
+        <button
+          className="dm-close"
+          aria-label="Sohbeti kapat"
+          onClick={(e) => {
+            e.stopPropagation();
+            closeDm(c.id);
+          }}
+        >
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+const isMutedId = (id: string) => useStore.getState().settings.mutedIds.includes(id);
+
 function HomeSidebar() {
   const communities = useStore((s) => s.communities);
+  const current = useStore((s) => s.current);
+  const homeTab = useStore((s) => s.homeTab);
+  const friends = useStore((s) => s.friends);
   const conns = useStore((s) => s.conns);
   const localPort = useStore((s) => s.info?.hubPort);
+  const { comm } = useUnread();
   const remote = Object.values(conns).filter((x) => !x.local);
+  const requests = pendingIn(friends);
+  const dms = useMemo(() => {
+    const hidden = hiddenDms();
+    return dmList(communities).filter((c) => current === c.id || !isDmHidden(c, hidden));
+  }, [communities, current]);
+  const onHome = current === 'home';
   return (
     <>
       <div className="side-header static">
         <span className="side-title">Ana Sayfa</span>
       </div>
       <div className="ch-list scroll-thin">
+        <div className="home-links">
+          <button className={cx('ch-row', onHome && homeTab === 'home' && 'active')} onClick={() => setHomeTab('home')}>
+            <span className="ch-icon"><Home size={18} /></span>
+            <span className="ch-name">Başlangıç</span>
+          </button>
+          <button className={cx('ch-row', onHome && homeTab !== 'home' && 'active')} onClick={() => setHomeTab(requests ? 'pending' : 'online')}>
+            <span className="ch-icon"><Users size={18} /></span>
+            <span className="ch-name">Arkadaşlar</span>
+            {requests > 0 && <span className="badge">{requests}</span>}
+          </button>
+        </div>
+        <div className="cat-row static">
+          <span>Özel mesajlar</span>
+          <Tooltip text="Arkadaş ekle">
+            <button className="cat-add" onClick={() => setHomeTab('add')} aria-label="Arkadaş ekle">
+              <Plus size={15} />
+            </button>
+          </Tooltip>
+        </div>
+        {dms.map((c) => (
+          <DmRow key={c.id} c={c} active={current === c.id} unread={!!comm[c.id]?.unread} mentions={comm[c.id]?.mentions || 0} />
+        ))}
+        {!dms.length && <div className="dm-empty">Henüz özel mesajın yok. Bir arkadaşının profiline tıklayıp <b>Mesaj gönder</b> diyebilirsin.</div>}
+        <div className="cat-row static">
+          <span>Kısayollar</span>
+        </div>
         <div className="home-links">
           <button className="ch-row" onClick={() => openModal({ type: 'createCommunity' })}>
             <span className="ch-icon"><Plus size={18} /></span>
@@ -533,7 +609,7 @@ function HomeSidebar() {
           </div>
         ))}
         <div className="cat-row static">
-          <span>Toplulukların ({Object.keys(communities).length})</span>
+          <span>Toplulukların ({realCommunities(communities).length})</span>
         </div>
       </div>
     </>
