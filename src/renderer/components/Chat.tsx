@@ -3,6 +3,7 @@ import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
   ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Settings, Bell, BellOff, EyeOff, Globe,
+  Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Dices, Coins, Braces,
 } from 'lucide-react';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
@@ -608,6 +609,75 @@ interface PendingFile {
   preview?: string;
 }
 
+const fmtSecs = (n: number) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+
+/** Sesli mesaj kaydı: mikrofonu açar, bitince .webm dosyası verir. */
+function useRecorder(onDone: (f: File) => void) {
+  const [on, setOn] = useState(false);
+  const [secs, setSecs] = useState(0);
+  const r = useRef<{ mr: MediaRecorder; stream: MediaStream; chunks: Blob[]; keep: boolean; timer: number } | null>(null);
+  const done = useRef(onDone);
+  done.current = onDone;
+  const cleanup = () => {
+    const x = r.current;
+    if (!x) return;
+    clearInterval(x.timer);
+    x.stream.getTracks().forEach((t) => t.stop());
+    r.current = null;
+    setOn(false);
+  };
+  useEffect(() => () => {
+    if (r.current) {
+      r.current.keep = false;
+      if (r.current.mr.state !== 'inactive') r.current.mr.stop();
+      cleanup();
+    }
+  }, []);
+  const start = async () => {
+    if (r.current) return;
+    try {
+      const st = useStore.getState().settings;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: st.micId && st.micId !== 'default' ? { ideal: st.micId } : undefined, echoCancellation: true, noiseSuppression: st.noiseSuppression },
+      });
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const mr = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 64000 });
+      const x = { mr, stream, chunks: [] as Blob[], keep: true, timer: 0 };
+      mr.ondataavailable = (e) => e.data.size && x.chunks.push(e.data);
+      mr.onstop = () => {
+        const keep = x.keep && x.chunks.length > 0;
+        const blob = new Blob(x.chunks, { type: 'audio/webm' });
+        cleanup();
+        if (keep) {
+          const d = new Date();
+          const name = `sesli-mesaj-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${String(d.getSeconds()).padStart(2, '0')}.webm`;
+          done.current(new File([blob], name, { type: 'audio/webm' }));
+        }
+      };
+      const t0 = Date.now();
+      x.timer = window.setInterval(() => {
+        const n = Math.floor((Date.now() - t0) / 1000);
+        setSecs(n);
+        if (n >= 300 && mr.state === 'recording') mr.stop(); // en fazla 5 dakika
+      }, 250);
+      r.current = x;
+      mr.start(500);
+      setSecs(0);
+      setOn(true);
+    } catch {
+      toast('Mikrofona erişilemedi.', 'err');
+    }
+  };
+  const stop = (keep: boolean) => {
+    const x = r.current;
+    if (!x) return;
+    x.keep = keep;
+    if (x.mr.state !== 'inactive') x.mr.stop();
+    else cleanup();
+  };
+  return { on, secs, start, stop };
+}
+
 export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const me = useStore((s) => s.me.id);
   const users = useStore((s) => s.users);
@@ -621,6 +691,9 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const [sel, setSel] = useState(0);
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [fmtOpen, setFmtOpen] = useState(false);
+  const rec = useRecorder((f) => addFiles([f]));
   const cp = channelPerms(c, me, ch);
   const canSend = (cp & Perm.SEND_MESSAGES) !== 0;
   const canAttach = (cp & Perm.ATTACH_FILES) !== 0;
@@ -772,6 +845,38 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
     drafts.delete(ch.id);
   };
 
+  /** Seçili metni biçim işaretleriyle sarar (seçim yoksa imleç ortada kalır). */
+  const wrap = (open: string, close = open, linePrefix = false) => {
+    const el = ta.current;
+    if (!el) return;
+    const a = el.selectionStart ?? value.length;
+    const b = el.selectionEnd ?? a;
+    const sel = value.slice(a, b);
+    const ins = linePrefix ? (sel || '').split('\n').map((l) => open + l).join('\n') : open + sel + close;
+    const next = value.slice(0, a) + ins + value.slice(b);
+    setValue(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      if (sel) el.setSelectionRange(a, a + ins.length);
+      else el.setSelectionRange(a + open.length, a + open.length);
+    });
+  };
+  const insertText = (t: string) => {
+    const el = ta.current;
+    const a = el?.selectionStart ?? value.length;
+    const b = el?.selectionEnd ?? a;
+    setValue(value.slice(0, a) + t + value.slice(b));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(a + t.length, a + t.length);
+    });
+  };
+  const roll = () => {
+    const n = 1 + Math.floor(Math.random() * 6);
+    sendMessage(ch.id, `🎲 Zar attı: **${n}**`);
+  };
+  const flip = () => sendMessage(ch.id, `🪙 Yazı tura: **${Math.random() < 0.5 ? 'Yazı' : 'Tura'}**`);
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (sug) {
       if (e.key === 'ArrowDown') return e.preventDefault(), setSel((s) => (s + 1) % sug.items.length);
@@ -782,6 +887,11 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && (enterToSend || e.ctrlKey)) {
       e.preventDefault();
       submit();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'b' || e.key === 'i')) {
+      e.preventDefault();
+      wrap(e.key === 'b' ? '**' : '*');
       return;
     }
     if (e.key === 'Escape' && replyTo) useStore.setState((s) => ({ replyTo: { ...s.replyTo, [ch.id]: undefined } }));
@@ -849,14 +959,101 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
           ))}
         </div>
       )}
-      <div className={cx('composer-box', (replyTo || files.length > 0) && 'joined')}>
-        {canAttach && (
-          <Tooltip text="Dosya yükle" side="top">
-            <button className="composer-btn" onClick={() => fileInput.current?.click()} aria-label="Dosya yükle">
-              <Plus size={20} />
+      {plusOpen && (
+        <>
+          <div className="cp-scrim" onMouseDown={() => setPlusOpen(false)} />
+          <div className="cp-plus" onClick={() => setPlusOpen(false)}>
+            {canAttach && (
+              <button onClick={() => fileInput.current?.click()}>
+                <Paperclip size={17} />
+                <span>
+                  <b>Dosya yükle</b>
+                  <small>Resim, video, belge · 25 MB</small>
+                </span>
+              </button>
+            )}
+            {canAttach && (
+              <button onClick={() => rec.start()}>
+                <Mic size={17} />
+                <span>
+                  <b>Sesli mesaj</b>
+                  <small>Kaydet ve gönder</small>
+                </span>
+              </button>
+            )}
+            <button onClick={() => wrap('```\n', '\n```')}>
+              <Braces size={17} />
+              <span>
+                <b>Kod bloğu</b>
+                <small>Renkli kod paylaş</small>
+              </span>
+            </button>
+            <button onClick={() => wrap('||')}>
+              <SpoilerIcon size={17} />
+              <span>
+                <b>Sürpriz metin</b>
+                <small>Tıklayınca görünür</small>
+              </span>
+            </button>
+            <div className="cp-sep" />
+            <button onClick={roll}>
+              <Dices size={17} />
+              <span>
+                <b>Zar at</b>
+                <small>1 ile 6 arası</small>
+              </span>
+            </button>
+            <button onClick={flip}>
+              <Coins size={17} />
+              <span>
+                <b>Yazı tura</b>
+                <small>Şansına güven</small>
+              </span>
+            </button>
+          </div>
+        </>
+      )}
+      {fmtOpen && !rec.on && (
+        <div className="cp-fmt">
+          <Tooltip text="Kalın (Ctrl+B)" side="top">
+            <button onMouseDown={(e) => (e.preventDefault(), wrap('**'))} aria-label="Kalın">
+              <Bold size={15} />
             </button>
           </Tooltip>
-        )}
+          <Tooltip text="İtalik (Ctrl+I)" side="top">
+            <button onMouseDown={(e) => (e.preventDefault(), wrap('*'))} aria-label="İtalik">
+              <Italic size={15} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Üstü çizili" side="top">
+            <button onMouseDown={(e) => (e.preventDefault(), wrap('~~'))} aria-label="Üstü çizili">
+              <Strikethrough size={15} />
+            </button>
+          </Tooltip>
+          <i />
+          <Tooltip text="Satır içi kod" side="top">
+            <button onMouseDown={(e) => (e.preventDefault(), wrap('`'))} aria-label="Kod">
+              <Code size={15} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Alıntı" side="top">
+            <button onMouseDown={(e) => (e.preventDefault(), wrap('> ', '', true))} aria-label="Alıntı">
+              <Quote size={15} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Sürpriz metin" side="top">
+            <button onMouseDown={(e) => (e.preventDefault(), wrap('||'))} aria-label="Sürpriz metin">
+              <SpoilerIcon size={15} />
+            </button>
+          </Tooltip>
+        </div>
+      )}
+      <div className={cx('composer-box', (replyTo || files.length > 0) && 'joined', rec.on && 'recording')}>
+        <Tooltip text="Ekle" side="top">
+          <button className={cx('composer-btn', 'cp-plus-btn', plusOpen && 'on')} onClick={() => setPlusOpen((v) => !v)} aria-label="Ekle">
+            <Plus size={20} />
+          </button>
+        </Tooltip>
         <input
           ref={fileInput}
           type="file"
@@ -867,7 +1064,26 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
             e.target.value = '';
           }}
         />
+        {rec.on && (
+          <div className="cp-rec">
+            <span className="cp-rec-dot" />
+            <b>Kaydediliyor</b>
+            <span className="cp-rec-time">{fmtSecs(rec.secs)}</span>
+            <span className="cp-rec-wave" aria-hidden>
+              {Array.from({ length: 18 }, (_, i) => (
+                <i key={i} style={{ animationDelay: `${(i * 83) % 600}ms` }} />
+              ))}
+            </span>
+            <button className="btn ghost sm" onClick={() => rec.stop(false)}>
+              İptal
+            </button>
+            <button className="btn primary sm" onClick={() => rec.stop(true)}>
+              <Square size={12} /> Bitir
+            </button>
+          </div>
+        )}
         <textarea
+          hidden={rec.on}
           id="composer-input"
           ref={ta}
           value={value}
@@ -897,6 +1113,20 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
             </span>
           </Tooltip>
         ) : null}
+        {!rec.on && (
+          <div className="cp-right">
+        <Tooltip text="Biçimlendirme" side="top">
+          <button className={cx('composer-btn', fmtOpen && 'on')} onClick={() => setFmtOpen((v) => !v)} aria-label="Biçimlendirme">
+            <Type size={19} />
+          </button>
+        </Tooltip>
+        {canAttach && !value.trim() && !files.length && (
+          <Tooltip text="Sesli mesaj" side="top">
+            <button className="composer-btn" onClick={() => rec.start()} aria-label="Sesli mesaj">
+              <Mic size={19} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip text="Emoji" side="top">
           <button
             className="composer-btn"
@@ -918,6 +1148,15 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
             <SmilePlus size={20} />
           </button>
         </Tooltip>
+        {(value.trim() || files.length > 0) && (
+          <Tooltip text="Gönder" side="top">
+            <button className="composer-btn cp-send" onClick={submit} aria-label="Gönder" disabled={uploading}>
+              <SendHorizontal size={18} />
+            </button>
+          </Tooltip>
+        )}
+          </div>
+        )}
       </div>
       <TypingBar chId={ch.id} c={c} />
     </div>

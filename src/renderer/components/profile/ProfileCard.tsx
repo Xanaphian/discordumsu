@@ -299,9 +299,15 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
 
   return (
     <div
-      className={cx('pcard', 'pcard-' + variant, theme && 'themed', theme && 'tone-' + theme.tone)}
+      className={cx('pcard', 'pcard-' + variant, theme && 'themed', theme && 'tone-' + theme.tone, p?.bg && 'has-bg')}
       style={theme?.style}
     >
+      {p?.bg && (
+        <>
+          <div className="pc-bgimg" style={{ backgroundImage: `url(${p.bg.image})`, filter: p.bg.blur ? `blur(${p.bg.blur}px)` : undefined }} />
+          <div className="pc-bgdim" style={{ opacity: (p.bg.dim ?? 45) / 100 }} />
+        </>
+      )}
       <Banner user={user} profile={p} className={full ? 'tall' : ''}>
         {badges.length > 0 && (
           <div className="pc-badges">

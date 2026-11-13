@@ -18,6 +18,13 @@ export interface ProfileBanner {
   image?: string; // data:image/...
 }
 
+/** Tüm profil kartının arkasına konan resim */
+export interface ProfileBg {
+  image: string; // data:image/...
+  dim?: number; // 0-85: resmin üstüne koyulan karartma yüzdesi
+  blur?: number; // 0-16 px
+}
+
 export interface ProfileLink {
   label: string;
   url: string;
@@ -28,6 +35,7 @@ export interface ProfileExtra {
   custom?: { emoji?: string; text?: string; until?: number };
   activity?: { kind: ActivityKind; text: string };
   banner?: ProfileBanner;
+  bg?: ProfileBg;
   theme?: { a: string; b: string };
   shape?: AvatarShape;
   frame?: AvatarFrame;
@@ -52,6 +60,8 @@ export const ACTIVITY_KINDS: ActivityKind[] = ['playing', 'listening', 'watching
 
 export const BIO_MAX = 300;
 export const BANNER_MAX = 160_000;
+export const BG_MAX = 220_000;
+const IMG = /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i;
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const col = (v: unknown, def?: string) => (typeof v === 'string' && HEX.test(v) ? v.toLowerCase() : def);
@@ -101,11 +111,17 @@ export function sanitizeProfile(p: unknown): ProfileExtra | undefined {
       const pat = pick(b.pattern, PATTERNS);
       if (pat && pat !== 'none') banner.pattern = pat;
       if (kind === 'image') {
-        if (typeof b.image === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,/.test(b.image) && b.image.length <= BANNER_MAX) banner.image = b.image;
+        if (typeof b.image === 'string' && b.image.length <= BANNER_MAX && IMG.test(b.image)) banner.image = b.image;
         else banner.kind = bb ? 'gradient' : 'solid';
       }
       out.banner = banner;
     }
+  }
+  if (x.bg && typeof x.bg === 'object' && typeof x.bg.image === 'string' && x.bg.image.length <= BG_MAX && IMG.test(x.bg.image)) {
+    const bg: ProfileBg = { image: x.bg.image };
+    if (typeof x.bg.dim === 'number' && isFinite(x.bg.dim)) bg.dim = Math.max(0, Math.min(85, Math.round(x.bg.dim)));
+    if (typeof x.bg.blur === 'number' && isFinite(x.bg.blur)) bg.blur = Math.max(0, Math.min(16, Math.round(x.bg.blur)));
+    out.bg = bg;
   }
   if (x.theme && typeof x.theme === 'object') {
     const a = col(x.theme.a), b = col(x.theme.b);

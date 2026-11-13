@@ -12,6 +12,7 @@ import { VoiceView } from './components/Media';
 import { SpaceView } from './components/SpaceView';
 import { SiteView } from './components/SiteView';
 import { Logo } from './components/Common';
+import { DESTAN_FAMILY } from './components/Appearance';
 import { isVoiceLike } from '../shared/protocol';
 
 function useTheme() {
@@ -32,6 +33,7 @@ function useTheme() {
   useEffect(() => {
     const r = document.documentElement;
     r.dataset.theme = theme;
+    r.dataset.style = DESTAN_FAMILY.includes(theme) ? 'destan' : 'kovan';
     r.style.setProperty('--accent', accent);
     r.style.setProperty('--msg-font', fontSize + 'px');
     r.classList.toggle('compact', compact);

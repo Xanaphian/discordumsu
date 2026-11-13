@@ -1,11 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dices, RotateCcw, Upload, Trash2, Plus, X, Smile, ImagePlus, Link as LinkIcon } from 'lucide-react';
 import { useStore, updateProfile, toast, meAsUser } from '../../lib/store';
 import { Avatar, Toggle } from '../Common';
 import { EmojiPicker } from '../Overlays';
 import { cx, COLORS, resizeImage } from '../../lib/util';
 import {
-  ACTIVITY_KINDS, BANNER_MAX, BIO_MAX, EFFECTS, FRAMES, NAME_FONTS, NAME_FX, PATTERNS, SHAPES, sanitizeProfile,
+  ACTIVITY_KINDS, BANNER_MAX, BG_MAX, BIO_MAX, EFFECTS, FRAMES, NAME_FONTS, NAME_FX, PATTERNS, SHAPES, sanitizeProfile,
   type ActivityKind, type ProfileBanner, type ProfileExtra, type ProfileLink,
 } from '../../../shared/profile';
 import {
@@ -41,7 +41,7 @@ function untilFrom(v: number | null): number | undefined {
 }
 
 /** Görseli verilen en-boy oranına kırpıp küçültür (afiş için). */
-function resizeCover(file: File, w: number, h: number, quality = 0.82): Promise<string> {
+function resizeCover(file: File, w: number, h: number, max = BANNER_MAX, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
@@ -61,7 +61,7 @@ function resizeCover(file: File, w: number, h: number, quality = 0.82): Promise<
       URL.revokeObjectURL(url);
       let q = quality;
       let out = canvas.toDataURL('image/webp', q);
-      while (out.length > BANNER_MAX && q > 0.3) out = canvas.toDataURL('image/webp', (q -= 0.15));
+      while (out.length > max && q > 0.3) out = canvas.toDataURL('image/webp', (q -= 0.15));
       resolve(out);
     };
     img.onerror = (e) => {
@@ -72,9 +72,46 @@ function resizeCover(file: File, w: number, h: number, quality = 0.82): Promise<
   });
 }
 
-function Section({ title, sub, children, right }: { title: string; sub?: string; children: React.ReactNode; right?: React.ReactNode }) {
+/** Hareketli GIF sığıyorsa olduğu gibi kalır (animasyon korunur), yoksa kırpılıp küçültülür. */
+function readImage(file: File, w: number, h: number, max: number): Promise<string> {
+  if (file.type === 'image/gif' && Math.ceil(file.size / 3) * 4 + 30 <= max) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+  if (file.type === 'image/gif') toast('GIF çok büyük olduğu için hareketsiz resme çevrildi.', 'info');
+  return resizeCover(file, w, h, max);
+}
+
+/** Başka bir yerden profil düzenleyicinin belli bir bölümünü açmak için */
+export function focusProfileSection(id: string) {
+  try {
+    sessionStorage.setItem('kovan.peFocus', id);
+  } catch {}
+}
+
+const JUMP: [string, string][] = [
+  ['presets', 'Hazır'],
+  ['banner', 'Afiş'],
+  ['bg', 'Arka plan'],
+  ['identity', 'Kimlik'],
+  ['status', 'Durum'],
+  ['avatar', 'Avatar'],
+  ['name', 'İsim'],
+  ['card', 'Kart'],
+  ['about', 'Hakkımda'],
+  ['links', 'Bağlantılar'],
+  ['extra', 'Saat ve doğum günü'],
+];
+
+const jumpTo = (id: string) => document.getElementById('pe-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+function Section({ id, title, sub, children, right }: { id?: string; title: string; sub?: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <section className="pe-sec">
+    <section className="pe-sec" id={id ? 'pe-' + id : undefined}>
       <header>
         <div>
           <h3>{title}</h3>
@@ -120,6 +157,15 @@ export function ProfileEditor() {
   const [tagInput, setTagInput] = useState('');
   const avatarFile = useRef<HTMLInputElement>(null);
   const bannerFile = useRef<HTMLInputElement>(null);
+  const bgFile = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    let id: string | null = null;
+    try {
+      id = sessionStorage.getItem('kovan.peFocus');
+      sessionStorage.removeItem('kovan.peFocus');
+    } catch {}
+    if (id) setTimeout(() => jumpTo(id!), 80);
+  }, []);
   const x = d.extra;
   const setX = (patch: Partial<ProfileExtra>) => setD((o) => ({ ...o, extra: { ...o.extra, ...patch } }));
   const banner: ProfileBanner = x.banner || { kind: 'gradient', a: d.color, b: '#1a1306', angle: 135, pattern: 'honeycomb' };
@@ -139,7 +185,7 @@ export function ProfileEditor() {
   const randomize = () => {
     const a = rndColor(), b = rndColor();
     setX({
-      banner: { kind: 'gradient', a, b, angle: Math.floor(Math.random() * 360), pattern: rnd(PATTERNS) },
+      banner: x.banner?.kind === 'image' ? x.banner : { kind: 'gradient', a, b, angle: Math.floor(Math.random() * 360), pattern: rnd(PATTERNS) },
       theme: Math.random() < 0.6 ? { a: '#' + Math.floor(Math.random() * 0x303030).toString(16).padStart(6, '0'), b: '#0c0b0a' } : undefined,
       shape: rnd(SHAPES),
       frame: rnd(FRAMES),
@@ -170,9 +216,17 @@ export function ProfileEditor() {
           <p className="pe-lead">Kartını, ismini ve avatarını istediğin gibi tasarla. Değişiklikler kaydettiğinde tüm topluluklarında görünür.</p>
         </div>
       </div>
+      <nav className="pe-jump">
+        {JUMP.map(([id, l]) => (
+          <button key={id} onClick={() => jumpTo(id)}>
+            {l}
+          </button>
+        ))}
+      </nav>
       <div className="pe-grid">
         <div className="pe-form">
           <Section
+            id="presets"
             title="Hazır görünümler"
             sub="Tek tıkla afiş, kart teması, çerçeve ve isim efekti uygula; sonra istediğin gibi değiştir."
             right={
@@ -184,7 +238,7 @@ export function ProfileEditor() {
                   className="btn ghost sm"
                   title="Görünümü sıfırla"
                   onClick={() =>
-                    setX({ banner: undefined, theme: undefined, frame: undefined, frameColor: undefined, nameFx: undefined, nameB: undefined, nameFont: undefined, effect: undefined, shape: undefined })
+                    setX({ banner: undefined, bg: undefined, theme: undefined, frame: undefined, frameColor: undefined, nameFx: undefined, nameB: undefined, nameFont: undefined, effect: undefined, shape: undefined })
                   }
                 >
                   <RotateCcw size={14} /> Sade
@@ -203,7 +257,123 @@ export function ProfileEditor() {
             </div>
           </Section>
 
-          <Section title="Kimlik">
+          <Section id="banner" title="Afiş" sub="Kartının üst kısmı. Renk, degrade, desen ya da kendi resmin (hareketli GIF de olur).">
+            <Seg
+              value={banner.kind}
+              options={[
+                ['solid', 'Düz renk'],
+                ['gradient', 'Degrade'],
+                ['image', 'Resim'],
+              ]}
+              onChange={(k) => (k === 'image' && !banner.image ? bannerFile.current?.click() : setBanner({ kind: k }))}
+            />
+            <input
+              ref={bannerFile}
+              hidden
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                try {
+                  setBanner({ kind: 'image', image: await readImage(f, 680, 240, BANNER_MAX) });
+                } catch {
+                  toast('Resim okunamadı.', 'err');
+                }
+              }}
+            />
+            {banner.kind === 'image' ? (
+              <div className="pe-inline">
+                <button className="btn ghost sm" onClick={() => bannerFile.current?.click()}>
+                  <ImagePlus size={14} /> Başka resim seç
+                </button>
+                <span className="note">En iyi sonuç için yatay bir resim seç (680×240).</span>
+              </div>
+            ) : (
+              <>
+                <div className="pe-inline">
+                  <ColorPick value={banner.a} onChange={(a) => setBanner({ a })} label={banner.kind === 'gradient' ? 'Başlangıç' : 'Renk'} />
+                  {banner.kind === 'gradient' && (
+                    <>
+                      <ColorPick value={banner.b || banner.a} onChange={(b) => setBanner({ b })} label="Bitiş" />
+                      <label className="pe-slider">
+                        <em>Açı {banner.angle ?? 135}°</em>
+                        <input type="range" min={0} max={359} value={banner.angle ?? 135} onChange={(e) => setBanner({ angle: Number(e.target.value) })} />
+                      </label>
+                    </>
+                  )}
+                </div>
+                <div className="pe-tiles">
+                  {PATTERNS.map((p) => (
+                    <button key={p} className={cx('pe-tile', (banner.pattern || 'none') === p && 'on')} onClick={() => setBanner({ pattern: p })}>
+                      <span className={cx('pe-tile-art pat-' + p)} style={{ background: bannerBackground({ ...banner, pattern: p, kind: banner.kind }, d.color) }} />
+                      {PATTERN_LABEL[p]}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </Section>
+
+          <Section
+            id="bg"
+            title="Profil arka planı"
+            sub="Tüm profil kartının arkasına kendi resmini koy. Afişin üstte kalır, yazılar okunsun diye resmi karartabilirsin."
+          >
+            <input
+              ref={bgFile}
+              hidden
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                try {
+                  setX({ bg: { dim: 45, blur: 0, ...x.bg, image: await readImage(f, 600, 840, BG_MAX) } });
+                } catch {
+                  toast('Resim okunamadı.', 'err');
+                }
+              }}
+            />
+            <div className="pe-bg">
+              <button className={cx('pe-bg-pick', x.bg && 'has')} onClick={() => bgFile.current?.click()} style={x.bg ? { backgroundImage: `url(${x.bg.image})` } : undefined}>
+                {!x.bg && (
+                  <>
+                    <ImagePlus size={22} />
+                    <span>Resim seç</span>
+                  </>
+                )}
+              </button>
+              <div className="pe-bg-opts">
+                {x.bg ? (
+                  <>
+                    <label className="pe-slider">
+                      <em>Karartma %{x.bg.dim ?? 45}</em>
+                      <input type="range" min={0} max={85} value={x.bg.dim ?? 45} onChange={(e) => setX({ bg: { ...x.bg!, dim: Number(e.target.value) } })} />
+                    </label>
+                    <label className="pe-slider">
+                      <em>Bulanıklık {x.bg.blur ?? 0} px</em>
+                      <input type="range" min={0} max={16} value={x.bg.blur ?? 0} onChange={(e) => setX({ bg: { ...x.bg!, blur: Number(e.target.value) } })} />
+                    </label>
+                    <div className="btn-row">
+                      <button className="btn ghost sm" onClick={() => bgFile.current?.click()}>
+                        <ImagePlus size={14} /> Değiştir
+                      </button>
+                      <button className="btn ghost sm" onClick={() => setX({ bg: undefined })}>
+                        <Trash2 size={14} /> Kaldır
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <span className="note">Dikey ya da kare bir resim en iyi sonucu verir. Hareketli GIF de seçebilirsin (en fazla ~160 KB).</span>
+                )}
+              </div>
+            </div>
+          </Section>
+
+          <Section id="identity" title="Kimlik">
             <div className="pe-row2">
               <label className="field">
                 <span>Görünen ad</span>
@@ -252,7 +422,7 @@ export function ProfileEditor() {
             </div>
           </Section>
 
-          <Section title="Durum ve etkinlik" sub="İsminin altında ve profil kartında konuşma balonu olarak görünür.">
+          <Section id="status" title="Durum ve etkinlik" sub="İsminin altında ve profil kartında konuşma balonu olarak görünür.">
             <div className="field">
               <span>Özel durum</span>
               <div className="pe-status">
@@ -324,71 +494,16 @@ export function ProfileEditor() {
             </div>
           </Section>
 
-          <Section title="Afiş" sub="Kartının üst kısmı. Renk, degrade, desen ya da kendi resmin.">
-            <Seg
-              value={banner.kind}
-              options={[
-                ['solid', 'Düz renk'],
-                ['gradient', 'Degrade'],
-                ['image', 'Resim'],
-              ]}
-              onChange={(k) => (k === 'image' && !banner.image ? bannerFile.current?.click() : setBanner({ kind: k }))}
-            />
-            <input
-              ref={bannerFile}
-              hidden
-              type="file"
-              accept="image/*"
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                e.target.value = '';
-                if (!f) return;
-                try {
-                  setBanner({ kind: 'image', image: await resizeCover(f, 680, 240) });
-                } catch {
-                  toast('Resim okunamadı.', 'err');
-                }
-              }}
-            />
-            {banner.kind === 'image' ? (
-              <div className="pe-inline">
-                <button className="btn ghost sm" onClick={() => bannerFile.current?.click()}>
-                  <ImagePlus size={14} /> Başka resim seç
-                </button>
-                <span className="note">En iyi sonuç için yatay bir resim seç (680×240).</span>
-              </div>
-            ) : (
-              <>
-                <div className="pe-inline">
-                  <ColorPick value={banner.a} onChange={(a) => setBanner({ a })} label={banner.kind === 'gradient' ? 'Başlangıç' : 'Renk'} />
-                  {banner.kind === 'gradient' && (
-                    <>
-                      <ColorPick value={banner.b || banner.a} onChange={(b) => setBanner({ b })} label="Bitiş" />
-                      <label className="pe-slider">
-                        <em>Açı {banner.angle ?? 135}°</em>
-                        <input type="range" min={0} max={359} value={banner.angle ?? 135} onChange={(e) => setBanner({ angle: Number(e.target.value) })} />
-                      </label>
-                    </>
-                  )}
-                </div>
-                <div className="pe-tiles">
-                  {PATTERNS.map((p) => (
-                    <button key={p} className={cx('pe-tile', (banner.pattern || 'none') === p && 'on')} onClick={() => setBanner({ pattern: p })}>
-                      <span className={cx('pe-tile-art pat-' + p)} style={{ background: bannerBackground({ ...banner, pattern: p, kind: banner.kind }, d.color) }} />
-                      {PATTERN_LABEL[p]}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </Section>
-
-          <Section title="Avatar">
+          <Section id="avatar" title="Avatar">
             <div className="field">
               <span>Şekil</span>
               <div className="pe-tiles">
+                <button className={cx('pe-tile', !x.shape && 'on')} onClick={() => setX({ shape: undefined })}>
+                  <Avatar user={{ ...previewUser, profile: { ...previewUser.profile, shape: undefined } }} size={44} plain />
+                  Temaya göre
+                </button>
                 {SHAPES.map((s) => (
-                  <button key={s} className={cx('pe-tile', (x.shape || 'hex') === s && 'on')} onClick={() => setX({ shape: s })}>
+                  <button key={s} className={cx('pe-tile', x.shape === s && 'on')} onClick={() => setX({ shape: s })}>
                     <Avatar user={previewUser} size={44} shape={s} plain />
                     {SHAPE_LABEL[s]}
                   </button>
@@ -416,7 +531,7 @@ export function ProfileEditor() {
             </div>
           </Section>
 
-          <Section title="İsim stili" sub="Sohbette, üye listesinde ve kartında ismin böyle görünür.">
+          <Section id="name" title="İsim stili" sub="Sohbette, üye listesinde ve kartında ismin böyle görünür.">
             <div className="field">
               <span>Yazı tipi</span>
               <div className="pe-tiles names">
@@ -452,6 +567,7 @@ export function ProfileEditor() {
           </Section>
 
           <Section
+            id="card"
             title="Kart teması"
             sub="Profil kartının arka planı. Kapalıyken uygulamanın temasını kullanır."
             right={<Toggle value={!!x.theme} onChange={(v) => setX({ theme: v ? { a: '#2b1d07', b: '#120d06' } : undefined })} />}
@@ -475,7 +591,7 @@ export function ProfileEditor() {
             </div>
           </Section>
 
-          <Section title="Hakkımda">
+          <Section id="about" title="Hakkımda">
             <label className="field">
               <textarea rows={4} maxLength={BIO_MAX} value={d.bio} onChange={(e) => setD({ ...d, bio: e.target.value })} placeholder="Kendinden biraz bahset" />
               <small className="counter">{BIO_MAX - d.bio.length}</small>
@@ -510,7 +626,7 @@ export function ProfileEditor() {
             </div>
           </Section>
 
-          <Section title="Bağlantılar" sub="En fazla 5 bağlantı. GitHub, Instagram, YouTube, Twitch, Spotify, Steam gibi siteler tanınır.">
+          <Section id="links" title="Bağlantılar" sub="En fazla 5 bağlantı. GitHub, Instagram, YouTube, Twitch, Spotify, Steam gibi siteler tanınır.">
             <div className="pe-links">
               {links.map((l, i) => {
                 const brand = linkBrand(l.url.includes('://') ? l.url : 'https://' + l.url);

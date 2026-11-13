@@ -21,7 +21,7 @@ export interface Profile {
 }
 
 export interface Settings {
-  theme: 'dark' | 'light' | 'midnight' | 'ocean' | 'forest' | 'rose';
+  theme: 'destan' | 'kor' | 'buzul' | 'zumrut' | 'alaca' | 'dark' | 'light' | 'midnight' | 'ocean' | 'forest' | 'rose';
   accent: string;
   fontSize: number;
   compact: boolean;
@@ -83,13 +83,17 @@ export interface Settings {
   msgStyle: 'petek' | 'balon' | 'duz';
   layout: 'float' | 'flush';
   backdrop: boolean;
+  /** görünüm göçü: 2 = Destan teması varsayılan oldu (v1.7) */
+  lookRev: number;
 }
 
 export type NotifyLevel = 'all' | 'mentions' | 'none';
 
+export const DESTAN_GOLD = '#c9a35a';
+
 export const DEFAULT_SETTINGS: Settings = {
-  theme: 'dark',
-  accent: '#f5a524',
+  theme: 'destan',
+  accent: DESTAN_GOLD,
   fontSize: 15,
   compact: false,
   notify: 'all',
@@ -146,6 +150,7 @@ export const DEFAULT_SETTINGS: Settings = {
   msgStyle: 'petek',
   layout: 'float',
   backdrop: true,
+  lookRev: 2,
 };
 
 export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string };
@@ -371,6 +376,13 @@ function saveHosts() {
 export async function boot() {
   const [cfg, info, upd] = await Promise.all([window.kovan.getConfig(), window.kovan.info(), window.kovan.update.state()]);
   const settings: Settings = { ...DEFAULT_SETTINGS, ...(cfg.settings || {}) };
+  if (cfg.settings && !((cfg.settings as Partial<Settings>).lookRev! >= 2)) {
+    // v1.7: yeni Destan görünümü bir kez varsayılan olur; Ayarlar > Görünüm'den eskisine dönülebilir.
+    settings.theme = 'destan';
+    if (!cfg.settings.accent || cfg.settings.accent === '#f5a524') settings.accent = DESTAN_GOLD;
+    settings.lookRev = 2;
+    window.kovan.setConfig({ settings });
+  }
   set({
     info,
     secret: cfg.profile.secret,
