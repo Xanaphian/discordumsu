@@ -861,3 +861,45 @@
 .modal.lfg-dialog.themed .lfg-state.off {
   color: rgba(255, 255, 255, 0.6);
 }
+
+/* ilan altı: sese katıl, oyuna katıl */
+.lfg-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 14px 12px;
+}
+.lfg-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-size: 13px;
+}
+.lfg-row > svg {
+  color: var(--accent);
+  flex: none;
+}
+.lfg-row-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lfg-row-text.muted {
+  opacity: 0.65;
+}
+.lfg-avs {
+  display: flex;
+}
+.lfg-avs > * + * {
+  margin-left: -6px;
+}
+.lfg-row .btn {
+  flex: none;
+}

@@ -117,3 +117,4 @@ export function presets(now = new Date()): { label: string; at: number }[] {
 }
 
 startLater();
+import('./lfgJoin').then((x) => x.startLfgJoin());

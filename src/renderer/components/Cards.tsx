@@ -1,10 +1,10 @@
 // Kart mesajları: takım ilanı, anket ve bunları kuran pencereler.
 import React, { useMemo, useState } from 'react';
-import { Swords, ChartNoAxesColumn, Check, Volume2, UsersRound, Clock, X, Plus, Minus, CalendarClock } from 'lucide-react';
+import { Swords, ChartNoAxesColumn, Check, Volume2, Gamepad2, Copy, UsersRound, Clock, X, Plus, Minus, CalendarClock } from 'lucide-react';
 import { useStore, toggleReaction, sendMessage, toast } from '../lib/store';
 import { useVoice, joinVoice } from '../lib/voice';
 import { Avatar } from './Common';
-import { cx, displayName, hm, fmtTime } from '../lib/util';
+import { cx, displayName, hm, fmtTime, copyText } from '../lib/util';
 import {
   encodeCard, lfgSlots, pollVotes, slotKey, voteKey,
   type LfgCard, type PollCard, type Card,
@@ -13,6 +13,7 @@ import { presets, schedule } from '../lib/later';
 import { useActs } from '../lib/activity';
 import { LFG_GAMES, lfgGameOf, slotsFor, type LfgGame } from '../lib/lfgGames';
 import { BrandLogo } from './profile/Activity';
+import { GAME_ACCOUNT, STEAM_JOIN, accountFor, lolWaitInvite, steamJoin } from '../lib/lfgJoin';
 import { isVoiceLike, type Community, type Message, type ID } from '../../shared/protocol';
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,9 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
     if (mineCard && card.own !== undefined) return toast('Bu senin ilanın; zaten takımdasın.', 'info');
     // tek yer: önce eski yerden çık
     for (let j = 0; j < card.s.length; j++) if (j !== i && m.reactions?.[slotKey(j)]?.includes(me)) toggleReaction(m, slotKey(j));
+    const joining = slots[i] !== me && mySlot < 0;
     toggleReaction(m, slotKey(i));
+    if (joining && !mineCard && lfgGameOf(card)?.key === 'lol') lolWaitInvite(m.authorId);
   };
 
   // takım dolunca: ilan sahibinin bulunduğu ya da ilk ses odası
@@ -43,6 +46,19 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
     return vcs.find((x) => (voice[x.id] || []).some((v) => v.userId === m.authorId)) || vcs.find((x) => x.type === 'voice') || vcs[0];
   }, [c.channels, voice, m.authorId]);
   const inTeam = team.includes(me);
+  // takımdan birilerinin bulunduğu ses odası (en kalabalığı)
+  const teamVc = useMemo(() => {
+    let best: { id: ID; name: string; who: ID[] } | null = null;
+    for (const x of c.channels) {
+      if (!isVoiceLike(x.type)) continue;
+      const who = (voice[x.id] || []).map((v) => v.userId).filter((u) => team.includes(u) && u !== me);
+      if (who.length && (!best || who.length > best.who.length)) best = { id: x.id, name: x.name, who };
+    }
+    return best;
+  }, [c.channels, voice, team.join(','), me]); // eslint-disable-line
+  const gk = lfgGameOf(card)?.key;
+  const acc = GAME_ACCOUNT[gk || ''];
+  const authorAcc = accountFor(m.authorId, gk);
 
   const game = lfgGameOf(card);
   const theme = game?.theme.a ? ({ '--g-a': game.theme.a, '--g-b': game.theme.b, '--g-bg': game.theme.bg, '--g-ink': game.theme.ink || '#111' } as React.CSSProperties) : undefined;
@@ -88,13 +104,66 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
           );
         })}
       </div>
+      {(teamVc && myVc !== teamVc.id) || (acc && !mineCard) || (gk === 'lol' && mineCard) ? (
+        <div className="lfg-extra">
+          {teamVc && myVc !== teamVc.id && (
+            <div className="lfg-row">
+              <Volume2 size={15} />
+              <span className="lfg-avs">
+                {teamVc.who.slice(0, 4).map((u) => (
+                  <Avatar key={u} user={users[u] || c.users[u]} size={20} />
+                ))}
+              </span>
+              <span className="lfg-row-text">
+                {teamVc.who.map((u) => displayName(c, u, users)).slice(0, 3).join(', ')} <b>{teamVc.name}</b> odasında
+              </span>
+              <button className="btn primary sm" onClick={() => joinVoice(c.id, teamVc.id)}>
+                Sese katıl
+              </button>
+            </div>
+          )}
+          {gk === 'lol' && mineCard && (
+            <div className="lfg-row">
+              <Gamepad2 size={15} />
+              <span className="lfg-row-text">Katılanlara LoL istemcinden kendiliğinden lobi daveti gider. Lobin açık olsun.</span>
+            </div>
+          )}
+          {acc && !mineCard && (
+            <div className="lfg-row">
+              <Gamepad2 size={15} />
+              {authorAcc ? (
+                <>
+                  <span className="lfg-row-text">
+                    {acc.label}: <b>{/^\d{17}$/.test(authorAcc) ? displayName(c, m.authorId, users) : authorAcc}</b>
+                  </span>
+                  {gk === 'lol' && inTeam && (
+                    <button className="btn primary sm" onClick={() => lolWaitInvite(m.authorId)}>
+                      Lobiye katıl
+                    </button>
+                  )}
+                  {gk && STEAM_JOIN.has(gk) && (
+                    <button className="btn primary sm" onClick={() => steamJoin(m.authorId)}>
+                      Oyununa katıl
+                    </button>
+                  )}
+                  <button className="btn ghost sm" onClick={() => (copyText(authorAcc), toast('Kopyalandı.', 'ok'))}>
+                    <Copy size={13} /> Kopyala
+                  </button>
+                </>
+              ) : (
+                <span className="lfg-row-text muted">İlan sahibinin profilinde {acc.label} bağlı değil.</span>
+              )}
+            </div>
+          )}
+        </div>
+      ) : null}
       <div className="xcard-foot">
         {full ? (
           <>
             <span className="xcard-ok">
               <Check size={15} /> Takım hazır!
             </span>
-            {inTeam && vc && myVc !== vc.id && (
+            {inTeam && vc && myVc !== vc.id && !teamVc && (
               <button className="btn primary sm" onClick={() => joinVoice(c.id, vc.id)}>
                 <Volume2 size={14} /> {vc.name} odasına geç
               </button>
