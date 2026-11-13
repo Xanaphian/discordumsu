@@ -7,7 +7,7 @@ import {
 import type { AccountService, LinkedAccount, LiveActivity, ProfileExtra, RecentActivity } from '../../../shared/profile';
 import { useActsOf, useActs, riotUrl, openInSpotify, startAlong, stopAlong } from '../../lib/activity';
 import { useStore } from '../../lib/store';
-import { BRANDS, SERVICE_BRAND, activityBrand, brandBg } from '../../lib/brands';
+import { BRANDS, GAME_TILE, SERVICE_BRAND, activityBrand, brandBg } from '../../lib/brands';
 import { cx, copyText } from '../../lib/util';
 import { toast } from '../../lib/store';
 
@@ -99,6 +99,19 @@ export function accountFromInput(svc: AccountService, raw: string): string {
 export function BrandLogo({ k, size = 30, plain, className }: { k: string; size?: number; plain?: boolean; className?: string }) {
   const b = BRANDS[k];
   if (!b) return null;
+  const tile = GAME_TILE[k];
+  if (tile) {
+    // oyunlar her yerde uygulama simgesi gibi kutu içinde görünür
+    const box = plain ? Math.max(size + 2, 14) : size;
+    const g = Math.round(box * (tile.scale || 0.6));
+    return (
+      <span className={cx('acc-ic brand-logo game-tile', tile.round && 'round', className)} style={{ background: tile.bg, width: box, height: box }} title={b.title}>
+        <svg viewBox="0 0 24 24" width={g} height={g} fill={tile.fg} aria-hidden>
+          <path d={b.path} />
+        </svg>
+      </span>
+    );
+  }
   const inner = Math.round(size * (plain ? 1 : 0.56));
   const svg = (
     <svg viewBox="0 0 24 24" width={inner} height={inner} fill={plain ? (brandBg(b.hex) === b.hex ? b.hex : 'currentColor') : '#fff'} aria-hidden>

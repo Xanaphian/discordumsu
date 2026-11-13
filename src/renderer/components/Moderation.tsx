@@ -1,7 +1,9 @@
 // Üye yönetimi menüsü, moderasyon pencereleri ve bildirim ayarları
 import React, { useState } from 'react';
 import { X, BellOff, Bell, AtSign } from 'lucide-react';
-import { useStore, cmd, openModal, toast, updateSettings, setNotifyOverride, toggleMuted, openDm, addFriend, acceptFriend, removeFriend, confirmDialog, type MenuItem, type NotifyLevel } from '../lib/store';
+import { useStore, cmd, openModal, toast, updateSettings, setNotifyOverride, toggleMuted, openDm, addFriend, acceptFriend, removeFriend, confirmDialog, makeInvite, sendMessage, type MenuItem, type NotifyLevel } from '../lib/store';
+import { useActs, startAlong, openInSpotify } from '../lib/activity';
+import { joinVoice, setUserVolume } from '../lib/voice';
 import { Modal } from './Modals';
 import { Avatar, Toggle } from './Common';
 import { cx, copyText, displayName, fmtTime } from '../lib/util';
@@ -9,39 +11,88 @@ import { can, canEditRole, isTimedOut, isVoiceLike, outranks, Perm, type Communi
 
 const close = () => openModal(null);
 
-/** Bir üye için sağ tık menüsü (üye listesi, ayarlar, profil kartı) */
-export function memberMenu(c: Community, me: string, uid: string, opts: { noProfile?: boolean; at?: { x: number; y: number } } = {}): MenuItem[] {
+/** Bir üye için sağ tık menüsü (üye listesi, ayarlar, profil kartı) — Discord'daki sırayla */
+export function memberMenu(c: Community, me: string, uid: string, opts: { noProfile?: boolean; at?: { x: number; y: number }; onMention?: () => void } = {}): MenuItem[] {
   const st = useStore.getState();
   const m = c.members.find((x) => x.userId === uid);
   const name = displayName(c, uid, st.users);
-  const items: MenuItem[] = [];
-  if (!opts.noProfile) items.push({ label: 'Profil', onClick: () => useStore.setState({ popout: { uid, cid: c.id, x: opts.at?.x ?? 400, y: opts.at?.y ?? 200 } }) });
+  const user = st.users[uid] || c.users[uid];
   const self = uid === me;
-  if (!self && !st.users[uid]?.bot && uid !== 'kovan-asistan') {
+  const human = !user?.bot && uid !== 'kovan-asistan';
+  const items: MenuItem[] = [];
+  const pop = () => useStore.setState({ popout: { uid, cid: c.id, x: opts.at?.x ?? 400, y: opts.at?.y ?? 200 } });
+
+  // 1) profil ve iletişim
+  if (!opts.noProfile) items.push({ label: 'Profil', onClick: pop });
+  if (opts.onMention) items.push({ label: 'Bahset', onClick: opts.onMention });
+  if (self) {
+    items.push({ label: 'Profili düzenle', onClick: () => openModal({ type: 'settings', tab: 'profile' }) });
+  } else if (human) {
+    items.push({ label: 'Mesaj', onClick: () => openDm(uid) });
+    items.push({ label: 'Ara', onClick: () => callUser(uid) });
+    items.push({ label: 'Not ekle', onClick: pop });
+  }
+
+  // 2) etkinlikle ilgili
+  const acts = useActs.getState().acts[uid] || [];
+  const song = acts.find((a) => a.kind === 'listening' && a.src === 'spotify');
+  const live = acts.find((a) => a.kind === 'streaming' && a.url);
+  if (!self && (song || live)) {
+    items.push({ sep: true });
+    if (song) {
+      items.push({ label: 'Beraber dinle', onClick: () => startAlong(uid) });
+      items.push({ label: "Şarkıyı Spotify'da aç", onClick: () => openInSpotify(song) });
+    }
+    if (live) items.push({ label: 'Yayını izle', onClick: () => window.kovan.openExternal(live.url!) });
+  }
+
+  // 3) arkadaşlık, davet, sesi kapat, engelle
+  if (!self && human) {
+    items.push({ sep: true });
+    const invites = Object.values(st.communities)
+      .filter((x) => !x.dm && x.id !== c.id && can(x, me, Perm.CREATE_INVITE) && !x.members.some((mm) => mm.userId === uid))
+      .slice(0, 15);
+    items.push({
+      label: 'Topluluğa davet et',
+      sub: invites.map((x) => ({ label: x.name, onClick: () => inviteTo(uid, x.id, name) })),
+      disabled: !invites.length,
+    });
     const fr = st.friends[uid];
-    items.push({ label: 'Mesaj gönder', onClick: () => openDm(uid) });
     if (!fr) items.push({ label: 'Arkadaş ekle', onClick: () => addFriend(uid) });
     else if (fr.state === 'in') items.push({ label: 'Arkadaşlık isteğini kabul et', onClick: () => acceptFriend(uid) });
     else if (fr.state === 'out') items.push({ label: 'İsteği geri çek', onClick: () => removeFriend(uid) });
     else items.push({ label: 'Arkadaşlıktan çıkar', danger: true, onClick: () => confirmDialog(`${name} arkadaşlıktan çıkarılsın mı?`, 'Ortak topluluğunuz varsa yine yazışabilirsiniz.', () => removeFriend(uid), 'Çıkar') });
+    const muted = st.settings.userVolumes?.[uid] === 0;
+    items.push({ label: 'Sesini kapat', checked: muted, onClick: () => (setUserVolume(uid, muted ? 100 : 0), toast(muted ? `${name} yeniden duyuluyor` : `${name} artık sana sessiz`, 'ok')) });
+    const blocked = st.settings.blocked.includes(uid);
+    items.push({ label: blocked ? 'Engeli kaldır' : 'Engelle', danger: !blocked, onClick: () => toggleBlock(uid, name) });
   }
+
+  // 4) topluluk: takma ad ve roller
+  const comm: MenuItem[] = [];
   if ((self && (can(c, me, Perm.CHANGE_NICKNAME) || can(c, me, Perm.MANAGE_NICKNAMES))) || (!self && (can(c, me, Perm.MANAGE_NICKNAMES) || can(c, me, Perm.MANAGE_ROLES)) && outranks(c, me, uid)))
-    items.push({ label: self ? 'Takma adını değiştir' : 'Takma adı değiştir', onClick: () => openModal({ type: 'moderate', cid: c.id, uid, action: 'nick' }) });
+    comm.push({ label: self ? 'Takma adını değiştir' : 'Takma adı değiştir', onClick: () => openModal({ type: 'moderate', cid: c.id, uid, action: 'nick' }) });
   if (can(c, me, Perm.MANAGE_ROLES) && m) {
     const roles = c.roles.filter((r) => r.id !== c.id && canEditRole(c, me, r)).sort((a, b) => b.position - a.position);
-    if (roles.length) {
-      items.push({ sep: true });
-      for (const r of roles.slice(0, 15)) {
-        const has = m.roles.includes(r.id);
-        items.push({
-          label: (r.icon ? r.icon + ' ' : '') + r.name,
-          checked: has,
-          onClick: () => cmd(c.id, { t: 'member.update', cid: c.id, userId: uid, roles: has ? m.roles.filter((x) => x !== r.id) : [...m.roles, r.id] }),
-        });
-      }
-    }
-    items.push({ label: 'Rolleri yönet…', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) });
+    comm.push({
+      label: 'Roller',
+      sub: [
+        ...roles.slice(0, 25).map((r) => {
+          const has = m.roles.includes(r.id);
+          return {
+            label: (r.icon ? r.icon + ' ' : '') + r.name,
+            checked: has,
+            onClick: () => cmd(c.id, { t: 'member.update', cid: c.id, userId: uid, roles: has ? m.roles.filter((x) => x !== r.id) : [...m.roles, r.id] }),
+          };
+        }),
+        { sep: true },
+        { label: 'Rolleri yönet…', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) },
+      ],
+    });
   }
+  if (comm.length) items.push({ sep: true }, ...comm);
+
+  // 5) moderasyon
   const mod: MenuItem[] = [];
   if (!self && m && outranks(c, me, uid)) {
     if (can(c, me, Perm.TIMEOUT))
@@ -54,12 +105,34 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
     if (can(c, me, Perm.BAN)) mod.push({ label: `${name} kişisini yasakla`, danger: true, onClick: () => openModal({ type: 'moderate', cid: c.id, uid, action: 'ban' }) });
   }
   if (mod.length) items.push({ sep: true }, ...mod);
-  if (!self && uid !== 'kovan-asistan') {
-    const blocked = st.settings.blocked.includes(uid);
-    items.push({ sep: true }, { label: blocked ? 'Engeli kaldır' : 'Engelle', onClick: () => toggleBlock(uid, name) });
-  }
-  items.push({ label: 'Kullanıcı kimliğini kopyala', onClick: () => copyText(uid) });
+
+  // 6) kopyala
+  items.push({ sep: true });
+  items.push({ label: 'Kullanıcı adını kopyala', onClick: () => (copyText(user?.name || name), toast('Kullanıcı adı kopyalandı', 'ok')) });
+  items.push({ label: 'Kullanıcı kimliğini kopyala', onClick: () => (copyText(uid), toast('Kimlik kopyalandı', 'ok')) });
   return items;
+}
+
+/** Özel mesajı açıp sesli arama başlatır */
+async function callUser(uid: string) {
+  await openDm(uid);
+  const st = useStore.getState();
+  const cid = st.current;
+  const ch = cid && st.communities[cid]?.dm === uid ? st.chanByComm[cid] : undefined;
+  if (ch) joinVoice(cid, ch);
+}
+
+/** Özel mesajla topluluk daveti gönderir */
+async function inviteTo(uid: string, cid: string, name: string) {
+  const code = makeInvite(cid);
+  const comm = useStore.getState().communities[cid];
+  if (!code) return toast('Bu topluluk için davet kodu oluşturulamadı.', 'err');
+  await openDm(uid);
+  const st = useStore.getState();
+  const ch = st.communities[st.current]?.dm === uid ? st.chanByComm[st.current] : undefined;
+  if (!ch) return;
+  sendMessage(ch, `${comm?.name || 'Topluluğuma'} gel: ${code}`);
+  toast(`${name} kişisine davet gönderildi`, 'ok');
 }
 
 export function toggleBlock(uid: string, name: string) {

@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Check, CircleCheck, CircleAlert, Info, Plus, X, MoreHorizontal, Clock } from 'lucide-react';
+import { Check, ChevronRight, CircleCheck, CircleAlert, Info, Plus, X, MoreHorizontal, Clock } from 'lucide-react';
 import { useStore, MenuItem, openModal, openMenu, cmd, recentEmoji, rememberEmoji, meAsUser } from '../lib/store';
 import { ProfileCard } from './profile/ProfileCard';
 import { useClickOutside } from './Common';
@@ -35,7 +35,16 @@ export function ContextMenu() {
   if (!menu) return null;
   return (
     <div ref={ref} className="ctx-menu" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }} onContextMenu={(e) => e.preventDefault()}>
-      {menu.items.map((it: MenuItem, i) =>
+      <MenuItems items={menu.items} close={close} />
+    </div>
+  );
+}
+
+function MenuItems({ items, close }: { items: MenuItem[]; close: () => void }) {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <>
+      {items.map((it: MenuItem, i) =>
         it.sep ? (
           <div key={i} className="ctx-sep" />
         ) : it.emojis ? (
@@ -46,11 +55,20 @@ export function ContextMenu() {
               </button>
             ))}
           </div>
+        ) : it.sub ? (
+          <div key={i} className="ctx-sub-wrap" onMouseEnter={() => setOpen(i)} onMouseLeave={() => setOpen((o) => (o === i ? null : o))}>
+            <button className={cx('ctx-item', open === i && 'open')} disabled={it.disabled || !it.sub.length} onClick={() => setOpen(i)}>
+              <span className="ctx-label">{it.label}</span>
+              <ChevronRight size={14} className="ctx-arrow" />
+            </button>
+            {open === i && it.sub.length > 0 && <SubMenu items={it.sub} close={close} />}
+          </div>
         ) : (
           <button
             key={i}
             className={cx('ctx-item', it.danger && 'danger')}
             disabled={it.disabled}
+            onMouseEnter={() => setOpen(null)}
             onClick={() => {
               close();
               it.onClick?.();
@@ -63,6 +81,22 @@ export function ContextMenu() {
           </button>
         ),
       )}
+    </>
+  );
+}
+
+/** Alt menü: sağa, sığmazsa sola açılır */
+function SubMenu({ items, close }: { items: MenuItem[]; close: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [side, setSide] = useState<{ left: boolean; shift: number }>({ left: false, shift: 0 });
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    setSide({ left: r.right > window.innerWidth - 8, shift: Math.min(0, window.innerHeight - 8 - r.bottom) });
+  }, []);
+  return (
+    <div ref={ref} className={cx('ctx-menu ctx-sub', side.left && 'left')} style={{ marginTop: side.shift }}>
+      <MenuItems items={items} close={close} />
     </div>
   );
 }

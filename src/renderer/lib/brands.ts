@@ -4,6 +4,7 @@
 export interface Brand { title: string; hex: string; path: string }
 
 export const BRANDS: Record<string, Brand> = {
+  "thefinals": { title: "THE FINALS", hex: '#D31F3C', path: "M18.523 19.319H24L14.965 6.295c-.626-.904-1.51-1.614-2.847-1.614-1.38 0-2.264.775-2.889 1.614L0 19.319h5.261l3.372-4.759 3.256 4.759h5.478l-5.934-8.712.599-.846 6.491 9.558Zm0 0" },
   "spotify": { title: "Spotify", hex: '#1ED760', path: "M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" },
   "kick": { title: "Kick", hex: '#53FC19', path: "M1.333 0h8v5.333H12V2.667h2.667V0h8v8H20v2.667h-2.667v2.666H20V16h2.667v8h-8v-2.667H12v-2.666H9.333V24h-8Z" },
   "twitch": { title: "Twitch", hex: '#9146FF', path: "M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" },
@@ -66,7 +67,24 @@ const GAME_BRAND: [RegExp, string][] = [
   [/^roblox/i, 'roblox'],
   [/^pubg/i, 'pubg'],
   [/^osu!/i, 'osu'],
+  [/^the finals/i, 'thefinals'],
 ];
+
+/**
+ * Oyunların uygulama simgesine benzeyen kutu: zemin + logo rengi (oyunların güncel simgelerinden).
+ * Bilgisayarda oyunun exe simgesi bulunursa o kullanılır; bu yalnızca yedek.
+ */
+export const GAME_TILE: Record<string, { bg: string; fg: string; round?: boolean; scale?: number }> = {
+  fortnite: { bg: 'linear-gradient(180deg, #8fdcff 0%, #3fb2f5 55%, #1f86e0 100%)', fg: '#ffffff', scale: 0.62 },
+  valorant: { bg: '#ff4655', fg: '#ffffff', scale: 0.6 },
+  leagueoflegends: { bg: 'radial-gradient(circle at 50% 40%, #0f2a40 0%, #061019 80%)', fg: '#c8aa6e', scale: 0.66 },
+  counterstrike: { bg: 'linear-gradient(160deg, #2b3340 0%, #10141b 100%)', fg: '#de9b35', scale: 0.64 },
+  dota2: { bg: 'linear-gradient(160deg, #2a0f0b 0%, #0d0d0d 100%)', fg: '#e3482c', scale: 0.64 },
+  roblox: { bg: '#f5f6f7', fg: '#121215', scale: 0.58 },
+  pubg: { bg: '#f2a900', fg: '#111111', scale: 0.72 },
+  osu: { bg: '#ff66aa', fg: '#ffffff', round: true, scale: 0.62 },
+  thefinals: { bg: '#d31f3c', fg: '#ffffff', scale: 0.62 },
+};
 export function gameBrand(name: string): string | undefined {
   for (const [re, k] of GAME_BRAND) if (re.test(name)) return k;
   return undefined;
