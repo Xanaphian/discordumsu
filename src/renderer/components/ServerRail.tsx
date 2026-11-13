@@ -1,5 +1,5 @@
 import React, { memo, useMemo, useState } from 'react';
-import { Plus, LogIn, WifiOff, Home } from 'lucide-react';
+import { Plus, LogIn, WifiOff, Home, Compass } from 'lucide-react';
 import { useStore, selectCommunity, openModal, openMenu, markCommunityRead, updateSettings, leaveCommunity, deleteCommunity, confirmDialog, toggleMuted, dmList, closeDm, pendingIn, isDmHidden, hiddenDms } from '../lib/store';
 import { Avatar, CommunityIcon, Tooltip } from './Common';
 import { cx, copyText } from '../lib/util';
@@ -211,6 +211,13 @@ export function ServerRail() {
         <button className="pt-btn pt-act" onClick={() => openModal({ type: 'join' })} aria-label="Davetle katıl">
           <span className="pt-hex">
             <LogIn size={15} />
+          </span>
+        </button>
+      </Tooltip>
+      <Tooltip text="Toplulukları keşfet" side="right">
+        <button className={cx('pt-btn pt-act', current === 'explore' && 'on')} onClick={() => selectCommunity('explore')} aria-label="Toplulukları keşfet">
+          <span className="pt-hex">
+            <Compass size={16} />
           </span>
         </button>
       </Tooltip>

@@ -20,6 +20,7 @@ import { joinVoice } from '../lib/voice';
 import { ScreenPickerModal } from './Media';
 import { ProfileModal, CustomStatusModal } from './profile/ProfileModal';
 import { SelfRolesModal } from './RolSec';
+import { TemplateImport } from './ToplulukAraclari';
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
   useEffect(() => {
@@ -56,6 +57,7 @@ function CreateCommunityModal() {
   const [color, setColor] = useState(COLORS[Math.floor(Math.random() * 6)]);
   const [icon, setIcon] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [fromTpl, setFromTpl] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const submit = async () => {
     if (!name.trim()) return;
@@ -68,6 +70,12 @@ function CreateCommunityModal() {
     }
     setBusy(false);
   };
+  if (fromTpl)
+    return (
+      <Modal onClose={close} className="tp-modal">
+        <TemplateImport onBack={() => setFromTpl(false)} onDone={close} />
+      </Modal>
+    );
   return (
     <Modal onClose={close}>
       <ModalHead title="Topluluğunu oluştur" sub="Topluluk sunucuda durur; bilgisayarın kapalıyken de arkadaşların sohbet edebilir. Arkadaşların davet koduyla katılır." />
@@ -88,6 +96,15 @@ function CreateCommunityModal() {
             ))}
           </div>
         </div>
+        <button className="tp-entry" onClick={() => setFromTpl(true)}>
+          <span className="tp-entry-ic">
+            <Copy size={16} />
+          </span>
+          <span>
+            <b>Discord şablonundan kur</b>
+            <small>Şablon bağlantısını yapıştır, kanallar ve roller hazır gelsin.</small>
+          </span>
+        </button>
       </div>
       <div className="modal-foot">
         <button className="btn ghost" onClick={() => openModal({ type: 'join' })}>

@@ -18,6 +18,8 @@ import { isVoiceLike } from '../shared/protocol';
 import { PopoutApp, usePopoutReturn } from './components/AyriPencere';
 import { isToolChannel } from '../shared/protocol';
 import { ToolView } from './components/Tools';
+import { startOverlay } from './lib/overlay';
+import { ExploreView, startCommunityWatch } from './components/ToplulukAraclari';
 
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
@@ -113,6 +115,7 @@ function Main() {
   const c = useStore((s) => (s.current !== 'home' ? s.communities[s.current] : undefined));
   const chId = useStore((s) => (s.current !== 'home' ? s.chanByComm[s.current] : undefined));
   const membersOpen = useStore((s) => s.settings.membersOpen);
+  if (current === 'explore') return <ExploreView />;
   if (current === 'home' || !c) return <HomeView />;
   const ch = c.channels.find((x) => x.id === chId);
   if (!ch)
@@ -146,6 +149,11 @@ export function App() {
   useTheme();
   useShortcuts();
   usePopoutReturn();
+  useEffect(() => {
+    if (!booted) return;
+    startOverlay();
+    startCommunityWatch();
+  }, [booted]);
   if (!booted)
     return (
       <div className="splash">

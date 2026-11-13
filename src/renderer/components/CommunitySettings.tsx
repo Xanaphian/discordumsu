@@ -10,6 +10,7 @@ import { memberMenu } from './Moderation';
 import { BotsTab } from './Bots';
 import { CommunityProfileEditor } from './CommunityProfile';
 import { StickersTab } from './CikartmaAyarlari';
+import { JoinGuardTab, ListingTab } from './ToplulukAraclari';
 
 const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🏆', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🦀', '❤️'];
 
@@ -748,10 +749,12 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
     ...(can(c, me, Perm.MANAGE_ROLES) ? [{ id: 'roles', label: 'Roller', group: c.name }] : []),
     ...(manage ? [{ id: 'stickers', label: 'Çıkartmalar', group: c.name }] : []),
     ...(manage ? [{ id: 'moderation', label: 'Moderasyon', group: 'Moderasyon' }] : []),
+    ...(manage ? [{ id: 'joinguard', label: 'Katılma Koruması', group: 'Moderasyon' }] : []),
     ...(can(c, me, Perm.VIEW_AUDIT_LOG) ? [{ id: 'audit', label: 'Denetim Kaydı', group: 'Moderasyon' }] : []),
     { id: 'members', label: 'Üyeler', group: 'Kullanıcı Yönetimi' },
     ...(can(c, me, Perm.BAN) ? [{ id: 'bans', label: 'Yasaklar', group: 'Kullanıcı Yönetimi' }] : []),
     { id: 'invites', label: 'Davetler', group: 'Kullanıcı Yönetimi' },
+    ...(manage ? [{ id: 'listing', label: 'Keşfet', group: 'Kullanıcı Yönetimi' }] : []),
     ...(manage ? [{ id: 'bots', label: 'Botlar ve Yapay Zekâ', group: 'Entegrasyonlar' }] : []),
     ...(c.ownerId === me ? [{ id: 'delete', label: 'Topluluğu sil', danger: true }] : []),
   ];
@@ -763,6 +766,8 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
       {cur === 'stickers' && <StickersTab c={c} />}
       {cur === 'roles' && <RolesTab c={c} me={me} initial={initial?.startsWith('roles:') ? initial.slice(6) : undefined} />}
       {cur === 'moderation' && <ModerationTab c={c} />}
+      {cur === 'joinguard' && <JoinGuardTab c={c} />}
+      {cur === 'listing' && <ListingTab c={c} />}
       {cur === 'audit' && <AuditTab c={c} />}
       {cur === 'members' && <MembersTab c={c} me={me} />}
       {cur === 'bans' && <BansTab c={c} />}
