@@ -955,3 +955,68 @@
 .act-head .brand-logo svg {
   display: block;
 }
+
+/* üye satırı: sağdaki oyun simgesi, sesli arama ve ekran satırları */
+.member .member-text {
+  flex: 1;
+}
+.member-act-ic {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  border-radius: 5px;
+  object-fit: contain;
+}
+.member-act-ic.brand-logo {
+  display: grid;
+  place-items: center;
+}
+.act-line.act-voice svg {
+  color: #3ba55d;
+}
+.act-line.act-screen svg {
+  color: #e5484d;
+}
+.act-line.act-screen b {
+  color: #e5484d !important;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.voice-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, #3ba55d 35%, transparent);
+  background: color-mix(in srgb, #3ba55d 9%, transparent);
+  font-size: 13px;
+}
+.voice-status:has(.lucide-monitor-up) {
+  border-color: color-mix(in srgb, #e5484d 40%, transparent);
+  background: color-mix(in srgb, #e5484d 9%, transparent);
+}
+.voice-status-ic {
+  display: grid;
+  place-items: center;
+  color: #3ba55d;
+}
+.voice-status:has(.lucide-monitor-up) .voice-status-ic {
+  color: #e5484d;
+}
+.voice-status div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.voice-status b {
+  color: var(--text-1);
+  font-weight: 600;
+}
+.voice-status small {
+  color: var(--text-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

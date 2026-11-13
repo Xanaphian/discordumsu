@@ -2,7 +2,7 @@
 import React, { memo, useEffect, useState } from 'react';
 import {
   Gamepad2, Headphones, Radio, Tv, Swords, Joystick, Trophy, Code, AtSign, Camera, Music2, Clapperboard, MessageSquareText, Shield,
-  ExternalLink, Flame, Zap, Copy, NotebookPen, Users, X,
+  ExternalLink, Flame, Zap, Copy, NotebookPen, Users, X, MonitorUp, Volume2,
 } from 'lucide-react';
 import type { AccountService, LinkedAccount, LiveActivity, ProfileExtra, RecentActivity } from '../../../shared/profile';
 import { useActsOf, useActs, riotUrl, openInSpotify, startAlong, stopAlong } from '../../lib/activity';
@@ -334,6 +334,84 @@ export const ActivityLine = memo(function ActivityLine({ uid, className }: { uid
       {a.icon && a.kind === 'playing' ? <img className="act-line-ic" src={a.icon} alt="" /> : brand ? <BrandLogo k={brand} size={12} plain /> : <Icon size={12} />}
       <span>{a.kind === 'playing' ? <><em>Oynuyor</em> {a.name}</> : activityShort(a)}</span>
     </span>
+  );
+});
+
+/** Kullanıcının ses durumu: '' | 'voice' (sesli aramada) | 'screen' (ekranını paylaşıyor) */
+export function useVoiceOf(uid: string | undefined): '' | 'voice' | 'screen' {
+  return useStore((s) => {
+    if (!uid) return '';
+    for (const list of Object.values(s.voice)) {
+      const m = list?.find((x) => x.userId === uid);
+      if (m) return m.screen ? 'screen' : 'voice';
+    }
+    return '';
+  });
+}
+
+/** Satırın sağındaki küçük etkinlik simgesi (oyunun kendi simgesi ya da marka logosu) */
+export const ActivityBadge = memo(function ActivityBadge({ uid }: { uid: string }) {
+  const a = useActsOf(uid)[0];
+  if (!a) return null;
+  const brand = activityBrand(a);
+  const title = activityHeading(a) + ': ' + (a.kind === 'playing' ? a.name : activityShort(a));
+  if (a.icon && a.kind === 'playing') return <img className="member-act-ic" src={a.icon} alt="" title={title} />;
+  if (brand) return <BrandLogo k={brand} size={20} className="member-act-ic" />;
+  return null;
+});
+
+/** Üye listesi alt satırı: etkinlik + ses durumu birleşik ("Fortnite oynuyor · ekranı açık") */
+export const PresenceLine = memo(function PresenceLine({ uid, className }: { uid: string; className?: string }) {
+  const a = useActsOf(uid)[0];
+  const v = useVoiceOf(uid);
+  if (a && v === 'screen' && a.kind === 'playing')
+    return (
+      <span className={cx('act-line', 'act-screen', className)} title={`${a.name} oynuyor, ekranını paylaşıyor`}>
+        <MonitorUp size={12} />
+        <span>
+          <b>Ekranı açık</b> <em>· {a.name} oynuyor</em>
+        </span>
+      </span>
+    );
+  if (a) return <ActivityLine uid={uid} className={className} />;
+  if (v)
+    return (
+      <span className={cx('act-line', 'act-voice', className)}>
+        {v === 'screen' ? <MonitorUp size={12} /> : <Volume2 size={12} />}
+        <span>{v === 'screen' ? 'Ekranını paylaşıyor' : 'Sesli aramada'}</span>
+      </span>
+    );
+  return null;
+});
+
+/** Profil kartında: hangi sesli kanalda, ekranı açık mı */
+export const VoiceStatus = memo(function VoiceStatus({ uid }: { uid: string }) {
+  const where = useStore((s) => {
+    for (const [ch, list] of Object.entries(s.voice)) {
+      const m = list?.find((x) => x.userId === uid);
+      if (!m) continue;
+      for (const c of Object.values(s.communities)) {
+        const chan = c.channels.find((x) => x.id === ch);
+        if (chan) return `${c.dm ? 'Özel arama' : chan.name}\u0000${c.dm ? '' : c.name}\u0000${m.screen || ''}`;
+      }
+      return `Sesli kanal\u0000\u0000${m.screen || ''}`;
+    }
+    return '';
+  });
+  if (!where) return null;
+  const [ch, comm, screen] = where.split('\u0000');
+  return (
+    <div className="voice-status">
+      <span className="voice-status-ic">{screen ? <MonitorUp size={16} /> : <Volume2 size={16} />}</span>
+      <div>
+        <b>{screen ? 'Ekranı açık' : 'Sesli aramada'}</b>
+        <small>
+          {ch}
+          {comm && ` · ${comm}`}
+          {screen && ` · ${screen}`}
+        </small>
+      </div>
+    </div>
   );
 });
 
