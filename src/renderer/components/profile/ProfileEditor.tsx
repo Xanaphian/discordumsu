@@ -378,6 +378,26 @@ export function ProfileEditor() {
             </div>
           </Section>
 
+          <Section
+            id="card"
+            title="Profil renkleri"
+            sub="Kartın xanaphian.com temalarından birinin renklerini alır. Kapalıyken uygulamanın temasını kullanır."
+            right={<Toggle value={!!x.theme} onChange={(v) => setX({ theme: v ? { ...TONE_PRESETS[0].t } : undefined })} />}
+          >
+            {x.theme && <ToneEditor value={x.theme} onChange={(theme) => setX({ theme })} />}
+            <div className="field">
+              <span>Kart efekti</span>
+              <div className="pe-tiles">
+                {EFFECTS.map((f) => (
+                  <button key={f} className={cx('pe-tile', (x.effect || 'none') === f && 'on')} onClick={() => setX({ effect: f })}>
+                    <span className="pe-fx-ic">{{ none: '—', sparkle: '✦', bees: '🐝', snow: '❄', aurora: '🌌', hearts: '♥' }[f]}</span>
+                    {EFFECT_LABEL[f]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Section>
+
           <Section id="banner" title="Afiş" sub="Kartının üst kısmı. Renk, degrade, desen ya da kendi resmin (hareketli GIF de olur).">
             <Seg
               value={banner.kind}
@@ -689,26 +709,6 @@ export function ProfileEditor() {
                   <span className="note">İlk renk rolünün ya da profilinin rengidir.</span>
                 </div>
               )}
-            </div>
-          </Section>
-
-          <Section
-            id="card"
-            title="Profil renkleri"
-            sub="Kartının renklerini ton ton ayarla: üst, alt ve vurgu rengi. Kapalıyken uygulamanın temasını kullanır."
-            right={<Toggle value={!!x.theme} onChange={(v) => setX({ theme: v ? { ...TONE_PRESETS[0].t } : undefined })} />}
-          >
-            {x.theme && <ToneEditor value={x.theme} onChange={(theme) => setX({ theme })} />}
-            <div className="field">
-              <span>Kart efekti</span>
-              <div className="pe-tiles">
-                {EFFECTS.map((f) => (
-                  <button key={f} className={cx('pe-tile', (x.effect || 'none') === f && 'on')} onClick={() => setX({ effect: f })}>
-                    <span className="pe-fx-ic">{{ none: '—', sparkle: '✦', bees: '🐝', snow: '❄', aurora: '🌌', hearts: '♥' }[f]}</span>
-                    {EFFECT_LABEL[f]}
-                  </button>
-                ))}
-              </div>
             </div>
           </Section>
 

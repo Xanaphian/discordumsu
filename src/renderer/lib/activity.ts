@@ -8,6 +8,9 @@ import { useStore, actHooks, sendAll, sendHost, updateProfile, toast, type Setti
 
 export interface DetectedState {
   supported: boolean;
+  mediaOk?: boolean;
+  sessions?: string[];
+  mediaErr?: string;
   game: { name: string; exe: string; start?: number; icon?: string; details?: string; state?: string; matchStart?: number } | null;
   media: {
     app: string;

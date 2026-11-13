@@ -38,18 +38,18 @@ export const SERVICES: Record<AccountService, ServiceMeta> = {
     label: 'Steam',
     color: '#2a475e',
     icon: Gamepad2,
-    placeholder: 'profil adı ya da adresi',
+    placeholder: 'https://steamcommunity.com/id/…',
     url: (a) => (/^\d{17}$/.test(a.name) ? 'https://steamcommunity.com/profiles/' + a.name : 'https://steamcommunity.com/id/' + encodeURIComponent(handle(a.name))),
   },
-  epic: { label: 'Epic Games', color: '#3a3a3a', icon: Joystick, placeholder: 'Epic görünen adı' },
-  battlenet: { label: 'Battle.net', color: '#148eff', icon: Shield, placeholder: 'Ad#1234' },
-  xbox: { label: 'Xbox', color: '#107c10', icon: Gamepad2, placeholder: 'oyuncu etiketi' },
-  psn: { label: 'PlayStation', color: '#0070d1', icon: Trophy, placeholder: 'PSN kimliği' },
+  epic: { label: 'Epic Games', color: '#3a3a3a', icon: Joystick, placeholder: 'https://store.epicgames.com/u/…', url: (a) => 'https://store.epicgames.com/u/' + encodeURIComponent(a.name) },
+  battlenet: { label: 'Battle.net', color: '#148eff', icon: Shield, placeholder: 'Ad#1234', hint: "Battle.net'in herkese açık profil sayfası olmadığı için BattleTag'ini (Ad#1234) yaz." },
+  xbox: { label: 'Xbox', color: '#107c10', icon: Gamepad2, placeholder: 'https://www.xbox.com/play/user/…', url: (a) => 'https://www.xbox.com/play/user/' + encodeURIComponent(a.name) },
+  psn: { label: 'PlayStation', color: '#0070d1', icon: Trophy, placeholder: 'https://profile.playstation.com/…', url: (a) => 'https://profile.playstation.com/' + encodeURIComponent(a.name) },
   kick: {
     label: 'Kick',
     color: '#3bb30f',
     icon: Radio,
-    placeholder: 'kanal adı',
+    placeholder: 'https://kick.com/…',
     hint: 'Yayın açtığında profilinde "Şu anda yayında" görünür.',
     url: (a) => 'https://kick.com/' + encodeURIComponent(handle(a.name).toLowerCase()),
     live: true,
@@ -58,41 +58,78 @@ export const SERVICES: Record<AccountService, ServiceMeta> = {
     label: 'Twitch',
     color: '#9146ff',
     icon: Tv,
-    placeholder: 'kanal adı',
+    placeholder: 'https://www.twitch.tv/…',
     hint: 'Yayın açtığında profilinde "Şu anda yayında" görünür.',
     url: (a) => 'https://www.twitch.tv/' + encodeURIComponent(handle(a.name).toLowerCase()),
     live: true,
   },
-  youtube: { label: 'YouTube', color: '#e62117', icon: Clapperboard, placeholder: '@kanal', url: (a) => 'https://www.youtube.com/@' + encodeURIComponent(handle(a.name)) },
+  youtube: {
+    label: 'YouTube',
+    color: '#e62117',
+    icon: Clapperboard,
+    placeholder: 'https://www.youtube.com/@…',
+    url: (a) => (/^UC[\w-]{22}$/.test(a.name) ? 'https://www.youtube.com/channel/' + a.name : 'https://www.youtube.com/@' + encodeURIComponent(handle(a.name))),
+  },
   spotify: {
     label: 'Spotify',
     color: '#1db954',
     icon: Music2,
-    placeholder: 'kullanıcı adı ya da profil adresi',
+    placeholder: 'https://open.spotify.com/user/…',
     hint: 'Dinlediğin şarkı Spotify bağlamadan da görünür; bu yalnızca profil bağlantısıdır.',
     url: (a) => 'https://open.spotify.com/user/' + encodeURIComponent(handle(a.name)),
   },
-  github: { label: 'GitHub', color: '#24292f', icon: Code, placeholder: 'kullanıcı adı', url: (a) => 'https://github.com/' + encodeURIComponent(handle(a.name)) },
-  x: { label: 'X', color: '#111111', icon: AtSign, placeholder: '@kullanıcı', url: (a) => 'https://x.com/' + encodeURIComponent(handle(a.name)) },
-  instagram: { label: 'Instagram', color: '#d62976', icon: Camera, placeholder: '@kullanıcı', url: (a) => 'https://www.instagram.com/' + encodeURIComponent(handle(a.name)) },
-  tiktok: { label: 'TikTok', color: '#111111', icon: Music2, placeholder: '@kullanıcı', url: (a) => 'https://www.tiktok.com/@' + encodeURIComponent(handle(a.name)) },
-  reddit: { label: 'Reddit', color: '#ff4500', icon: MessageSquareText, placeholder: 'u/kullanıcı', url: (a) => 'https://www.reddit.com/user/' + encodeURIComponent(handle(a.name).replace(/^u\//, '')) },
+  github: { label: 'GitHub', color: '#24292f', icon: Code, placeholder: 'https://github.com/…', url: (a) => 'https://github.com/' + encodeURIComponent(handle(a.name)) },
+  x: { label: 'X', color: '#111111', icon: AtSign, placeholder: 'https://x.com/…', url: (a) => 'https://x.com/' + encodeURIComponent(handle(a.name)) },
+  instagram: { label: 'Instagram', color: '#d62976', icon: Camera, placeholder: 'https://www.instagram.com/…', url: (a) => 'https://www.instagram.com/' + encodeURIComponent(handle(a.name)) },
+  tiktok: { label: 'TikTok', color: '#111111', icon: Music2, placeholder: 'https://www.tiktok.com/@…', url: (a) => 'https://www.tiktok.com/@' + encodeURIComponent(handle(a.name)) },
+  reddit: { label: 'Reddit', color: '#ff4500', icon: MessageSquareText, placeholder: 'https://www.reddit.com/user/…', url: (a) => 'https://www.reddit.com/user/' + encodeURIComponent(handle(a.name).replace(/^u\//, '')) },
 };
 
-/** Yapıştırılan adresten hesap adını çıkarır (ör. https://kick.com/abc -> abc) */
-export function accountFromInput(svc: AccountService, raw: string): string {
+/** Hesap bağlarken istenen profil bağlantısı: adres kalıbı ve içinden çıkan kimlik. Riot ve Battle.net kimlikle bağlanır. */
+const LINK_RULES: Partial<Record<AccountService, { prefix: string; host: RegExp; id: (parts: string[], u: URL) => string | null }>> = {
+  steam: { prefix: 'https://steamcommunity.com/id/', host: /^steamcommunity\.com$/, id: (p) => ((p[0] === 'id' || (p[0] === 'profiles' && /^\d{17}$/.test(p[1] || ''))) && p[1] ? p[1] : null) },
+  epic: { prefix: 'https://store.epicgames.com/u/', host: /^store\.epicgames\.com$/, id: (p) => { const i = p.indexOf('u'); return i >= 0 && p[i + 1] ? p[i + 1] : null; } },
+  xbox: { prefix: 'https://www.xbox.com/play/user/', host: /^(www\.)?xbox\.com$/, id: (p) => { const i = p.indexOf('user'); return i > 0 && p[i - 1] === 'play' && p[i + 1] ? p[i + 1] : null; } },
+  psn: { prefix: 'https://profile.playstation.com/', host: /^profile\.playstation\.com$/, id: (p) => p[p.length - 1] || null },
+  kick: { prefix: 'https://kick.com/', host: /^(www\.)?kick\.com$/, id: (p) => p[0] || null },
+  twitch: { prefix: 'https://www.twitch.tv/', host: /^(www\.|m\.)?twitch\.tv$/, id: (p) => p[0] || null },
+  youtube: { prefix: 'https://www.youtube.com/@', host: /^(www\.|m\.)?youtube\.com$/, id: (p) => (p[0]?.startsWith('@') && p[0].length > 1 ? p[0].slice(1) : p[0] === 'channel' && /^UC[\w-]{22}$/.test(p[1] || '') ? p[1] : null) },
+  spotify: { prefix: 'https://open.spotify.com/user/', host: /^open\.spotify\.com$/, id: (p) => { const i = p.indexOf('user'); return i >= 0 && i <= 1 && p[i + 1] ? p[i + 1] : null; } },
+  github: { prefix: 'https://github.com/', host: /^(www\.)?github\.com$/, id: (p) => (p.length === 1 ? p[0] : null) },
+  x: { prefix: 'https://x.com/', host: /^(www\.|mobile\.)?(x|twitter)\.com$/, id: (p) => p[0] || null },
+  instagram: { prefix: 'https://www.instagram.com/', host: /^(www\.)?instagram\.com$/, id: (p) => p[0] || null },
+  tiktok: { prefix: 'https://www.tiktok.com/@', host: /^(www\.|m\.)?tiktok\.com$/, id: (p) => (p[0]?.startsWith('@') && p[0].length > 1 ? p[0].slice(1) : null) },
+  reddit: { prefix: 'https://www.reddit.com/user/', host: /^(www\.|old\.|new\.)?reddit\.com$/, id: (p) => ((p[0] === 'user' || p[0] === 'u') && p[1] ? p[1] : null) },
+};
+
+/** Bu hizmet profil bağlantısıyla mı bağlanıyor (Riot ve Battle.net hariç hepsi) */
+export const needsLink = (svc: AccountService) => !!LINK_RULES[svc];
+export const linkExample = (svc: AccountService) => LINK_RULES[svc]?.prefix || '';
+
+/** Girilen değeri denetler: bağlantı isteyen hizmette adres kalıbı tutmazsa anlaşılır bir hata döner */
+export function accountFromInput(svc: AccountService, raw: string): { name?: string; err?: string } {
   const s = raw.trim();
-  if (!/^https?:\/\//i.test(s) && !/\.(com|tv|gg)\//i.test(s)) return svc === 'riot' || svc === 'battlenet' ? s : s.replace(/^@+/, '');
+  const rule = LINK_RULES[svc];
+  if (!rule) return s ? { name: s } : { err: 'Boş bırakma.' };
+  const label = SERVICES[svc].label;
+  const bad = { err: `${label} profil bağlantısı ${rule.prefix} ile başlamalı.` };
+  if (!/^https?:\/\//i.test(s)) return bad;
   try {
-    const u = new URL(/^https?:/i.test(s) ? s : 'https://' + s);
-    const parts = u.pathname.split('/').filter(Boolean);
-    if (svc === 'steam') return parts[1] || parts[0] || s;
-    if (svc === 'spotify') return parts[1] || parts[0] || s;
-    if (svc === 'reddit') return parts[1] || parts[0] || s;
-    return decodeURIComponent((parts[0] || s).replace(/^@/, ''));
+    const u = new URL(s);
+    if (!rule.host.test(u.hostname.toLowerCase())) return bad;
+    const parts = u.pathname.split('/').filter(Boolean).map((x) => decodeURIComponent(x));
+    const id = rule.id(parts, u);
+    if (!id || id.length > 48 || /[/?#]/.test(id) || (svc !== 'xbox' && /\s/.test(id))) return { err: `Bağlantıda ${label} kullanıcısı bulunamadı. Örnek: ${rule.prefix}kullanıcı` };
+    return { name: id };
   } catch {
-    return s;
+    return bad;
   }
+}
+
+/** Profilde görünen ad (Spotify'ın rastgele kimlikleri yerine "Spotify profili") */
+export function accountLabel(a: LinkedAccount): string {
+  if (a.svc === 'spotify' && /^[a-z0-9]{22,}$/i.test(a.name) && /\d/.test(a.name)) return 'Spotify profili';
+  return a.name;
 }
 
 /** Hizmet / oyun logosu (Simple Icons). plain: zeminsiz, marka renginde */
@@ -149,11 +186,11 @@ export function AccountList({ profile, liveSvcs, chips }: { profile?: ProfileExt
             <button
               key={a.svc + a.name}
               className={cx('acc-chip', liveSvcs?.includes(a.svc) && 'live')}
-              title={`${SERVICES[a.svc].label}: ${a.name}`}
+              title={`${SERVICES[a.svc].label}: ${accountLabel(a)}`}
               onClick={() => (url ? window.kovan.openExternal(url) : (copyText(a.name), toast('Kopyalandı', 'ok')))}
             >
               <ServiceIcon svc={a.svc} size={20} />
-              <span>{a.name}</span>
+              <span>{accountLabel(a)}</span>
             </button>
           );
         })}
@@ -169,7 +206,7 @@ export function AccountList({ profile, liveSvcs, chips }: { profile?: ProfileExt
           <div key={a.svc + a.name} className="acc-row">
             <ServiceIcon svc={a.svc} />
             <div className="acc-text">
-              <b>{a.name}</b>
+              <b>{accountLabel(a)}</b>
               <span>
                 {m.label}
                 {a.svc === 'riot' && a.region ? ' · ' + a.region.toUpperCase() : ''}

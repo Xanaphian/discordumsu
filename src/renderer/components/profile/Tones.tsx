@@ -34,20 +34,15 @@ export function shades(hex: string): string[] {
   return [92, 82, 70, 58, 46, 34, 24, 15, 8].map((l) => hslToHex(h, Math.max(s, 18), l));
 }
 
-/** Hazır ton çiftleri (xanaphian.com temalarıyla uyumlu) */
+/** Hazır renkler: yalnızca xanaphian.com (Scuttle) temaları; değerler sitenin temalar.css dosyasından */
 export const TONE_PRESETS: { name: string; t: Theme }[] = [
   { name: 'Gece', t: { a: '#15223f', b: '#0a1226', c: '#c8aa6e' } },
-  { name: 'Altın', t: { a: '#3a2c12', b: '#140f06', c: '#e6c47e' } },
-  { name: 'Bordo', t: { a: '#4a1420', b: '#1c070c', c: '#d6a86e' } },
-  { name: 'Koyu yeşil', t: { a: '#163a2a', b: '#08170f', c: '#c8b06a' } },
-  { name: 'Turkuaz', t: { a: '#0c3a40', b: '#06161a', c: '#0ac8b9' } },
-  { name: 'Mor', t: { a: '#2e1a4f', b: '#110a1f', c: '#b69cff' } },
-  { name: 'Kömür', t: { a: '#26272b', b: '#0d0d0f', c: '#c9ccd6' } },
-  { name: 'Toz pembe', t: { a: '#f4dde4', b: '#e8c3cf', c: '#b0446a' } },
-  { name: 'Arşiv kâğıdı', t: { a: '#f3ead6', b: '#e3d4b2', c: '#6f5318' } },
-  { name: 'Bej', t: { a: '#ead9bd', b: '#d2b98f', c: '#7a5a1e' } },
-  { name: 'Gökyüzü', t: { a: '#dbeaf7', b: '#b7d0ea', c: '#2563a8' } },
-  { name: 'Lav', t: { a: '#4a170b', b: '#170704', c: '#ff8a4c' } },
+  { name: 'Arşiv Kâğıdı', t: { a: '#fbf7ee', b: '#e2d9c6', c: '#6f5318' } },
+  { name: 'Toz Pembe', t: { a: '#fff2f5', b: '#ecd8dc', c: '#b0446a' } },
+  { name: 'Siyah', t: { a: '#0e0e10', b: '#000000', c: '#c9ccd6' } },
+  { name: 'Bej', t: { a: '#f6efdf', b: '#ded2b8', c: '#7a5a1e' } },
+  { name: 'Bordo', t: { a: '#311015', b: '#1a0508', c: '#d6a86e' } },
+  { name: 'Koyu Yeşil', t: { a: '#0c2619', b: '#04120c', c: '#c8b06a' } },
 ];
 
 function Slider({ label, value, min, max, onChange, track }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; track: string }) {
@@ -125,7 +120,7 @@ export function ToneEditor({ value, onChange }: { value: Theme; onChange: (t: Th
   return (
     <div className="tone-ed">
       <div className="field">
-        <span>Hazır tonlar</span>
+        <span>xanaphian.com temaları</span>
         <div className="tone-presets">
           {TONE_PRESETS.map((p) => {
             const on = p.t.a === value.a && p.t.b === value.b;
@@ -140,6 +135,8 @@ export function ToneEditor({ value, onChange }: { value: Theme; onChange: (t: Th
           })}
         </div>
       </div>
+      <details className="tone-fine">
+        <summary>Renkleri ince ayarla</summary>
       <div className="tone-grid">
         <ToneSlider label="Üst renk" hint="Kartın üst kısmı" value={value.a} onChange={(a) => onChange({ ...value, a })} />
         <ToneSlider label="Alt renk" hint="Aşağı doğru geçiş yapar" value={value.b} onChange={(b) => onChange({ ...value, b })} />
@@ -165,6 +162,7 @@ export function ToneEditor({ value, onChange }: { value: Theme; onChange: (t: Th
           <Wand2 size={14} /> Vurguyu üstle uyumla
         </button>
       </div>
+      </details>
     </div>
   );
 }
