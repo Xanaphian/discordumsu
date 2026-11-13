@@ -1,9 +1,12 @@
 name: Sürüm yayınla
 
+# package.json'daki sürümle (ör. 1.0.1) Windows kurulumunu derler ve
+# GitHub Releases'a "v1.0.1" olarak yükler. Kurulu uygulamalar buradan güncellenir.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['package.json']
 
 permissions:
   contents: write
@@ -11,14 +14,37 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - name: Derle ve GitHub Releases'a yükle
-        run: npm run release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sürümü oku
+        id: ver
+        shell: bash
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Bu sürüm zaten yayınlandı mı?
+        id: exists
+        shell: bash
+        run: |
+          if gh release view "v${{ steps.ver.outputs.v }}" --json assets -q '.assets[].name' 2>/dev/null | grep -q '^latest.yml$'; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"; echo "v${{ steps.ver.outputs.v }} zaten yayınlanmış, atlanıyor."
+          fi
+      - if: steps.exists.outputs.skip != '1'
+        run: npm ci
+      - if: steps.exists.outputs.skip != '1'
+        name: Derle
+        run: npm run dist:win
+      - if: steps.exists.outputs.skip != '1'
+        name: GitHub Releases'a yükle
+        shell: bash
+        run: |
+          V="v${{ steps.ver.outputs.v }}"
+          gh release delete "$V" --yes --cleanup-tag 2>/dev/null || true
+          NOTES="release-notes/${{ steps.ver.outputs.v }}.md"
+          [ -f "$NOTES" ] || { echo "Kovan $V" > /tmp/notes.md; NOTES=/tmp/notes.md; }
+          gh release create "$V" --target "$GITHUB_SHA" --title "Kovan $V" --notes-file "$NOTES" \
+            release/Kovan-Setup-*.exe release/Kovan-Setup-*.exe.blockmap release/latest.yml

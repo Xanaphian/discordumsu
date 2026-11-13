@@ -27,6 +27,7 @@ npm run dist:win                  # Windows kurulum dosyası (release/)
 ```
 
 ## Yeni sürüm yayınlama
-1. `package.json` içindeki `version` alanını artır (ör. `1.0.1`).
-2. `git tag v1.0.1 && git push --tags`
-3. GitHub Actions Windows kurulumunu derleyip Releases'a yükler. Kurulu uygulamalar yeni sürümü görür ve üst çubukta **Güncelle** düğmesi belirir.
+1. `package.json` içindeki `version` alanını artır (ör. `1.0.1`) ve isteğe bağlı olarak `release-notes/1.0.1.md` yaz.
+2. `main` dalına gönder. `Sürüm yayınla` iş akışı Windows kurulumunu derleyip `v1.0.1` olarak Releases'a yükler
+   (Actions sekmesinden elle de çalıştırılabilir).
+3. Kurulu uygulamalar yeni sürümü görür; üst çubukta **Güncelle** düğmesi belirir.
