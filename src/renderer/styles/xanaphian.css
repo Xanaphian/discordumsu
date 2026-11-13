@@ -171,3 +171,279 @@ html[data-style] {
   width: 30px;
   height: 30px;
 }
+
+/* ==========================================================================
+   1.14: xanaphian.com görünümü
+   Sitedeki "Gece" teması referans: gece mavisi yüzeyler, altın (#c8aa6e) vurgu,
+   krem yazı, başlıklarda Marcellus, metinde Source Sans 3, büyük harfli aralıklı
+   etiketler ve düğmeler, üst kenarı hafif ışıklı paneller. (İki yazı tipi de OFL.)
+   ========================================================================== */
+@font-face {
+  font-family: 'Marcellus';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(../assets/fonts/marcellus-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Marcellus';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(../assets/fonts/marcellus-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(../assets/fonts/source-sans-3-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(../assets/fonts/source-sans-3-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(../assets/fonts/source-sans-3-latin-ext-italic.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(../assets/fonts/source-sans-3-latin-italic.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* Marcellus'un rakamları zayıf: başlıklardaki sayılar metin yazı tipiyle çizilir (sitedeki gibi) */
+@font-face {
+  font-family: 'Xanaphian Rakam';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url(../assets/fonts/source-sans-3-latin.woff2) format('woff2');
+  unicode-range: U+0023, U+0025, U+002B-002E, U+0030-0039, U+2212;
+}
+
+html[data-style] {
+  --font: 'Source Sans 3', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --display: 'Xanaphian Rakam', 'Marcellus', Georgia, serif;
+  --brand-font: 'Marcellus', Georgia, serif;
+}
+
+/* başlıklar: Marcellus, ince ve sakin */
+.modal-head h2,
+.side-title,
+.comm-head .side-title,
+.side-header.static .side-title,
+.ch-start h1,
+.home-h,
+.home-hero h1,
+.nf-display,
+.settings-content h1,
+.settings-content .pe-sec h3,
+.tq-h > b,
+.chat-header h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  font-synthesis: none;
+}
+.home-hero h1 {
+  font-size: 36px;
+  line-height: 1.1;
+}
+.home-hero h1 em,
+.ch-start h1 em {
+  font-style: normal;
+  color: var(--orn, var(--accent));
+}
+.chat-header h2 {
+  font-size: 19px;
+}
+.comm-head .side-title,
+.side-header.static .side-title {
+  font-size: 18px;
+}
+.home-h {
+  font-size: 21px;
+}
+/* baş harfler ve küçük sayaçlar metin yazı tipinde kalır */
+.comm-icon-text,
+.pc-mutual-ic {
+  font-family: var(--font);
+  font-weight: 700;
+}
+
+/* etiketler: sitedeki "EN ÇOK OYNANAN" gibi büyük harf ve geniş aralık */
+.cat-row > span:not(.tip-wrap),
+.member-group-title,
+.sn-group,
+.fr-count {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.cat-row > span:not(.tip-wrap)::after {
+  opacity: 0.6;
+}
+
+/* üst çubuk yazısı: sitedeki logo yazısı gibi */
+.tb-brand span {
+  font-family: var(--brand-font);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+
+/* düğmeler: büyük harf, aralıklı; ana düğme altın, diğerleri ince çerçeveli */
+.btn {
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 6px;
+}
+.btn.sm {
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+}
+.btn.lg {
+  font-size: 13px;
+}
+.btn.primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff 12%), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 18px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.btn.ghost,
+.btn:not(.primary):not(.success):not(.danger):not(.ghost) {
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.btn.ghost:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* sekmeler: seçili sekmenin altında altın çizgi */
+.fr-tab {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 6px;
+}
+.fr-tab.on {
+  background: var(--bg-active, var(--bg-elev-2));
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* ---------------- yalnızca Xanaphian temalarında: sitenin derin katmanları ---------------- */
+[data-style='destan'] .app {
+  background: linear-gradient(180deg, var(--bg-app), color-mix(in srgb, var(--bg-app) 82%, #000));
+}
+[data-style='destan'] .titlebar {
+  background:
+    var(--hair) bottom / 100% 1px no-repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 70%, transparent), transparent);
+}
+/* paneller zeminden bir ton açık, üst kenarı ışık alır, uzun yumuşak gölge */
+[data-style='destan'] .sidebar,
+[data-style='destan'] .content > * {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top-color: rgba(255, 255, 255, 0.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 24px 44px -22px rgba(0, 0, 0, 0.9),
+    0 3px 8px rgba(0, 0, 0, 0.4);
+}
+[data-style='destan'] .sidebar,
+[data-style='destan'] .content > .members {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 80%, #fff 3%), var(--bg-side) 240px);
+}
+/* seçili kanal: sitedeki listeler gibi açık zemin ve solda altın çizgi */
+[data-style='destan'] .ch-row:not(.room).active {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--orn) 16%, transparent), color-mix(in srgb, var(--orn) 3%, transparent));
+  box-shadow: inset 2px 0 0 var(--orn);
+  border-radius: 4px 8px 8px 4px;
+}
+[data-style='destan'] .ch-row:not(.room).active .ch-icon {
+  background: transparent;
+  color: var(--orn);
+}
+[data-style='destan'] .ch-head-icon {
+  background: transparent;
+  color: var(--orn);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+/* yazı alanı: koyu kuyu, ince altın kenar */
+[data-style='destan'] .composer-box {
+  background: var(--bg-input);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+/* ana sayfa: madalyon amblem (site logosu gibi lacivert disk, altın halka) */
+[data-style='destan'] .xa-ring.r1 {
+  background: radial-gradient(circle at 50% 35%, var(--bg-elev-2), var(--bg-app) 72%);
+  border: 2px solid color-mix(in srgb, var(--orn) 70%, transparent);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--bg-app) 80%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--orn) 35%, transparent),
+    0 18px 50px -10px rgba(0, 0, 0, 0.8);
+}
+[data-style='destan'] .home-hero {
+  background:
+    radial-gradient(90% 140% at 100% 0%, rgba(var(--glow), 0.08), transparent 55%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 85%, #fff 3%), var(--bg-side));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top-color: rgba(255, 255, 255, 0.15);
+}
+[data-style='destan'] .tip-card,
+[data-style='destan'] .comm-card {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 80%, #fff 3%), var(--bg-side) 70%);
+  border-color: rgba(255, 255, 255, 0.07);
+  border-top-color: rgba(255, 255, 255, 0.14);
+}
+[data-style='destan'] .tip-card svg {
+  color: var(--orn);
+}
+/* sol şeritteki oluştur/katıl düğmeleri: yeşil yerine tema rengi */
+.shell .rail-v .pt-act .pt-hex {
+  color: var(--accent);
+  background: var(--bg-elev);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.shell .rail-v .pt-act:hover .pt-hex {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+/* ana sayfa düğmeleri tek satırda kalsın */
+.home-hero .btn-row {
+  gap: 10px;
+}
+.home-hero .btn.lg {
+  height: 42px;
+  padding: 0 16px;
+  font-size: 12px;
+}
+/* arkadaş ekle sekmesi: yeşil yerine tema rengi */
+.fr-tab.add {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.fr-tab.add.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}

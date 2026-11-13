@@ -112,15 +112,15 @@ export function Logo({ size = 22 }: { size?: number }) {
       <svg className="logo-x" width={size} height={size} viewBox="0 0 64 64" aria-hidden>
         <defs>
           <linearGradient id="xg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f3dca2" />
-            <stop offset=".55" stopColor="#c9a35a" />
-            <stop offset="1" stopColor="#8a6630" />
+            <stop offset="0" stopColor="#f0e6d2" />
+            <stop offset=".55" stopColor="#c8aa6e" />
+            <stop offset="1" stopColor="#785a28" />
           </linearGradient>
         </defs>
         <path d="M6 5h17v4h-4.2L47 55h3v4H34v-4h4.4L10.2 9H6z" fill="url(#xg)" />
         <path d="M58 5H41v4h4.2L17 55h-3v4h16v-4h-4.4L53.8 9H58z" fill="url(#xg)" opacity=".92" />
-        <path d="M32 22.5 39 32l-7 9.5L25 32z" fill="#0a1018" />
-        <path d="M32 26.5 36 32l-4 5.5-4-5.5z" fill="#5fd0c8" />
+        <path d="M32 22.5 39 32l-7 9.5L25 32z" fill="#0a1226" />
+        <path d="M32 26.5 36 32l-4 5.5-4-5.5z" fill="#0ac8b9" />
       </svg>
     </span>
   );

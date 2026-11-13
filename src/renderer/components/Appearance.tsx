@@ -3,7 +3,7 @@ import { useStore, updateSettings, openModal, type Settings } from '../lib/store
 import { Toggle } from './Common';
 import { cx } from '../lib/util';
 
-const ACCENTS = ['#c9a35a', '#5fd0c8', '#f5a524', '#fbbf24', '#3ecf8e', '#22d3ee', '#6cb6ff', '#a78bfa', '#c084fc', '#fb7185', '#f97316'];
+const ACCENTS = ['#c8aa6e', '#0ac8b9', '#f5a524', '#fbbf24', '#3ecf8e', '#22d3ee', '#6cb6ff', '#a78bfa', '#c084fc', '#fb7185', '#f97316'];
 
 export interface ThemeDef {
   id: Settings['theme'];
@@ -20,13 +20,13 @@ export interface ThemeDef {
 }
 
 export const THEMES: ThemeDef[] = [
-  { id: 'destan', label: 'Destan', sub: 'Lacivert ve altın', rail: '#05080d', side: '#0a1018', chat: '#0c131d', ink: '#efe6d2', accent: '#c9a35a', family: 'destan' },
+  { id: 'destan', label: 'Gece', sub: 'Gece mavisi ve altın', rail: '#0a1226', side: '#0f1a34', chat: '#0e1830', ink: '#f0e6d2', accent: '#c8aa6e', family: 'destan' },
   { id: 'kor', label: 'Kor', sub: 'Kömür ve bakır', rail: '#0b0706', side: '#140d0b', chat: '#19110e', ink: '#f3e4da', accent: '#e07a45', family: 'destan' },
   { id: 'buzul', label: 'Buzul', sub: 'Gece mavisi ve gümüş', rail: '#050a12', side: '#0a1320', chat: '#0d1828', ink: '#e6eef8', accent: '#8fc3ea', family: 'destan' },
   { id: 'zumrut', label: 'Zümrüt', sub: 'Orman ve yeşim', rail: '#040a08', side: '#09130f', chat: '#0c1813', ink: '#e4f1e8', accent: '#4fc490', family: 'destan' },
   { id: 'alaca', label: 'Alacakaranlık', sub: 'Mor ve gül altını', rail: '#08060f', side: '#110c1b', chat: '#161022', ink: '#efe6f6', accent: '#c38cf0', family: 'destan' },
   { id: 'dark', label: 'Amber', sub: 'Sıcak koyu', rail: '#0d0b08', side: '#17140f', chat: '#1d1a14', ink: '#efe9df', accent: '#f5a524', family: 'klasik' },
-  { id: 'midnight', label: 'Gece', sub: 'Saf siyah', rail: '#000000', side: '#09090a', chat: '#0f0f11', ink: '#ececf1', accent: '#6cb6ff', family: 'klasik' },
+  { id: 'midnight', label: 'Siyah', sub: 'Saf siyah', rail: '#000000', side: '#09090a', chat: '#0f0f11', ink: '#ececf1', accent: '#6cb6ff', family: 'klasik' },
   { id: 'ocean', label: 'Okyanus', sub: 'Derin mavi', rail: '#060d14', side: '#0c1620', chat: '#111d29', ink: '#e3eef7', accent: '#22d3ee', family: 'klasik' },
   { id: 'forest', label: 'Orman', sub: 'Yosun yeşili', rail: '#070c08', side: '#0e1610', chat: '#131d15', ink: '#e4efe4', accent: '#3ecf8e', family: 'klasik' },
   { id: 'rose', label: 'Gül', sub: 'Mürdüm', rail: '#0f080c', side: '#1a0f15', chat: '#21141b', ink: '#f6e6ee', accent: '#fb7185', family: 'klasik' },
@@ -68,8 +68,8 @@ function ThemeGrid({ compact }: { compact?: boolean }) {
       {(['destan', 'klasik'] as const).map((fam) => (
         <div key={fam} className="ap-fam">
           <div className="ap-fam-h">
-            <b>{fam === 'destan' ? 'Destan temaları' : 'Klasik temalar'}</b>
-            <span>{fam === 'destan' ? 'Derin tonlar, ince altın vurgular' : 'Yumuşak köşeler, sade paneller'}</span>
+            <b>{fam === 'destan' ? 'Xanaphian temaları' : 'Klasik temalar'}</b>
+            <span>{fam === 'destan' ? 'xanaphian.com ile aynı renkler ve yazı tipleri' : 'Yumuşak köşeler, sade paneller'}</span>
           </div>
           <div className={cx('ap-themes', compact && 'compact')}>
             {THEMES.filter((t) => t.family === fam).map((t) => (
