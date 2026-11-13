@@ -289,7 +289,7 @@ export class Hub {
         authorId: BOT_ID,
         ts: Date.now(),
         content:
-          '## Yeni: Site Odaları 🌐\n**xanaphian.com** artık Kovan\'ın içinde. Soldaki **Site Odaları** bölümünden odaya gir; site ortada açılır, sağda o odanın sohbeti durur.\n- Üstteki çubuktan **şampiyon ara**, menülere atla, geri/ileri git\n- Odada kimin hangi sayfaya baktığını görürsün; birinin üstüne tıklayıp **takip et**, o gezdikçe sen de gezersin\n- **Paylaş** düğmesi baktığın sayfayı sohbete atar; sohbetteki xanaphian.com bağlantıları da doğrudan odada açılır\n- Yöneticiler kanal oluştururken türü **Site Odası** seçip başka bir site de bağlayabilir',
+          '## Yeni: Site Odaları 🌐\n**xanaphian.com** artık Kovan\'ın içinde. Soldaki **Site Odaları** bölümünden odaya gir; site ortada açılır, sağda o odanın sohbeti durur.\n- Odada kimin hangi sayfaya baktığını görürsün; birinin üstüne tıklayıp **takip et**, o gezdikçe sen de gezersin\n- Sohbetteki xanaphian.com bağlantıları doğrudan odada açılır\n- Yöneticiler kanal oluştururken türü **Site Odası** seçip başka bir site de bağlayabilir',
       });
     }
     this.saveComm(c.id);
