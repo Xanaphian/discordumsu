@@ -9,6 +9,8 @@ export interface LfgCard {
   k: 'lfg';
   /** oyun adı */
   g: string;
+  /** oyun şablonu (lfgGames.ts); kartın logosu, rengi ve yerleri buna göre */
+  gk?: string;
   /** kip / not (ör. Dereceli Çiftli) */
   m?: string;
   /** açıklama */
@@ -86,5 +88,3 @@ export function lfgSlots(m: Message, c: LfgCard): (string | null)[] {
 export function pollVotes(m: Message, c: PollCard): string[][] {
   return c.o.map((_, i) => m.reactions?.[voteKey(i)] || []);
 }
-
-export const LOL_ROLES = ['Üst', 'Orman', 'Orta', 'Nişancı', 'Destek'];

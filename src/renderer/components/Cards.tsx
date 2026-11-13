@@ -6,11 +6,13 @@ import { useVoice, joinVoice } from '../lib/voice';
 import { Avatar } from './Common';
 import { cx, displayName, hm, fmtTime } from '../lib/util';
 import {
-  encodeCard, lfgSlots, pollVotes, slotKey, voteKey, LOL_ROLES,
+  encodeCard, lfgSlots, pollVotes, slotKey, voteKey,
   type LfgCard, type PollCard, type Card,
 } from '../lib/cards';
 import { presets, schedule } from '../lib/later';
 import { useActs } from '../lib/activity';
+import { LFG_GAMES, lfgGameOf, slotsFor, type LfgGame } from '../lib/lfgGames';
+import { BrandLogo } from './profile/Activity';
 import { isVoiceLike, type Community, type Message, type ID } from '../../shared/protocol';
 
 // ---------------------------------------------------------------------------
@@ -42,12 +44,20 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
   }, [c.channels, voice, m.authorId]);
   const inTeam = team.includes(me);
 
+  const game = lfgGameOf(card);
+  const theme = game?.theme.a ? ({ '--g-a': game.theme.a, '--g-b': game.theme.b, '--g-bg': game.theme.bg, '--g-ink': game.theme.ink || '#111' } as React.CSSProperties) : undefined;
+  const cols = slots.length <= 5 ? slots.length : Math.ceil(slots.length / 2);
+
   return (
-    <div className={cx('xcard lfg', full && 'full')}>
+    <div className={cx('xcard lfg', full && 'full', theme && 'themed', game && 'g-' + game.key)} style={theme}>
       <div className="xcard-head">
-        <span className="xcard-ico">
-          <Swords size={18} />
-        </span>
+        {game?.brand ? (
+          <BrandLogo k={game.brand} size={40} className="lfg-logo" />
+        ) : (
+          <span className="xcard-ico">
+            <Swords size={18} />
+          </span>
+        )}
         <div className="xcard-title">
           <b>{card.g}</b>
           <small>
@@ -59,9 +69,9 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
         </span>
       </div>
       {card.n && <div className="xcard-note">{card.n}</div>}
-      <div className="lfg-slots" style={{ gridTemplateColumns: `repeat(${Math.min(slots.length, 5)}, minmax(0, 1fr))` }}>
+      <div className="lfg-slots" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {slots.map((u, i) => {
-          const name = roles ? card.s[i] : `${i + 1}. oyuncu`;
+          const name = roles ? card.s[i] : `${i + 1}. ${game?.slotWord || 'oyuncu'}`;
           return (
             <button
               key={i}
@@ -70,9 +80,10 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
               disabled={!!u && u !== me}
               title={u === me ? 'Yerinden çık' : u ? undefined : 'Bu yere geç'}
             >
-              {u ? <Avatar user={users[u] || c.users[u]} size={34} /> : <span className="lfg-empty">+</span>}
+              <span className={cx('lfg-state', u ? 'on' : 'off')}>{u ? 'Dolu' : 'Boş'}</span>
+              {u ? <Avatar user={users[u] || c.users[u]} size={36} /> : <span className="lfg-empty">+</span>}
               <span className="lfg-role">{name}</span>
-              <span className="lfg-who">{u ? (u === me ? 'Sen' : displayName(c, u, users)) : 'Boş yer'}</span>
+              <span className="lfg-who">{u ? (u === me ? 'Sen' : displayName(c, u, users)) : 'Katıl'}</span>
             </button>
           );
         })}
@@ -92,7 +103,7 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
         ) : (
           <>
             <span className="xcard-muted">
-              <UsersRound size={14} /> {slots.length - filled} kişi aranıyor
+              <UsersRound size={14} /> {slots.length - filled} boş yer
             </span>
             {mySlot >= 0 && !(mineCard && card.own !== undefined) && (
               <button className="btn ghost sm" onClick={() => take(mySlot)}>
@@ -173,10 +184,10 @@ export function CardView({ m, card, c, me }: { m: Message; card: Card; c: Commun
 
 // ---------------------------------------------------------------------------
 // Kurulum pencereleri
-function Dialog({ title, sub, onClose, children, foot }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; foot: React.ReactNode }) {
+function Dialog({ title, sub, onClose, children, foot, className, style }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; foot: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal xdialog">
+      <div className={cx('modal xdialog', className)} style={style}>
         <div className="modal-head">
           <h2>{title}</h2>
           {sub && <p>{sub}</p>}
@@ -191,25 +202,54 @@ function Dialog({ title, sub, onClose, children, foot }: { title: string; sub?: 
   );
 }
 
-const GAME_PRESETS = ['League of Legends', 'Valorant', 'Counter-Strike 2', 'Teamfight Tactics', 'Minecraft'];
-
 export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
   const playing = useActs((s) => s.detected?.game?.name);
-  const [g, setG] = useState<string>(playing || 'League of Legends');
-  const [m, setM] = useState('');
+  const start = playing ? lfgGameOf({ g: playing }) : undefined;
+  const [game, setGame] = useState<LfgGame | null>(start || null);
+  const [custom, setCustom] = useState('');
+  const [modeIx, setModeIx] = useState(0);
+  const [count, setCount] = useState(4);
   const [n, setN] = useState('');
-  const [kind, setKind] = useState<'roles' | 'count'>('roles');
-  const [count, setCount] = useState(5);
   const [own, setOwn] = useState<number | null>(null);
-  const [roles, setRoles] = useState<string[]>(LOL_ROLES);
-  const isLol = /league of legends/i.test(g);
-  const effKind = kind === 'roles' && !isLol && roles === LOL_ROLES ? 'count' : kind;
+
+  const pick = (g: LfgGame) => {
+    setGame(g);
+    setModeIx(g.key === 'lol' ? 1 : 0);
+    setCount(g.size || 4);
+    setOwn(null);
+  };
+
+  if (!game)
+    return (
+      <Dialog title="Takım kur" sub="Hangi oyun için takım arıyorsun?" onClose={onClose} foot={<button className="btn ghost" onClick={onClose}>Vazgeç</button>}>
+        <div className="lfg-games">
+          {LFG_GAMES.map((g) => (
+            <button
+              key={g.key}
+              className="lfg-game"
+              style={g.theme.a ? ({ '--g-a': g.theme.a, '--g-bg': g.theme.bg } as React.CSSProperties) : undefined}
+              onClick={() => pick(g)}
+            >
+              {g.brand ? <BrandLogo k={g.brand} size={44} /> : <span className="lfg-game-other"><Plus size={22} /></span>}
+              <span>{g.name}</span>
+            </button>
+          ))}
+        </div>
+      </Dialog>
+    );
+
+  const mode = game.modes[modeIx];
+  const slots = slotsFor(game, mode, count);
+  const named = slots.some((x) => x);
+  const fixedSize = !!mode?.size || (named && !mode?.size);
+  const name = game.key === 'diger' ? custom.trim() : game.name;
+  const theme = game.theme.a ? ({ '--g-a': game.theme.a, '--g-b': game.theme.b, '--g-bg': game.theme.bg, '--g-ink': game.theme.ink || '#111' } as React.CSSProperties) : undefined;
+
   const send = () => {
-    const s = effKind === 'roles' ? roles.map((r) => r.trim() || '?') : Array.from({ length: count }, () => '');
-    const card: LfgCard = { k: 'lfg', g: g.trim() || 'Oyun', s };
-    if (m.trim()) card.m = m.trim().slice(0, 60);
+    const card: LfgCard = { k: 'lfg', g: name || 'Oyun', gk: game.key, s: slots };
+    if (mode) card.m = mode.name;
     if (n.trim()) card.n = n.trim().slice(0, 200);
-    card.own = effKind === 'roles' ? (own ?? undefined) : 0;
+    card.own = named ? (own ?? undefined) : 0;
     if (card.own === undefined) delete card.own;
     sendMessage(ch, encodeCard(card));
     onClose();
@@ -217,70 +257,57 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
   return (
     <Dialog
       title="Takım kur"
-      sub="Kanala bir ilan düşer; arkadaşların tek tıkla boş yerlere geçer."
       onClose={onClose}
+      className={cx('lfg-dialog', theme && 'themed')}
+      style={theme}
       foot={
         <>
-          <button className="btn ghost" onClick={onClose}>
-            Vazgeç
+          <button className="btn ghost" onClick={() => setGame(null)}>
+            Oyunu değiştir
           </button>
-          <button className="btn primary" onClick={send}>
+          <button className="btn primary lfg-send" onClick={send} disabled={game.key === 'diger' && !name}>
             İlanı paylaş
           </button>
         </>
       }
     >
-      <label className="field">
-        <span>Oyun</span>
-        <input value={g} onChange={(e) => setG(e.target.value)} maxLength={48} list="xn-games" autoFocus />
-        <datalist id="xn-games">
-          {GAME_PRESETS.map((x) => (
-            <option key={x} value={x} />
-          ))}
-        </datalist>
-      </label>
-      <label className="field">
-        <span>Kip</span>
-        <input value={m} onChange={(e) => setM(e.target.value)} maxLength={60} placeholder={isLol ? 'Dereceli Esnek, ARAM, Normal…' : 'Rekabetçi, eğlencesine…'} />
-      </label>
-      <div className="field">
-        <span>Kimler lazım</span>
-        <div className="seg">
-          <button className={cx(effKind === 'roles' && 'on')} onClick={() => (setKind('roles'), !isLol && roles === LOL_ROLES && setRoles(['Rol 1', 'Rol 2', 'Rol 3']))}>
-            Rollere göre
-          </button>
-          <button className={cx(effKind === 'count' && 'on')} onClick={() => setKind('count')}>
-            Kişi sayısı
-          </button>
+      <div className="lfg-hero">
+        {game.brand ? <BrandLogo k={game.brand} size={52} /> : <span className="lfg-game-other"><Swords size={24} /></span>}
+        <div>
+          {game.key === 'diger' ? (
+            <input className="lfg-custom" value={custom} onChange={(e) => setCustom(e.target.value)} maxLength={48} placeholder="Oyunun adı" autoFocus />
+          ) : (
+            <b>{game.name}</b>
+          )}
+          <small>{named ? `${slots.length} ${game.slotWord.toLocaleLowerCase('tr')} · kendi yerini seç` : `${slots.length} kişilik takım`}</small>
         </div>
       </div>
-      {effKind === 'roles' ? (
+      {game.modes.length > 0 && (
         <div className="field">
-          <span>Roller · kendi rolüne tıkla</span>
-          <div className="lfg-role-edit">
-            {roles.map((r, i) => (
-              <div key={i} className={cx('lfg-role-row', own === i && 'own')}>
-                <input value={r} maxLength={16} onChange={(e) => setRoles(roles.map((x, j) => (j === i ? e.target.value : x)))} />
-                <button className={cx('btn sm', own === i ? 'primary' : 'ghost')} onClick={() => setOwn(own === i ? null : i)}>
-                  {own === i ? 'Ben' : 'Benim rolüm'}
-                </button>
-                {roles.length > 2 && (
-                  <button className="icon-btn" onClick={() => (setRoles(roles.filter((_, j) => j !== i)), own === i && setOwn(null))} aria-label="Rolü kaldır">
-                    <Minus size={15} />
-                  </button>
-                )}
-              </div>
-            ))}
-            {roles.length < 10 && (
-              <button className="btn ghost sm" onClick={() => setRoles([...roles, 'Rol ' + (roles.length + 1)])}>
-                <Plus size={14} /> Rol ekle
+          <span>Kip</span>
+          <div className="lfg-chips">
+            {game.modes.map((x, i) => (
+              <button key={x.name} className={cx('lfg-chip', i === modeIx && 'on')} onClick={() => (setModeIx(i), setOwn(null))}>
+                {x.name}
               </button>
-            )}
+            ))}
           </div>
         </div>
-      ) : (
-        <div className="field">
-          <span>Kaç kişilik takım (sen dahil)</span>
+      )}
+      <div className="field">
+        <span>{named ? `${game.slotWord} · senin yerin hangisi?` : 'Takım'}</span>
+        <div className="lfg-preview" style={{ gridTemplateColumns: `repeat(${slots.length <= 5 ? slots.length : Math.ceil(slots.length / 2)}, minmax(0, 1fr))` }}>
+          {slots.map((r, i) => {
+            const mine = named ? own === i : i === 0;
+            return (
+              <button key={i} className={cx('lfg-pslot', mine && 'mine')} onClick={() => named && setOwn(own === i ? null : i)} disabled={!named}>
+                <span className={cx('lfg-state', mine ? 'on' : 'off')}>{mine ? 'Sen' : 'Boş'}</span>
+                <b>{r || `${i + 1}. ${game.slotWord}`}</b>
+              </button>
+            );
+          })}
+        </div>
+        {!fixedSize && (
           <div className="stepper">
             <button className="icon-btn" onClick={() => setCount(Math.max(2, count - 1))} aria-label="Azalt">
               <Minus size={16} />
@@ -289,12 +316,13 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
             <button className="icon-btn" onClick={() => setCount(Math.min(10, count + 1))} aria-label="Artır">
               <Plus size={16} />
             </button>
+            <small>kişi (sen dahil)</small>
           </div>
-        </div>
-      )}
+        )}
+      </div>
       <label className="field">
         <span>Not (isteğe bağlı)</span>
-        <input value={n} onChange={(e) => setN(e.target.value)} maxLength={200} placeholder="Altın IV civarı, mikrofon şart…" />
+        <input value={n} onChange={(e) => setN(e.target.value)} maxLength={200} placeholder="Seviye, saat, mikrofon şartı…" />
       </label>
     </Dialog>
   );

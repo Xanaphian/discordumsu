@@ -583,3 +583,281 @@
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ---- Takım kur: oyuna göre şekil alan kart ve pencere ---- */
+.xcard.lfg.themed,
+.lfg-dialog.themed {
+  --accent: var(--g-a);
+  --accent-ink: var(--g-ink);
+}
+.xcard.lfg.themed {
+  --xc-line: color-mix(in srgb, var(--g-a) 45%, transparent);
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--g-b) 10%, transparent), transparent 60%),
+    var(--g-bg);
+  color: #f2f2f4;
+}
+.xcard.lfg.themed .xcard-foot {
+  background: rgba(0, 0, 0, 0.22);
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+.xcard.lfg.themed .xcard-title small,
+.xcard.lfg.themed .xcard-muted,
+.xcard.lfg.themed .xcard-note {
+  color: rgba(255, 255, 255, 0.68);
+}
+.xcard.lfg.themed .lfg-slot {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #f2f2f4;
+}
+.xcard.lfg.themed .lfg-slot.taken {
+  background: color-mix(in srgb, var(--g-a) 12%, rgba(0, 0, 0, 0.25));
+  border-color: color-mix(in srgb, var(--g-a) 50%, transparent);
+}
+.xcard.lfg.themed .lfg-slot.me {
+  background: color-mix(in srgb, var(--g-a) 24%, rgba(0, 0, 0, 0.2));
+  border-color: var(--g-a);
+}
+.xcard.lfg.themed .lfg-empty {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+}
+.xcard.lfg.themed .xcard-count {
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+.xcard.lfg.themed .xcard-count.ok,
+.xcard.lfg.themed .btn.primary,
+.lfg-dialog.themed .btn.primary {
+  background: var(--g-a) !important;
+  color: var(--g-ink) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.xcard.lfg.themed .btn.ghost {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+}
+.lfg-logo {
+  border-radius: 10px;
+  flex: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.lfg-slot {
+  position: relative;
+  padding-top: 22px;
+}
+.lfg-state {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+  line-height: 1.5;
+}
+.lfg-state.on {
+  background: var(--accent);
+  color: var(--accent-ink, #111);
+}
+.lfg-state.off {
+  background: rgba(127, 127, 127, 0.18);
+  color: var(--text-3);
+}
+.xcard.lfg.themed .lfg-state.off {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* oyun seçimi */
+.lfg-games {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.lfg-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 16px 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: var(--g-bg, var(--bg-elev));
+  color: #f2f2f4;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.lfg-game:hover {
+  transform: translateY(-2px);
+  border-color: var(--g-a, var(--accent));
+}
+.lfg-game:not([style]) {
+  color: var(--text);
+}
+.lfg-game-other {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px dashed var(--line-2);
+  color: var(--text-2);
+}
+
+/* oyuna göre pencere */
+.modal.lfg-dialog.themed .modal-head {
+  border-radius: 14px 14px 0 0;
+  background: var(--g-bg);
+  padding-bottom: 14px;
+}
+.modal.lfg-dialog.themed .modal-head h2 {
+  color: #fff;
+}
+.lfg-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--g-bg, var(--bg-elev));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: #f2f2f4;
+}
+.lfg-dialog:not(.themed) .lfg-hero {
+  color: var(--text);
+}
+.lfg-hero > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.lfg-hero b {
+  font-size: 19px;
+}
+.lfg-hero small {
+  font-size: 12.5px;
+  opacity: 0.7;
+}
+.lfg-custom {
+  min-height: 34px !important;
+  font-size: 16px !important;
+}
+.lfg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lfg-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lfg-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.lfg-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink, #111);
+}
+.lfg-preview {
+  display: grid;
+  gap: 8px;
+}
+.lfg-pslot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 62px;
+  padding: 24px 4px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-2);
+  background: var(--bg-elev);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.lfg-pslot:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.lfg-pslot b {
+  font-size: 13px;
+}
+.lfg-pslot.mine {
+  border-style: solid;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-elev));
+}
+.lfg-pslot:not(:disabled):hover {
+  border-color: var(--accent);
+}
+.stepper small {
+  color: var(--text-3);
+}
+.modal.lfg-dialog.themed {
+  background: var(--g-bg);
+  border: 1px solid color-mix(in srgb, var(--g-a) 45%, transparent);
+  color: #f2f2f4;
+}
+.modal.lfg-dialog.themed .modal-head {
+  background: transparent;
+}
+.modal.lfg-dialog.themed .modal-foot {
+  background: rgba(0, 0, 0, 0.25);
+}
+.modal.lfg-dialog.themed .lfg-hero {
+  background: rgba(0, 0, 0, 0.22);
+}
+.modal.lfg-dialog.themed .field > span {
+  color: rgba(255, 255, 255, 0.7);
+}
+.modal.lfg-dialog.themed .lfg-pslot {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #f2f2f4;
+}
+.modal.lfg-dialog.themed .lfg-pslot.mine {
+  background: color-mix(in srgb, var(--g-a) 22%, rgba(0, 0, 0, 0.2));
+  border-color: var(--g-a);
+}
+.modal.lfg-dialog.themed .lfg-chip {
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.modal.lfg-dialog.themed .lfg-chip.on {
+  color: var(--g-ink);
+  border-color: var(--g-a);
+}
+.modal.lfg-dialog.themed .btn.ghost {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+}
+.modal.lfg-dialog.themed input {
+  background: rgba(0, 0, 0, 0.28) !important;
+  color: #fff;
+}
+.modal.lfg-dialog.themed .lfg-state.off {
+  color: rgba(255, 255, 255, 0.6);
+}
