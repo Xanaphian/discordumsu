@@ -1,6 +1,8 @@
 // Kovan ağ protokolü: istemci <-> kovan sunucusu (hub) arasında JSON çerçeveler.
 import type { LiveActivity, ProfileExtra, CommunityProfile } from './profile';
 import type { BotClientFrame, BotServerFrame } from './bots';
+import type { Sticker } from './stickers';
+export type { Sticker } from './stickers';
 
 export type ID = string;
 
@@ -216,6 +218,8 @@ export interface Community {
   joinMessages?: boolean; // false ise katılma mesajı gönderilmez
   invitesPaused?: boolean; // yeni katılımlar durduruldu
   automod?: AutoMod;
+  /** topluluk çıkartmaları (v1.25) */
+  stickers?: Sticker[];
   /** sadece istemcide: özel mesaj sohbetini temsil eden sanal topluluk (karşı tarafın kimliği) */
   dm?: ID;
   /** sadece istemcide: DM'in son mesaj kimliği / açılma anı (sıralama için) */
@@ -306,7 +310,7 @@ export type ClientFrame =
   | { t: 'activity'; acts: LiveActivity[] }
   | { t: 'profile'; user: UserPublic }
   | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; rid?: string }
-  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod }
+  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod; stickers?: Sticker[] }
   | { t: 'comm.delete'; cid: ID }
   | { t: 'comm.leave'; cid: ID }
   | { t: 'comm.invite.reset'; cid: ID }

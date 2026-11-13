@@ -9,6 +9,7 @@ import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
 import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
+import { mediaLabel } from './medya';
 
 export interface Profile {
   id: ID;
@@ -782,6 +783,8 @@ function isViewing(ch: ID) {
 
 export function plainText(content: string, c?: Community) {
   const users = S().users;
+  const media = mediaLabel(content);
+  if (media) return media;
   return content
     .replace(/<@&([\w-]+)>/g, (_, id) => '@' + (c?.roles.find((r) => r.id === id)?.name || 'rol'))
     .replace(/<@([\w-]+)>/g, (_, id) => '@' + (users[id]?.name || 'biri'))

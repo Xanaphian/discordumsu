@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { Check, ChevronRight, CircleCheck, CircleAlert, Info, Plus, X, MoreHorizontal, Clock } from 'lucide-react';
 import { useStore, MenuItem, openModal, openMenu, cmd, recentEmoji, rememberEmoji, meAsUser } from '../lib/store';
 import { ProfileCard } from './profile/ProfileCard';
+import { PickerTabs, GifPanel, StickerPanel, type PickerTab } from './MedyaSecici';
 import { useClickOutside } from './Common';
 import { cx, fmtDay, memberRoles } from '../lib/util';
 import { EMOJI_CATS, searchEmoji } from '../lib/emoji';
@@ -217,12 +218,27 @@ export function Toasts() {
   );
 }
 
-export function EmojiPicker({ x, y, onPick, onClose }: { x: number; y: number; onPick: (e: string) => void; onClose: () => void }) {
+export interface PickerMedia {
+  /** GIF / çıkartma seçilince gönderilecek mesaj işareti */
+  onSend: (token: string) => void;
+  /** çıkartmaları gösterilecek topluluk */
+  cid?: string;
+}
+
+let lastTab: PickerTab = 'emoji';
+
+export function EmojiPicker({ x, y, onPick, onClose, media }: { x: number; y: number; onPick: (e: string) => void; onClose: () => void; media?: PickerMedia }) {
+  const [tab, setTabRaw] = useState<PickerTab>(media ? lastTab : 'emoji');
+  const setTab = (t: PickerTab) => {
+    lastTab = t;
+    setTabRaw(t);
+    requestAnimationFrame(() => searchRef.current?.focus());
+  };
   const ref = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState('');
   const [hover, setHover] = useState<{ e: string; n: string } | null>(null);
   useClickOutside(ref, onClose);
-  const pos = useFit(ref, x, y - 420);
+  const pos = useFit(ref, x, y - (media ? 468 : 420));
   const recent = useMemo(() => recentEmoji(), []);
   const results = useMemo(() => (q ? searchEmoji(q, 120) : null), [q]);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -235,8 +251,16 @@ export function EmojiPicker({ x, y, onPick, onClose }: { x: number; y: number; o
     rememberEmoji(e);
     onPick(e);
   };
+  if (media && tab !== 'emoji')
+    return (
+      <div ref={ref} className="emoji-picker ep-media" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}>
+        <PickerTabs tab={tab} setTab={setTab} />
+        {tab === 'gif' ? <GifPanel onSend={media.onSend} inputRef={searchRef} /> : <StickerPanel cid={media.cid} onSend={media.onSend} onClose={onClose} inputRef={searchRef} />}
+      </div>
+    );
   return (
-    <div ref={ref} className="emoji-picker" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}>
+    <div ref={ref} className={cx('emoji-picker', media && 'ep-media')} style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}>
+      {media && <PickerTabs tab={tab} setTab={setTab} />}
       <div className="ep-search">
         <input ref={searchRef} placeholder="Emoji ara (ör. kalp, ateş, yıldız)" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && results?.[0] && pick(results[0].e)} />
       </div>
