@@ -16,6 +16,8 @@ import './styles/sunucu-profili.css';
 import './styles/etkinlik.css';
 import './styles/marka.css';
 import './styles/performans.css';
+import './styles/duzeltmeler.css';
+import './styles/medya.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
 const booting = boot().catch((e) => console.error('Açılış hatası', e));

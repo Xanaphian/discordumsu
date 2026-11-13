@@ -37,7 +37,11 @@ export function emojiByName(n: string) {
 }
 
 export function searchEmoji(q: string, limit = 60) {
-  q = q.toLowerCase().replace(/^:/, '');
+  // Türkçe harflerle yazılan aramalar da bulsun (ateş → ates, yıldız → yildiz)
+  q = q
+    .toLocaleLowerCase('tr')
+    .replace(/^:/, '')
+    .replace(/[çğıöşü]/g, (ch) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' })[ch] as string);
   const out: { e: string; n: string }[] = [];
   if (!q) return out;
   for (const c of EMOJI_CATS)

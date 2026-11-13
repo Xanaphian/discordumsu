@@ -151,7 +151,7 @@ function InviteModal({ cid }: { cid: string }) {
   if (!c) return null;
   return (
     <Modal onClose={close}>
-      <ModalHead title={`Arkadaşlarını ${c.name} topluluğuna davet et`} />
+      <ModalHead title="Arkadaşlarını davet et" sub={`${c.name} · kodu alan herkes katılabilir`} />
       <div className="modal-body">
         <label className="field">
           <span>Davet kodunu gönder</span>

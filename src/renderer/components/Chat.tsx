@@ -15,7 +15,7 @@ import { DmCall } from './Media';
 import { useVoice, joinVoice, toggleCamera } from '../lib/voice';
 import { Avatar, Tooltip, STATUS_LABEL } from './Common';
 import { NameText } from './profile/ProfileCard';
-import { EmojiPicker } from './Overlays';
+import { EmojiPicker, type PickerMedia } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
 import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles, memberOf } from '../lib/util';
 import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
@@ -48,6 +48,7 @@ function useMdCtx(c: Community): MdCtx {
   return useMemo(
     () => ({
       meId: me,
+      base: hostHttp(c.id),
       userName: (id) => {
         const c = cRef.current;
         const users = useStore.getState().users;
@@ -140,15 +141,17 @@ const Reactions = memo(function Reactions({ m, me }: { m: Message; me: string })
 });
 
 // tek bir global emoji seçici
-let pickerSetter: ((p: { x: number; y: number; onPick: (e: string) => void } | null) => void) | null = null;
-export function openPicker(x: number, y: number, onPick: (e: string) => void) {
-  pickerSetter?.({ x, y, onPick });
+type PickerReq = { x: number; y: number; onPick: (e: string) => void; media?: PickerMedia };
+let pickerSetter: ((p: PickerReq | null) => void) | null = null;
+export function openPicker(x: number, y: number, onPick: (e: string) => void, media?: PickerMedia) {
+  pickerSetter?.({ x, y, onPick, media });
 }
 export function PickerHost() {
-  const [p, setP] = useState<{ x: number; y: number; onPick: (e: string) => void } | null>(null);
+  const [p, setP] = useState<PickerReq | null>(null);
   pickerSetter = setP;
   if (!p) return null;
-  return <EmojiPicker x={p.x} y={p.y} onPick={(e) => (p.onPick(e), setP(null))} onClose={() => setP(null)} />;
+  const media = p.media && { ...p.media, onSend: (t: string) => (p.media!.onSend(t), setP(null)) };
+  return <EmojiPicker x={p.x} y={p.y} onPick={(e) => (p.onPick(e), setP(null))} onClose={() => setP(null)} media={media} />;
 }
 
 function EditBox({ m, onDone }: { m: Message; onDone: () => void }) {
@@ -158,11 +161,15 @@ function EditBox({ m, onDone }: { m: Message; onDone: () => void }) {
     const el = ref.current!;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
+    // Son mesajı düzenlerken kutu ve ipucu yazı kutusunun arkasında kalmasın
+    const t = setTimeout(() => el.closest('.edit-box')?.scrollIntoView({ block: 'nearest' }), 60);
+    return () => clearTimeout(t);
   }, []);
   useLayoutEffect(() => {
     const el = ref.current!;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 400) + 'px';
+    // +2: çerçeve payı; yoksa tek satırda bile kaydırma çubuğu çıkıyor
+    el.style.height = Math.min(el.scrollHeight + 2, 400) + 'px';
   }, [v]);
   const save = () => {
     const t = replaceShortcodes(v.trim());
@@ -1213,16 +1220,22 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
             className="composer-btn"
             onClick={(ev) => {
               const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-              openPicker(r.right - 352, r.top, (e) => {
-                const el = ta.current!;
-                const s = el.selectionStart ?? value.length;
-                const next = value.slice(0, s) + e + value.slice(el.selectionEnd ?? s);
-                setValue(next);
-                requestAnimationFrame(() => {
-                  el.focus();
-                  el.setSelectionRange(s + e.length, s + e.length);
-                });
-              });
+              openPicker(
+                r.right - 424,
+                r.top,
+                (e) => {
+                  const el = ta.current!;
+                  const s = el.selectionStart ?? value.length;
+                  const next = value.slice(0, s) + e + value.slice(el.selectionEnd ?? s);
+                  setValue(next);
+                  requestAnimationFrame(() => {
+                    el.focus();
+                    el.setSelectionRange(s + e.length, s + e.length);
+                  });
+                },
+                // GIF ve çıkartma ayrı bir mesaj olarak hemen gider; yazılan metin kutuda kalır
+                { cid: c.id, onSend: (token) => (sendMessage(ch.id, token), requestAnimationFrame(() => ta.current?.focus())) },
+              );
             }}
             aria-label="Emoji"
           >

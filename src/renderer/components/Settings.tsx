@@ -231,15 +231,12 @@ function AppTab() {
   const s = useStore((x) => x.settings);
   return (
     <>
-      <h1>Uygulama</h1>
+      <h1>Uygulama ve Kısayollar</h1>
       <Row title="Kapatınca tepside çalış" sub="Pencereyi kapatınca Xanaphian arka planda çalışmaya devam eder; topluluğuna gelenler sohbet edebilir.">
         <Toggle value={s.closeToTray} onChange={(v) => updateSettings({ closeToTray: v })} />
       </Row>
       <Row title="Bilgisayar açılınca başlat" sub="Windows oturumu açıldığında Xanaphian tepside başlar.">
         <Toggle value={s.openAtLogin} onChange={(v) => updateSettings({ openAtLogin: v })} />
-      </Row>
-      <Row title="Enter ile gönder" sub="Kapalıyken Ctrl+Enter ile gönderilir, Enter yeni satır açar.">
-        <Toggle value={s.enterToSend} onChange={(v) => updateSettings({ enterToSend: v })} />
       </Row>
       <h3>Klavye kısayolları</h3>
       <div className="shortcuts">
@@ -313,7 +310,7 @@ function UpdatesTab() {
         </>
       )}
       <p className="note">
-        Güncellemeler GitHub üzerinden yayınlanır. Yeni sürüm çıktığında üst çubukta yeşil <b>Güncelle</b> düğmesi belirir; bir kez tıklayınca indirilir, ikinci tıklamada uygulama yeniden başlayıp kendini günceller. Verilerin ve toplulukların korunur.
+        Güncellemeler GitHub üzerinden yayınlanır. Yeni sürüm çıktığında üst çubukta <b>Güncelle</b> düğmesi belirir; bir kez tıklayınca indirilir, ikinci tıklamada uygulama yeniden başlayıp kendini günceller. Verilerin ve toplulukların korunur.
       </p>
       <div className="info-card">
         <div className="ic-row">

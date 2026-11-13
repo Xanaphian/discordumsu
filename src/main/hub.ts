@@ -16,6 +16,7 @@ import {
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
+import { sanitizeStickers } from '../shared/stickers';
 
 const MAX_CONTENT = 4000;
 const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -1472,6 +1473,12 @@ export class Hub {
         }
         if (f.joinMessages !== undefined) (c.joinMessages = !!f.joinMessages), changed.push(`katılma mesajları ${f.joinMessages ? 'açık' : 'kapalı'}`);
         if (f.invitesPaused !== undefined) (c.invitesPaused = !!f.invitesPaused), changed.push(f.invitesPaused ? 'davetler durduruldu' : 'davetler açıldı');
+        if (f.stickers !== undefined) {
+          const st = sanitizeStickers(f.stickers);
+          if (st.length) c.stickers = st;
+          else delete c.stickers;
+          changed.push('çıkartmalar');
+        }
         if (f.automod !== undefined) {
           const a = f.automod as Partial<AutoMod>;
           c.automod = {

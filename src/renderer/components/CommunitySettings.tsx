@@ -9,8 +9,9 @@ import { PERM_GROUPS, countBits } from './Permissions';
 import { memberMenu } from './Moderation';
 import { BotsTab } from './Bots';
 import { CommunityProfileEditor } from './CommunityProfile';
+import { StickersTab } from './CikartmaAyarlari';
 
-const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🐝', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🍯', '❤️'];
+const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🏆', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🦀', '❤️'];
 
 // ---------------------------------------------------------------------------
 // Roller
@@ -733,6 +734,7 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
     ...(manage ? [{ id: 'overview', label: 'Genel Bakış', group: c.name }] : []),
     ...(manage ? [{ id: 'profile', label: 'Sunucu Profili', group: c.name }] : []),
     ...(can(c, me, Perm.MANAGE_ROLES) ? [{ id: 'roles', label: 'Roller', group: c.name }] : []),
+    ...(manage ? [{ id: 'stickers', label: 'Çıkartmalar', group: c.name }] : []),
     ...(manage ? [{ id: 'moderation', label: 'Moderasyon', group: 'Moderasyon' }] : []),
     ...(can(c, me, Perm.VIEW_AUDIT_LOG) ? [{ id: 'audit', label: 'Denetim Kaydı', group: 'Moderasyon' }] : []),
     { id: 'members', label: 'Üyeler', group: 'Kullanıcı Yönetimi' },
@@ -746,6 +748,7 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
     <Shell nav={nav} tab={cur} setTab={setTab}>
       {cur === 'overview' && <OverviewTab c={c} />}
       {cur === 'profile' && <CommunityProfileEditor c={c} />}
+      {cur === 'stickers' && <StickersTab c={c} />}
       {cur === 'roles' && <RolesTab c={c} me={me} initial={initial?.startsWith('roles:') ? initial.slice(6) : undefined} />}
       {cur === 'moderation' && <ModerationTab c={c} />}
       {cur === 'audit' && <AuditTab c={c} />}

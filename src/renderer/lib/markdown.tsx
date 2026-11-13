@@ -3,6 +3,24 @@ import React, { ReactNode, useState } from 'react';
 import { highlight } from './highlight';
 import { useStore, confirmDialog } from './store';
 import { openInSiteRoom } from './site';
+import { parseMedia, type MediaMsg } from './medya';
+
+function MediaView({ m, base }: { m: MediaMsg; base: string }) {
+  const [bad, setBad] = useState(false);
+  const src = m.local ? m.url : base + m.url;
+  if (bad) return <span className="msg-media-missing">[{m.kind === 'gif' ? 'GIF' : 'Çıkartma'}: {m.name}]</span>;
+  return (
+    <img
+      className={'msg-media ' + (m.kind === 'gif' ? 'msg-gif' : 'msg-sticker')}
+      src={src}
+      alt={m.name}
+      title={m.name}
+      loading="lazy"
+      draggable={false}
+      onError={() => setBad(true)}
+    />
+  );
+}
 
 export interface MdCtx {
   userName: (id: string) => string | null;
@@ -13,6 +31,8 @@ export interface MdCtx {
   meId: string;
   /** <@&rol> etiketleri için ad, renk ve benim bu rolde olup olmadığım */
   roleInfo?: (id: string) => { name: string; color: string; mine: boolean } | null;
+  /** topluluk çıkartmalarının resim adresi için sunucu kökü */
+  base?: string;
 }
 
 type Rule = { re: RegExp; render: (m: RegExpExecArray, ctx: MdCtx, key: number) => ReactNode };
@@ -180,6 +200,9 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
 
 /** Blok düzeyi: kod blokları, başlıklar, alıntılar, listeler. */
 export function renderMarkdown(src: string, ctx: MdCtx): ReactNode[] {
+  // Mesajın tamamı GIF ya da çıkartmaysa resim olarak göster
+  const media = parseMedia(src);
+  if (media) return [<MediaView key="m" m={media} base={ctx.base || ''} />];
   const out: ReactNode[] = [];
   const parts = src.split(/```/);
   let key = 0;

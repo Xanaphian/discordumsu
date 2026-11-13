@@ -9,7 +9,7 @@ import type { AvatarLook, Channel, Community, ID } from '../../shared/protocol';
 import type { SpaceEngine, Prompt } from '../space/engine';
 
 const HATS: { id: AvatarLook['hat']; label: string }[] = [
-  { id: 'antenna', label: 'Arı anteni' },
+  { id: 'antenna', label: 'Anten' },
   { id: 'crown', label: 'Taç' },
   { id: 'cap', label: 'Şapka' },
   { id: 'wizard', label: 'Büyücü' },
