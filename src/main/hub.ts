@@ -11,6 +11,7 @@ import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
+  hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer,
 } from '../shared/protocol';
 
 const MAX_CONTENT = 4000;
@@ -161,6 +162,7 @@ interface Session {
   alive: boolean;
   voice: { ch: ID; muted: boolean; deaf: boolean } | null;
   space: ID | null;
+  web: ID | null; // bakılan site odası
   lastMove: number;
   bucket: number;
   bucketTs: number;
@@ -188,6 +190,7 @@ export class Hub {
   private voiceRooms = new Map<ID, Map<ID, VoiceMember>>();
   private spaceRooms = new Map<ID, Map<ID, { s: Session; av: SpaceAvatar }>>();
   private booths = new Map<ID, Booth[]>();
+  private webRooms = new Map<ID, Map<ID, WebViewer>>();
   private server: http.Server | null = null;
   private wss: WebSocketServer | null = null;
   private saveTimers = new Map<string, NodeJS.Timeout>();
@@ -225,8 +228,9 @@ export class Hub {
   }
 
   private migrate(c: StoredCommunity) {
+    this.migrateSite(c);
     this.migrate11(c);
-    // v1.2: ayrıntılı yetkiler. Eskiden herkesin yapabildiği temel işler @herkes rolüne yazılır.
+    // v1.4: ayrıntılı yetkiler. Eskiden herkesin yapabildiği temel işler @herkes rolüne yazılır.
     if ((c.pv || 0) < 2) {
       c.pv = 2;
       if (c.roles[0]) c.roles[0].perms |= DEFAULT_EVERYONE;
@@ -255,6 +259,32 @@ export class Hub {
           '## Yeni: 3D Odalar 🐝\n**Kovan Meydanı**\'na gir, avatarınla dolaş. Yanına yaklaştığın kişinin sesi yükselir, uzaklaştıkça kısılır; ses yönünü de duyarsın.\n- **WASD / ok tuşları** yürü, **Shift** koş, **Boşluk** zıpla, sağ tık sürükle kamera\n- **Enter** ile yaz: mesajın başının üstünde balon olarak çıkar\n- **1-7** ile emote: el salla, dans, alkış, kalp…\n- **Sahneye** çık: herkes seni mesafeden bağımsız duyar\n- **Stand** kirala: yanına git, **E** bas, tabelana yazını yaz\n- **Kamp ateşi** banklarına **E** ile otur',
       };
       this.log(welcome.id).add(m);
+    }
+    this.saveComm(c.id);
+  }
+
+  /** v1.2: karşılama lobilerine xanaphian.com site odası ekle */
+  private migrateSite(c: StoredCommunity) {
+    if (!c.members.some((m) => m.userId === BOT_ID) || c.channels.some((x) => x.type === 'site') || (c as any).m12) return;
+    (c as any).m12 = 1;
+    let cat = c.categories.find((x) => x.name === 'Site Odaları');
+    if (!cat) {
+      cat = { id: makeId(), name: 'Site Odaları', position: c.categories.length };
+      c.categories.push(cat);
+    }
+    const ch: Channel = { id: makeId(), name: 'xanaphian.com', type: 'site', categoryId: cat.id, position: 0, url: DEFAULT_SITE_URL, topic: 'Siteyi birlikte gez, yanında sohbet et' };
+    c.channels.push(ch);
+    this.chanToComm.set(ch.id, c.id);
+    const welcome = c.channels.find((x) => x.type === 'announce');
+    if (welcome) {
+      this.log(welcome.id).add({
+        id: makeId(),
+        channelId: welcome.id,
+        authorId: BOT_ID,
+        ts: Date.now(),
+        content:
+          '## Yeni: Site Odaları 🌐\n**xanaphian.com** artık Kovan\'ın içinde. Soldaki **Site Odaları** bölümünden odaya gir; site ortada açılır, sağda o odanın sohbeti durur.\n- Üstteki çubuktan **şampiyon ara**, menülere atla, geri/ileri git\n- Odada kimin hangi sayfaya baktığını görürsün; birinin üstüne tıklayıp **takip et**, o gezdikçe sen de gezersin\n- **Paylaş** düğmesi baktığın sayfayı sohbete atar; sohbetteki xanaphian.com bağlantıları da doğrudan odada açılır\n- Yöneticiler kanal oluştururken türü **Site Odası** seçip başka bir site de bağlayabilir',
+      });
     }
     this.saveComm(c.id);
   }
@@ -478,6 +508,7 @@ export class Hub {
       alive: true,
       voice: null,
       space: null,
+      web: null,
       lastMove: 0,
       bucket: 40,
       bucketTs: Date.now(),
@@ -519,6 +550,7 @@ export class Hub {
     this.sessions.delete(s);
     if (s.voice) this.leaveVoice(s);
     if (s.space) this.leaveSpace(s);
+    if (s.web) this.leaveWeb(s);
     if (s.userId) {
       const set = this.userSessions.get(s.userId);
       set?.delete(s);
@@ -705,12 +737,15 @@ export class Hub {
     const presence: Record<ID, Status> = {};
     const lastIds: Record<ID, ID> = {};
     const voice: Record<ID, VoiceMember[]> = {};
+    const web: Record<ID, WebViewer[]> = {};
     for (const c of comms) {
       for (const m of c.members) presence[m.userId] = m.userId === BOT_ID ? 'online' : this.effectiveStatus(m.userId);
       Object.assign(lastIds, this.lastIdsFor(c, uid));
       for (const ch of c.channels) {
         const room = this.voiceRooms.get(ch.id);
         if (room && room.size) voice[ch.id] = [...room.values()];
+        const wr = this.webRooms.get(ch.id);
+        if (wr && wr.size) web[ch.id] = [...wr.values()];
       }
     }
     this.send(s, {
@@ -722,6 +757,7 @@ export class Hub {
       presence,
       lastIds,
       voice,
+      web,
       v: PROTOCOL_VERSION,
     });
   }
@@ -1003,11 +1039,11 @@ export class Hub {
         if (!c || c.channels.length >= 200) return;
         const src = f.clone ? c.channels.find((x) => x.id === f.clone) : undefined;
         const want = src ? src.type : f.type;
-        const type: ChannelType = isVoiceLike(want) || want === 'announce' ? want : 'text';
+        const type: ChannelType = isVoiceLike(want) || want === 'announce' || want === 'site' ? want : 'text';
         const catId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
         const ch: Channel = {
           id: makeId(),
-          name: isVoiceLike(type) ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : 'Ses') : channelSlug(f.name),
+          name: hasFreeName(type) ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : type === 'site' ? 'Site' : 'Ses') : channelSlug(f.name),
           type,
           categoryId: catId,
           position: Math.max(-1, ...c.channels.filter((x) => x.categoryId === catId).map((x) => x.position)) + 1,
@@ -1023,9 +1059,10 @@ export class Hub {
             { id: uid, type: 'member', allow: Perm.VIEW_CHANNEL, deny: 0 },
           ];
         }
+        if (type === 'site') ch.url = cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL;
         c.channels.push(ch);
         this.chanToComm.set(ch.id, c.id);
-        this.audit(c, uid, 'chan.create', (isVoiceLike(type) ? '' : '#') + ch.name, src ? 'kopya' : f.private ? 'özel kanal' : undefined);
+        this.audit(c, uid, 'chan.create', (hasFreeName(type) ? '' : '#') + ch.name, src ? 'kopya' : f.private ? 'özel kanal' : undefined);
         this.pushComm(c);
         if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: ch.id });
         return;
@@ -1045,7 +1082,7 @@ export class Hub {
           changed.push('izinler');
         }
         if (f.name !== undefined) {
-          const n = isVoiceLike(ch.type) ? cleanName(f.name, 48) || ch.name : channelSlug(f.name);
+          const n = hasFreeName(ch.type) ? cleanName(f.name, 48) || ch.name : channelSlug(f.name);
           if (n !== ch.name) changed.push(`ad: ${ch.name} → ${n}`);
           ch.name = n;
         }
@@ -1064,8 +1101,13 @@ export class Hub {
           ch.type = f.type;
           changed.push(f.type === 'announce' ? 'duyuru kanalına çevrildi' : 'metin kanalına çevrildi');
         }
+        if (f.url !== undefined && ch.type === 'site') {
+          const u = cleanSiteUrl(f.url) || ch.url || DEFAULT_SITE_URL;
+          if (u !== ch.url) changed.push(`adres: ${u}`);
+          ch.url = u;
+        }
         if (f.categoryId !== undefined) ch.categoryId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
-        if (changed.length) this.audit(c, uid, 'chan.update', (isVoiceLike(ch.type) ? '' : '#') + ch.name, changed.join(', '));
+        if (changed.length) this.audit(c, uid, 'chan.update', (hasFreeName(ch.type) ? '' : '#') + ch.name, changed.join(', '));
         this.pushComm(c);
         return;
       }
@@ -1088,10 +1130,12 @@ export class Hub {
         if (!ch) return;
         c.channels = c.channels.filter((x) => x.id !== f.id);
         if (c.systemChannelId === f.id) c.systemChannelId = null;
+        for (const x of this.sessions) if (x.web === f.id) x.web = null;
+        this.webRooms.delete(f.id);
         this.chanToComm.delete(f.id);
         this.logs.delete(f.id);
         fsp.unlink(path.join(this.dir, 'messages', f.id + '.ndjson')).catch(() => {});
-        this.audit(c, uid, 'chan.delete', (isVoiceLike(ch.type) ? '' : '#') + ch.name);
+        this.audit(c, uid, 'chan.delete', (hasFreeName(ch.type) ? '' : '#') + ch.name);
         this.pushComm(c);
         return;
       }
@@ -1403,6 +1447,21 @@ export class Hub {
         for (const o of room.values()) this.sendRaw(o.s, data);
         return;
       }
+      case 'web.at': {
+        const r = this.commOfChannel(s, f.ch);
+        if (!r || r.channel.type !== 'site') return;
+        const url = cleanSiteUrl(f.url);
+        if (!url) return;
+        if (s.web && s.web !== f.ch) this.leaveWeb(s);
+        s.web = f.ch;
+        let room = this.webRooms.get(f.ch);
+        if (!room) this.webRooms.set(f.ch, (room = new Map()));
+        room.set(s.sid, { userId: uid, sessionId: s.sid, url, title: cleanName(f.title, 120) });
+        this.broadcast(r.c, { t: 'web', ch: f.ch, viewers: [...room.values()] });
+        return;
+      }
+      case 'web.leave':
+        return this.leaveWeb(s);
       case 'vc.join': {
         const r = this.commOfChannel(s, f.ch);
         if (!r || !isVoiceLike(r.channel.type)) return;
@@ -1507,6 +1566,19 @@ export class Hub {
     if (!room.size) this.spaceRooms.delete(ch);
   }
 
+  private leaveWeb(s: Session) {
+    const ch = s.web;
+    if (!ch) return;
+    s.web = null;
+    const room = this.webRooms.get(ch);
+    if (!room) return;
+    room.delete(s.sid);
+    if (!room.size) this.webRooms.delete(ch);
+    const cid = this.chanToComm.get(ch);
+    const c = cid && this.comms.get(cid);
+    if (c) this.broadcast(c, { t: 'web', ch, viewers: [...room.values()] });
+  }
+
   private leaveVoice(s: Session) {
     if (!s.voice) return;
     const ch = s.voice.ch;
@@ -1601,6 +1673,8 @@ export class Hub {
       chan('Oyun', 'voice', voice);
       const space = cat('3D Odalar');
       chan('Kovan Meydanı', 'space', space, 'Avatarınla dolaş, yakındakilerle sesli konuş');
+      const sites = cat('Site Odaları');
+      chan('xanaphian.com', 'site', sites, 'Siteyi birlikte gez, yanında sohbet et').url = DEFAULT_SITE_URL;
     } else {
       const talk = cat('Metin Kanalları');
       chan('genel', 'text', talk);

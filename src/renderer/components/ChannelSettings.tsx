@@ -1,12 +1,12 @@
 // Kanal ve kategori ayarları (tam ekran)
 import React, { useEffect, useState } from 'react';
-import { Hash, Volume2, Megaphone, Box, Folder } from 'lucide-react';
+import { Hash, Volume2, Megaphone, Box, Folder, Globe } from 'lucide-react';
 import { useStore, cmd, toast, confirmDialog, request, selectChannel } from '../lib/store';
 import { Shell, Row, close } from './Settings';
 import { OverwriteEditor } from './Permissions';
 import { Toggle } from './Common';
 import { cx } from '../lib/util';
-import { canIn, can, isVoiceLike, Perm, type Overwrite } from '../../shared/protocol';
+import { canIn, can, isVoiceLike, hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, Perm, type Overwrite } from '../../shared/protocol';
 
 const SLOWMODES: [number, string][] = [
   [0, 'Kapalı'],
@@ -56,6 +56,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
   const [type, setType] = useState(ch?.type || 'text');
   const [cat, setCat] = useState<string | null>(ch?.categoryId ?? null);
   const [ow, setOw] = useState<Overwrite[]>(ch?.overwrites || []);
+  const [url, setUrl] = useState(ch?.url || DEFAULT_SITE_URL);
   useEffect(() => {
     if (!ch) close();
   }, [ch]);
@@ -63,10 +64,13 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
   useEffect(() => setOw(ch?.overwrites || []), [ch?.overwrites]); // eslint-disable-line
   if (!c || !ch) return null;
   const voice = isVoiceLike(ch.type);
+  const site = ch.type === 'site';
+  const free = hasFreeName(ch.type);
+  const urlOk = !site || !!cleanSiteUrl(url);
   const canManage = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const canPerms = canIn(c, me, ch, Perm.MANAGE_ROLES);
   const dirtyOverview =
-    name !== ch.name || topic !== (ch.topic || '') || slow !== (ch.slowmode || 0) || limit !== (ch.userLimit || 0) || type !== ch.type || cat !== (ch.categoryId ?? null);
+    name !== ch.name || topic !== (ch.topic || '') || (site && url !== (ch.url || DEFAULT_SITE_URL)) || slow !== (ch.slowmode || 0) || limit !== (ch.userLimit || 0) || type !== ch.type || cat !== (ch.categoryId ?? null);
   const dirtyPerms = !sameOw(ow, ch.overwrites);
   const resetOverview = () => {
     setName(ch.name);
@@ -75,10 +79,12 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
     setLimit(ch.userLimit || 0);
     setType(ch.type);
     setCat(ch.categoryId ?? null);
+    setUrl(ch.url || DEFAULT_SITE_URL);
   };
   const saveOverview = () => {
     if (!name.trim()) return toast('Kanal adı boş olamaz.', 'err');
-    cmd(cid, { t: 'chan.update', cid, id: chId, name, topic, slowmode: slow, userLimit: limit, type: type !== ch.type ? type : undefined, categoryId: cat });
+    if (!urlOk) return toast('Geçerli bir http(s) adresi yaz.', 'err');
+    cmd(cid, { t: 'chan.update', cid, id: chId, name, topic, slowmode: slow, userLimit: limit, type: type !== ch.type ? type : undefined, categoryId: cat, ...(site ? { url: cleanSiteUrl(url)! } : {}) });
     toast('Kanal kaydedildi', 'ok');
   };
   const savePerms = () => {
@@ -87,7 +93,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
   };
   const clone = async () => {
     try {
-      const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name: ch.name + (voice ? ' 2' : '-2'), type: ch.type, categoryId: ch.categoryId, clone: ch.id, rid: '' });
+      const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name: ch.name + (free ? ' 2' : '-2'), type: ch.type, categoryId: ch.categoryId, clone: ch.id, rid: '' });
       close();
       if (r?.data && !voice) selectChannel(cid, r.data);
       toast('Kanal kopyalandı', 'ok');
@@ -95,10 +101,10 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
       toast((e as Error).message, 'err');
     }
   };
-  const Icon = ch.type === 'voice' ? Volume2 : ch.type === 'space' ? Box : ch.type === 'announce' ? Megaphone : Hash;
+  const Icon = ch.type === 'voice' ? Volume2 : ch.type === 'space' ? Box : site ? Globe : ch.type === 'announce' ? Megaphone : Hash;
   const nav = [
-    { id: 'overview', label: 'Genel Bakış', group: (voice ? '' : '#') + ch.name },
-    ...(canPerms ? [{ id: 'perms', label: 'İzinler', group: (voice ? '' : '#') + ch.name }] : []),
+    { id: 'overview', label: 'Genel Bakış', group: (free ? '' : '#') + ch.name },
+    ...(canPerms ? [{ id: 'perms', label: 'İzinler', group: (free ? '' : '#') + ch.name }] : []),
     ...(canManage ? [{ id: 'delete', label: 'Kanalı sil', danger: true }] : []),
   ];
   const cur = nav.some((n) => n.id === tab) ? tab : 'overview';
@@ -113,6 +119,13 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
             <span>Kanal adı</span>
             <input value={name} maxLength={48} disabled={!canManage} onChange={(e) => setName(e.target.value)} />
           </label>
+          {site && (
+            <label className="field">
+              <span>Sitenin adresi</span>
+              <input value={url} maxLength={500} disabled={!canManage} onChange={(e) => setUrl(e.target.value)} placeholder={DEFAULT_SITE_URL} />
+              <small className={cx('field-hint', !urlOk && 'err')}>{urlOk ? 'Oda bu adresle açılır.' : 'Geçerli bir http(s) adresi yaz.'}</small>
+            </label>
+          )}
           {!voice && (
             <label className="field">
               <span>Kanal konusu</span>
@@ -133,7 +146,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
                 ))}
             </select>
           </label>
-          {!voice && (
+          {!voice && !site && (
             <>
               <div className="field">
                 <span>Yavaş mod</span>
@@ -186,11 +199,11 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
       {cur === 'delete' && (
         <>
           <h1>Kanalı sil</h1>
-          <p className="note">{voice ? ch.name : '#' + ch.name} kanalı{voice ? '' : ' ve içindeki tüm mesajlar'} kalıcı olarak silinir.</p>
+          <p className="note">{free ? ch.name : '#' + ch.name} kanalı{voice ? '' : ' ve içindeki tüm mesajlar'} kalıcı olarak silinir.</p>
           <button
             className="btn danger"
             onClick={() =>
-              confirmDialog(`${voice ? '' : '#'}${ch.name} silinsin mi?`, 'Bu işlem geri alınamaz.', () => {
+              confirmDialog(`${free ? '' : '#'}${ch.name} silinsin mi?`, 'Bu işlem geri alınamaz.', () => {
                 close();
                 cmd(cid, { t: 'chan.delete', cid, id: chId });
               }, 'Kanalı sil')

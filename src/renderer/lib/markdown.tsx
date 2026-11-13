@@ -2,6 +2,7 @@
 import React, { ReactNode, useState } from 'react';
 import { highlight } from './highlight';
 import { useStore, confirmDialog } from './store';
+import { openInSiteRoom } from './site';
 
 export interface MdCtx {
   userName: (id: string) => string | null;
@@ -37,6 +38,7 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
       title={href}
       onClick={(e) => {
         e.preventDefault();
+        if (openInSiteRoom(href)) return;
         if (useStore.getState().settings.confirmLinks)
           confirmDialog('Bağlantı açılsın mı?', `Tarayıcında şu adres açılacak:\n${href}`, () => window.kovan.openExternal(href), 'Aç', false);
         else window.kovan.openExternal(href);
