@@ -91,6 +91,7 @@ export function UserPopout() {
         <div className="popout-name">{c ? displayName(c, p.uid, users) : u?.name}</div>
         <div className="popout-user">
           {u?.name} · {STATUS_LABEL[status]}
+          {(u as { bot?: boolean } | undefined)?.bot && <span className="tag-bot">BOT</span>}
         </div>
         {u?.bio && (
           <div className="popout-section">

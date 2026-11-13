@@ -211,6 +211,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
       ...(can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Roller', icon: 'roles', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) }] : []),
       { label: 'Üyeler', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'members' }) },
       ...(can(c, me, Perm.VIEW_AUDIT_LOG) ? [{ label: 'Denetim kaydı', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'audit' }) }] : []),
+      ...(can(c, me, Perm.MANAGE_COMMUNITY) ? [{ label: 'Botlar ve yapay zekâ', icon: 'bot', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'bots' }) }] : []),
       ...(manage
         ? [
             { label: 'Kanal oluştur', icon: 'plus', onClick: () => openModal({ type: 'createChannel', cid: c.id, categoryId: null }) },

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, session, screen, desktopCapturer, powerSaveBlocker } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, session, screen, desktopCapturer, powerSaveBlocker, safeStorage } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -346,6 +346,11 @@ app.whenReady().then(async () => {
   siteSession.setPermissionRequestHandler((_wc, permission, cb) => cb(['fullscreen', 'clipboard-sanitized-write'].includes(permission)));
   siteSession.setPermissionCheckHandler((_wc, permission) => permission === 'clipboard-sanitized-write');
 
+  if (safeStorage.isEncryptionAvailable())
+    hub.crypt = {
+      enc: (s: string) => safeStorage.encryptString(s).toString('base64'),
+      dec: (s: string) => safeStorage.decryptString(Buffer.from(s, 'base64')),
+    };
   try {
     await hub.start((config.settings.hubPort as number) || DEFAULT_PORT);
   } catch (e) {
@@ -382,7 +387,10 @@ function registerIpc() {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     dev: isDev,
+    exePath: process.execPath,
+    mcpBridge: mcpBridgePath(),
   }));
+  ipcMain.handle('mcp:claude-desktop', (_e, a: { name: string; url: string; token: string }) => installClaudeDesktop(a));
   ipcMain.handle('cfg:get', () => config);
   ipcMain.handle('cfg:set', (_e, patch: Partial<Config>) => {
     config = {
@@ -474,4 +482,58 @@ function registerIpc() {
     updater?.install();
   });
   ipcMain.handle('upd:state', () => updater?.state);
+}
+
+// ---------- MCP: Claude Desktop yapılandırması ----------
+function mcpBridgePath() {
+  const p = path.join(__dirname, 'mcp-bridge.js');
+  // paketlenmiş uygulamada köprü asar dışına çıkarılır (Kovan.exe node kipinde okuyabilsin)
+  return p.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
+}
+
+function claudeDesktopConfigs(): string[] {
+  const out: string[] = [];
+  if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(app.getPath('home'), 'AppData', 'Roaming');
+    out.push(path.join(appData, 'Claude', 'claude_desktop_config.json'));
+    // Microsoft Store sürümü sanallaştırılmış AppData kullanır
+    const pk = path.join(process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local'), 'Packages');
+    try {
+      for (const d of fs.readdirSync(pk)) if (/^Claude_/i.test(d)) out.push(path.join(pk, d, 'LocalCache', 'Roaming', 'Claude', 'claude_desktop_config.json'));
+    } catch {
+      /* yok */
+    }
+  } else if (process.platform === 'darwin') out.push(path.join(app.getPath('home'), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json'));
+  else out.push(path.join(app.getPath('home'), '.config', 'Claude', 'claude_desktop_config.json'));
+  return out;
+}
+
+function installClaudeDesktop(a: { name: string; url: string; token: string }): { ok: boolean; files: string[]; error?: string } {
+  const name = String(a.name || 'kovan').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 40) || 'kovan';
+  if (!/^kvb\./.test(a.token) || !/^http:\/\/[^\s]+\/mcp$/.test(a.url)) return { ok: false, files: [], error: 'Geçersiz bilgi' };
+  const entry = { command: process.execPath, args: [mcpBridgePath(), '--url', a.url], env: { ELECTRON_RUN_AS_NODE: '1', KOVAN_TOKEN: a.token } };
+  const files: string[] = [];
+  const targets = claudeDesktopConfigs();
+  // en az birinin klasörü varsa yalnızca var olanlara yaz; hiçbiri yoksa standart yolu oluştur
+  const existing = targets.filter((f) => fs.existsSync(path.dirname(f)));
+  try {
+    for (const f of existing.length ? existing : targets.slice(0, 1)) {
+      let cfg: any = {};
+      if (fs.existsSync(f)) {
+        const raw = fs.readFileSync(f, 'utf8');
+        try {
+          cfg = raw.trim() ? JSON.parse(raw) : {};
+        } catch {
+          return { ok: false, files, error: f + ' okunamadı (geçersiz JSON). Dosyayı düzeltip tekrar dene.' };
+        }
+        fs.writeFileSync(f + '.kovan-yedek', raw);
+      } else fs.mkdirSync(path.dirname(f), { recursive: true });
+      cfg.mcpServers = { ...(cfg.mcpServers || {}), [name]: entry };
+      fs.writeFileSync(f, JSON.stringify(cfg, null, 2));
+      files.push(f);
+    }
+    return { ok: true, files };
+  } catch (e) {
+    return { ok: false, files, error: (e as Error).message };
+  }
 }

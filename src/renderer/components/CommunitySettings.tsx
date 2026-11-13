@@ -7,6 +7,7 @@ import { can, canEditRole, isTimedOut, isVoiceLike, memberPerms, ALL_PERMS, Perm
 import { Shell, Row, close } from './Settings';
 import { PERM_GROUPS, countBits } from './Permissions';
 import { memberMenu } from './Moderation';
+import { BotsTab } from './Bots';
 
 const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🐝', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🍯', '❤️'];
 
@@ -735,6 +736,7 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
     { id: 'members', label: 'Üyeler', group: 'Kullanıcı Yönetimi' },
     ...(can(c, me, Perm.BAN) ? [{ id: 'bans', label: 'Yasaklar', group: 'Kullanıcı Yönetimi' }] : []),
     { id: 'invites', label: 'Davetler', group: 'Kullanıcı Yönetimi' },
+    ...(manage ? [{ id: 'bots', label: 'Botlar ve Yapay Zekâ', group: 'Entegrasyonlar' }] : []),
     ...(c.ownerId === me ? [{ id: 'delete', label: 'Topluluğu sil', danger: true }] : []),
   ];
   const cur = nav.some((n) => n.id === tab) ? tab : nav[0].id;
@@ -747,6 +749,7 @@ export function CommunitySettings({ cid, tab: initial }: { cid: string; tab?: st
       {cur === 'members' && <MembersTab c={c} me={me} />}
       {cur === 'bans' && <BansTab c={c} />}
       {cur === 'invites' && <InvitesTab c={c} manage={manage} />}
+      {cur === 'bots' && <BotsTab cid={cid} />}
       {cur === 'delete' && (
         <>
           <h1>Topluluğu sil</h1>

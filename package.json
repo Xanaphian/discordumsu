@@ -1,7 +1,7 @@
 {
   "name": "kovan",
   "productName": "Kovan",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Kovan - topluluklar, kanallar ve gerçek zamanlı sohbet",
   "author": "Xanaphian",
   "license": "UNLICENSED",
@@ -21,6 +21,7 @@
     "ws": "^8.23.0"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

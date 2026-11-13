@@ -28,6 +28,7 @@ const Row = memo(function Row({ c, uid, user, status, name, color, me }: { c: Co
           {isTimedOut(mem) && <Clock size={12} className="timeout-icon" aria-label="Zaman aşımında" />}
           {blocked && <span className="tag-blocked">ENGELLİ</span>}
           {uid === 'kovan-asistan' && <span className="tag-bot">ASİSTAN</span>}
+          {user?.bot && <span className="tag-bot">BOT</span>}
         </span>
         {user?.bio && !offline && <span className="member-sub">{user.bio}</span>}
       </div>
