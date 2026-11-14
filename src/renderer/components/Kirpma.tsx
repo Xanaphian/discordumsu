@@ -27,6 +27,11 @@ export type CropOpts = {
   keepGif?: boolean;
   /** Önizlemede gösterilecek kısa not */
   hint?: string;
+  /**
+   * Afişler için: seçilen kısmın sağı/solu da (aynı yükseklikte, en çok bu orana kadar) saklanır;
+   * tam profil gibi geniş yerler bulanık dolgu yerine resmin gerçek devamını gösterir.
+   */
+  wide?: number;
 };
 
 export type Framing = { x?: number; y?: number; zoom?: number };
@@ -142,22 +147,24 @@ function rotated(img: HTMLImageElement, rot: number): HTMLCanvasElement | HTMLIm
   return c;
 }
 
-function encode(src: HTMLCanvasElement | HTMLImageElement, sw: number, sh: number, view: { x: number; y: number; w: number; h: number }, outW: number, aspect: number, max: number) {
-  let W = Math.max(16, Math.round(Math.min(outW, Math.max(view.w, outW * 0.5))));
-  for (let tries = 0; tries < 8; tries++) {
-    const H = Math.max(16, Math.round(W / aspect));
+/** Seçilen görünümü (view) çıkış oranında çizer; yükseklik = outH, genişlik orana göre */
+function encode(src: HTMLCanvasElement | HTMLImageElement, sw: number, sh: number, view: { x: number; y: number; w: number; h: number }, outH: number, max: number) {
+  const ratio = view.w / view.h;
+  let H = Math.max(16, Math.round(Math.min(outH, Math.max(view.h, outH * 0.5))));
+  for (let tries = 0; tries < 10; tries++) {
+    const W = Math.max(16, Math.round(H * ratio));
     const c = document.createElement('canvas');
     c.width = W;
     c.height = H;
     const g = c.getContext('2d')!;
     g.imageSmoothingQuality = 'high';
-    const q = W / view.w;
+    const q = H / view.h;
     g.drawImage(src, -view.x * q, -view.y * q, sw * q, sh * q);
     let qual = 0.9;
     let out = c.toDataURL('image/webp', qual);
     while (out.length > max && qual > 0.45) out = c.toDataURL('image/webp', (qual -= 0.12));
     if (out.length <= max) return out;
-    W = Math.round(W * 0.82);
+    H = Math.round(H * 0.85);
   }
   return null;
 }
@@ -272,7 +279,10 @@ function CropDialog({ job }: { job: Job }) {
       const src = rotated(img, rot);
       const vw = (rx / z) * iw;
       const vh = (ry / z) * ih;
-      const out = encode(src, iw, ih, { x: cx * iw - vw / 2, y: cy * ih - vh / 2, w: vw, h: vh }, opts.outW, A, opts.max);
+      // geniş yerler için seçimin iki yanını eşit miktarda (resmin elverdiği kadar) ekle
+      let side = 0;
+      if (opts.wide && opts.wide > A) side = Math.max(0, Math.min((opts.wide * vh - vw) / 2, cx * iw - vw / 2, iw - (cx * iw + vw / 2)));
+      const out = encode(src, iw, ih, { x: cx * iw - vw / 2 - side, y: cy * ih - vh / 2, w: vw + side * 2, h: vh }, Math.round(opts.outW / A), opts.max);
       if (!out) {
         toast('Bu resim kullanılamadı.', 'err');
         setBusy(false);
@@ -345,7 +355,16 @@ function CropDialog({ job }: { job: Job }) {
           onWheel={(e) => setZoom(z * (e.deltaY < 0 ? 1.08 : 1 / 1.08))}
         >
           {img && shown && <img className="crop-img" src={shown} alt="" draggable={false} style={imgStyle} />}
-          <div className={cx2('crop-frame', opts.round && 'round')} style={{ width: fw, height: fh }}>
+          {opts.wide && (
+            <>
+              <i className="crop-shade top" style={{ height: (box.h - fh) / 2 }} aria-hidden />
+              <i className="crop-shade bottom" style={{ height: (box.h - fh) / 2 }} aria-hidden />
+              <span className="crop-wide-note" style={{ top: (box.h + fh) / 2 + 6 }}>
+                Yanlar geniş yerlerde (tam profil, ses kartı) görünür
+              </span>
+            </>
+          )}
+          <div className={cx2('crop-frame', opts.round && 'round', !!opts.wide && 'wide')} style={{ width: fw, height: fh }}>
             <i className="crop-grid" aria-hidden />
           </div>
           <span className="crop-tip">
@@ -403,36 +422,42 @@ const cx2 = (...a: (string | false | undefined | null)[]) => a.filter(Boolean).j
 
 /* ------------------------------------------------------------------ */
 
+const dims = new Map<string, { w: number; h: number }>();
+
 /**
- * Afişi her yerde aynı gösterir: seçilen kısım (afişin asıl oranındaki görünüm) kutuya
- * sığdırılır; kutu daha genişse ya da daha darsa kalan yer aynı resmin bulanık haliyle dolar.
- * Böylece profil kartı, tam profil ve ses odası kartı resmin aynı kısmını gösterir.
+ * Afişi her yerde aynı gösterir ve alanı her zaman baştan sona doldurur.
+ * Seçilen kısım (afişin asıl oranındaki görünüm) kutunun yüksekliğini doldurur ve ortalanır;
+ * kutu daha genişse resmin gerçek devamı görünür, resim yetmezse hafifçe büyütülür (bulanık dolgu yok).
  */
-export function BannerPic({
-  image,
-  framing,
-  aspect,
-  className,
-  align,
-  style,
-}: {
-  image: string;
-  framing?: Framing;
-  aspect: number;
-  className?: string;
-  align?: 'end';
-  style?: React.CSSProperties;
-}) {
-  const fs = useMemo(() => {
-    const x = framing?.x ?? 50, y = framing?.y ?? 50, zz = (framing?.zoom ?? 100) / 100;
-    return { objectPosition: `${x}% ${y}%`, transformOrigin: `${x}% ${y}%`, transform: zz !== 1 ? `scale(${zz})` : undefined } as React.CSSProperties;
-  }, [framing?.x, framing?.y, framing?.zoom]);
+export function BannerPic({ image, framing, aspect, className, style }: { image: string; framing?: Framing; aspect: number; className?: string; style?: React.CSSProperties }) {
+  const [dim, setDim] = useState(() => dims.get(image));
+  useEffect(() => setDim(dims.get(image)), [image]);
+  let vars: React.CSSProperties | undefined;
+  if (dim) {
+    const { rx, ry } = coverRatio(dim.w, dim.h, aspect);
+    const z = Math.max(1, (framing?.zoom ?? 100) / 100);
+    vars = {
+      ['--r' as any]: dim.w / dim.h,
+      ['--hf' as any]: ry / z,
+      ['--cx' as any]: centerFromT(framing?.x ?? 50, rx, z),
+      ['--cy' as any]: centerFromT(framing?.y ?? 50, ry, z),
+    };
+  }
   return (
-    <span className={cx2('bpic', align === 'end' && 'bpic-end', className)} style={{ ...style, ['--ba' as any]: aspect }} aria-hidden>
-      <img className="bpic-fill" src={image} alt="" draggable={false} />
-      <span className="bpic-frame">
-        <img src={image} alt="" draggable={false} style={fs} />
-      </span>
+    <span className={cx2('bpic', className)} style={{ ...style, ...vars }} aria-hidden>
+      <img
+        className={cx2('bpic-img', !dim && 'pending')}
+        src={image}
+        alt=""
+        draggable={false}
+        onLoad={(e) => {
+          const d = { w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight };
+          if (!d.w || !d.h) return;
+          if (dims.size > 300) dims.clear();
+          dims.set(image, d);
+          setDim(d);
+        }}
+      />
     </span>
   );
 }
@@ -450,10 +475,11 @@ export function CropPreview({ image, framing, aspect, round, onClick }: { image:
 export const bannerCropOpts = (h?: number): CropOpts => ({
   title: 'Profil afişi',
   aspect: 330 / (h || BANNER_H.def),
-  outW: 990,
+  outW: 760,
   max: BANNER_MAX,
   keepGif: true,
-  hint: 'Profil kartında, tam profilde ve ses odasında hep bu kısım görünür.',
+  wide: 11,
+  hint: 'Profil kartında bu kısım görünür; tam profil ve ses kartı gibi geniş yerlerde aynı yükseklikte sağı solu da görünür.',
 });
 export const BG_CROP: CropOpts = { title: 'Profil arka planı', aspect: 330 / 470, outW: 660, max: BG_MAX, keepGif: true, hint: 'Profil kartının arkasında bu kısım görünür.' };
 export const AVATAR_CROP: CropOpts = { title: 'Profil resmi', aspect: 1, outW: 256, max: 120_000, round: true, hint: 'Yuvarlak çerçevenin içi profil resmin olur.' };

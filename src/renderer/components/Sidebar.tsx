@@ -98,7 +98,7 @@ const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chI
               openMenu(e, memberMenu(c, meId, m.userId, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
             }}
           >
-            {img && <BannerPic className="vc-card-img" image={img} framing={b} aspect={330 / (b?.h || BANNER_H.def)} align="end" />}
+            {img && <BannerPic className="vc-card-img" image={img} framing={b} aspect={330 / (b?.h || BANNER_H.def)} />}
             <span className="vc-card-shade" aria-hidden />
             <Avatar user={u ? { ...u, profile: prof } : undefined} size={compact ? 26 : 34} speaking={talk} />
             <span className="vc-name">{displayName(c, m.userId, users)}</span>

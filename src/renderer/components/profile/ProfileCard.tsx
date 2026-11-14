@@ -85,6 +85,7 @@ export function Banner({ user, profile, className, children, refW = 330 }: { use
       style={{
         background: b?.kind === 'image' && b.image ? b.a : bannerBackground(b, user?.color || '#f5a524'),
         ['--bh' as any]: b?.h ? b.h + 'px' : undefined,
+        ['--bhn' as any]: b?.h || undefined,
       }}
     >
       {b?.kind === 'image' && b.image && <BannerPic image={b.image} framing={b} aspect={refW / (b.h || BANNER_H.def)} />}
