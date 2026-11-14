@@ -77,7 +77,7 @@ export class PostStore {
     this.save();
   }
 
-  private blockedEither(a: ID, b: ID) {
+  blockedEither(a: ID, b: ID) {
     return !!(this.blocks.get(a)?.has(b) || this.blocks.get(b)?.has(a));
   }
 

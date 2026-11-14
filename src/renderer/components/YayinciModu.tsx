@@ -44,7 +44,7 @@ export function StreamerTab() {
       <Row title="Davet kodlarını gizle" sub="Davet pencerelerindeki ve topluluk ayarlarındaki kodlar kapatılır. Kopyala düğmesi çalışmaya devam eder.">
         <Toggle value={s.streamerHideInvites} onChange={(v) => updateSettings({ streamerHideInvites: v })} />
       </Row>
-      <Row title="Kişisel bilgileri gizle" sub="Arkadaş kodun, sunucu ve ağ adreslerin, kimlik numaraların ve bağlı hesapların görünmez.">
+      <Row title="Kişisel bilgileri gizle" sub="Etiketin (ad#kod), sunucu ve ağ adreslerin, kimlik numaraların ve bağlı hesapların görünmez.">
         <Toggle value={s.streamerHidePersonal} onChange={(v) => updateSettings({ streamerHidePersonal: v })} />
       </Row>
       <Row title="Sesleri kapat" sub="Mesaj ve bahsetme sesleri çalmaz.">

@@ -37,6 +37,7 @@ import './styles/ses-duzeni.css';
 import './styles/okunaklilik.css';
 import './styles/ust-cubuk.css';
 import './styles/paylasim.css';
+import './styles/etiket.css';
 
 hataDinle();
 

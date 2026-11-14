@@ -1,13 +1,15 @@
 // Ana Sayfa > Arkadaşlar: çevrimiçi / tümü / bekleyen istekler / arkadaş ekle
 import React, { useEffect, useMemo, useState } from 'react';
-import { Users, MessageCircle, Check, X, MoreVertical, Search, Copy, RefreshCw, UserPlus, LoaderCircle } from 'lucide-react';
+import { Users, MessageCircle, Check, X, MoreVertical, Search, UserPlus, LoaderCircle, CircleCheck, CircleAlert } from 'lucide-react';
 import {
-  useStore, setHomeTab, openDm, addFriend, acceptFriend, removeFriend, openMenu, confirmDialog, myFriendCode, joinByInvite, toast,
+  useStore, setHomeTab, openDm, addFriend, acceptFriend, removeFriend, openMenu, confirmDialog, addFriendByTag, joinByInvite,
   realCommunities, pendingIn, openModal, type State,
 } from '../lib/store';
+import { TagText, MyTagBox } from './Etiket';
+import { foldName } from '../../shared/etiket';
 import { Avatar, STATUS_LABEL } from './Common';
 import { activeCustom } from '../../shared/profile';
-import { cx, copyText } from '../lib/util';
+import { cx } from '../lib/util';
 import type { UserPublic } from '../../shared/protocol';
 
 type Tab = State['homeTab'];
@@ -51,12 +53,12 @@ function FriendList({ tab }: { tab: Tab }) {
   const presence = useStore((s) => s.presence);
   const [q, setQ] = useState('');
   const rows = useMemo(() => {
-    const n = q.trim().toLocaleLowerCase('tr');
+    const n = q.trim();
     return Object.values(friends)
       .filter((f) => (tab === 'pending' ? f.state !== 'ok' : f.state === 'ok'))
       .filter((f) => tab !== 'online' || (presence[f.user.id] && presence[f.user.id] !== 'offline'))
       .map((f) => ({ ...f, user: users[f.user.id] || f.user }))
-      .filter((f) => !n || f.user.name.toLocaleLowerCase('tr').includes(n))
+      .filter((f) => !n || matchUser(f.user, n))
       .sort((a, b) => (tab === 'pending' ? (a.state === b.state ? b.ts - a.ts : a.state === 'in' ? -1 : 1) : a.user.name.localeCompare(b.user.name, 'tr')));
   }, [friends, users, presence, tab, q]);
   const title = tab === 'online' ? 'Çevrimiçi' : tab === 'all' ? 'Tüm arkadaşlar' : 'Bekleyen istekler';
@@ -88,7 +90,7 @@ function FriendList({ tab }: { tab: Tab }) {
             <p>Şu an çevrimiçi arkadaşın yok.</p>
           ) : (
             <>
-              <p>Henüz arkadaşın yok. Topluluklarındaki birini ekleyebilir ya da arkadaş kodunu paylaşabilirsin.</p>
+              <p>Henüz arkadaşın yok. Arkadaşının etiketini (ad#kod) yazarak ya da topluluklarından birini seçerek ekleyebilirsin.</p>
               <button className="btn primary" onClick={() => setHomeTab('add')}>
                 <UserPlus size={16} /> Arkadaş ekle
               </button>
@@ -115,7 +117,9 @@ function FriendRow({ user, state }: { user: UserPublic; state: 'ok' | 'in' | 'ou
     <div className="fr-row" onClick={() => state === 'ok' && openDm(user.id)} role={state === 'ok' ? 'button' : undefined}>
       <Avatar user={user} size={36} status={status} />
       <div className="fr-text">
-        <b>{user.name}</b>
+        <b>
+          <TagText user={user} />
+        </b>
         <span>{sub}</span>
       </div>
       <div className="fr-acts" onClick={(e) => e.stopPropagation()}>
@@ -167,9 +171,9 @@ function AddFriend() {
         e.comms.push(c.name);
         seen.set(u.id, e);
       }
-    const n = q.trim().toLocaleLowerCase('tr');
+    const n = q.trim();
     return [...seen.values()]
-      .filter((x) => !n || x.user.name.toLocaleLowerCase('tr').includes(n))
+      .filter((x) => !n || matchUser(x.user, n))
       .sort((a, b) => {
         const oa = presence[a.user.id] && presence[a.user.id] !== 'offline' ? 0 : 1;
         const ob = presence[b.user.id] && presence[b.user.id] !== 'offline' ? 0 : 1;
@@ -181,12 +185,15 @@ function AddFriend() {
   return (
     <div className="fr-add">
       <h3>Arkadaş ekle</h3>
-      <p className="fr-lead">Topluluklarındaki birine istek gönder ya da arkadaş kodunu paylaş. Arkadaş olunca topluluk dışında da yazışabilirsiniz.</p>
+      <p className="fr-lead">Arkadaşını etiketiyle ekleyebilirsin. Etiket, kişinin adı ve # sonrasındaki kodundan oluşur (ör. Yağmur#OVA); profil kartında yazar.</p>
+
+      <TagAdd />
+      <MyTagBox />
 
       <div className="fr-card">
         <h4>Topluluklarından ekle</h4>
         <label className="fr-search big">
-          <input placeholder="İsimle ara" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+          <input placeholder="İsimle ya da etiketle ara" value={q} onChange={(e) => setQ(e.target.value)} />
           <Search size={16} />
         </label>
         <div className="fr-people scroll-thin">
@@ -196,7 +203,9 @@ function AddFriend() {
               <div key={user.id} className="fr-row compact">
                 <Avatar user={user} size={32} status={presence[user.id] || 'offline'} />
                 <div className="fr-text">
-                  <b>{user.name}</b>
+                  <b>
+                    <TagText user={user} />
+                  </b>
                   <span>{comms.slice(0, 2).join(', ')}{comms.length > 2 ? ` +${comms.length - 2}` : ''}</span>
                 </div>
                 {st === 'ok' ? (
@@ -219,72 +228,72 @@ function AddFriend() {
         </div>
       </div>
 
-      <div className="fr-grid">
-        <MyCode />
-        <UseCode />
-      </div>
     </div>
   );
 }
 
-function MyCode() {
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
-  const load = async (reset = false) => {
-    setBusy(true);
-    try {
-      setCode(await myFriendCode(reset));
-    } catch (e: any) {
-      toast(e?.message || 'Kod alınamadı.', 'err');
-    } finally {
-      setBusy(false);
-    }
-  };
-  useEffect(() => {
-    load();
-  }, []);
-  return (
-    <div className="fr-card">
-      <h4>Senin arkadaş kodun</h4>
-      <p>Ortak topluluğunuz yoksa bu kodu arkadaşına gönder. O yapıştırınca doğrudan arkadaş olursunuz.</p>
-      <div className="fr-code">
-        <code>{busy && !code ? <LoaderCircle size={16} className="spin" /> : code || '...'}</code>
-        <button className="btn sm primary" disabled={!code} onClick={() => (copyText(code), toast('Arkadaş kodu kopyalandı', 'ok'))}>
-          <Copy size={14} /> Kopyala
-        </button>
-        <button className="icon-btn" title="Yeni kod oluştur (eskisi geçersiz olur)" aria-label="Yeni kod" onClick={() => load(true)}>
-          <RefreshCw size={16} />
-        </button>
-      </div>
-    </div>
-  );
+/** Ad ya da etiketle eşleşme (büyük/küçük harf ve Türkçe karakter duyarsız) */
+function matchUser(u: UserPublic, q: string) {
+  const n = foldName(q.replace(/^@/, ''));
+  const i = n.lastIndexOf('#');
+  if (i >= 0) return foldName(u.name).includes(n.slice(0, i)) && (u.tag || '').startsWith(n.slice(i + 1));
+  return foldName(u.name).includes(n);
 }
 
-function UseCode() {
-  const [code, setCode] = useState('');
+/** Etiketle arkadaş ekleme kutusu: sonuç (başarı / hata) kutunun altında kalır */
+function TagAdd() {
+  const [v, setV] = useState('');
   const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
   const go = async () => {
-    if (!code.trim()) return;
+    const t = v.trim();
+    if (!t || busy) return;
     setBusy(true);
+    setRes(null);
     try {
-      await joinByInvite(code.trim());
-      setCode('');
+      // topluluk davet kodu yapıştırıldıysa onu kullan (kolaylık)
+      if (!t.includes('#') && (t.includes('/') || /^KVN-/i.test(t))) {
+        await joinByInvite(t);
+        setV('');
+        setRes({ ok: true, text: 'Bu bir topluluk davetiydi; topluluğa katıldın.' });
+        return;
+      }
+      const r = await addFriendByTag(t);
+      setV('');
+      setRes({ ok: true, text: r.state === 'ok' ? `${r.name} ile artık arkadaşsınız.` : `${r.name} adlı kişiye arkadaşlık isteği gönderildi. Kabul edince arkadaş olursunuz.` });
     } catch (e: any) {
-      toast(e?.message || 'Kod kullanılamadı.', 'err');
+      setRes({ ok: false, text: e?.message || 'İstek gönderilemedi.' });
     } finally {
       setBusy(false);
     }
   };
   return (
-    <div className="fr-card">
-      <h4>Arkadaşının kodu</h4>
-      <p>Arkadaşının gönderdiği kodu buraya yapıştır. Topluluk davet kodları da burada çalışır.</p>
-      <div className="fr-code">
-        <input placeholder="ör. xanaphian/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} />
-        <button className="btn sm primary" disabled={!code.trim() || busy} onClick={go}>
-          {busy ? <LoaderCircle size={14} className="spin" /> : <UserPlus size={14} />} Ekle
+    <div className={cx('fr-card tag-add', res && (res.ok ? 'is-ok' : 'is-err'))}>
+      <h4>Etiketle ekle</h4>
+      <div className="tag-add-row">
+        <input
+          className="tag-add-input"
+          placeholder="ad#kod"
+          value={v}
+          spellCheck={false}
+          autoFocus
+          maxLength={60}
+          aria-invalid={res ? !res.ok : undefined}
+          onChange={(e) => (setV(e.target.value), res && setRes(null))}
+          onKeyDown={(e) => e.key === 'Enter' && go()}
+        />
+        <button className="btn primary" disabled={!v.trim() || busy} onClick={go}>
+          {busy ? <LoaderCircle size={15} className="spin" /> : <UserPlus size={15} />} Arkadaşlık isteği gönder
         </button>
       </div>
+      {res ? (
+        <div className={cx('tag-add-msg', res.ok ? 'ok' : 'err')} role={res.ok ? 'status' : 'alert'}>
+          {res.ok ? <CircleCheck size={15} /> : <CircleAlert size={15} />}
+          <span>{res.text}</span>
+        </div>
+      ) : (
+        <div className="tag-add-hint">Büyük/küçük harf ve Türkçe karakterler önemli değil: Yağmur#OVA ile yagmur#ova aynı kişidir.</div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 // Kendi tam profilini açınca: solda küçük düzenleme şeridi, sağda profilin canlı önizlemesi.
 // Her değişiklik önce taslakta kalır; "Kaydet" ile herkese gider.
+import { nameError } from '../../../shared/etiket';
+import { NameTagHint } from '../Etiket';
 import React, { useMemo, useRef, useState } from 'react';
 import { Upload, Trash2, ImagePlus, Check, RotateCcw, Settings2, Smile, Sparkles, Palette, Type, Image as ImageIcon, CircleUser, Wand2, Frame, Crop } from 'lucide-react';
 import type { Status } from '../../../shared/protocol';
@@ -70,7 +72,7 @@ export function ProfilStudyo({ status, onClose, setGuard }: { status?: Status; o
   const preview = { ...meAsUser(me), name: d.name.trim() || 'İsimsiz', color: d.color, avatar: d.avatar, bio: d.bio.trim() || undefined, profile: sanitizeProfile(d.extra) };
 
   const save = async () => {
-    if (!d.name.trim()) return toast('Görünen ad boş olamaz.', 'err');
+    if (d.name.trim() !== me.name && nameError(d.name)) return toast(nameError(d.name)!, 'err');
     setSaving(true);
     try {
       await updateProfile({ name: d.name.trim(), bio: d.bio.trim(), color: d.color, avatar: d.avatar, extra: d.extra });
@@ -129,8 +131,9 @@ export function ProfilStudyo({ status, onClose, setGuard }: { status?: Status; o
               ))}
             </div>
             <label className="xs-field">
-              <span>Görünen ad</span>
+              <span>Kullanıcı adı</span>
               <input value={d.name} maxLength={32} onChange={(e) => setD({ ...d, name: e.target.value })} />
+              <NameTagHint draft={d.name} />
             </label>
             <label className="xs-field">
               <span>Durum</span>

@@ -19,6 +19,8 @@ export interface UserPublic {
   bio?: string;
   profile?: ProfileExtra; // gelişmiş profil (afiş, durum, bağlantılar…)
   bot?: boolean; // bot hesabı (yalnızca sunucu atar)
+  /** v1.50 etiket kodu: "ad#kod" etiketindeki kod (1–5 harf/rakam) (yalnızca sunucu atar; bkz. shared/etiket.ts) */
+  tag?: string;
 }
 
 export const Perm = {
@@ -425,7 +427,12 @@ export type ClientFrame =
   | { t: 'friend.req'; to: ID; rid?: string }
   | { t: 'friend.accept'; to: ID }
   | { t: 'friend.remove'; to: ID }
+  /** eski arkadaş kodu (v1.50'de kaldırıldı; sunucu açıklayıcı hata döner) */
   | { t: 'friend.code'; reset?: boolean; rid: string }
+  /** v1.50 etiketle arkadaş ekleme: "ad#kod"; cevap: ok.data = { uid, state } */
+  | { t: 'friend.tag'; tag: string; rid: string }
+  /** v1.50 kendi etiket kodunu seç (2–5 harf/rakam); cevap: ok.data = yeni kod */
+  | { t: 'tag.set'; code: string; rid: string }
   /** ortak arkadaşlar (tam profil); cevap: ok.data = UserPublic[] */
   | { t: 'friend.mutual'; uid: ID; rid: string }
   /** özel mesaj gizliliği (her bağlantıda gönderilir); blocked: v1.48 engellenenler (paylaşımlarda iki yönlü gizlenir) */
@@ -442,7 +449,7 @@ export type ClientFrame =
 
 // ---- Sunucu -> İstemci ----
 export type ServerFrame =
-  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; acts?: Record<ID, LiveActivity[]>; v: number; feats?: string[] }
+  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; acts?: Record<ID, LiveActivity[]>; v: number; feats?: string[]; tag?: string }
   | { t: 'dm'; dm: DmInfo }
   | { t: 'post'; p: PostView }
   | { t: 'post.upd'; id: ID; likes: number; replies: number; liked: boolean }
