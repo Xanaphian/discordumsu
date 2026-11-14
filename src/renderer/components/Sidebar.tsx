@@ -11,7 +11,7 @@ import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, 
 import { enterSpace, exitSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
-import { ToolIcon } from './Tools';
+import { ChannelGlyph, ChannelPic } from './OdaResmi';
 import { isToolChannel } from '../../shared/protocol';
 import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
@@ -39,11 +39,6 @@ function tryJoinVoice(c: Community, ch: Channel) {
   if (why) return void toast(why, 'err');
   joinVoice(c.id, ch.id);
 }
-
-const ChannelIcon = ({ type, size = 18, icon }: { type: Channel['type']; size?: number; icon?: string }) =>
-  type === 'site' && icon ? (
-    <img className="ch-site-icon" src={icon} alt="" width={size} height={size} draggable={false} />
-  ) : isToolChannel(type) ? <ToolIcon type={type} size={size} /> : type === 'voice' ? <Volume2 size={size} /> : type === 'space' ? <Box size={size} /> : type === 'site' ? <Globe size={size} /> : type === 'announce' ? <Megaphone size={size} /> : <Hash size={size} />;
 
 function siteHost(url?: string) {
   if (!url) return '';
@@ -114,7 +109,7 @@ const ChannelRow = memo(function ChannelRow({
   const occupants = useStore((s) => (isVoiceLike(ch.type) ? s.voice[ch.id]?.length || 0 : 0));
   const viewers = useSite((s) => (ch.type === 'site' ? new Set((s.viewers[ch.id] || []).map((v) => v.userId)).size : 0));
   const live = useVoice((v) => ch.type === 'voice' && (useStore.getState().voice[ch.id] || []).some((m) => v.speaking[m.userId] && !m.muted));
-  const sub = room ? roomSub(ch, occupants, viewers) : '';
+  const sub = room ? roomSub(ch, occupants, viewers) : ch.image && ch.topic ? ch.topic.replace(/\s+/g, ' ').slice(0, 80) : '';
   const click = () => {
     if (ch.type === 'voice' && !inVoice) tryJoinVoice(c, ch);
     selectChannel(c.id, ch.id);
@@ -165,6 +160,7 @@ const ChannelRow = memo(function ChannelRow({
         className={cx(
           'ch-row',
           room && 'room room-' + ch.type,
+          ch.image && 'has-pic',
           (occupants > 0 || viewers > 0) && 'occupied',
           live && 'live',
           active && 'active',
@@ -194,10 +190,14 @@ const ChannelRow = memo(function ChannelRow({
       >
         {unread && !active && !muted && <span className="ch-unread-pill" />}
         {room && <span className="room-art" aria-hidden />}
-        <span className="ch-icon">
-          <ChannelIcon type={ch.type} icon={ch.icon} size={room ? 20 : 18} />
-        </span>
-        {room ? (
+        {ch.image ? (
+          <ChannelPic type={ch.type} image={ch.image} />
+        ) : (
+          <span className="ch-icon">
+            <ChannelGlyph type={ch.type} icon={ch.icon} size={room ? 20 : 18} />
+          </span>
+        )}
+        {room || sub ? (
           <span className="ch-text">
             <span className="ch-name">{ch.name}</span>
             <span className="ch-sub">{sub}</span>
@@ -662,4 +662,4 @@ function HomeSidebar() {
   );
 }
 
-export { ChannelIcon };
+export { ChannelGlyph as ChannelIcon };
