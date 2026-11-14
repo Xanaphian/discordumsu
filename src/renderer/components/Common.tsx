@@ -2,6 +2,7 @@ import React, { memo, ReactNode, useEffect, useRef, useState } from 'react';
 import type { Community, Status, UserPublic } from '../../shared/protocol';
 import type { AvatarShape, ProfileExtra } from '../../shared/profile';
 import { cx, initials } from '../lib/util';
+import { Pipette } from 'lucide-react';
 
 export const STATUS_LABEL: Record<Status, string> = {
   online: 'Çevrimiçi',
@@ -110,4 +111,21 @@ export function useClickOutside(ref: React.RefObject<HTMLElement | null>, cb: ()
 export function Logo({ size = 22 }: { size?: number }) {
   // Xanaphian logosu: xanaphian.com'daki yengeç rozeti; görseli temaya göre CSS seçer (marka.css)
   return <span className="logo-wrap logo-crab" style={{ width: size, height: size, ['--ls' as any]: size + 'px' }} role="img" aria-label="Xanaphian" />;
+}
+
+/** Hazır renk karelerinin sonundaki "istediğin rengi seç" düğmesi: gökkuşağı halka + damlalık ve "Özel" yazısı.
+ *  Seçili renk hazır renklerden değilse halkanın içinde o renk görünür ve düğme seçili sayılır. */
+export function CustomColor({ value, onChange, presets, disabled, fallback = '#999999' }: { value: string; onChange: (v: string) => void; presets: readonly string[]; disabled?: boolean; fallback?: string }) {
+  const custom = !!value && !presets.some((x) => x.toLowerCase() === value.toLowerCase());
+  return (
+    <label className={cx('custom-color', custom && 'on', disabled && 'off')} title={custom ? `Özel renk: ${value} (değiştirmek için tıkla)` : 'İstediğin rengi seç'}>
+      <span className="cc-ring">
+        <span className="cc-dot" style={custom ? { background: value } : undefined}>
+          {!custom && <Pipette size={13} />}
+        </span>
+      </span>
+      <span className="cc-text">{custom ? value.toUpperCase() : 'Özel renk'}</span>
+      <input type="color" disabled={disabled} value={value || fallback} onChange={(e) => onChange(e.target.value)} aria-label="Özel renk seç" />
+    </label>
+  );
 }

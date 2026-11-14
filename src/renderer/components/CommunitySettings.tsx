@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, RefreshCw, Trash2, Plus, ChevronUp, ChevronDown, Lock, Copy, Search, MoreHorizontal, Clock, Shield, LoaderCircle } from 'lucide-react';
+import { X, RefreshCw, Trash2, Plus, ChevronUp, ChevronDown, GripVertical, Lock, Copy, Search, MoreHorizontal, Clock, Shield, LoaderCircle } from 'lucide-react';
 import { useStore, cmd, toast, confirmDialog, deleteCommunity, makeInvite, openMenu, request, loadModData, type ModData } from '../lib/store';
-import { Avatar, CommunityIcon, Toggle } from './Common';
+import { Avatar, CommunityIcon, CustomColor, Toggle } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtDay, fmtTime, displayName } from '../lib/util';
 import { can, canEditRole, isTimedOut, isVoiceLike, memberPerms, ALL_PERMS, Perm, SELF_ROLE_FORBIDDEN, type Community, type Role, type AutoMod } from '../../shared/protocol';
 import { Shell, Row, close } from './Settings';
@@ -115,7 +115,7 @@ function RoleEditor({ c, role, me, onSelect }: { c: Community; role: Role; me: s
               {COLORS.map((x) => (
                 <button key={x} className={cx('swatch', role.color === x && 'on')} disabled={!editable} style={{ background: x }} onClick={() => upd({ color: x })} aria-label={x} />
               ))}
-              <input type="color" className="color-input" disabled={!editable} value={role.color || '#999999'} onChange={(e) => upd({ color: e.target.value })} title="Özel renk" />
+              <CustomColor value={role.color} presets={COLORS} disabled={!editable} onChange={(color) => upd({ color })} />
             </div>
           </div>
           <div className="field">
@@ -256,7 +256,29 @@ function RoleEditor({ c, role, me, onSelect }: { c: Community; role: Role; me: s
 function RolesTab({ c, me, initial }: { c: Community; me: string; initial?: string }) {
   const cid = c.id;
   const [roleId, setRoleId] = useState<string | null>(initial || null);
-  const roles = [...c.roles].sort((a, b) => b.position - a.position);
+  // Sürükle-bırak: sunucu sırayı adım adım (role.move) değiştirir; o sırada liste
+  // zıplamasın diye bırakılan sırayı sunucu yetişene kadar burada tutarız.
+  const [pending, setPending] = useState<string[] | null>(null);
+  const [drag, setDrag] = useState<{ id: string; from: number; to: number; min: number; max: number } | null>(null);
+  const rowRefs = useRef(new Map<string, HTMLDivElement>());
+  const justDragged = useRef(false);
+  const serverRoles = [...c.roles].sort((a, b) => b.position - a.position);
+  const serverKey = serverRoles.map((r) => r.id).join(',');
+  useEffect(() => {
+    if (pending && pending.join(',') === serverKey) setPending(null);
+  }, [serverKey, pending]);
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => setPending(null), 4000);
+    return () => clearTimeout(t);
+  }, [pending]);
+  const base = pending ? [...serverRoles].sort((a, b) => pending.indexOf(a.id) - pending.indexOf(b.id)) : serverRoles;
+  let roles = base;
+  if (drag) {
+    const moving = base[drag.from];
+    roles = base.filter((_, k) => k !== drag.from);
+    roles.splice(drag.to, 0, moving);
+  }
   const role = c.roles.find((r) => r.id === roleId) || null;
   const create = async () => {
     try {
@@ -266,35 +288,103 @@ function RolesTab({ c, me, initial }: { c: Community; me: string; initial?: stri
       toast((e as Error).message, 'err');
     }
   };
+  const startDrag = (e: React.PointerEvent, i: number) => {
+    if (e.button !== 0 || drag || pending) return;
+    if ((e.target as HTMLElement).closest('button')) return;
+    const list = base;
+    const r = list[i];
+    if (r.id === cid || !canEditRole(c, me, r)) return;
+    // Rolün gidebileceği aralık: düzenleyebildiğin rollerin bitişik bloğu, @herkes hep en altta.
+    let min = i;
+    while (min > 0 && list[min - 1].id !== cid && canEditRole(c, me, list[min - 1])) min--;
+    let max = i;
+    while (max < list.length - 1 && list[max + 1].id !== cid && canEditRole(c, me, list[max + 1])) max++;
+    if (min === max) return;
+    const mids = list.map((x) => {
+      const b = rowRefs.current.get(x.id)?.getBoundingClientRect();
+      return b ? b.top + b.height / 2 : 0;
+    });
+    const startY = e.clientY;
+    let started = false;
+    let to = i;
+    const move = (ev: PointerEvent) => {
+      if (!started) {
+        if (Math.abs(ev.clientY - startY) < 4) return;
+        started = true;
+        document.body.classList.add('role-dragging');
+      }
+      let n = 0;
+      for (let k = 0; k < mids.length; k++) if (k !== i && mids[k] < ev.clientY) n++;
+      to = Math.max(min, Math.min(max, n));
+      setDrag({ id: r.id, from: i, to, min, max });
+    };
+    const finish = (commit: boolean) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', key);
+      document.body.classList.remove('role-dragging');
+      setDrag(null);
+      if (!started) return;
+      justDragged.current = true;
+      setTimeout(() => (justDragged.current = false), 0);
+      if (!commit || to === i) return;
+      const order = list.filter((_, k) => k !== i);
+      order.splice(to, 0, r);
+      setPending(order.map((x) => x.id));
+      const dir = to < i ? 1 : -1;
+      for (let k = 0; k < Math.abs(i - to); k++) cmd(cid, { t: 'role.move', cid, id: r.id, dir });
+    };
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    const key = (ev: KeyboardEvent) => ev.key === 'Escape' && finish(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', key);
+  };
   return (
     <>
       <h1>Roller</h1>
       <p className="note">
         Roller üyelere renk, rozet ve yetki verir. Üstteki roller daha güçlüdür: bir rolü sadece kendi en yüksek rolünün altındaysa düzenleyebilir ya da verebilirsin.
-        Sıralamak için okları kullan. Üyelere rol vermek için rolün <b>Üyeler</b> sekmesini, üye listesinde sağ tık menüsünü ya da profil kartındaki <b>+</b> düğmesini kullanabilirsin.
+        Sıralamak için bir rolü tutup yukarı ya da aşağı sürükle. Üyelere rol vermek için rolün <b>Üyeler</b> sekmesini, üye listesinde sağ tık menüsünü ya da profil kartındaki <b>+</b> düğmesini kullanabilirsin.
       </p>
       <div className="roles-layout">
-        <div className="role-list">
+        <div className={cx('role-list', drag && 'dragging')}>
           <button className="btn primary sm" onClick={create}>
             <Plus size={14} /> Rol oluştur
           </button>
           {roles.map((r, i) => {
             const editable = r.id !== cid && canEditRole(c, me, r);
             const count = r.id === cid ? c.members.length : c.members.filter((m) => m.roles.includes(r.id)).length;
+            const isDragged = drag?.id === r.id;
             return (
-              <div key={r.id} className={cx('role-item', roleId === r.id && 'on')} onClick={() => setRoleId(r.id)} role="button">
+              <div
+                key={r.id}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(r.id, el);
+                  else rowRefs.current.delete(r.id);
+                }}
+                className={cx('role-item', roleId === r.id && 'on', editable && 'can-drag', isDragged && 'lifted', r.id === cid && 'everyone')}
+                onPointerDown={editable ? (e) => startDrag(e, base.indexOf(r)) : undefined}
+                onClick={() => !justDragged.current && setRoleId(r.id)}
+                role="button"
+                title={editable ? 'Sıralamak için tutup sürükle' : r.id === cid ? '@herkes her zaman en altta kalır' : undefined}
+              >
+                {editable ? <GripVertical size={14} className="ri-grip" /> : <span className="ri-grip-space" />}
                 <i style={{ background: r.color || 'var(--text-3)' }} />
                 <span>
                   {r.icon && <span className="role-icon">{r.icon}</span>}
                   {r.name}
                 </span>
                 {!canEditRole(c, me, r) && <Lock size={12} className="ri-lock" />}
-                {editable && (
+                {editable && !drag && (
                   <span className="ri-move">
-                    <button disabled={i === 0 || !canEditRole(c, me, roles[i - 1]) || roles[i - 1].id === cid} onClick={(e) => (e.stopPropagation(), cmd(cid, { t: 'role.move', cid, id: r.id, dir: 1 }))} aria-label="Yukarı taşı">
+                    <button disabled={i === 0 || !canEditRole(c, me, roles[i - 1]) || roles[i - 1].id === cid || !!pending} onClick={(e) => (e.stopPropagation(), cmd(cid, { t: 'role.move', cid, id: r.id, dir: 1 }))} aria-label="Yukarı taşı">
                       <ChevronUp size={14} />
                     </button>
-                    <button disabled={roles[i + 1]?.id === cid} onClick={(e) => (e.stopPropagation(), cmd(cid, { t: 'role.move', cid, id: r.id, dir: -1 }))} aria-label="Aşağı taşı">
+                    <button disabled={roles[i + 1]?.id === cid || !!pending} onClick={(e) => (e.stopPropagation(), cmd(cid, { t: 'role.move', cid, id: r.id, dir: -1 }))} aria-label="Aşağı taşı">
                       <ChevronDown size={14} />
                     </button>
                   </span>
@@ -671,7 +761,7 @@ function OverviewTab({ c }: { c: Community }) {
           {COLORS.map((x) => (
             <button key={x} className={cx('swatch', c.color === x && 'on')} style={{ background: x }} onClick={() => cmd(cid, { t: 'comm.update', cid, color: x })} aria-label={x} />
           ))}
-          <input type="color" className="color-input" value={c.color} onChange={(e) => cmd(cid, { t: 'comm.update', cid, color: e.target.value })} title="Özel renk" />
+          <CustomColor value={c.color} presets={COLORS} onChange={(color) => cmd(cid, { t: 'comm.update', cid, color })} />
         </div>
       </div>
       <h3>Sistem mesajları</h3>

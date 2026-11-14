@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { Dices, RotateCcw, Upload, Trash2, Plus, X, Smile, ImagePlus, Crop, Link as LinkIcon } from 'lucide-react';
 import { cropImage, recropImage, CropPreview, bannerCropOpts, BG_CROP, AVATAR_CROP } from '../Kirpma';
 import { useStore, updateProfile, toast, meAsUser } from '../../lib/store';
-import { Avatar, Toggle } from '../Common';
+import { Avatar, CustomColor, Toggle } from '../Common';
 import { EmojiPicker } from '../Overlays';
 import { cx, COLORS, resizeImage } from '../../lib/util';
 import {
@@ -433,7 +433,7 @@ export function ProfileEditor() {
                 {COLORS.map((c) => (
                   <button key={c} className={cx('swatch', c === d.color && 'on')} style={{ background: c }} onClick={() => setD({ ...d, color: c })} aria-label={c} />
                 ))}
-                <input type="color" value={d.color} onChange={(e) => setD({ ...d, color: e.target.value })} className="color-input" />
+                <CustomColor value={d.color} presets={COLORS} onChange={(color) => setD({ ...d, color })} />
               </div>
             </div>
           </Section>
