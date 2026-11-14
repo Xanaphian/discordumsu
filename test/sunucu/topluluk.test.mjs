@@ -110,7 +110,9 @@ describe('ses odası', () => {
     m1.out({ t: 'vc.join', ch: voice.id, muted: false, deaf: false });
     const you = await m1.wait((f) => f.t === 'vc.you');
     await owner.wait((f) => f.t === 'vc' && f.ch === voice.id && f.members.some((x) => x.userId === m1.who.user.id), 4000, from);
+    const fromM2j = m2.frames.length;
     m2.out({ t: 'vc.join', ch: voice.id, muted: true, deaf: false });
+    await m2.wait((f) => f.t === 'vc.you', 4000, fromM2j);
     await owner.wait((f) => f.t === 'vc' && f.members.length === 2, 4000, from);
     assert.deepEqual(roomOf(owner, from).map((x) => [x.userId, x.muted]).sort(), [[m1.who.user.id, false], [m2.who.user.id, true]].sort());
     // bağlantı kurma sinyali yalnızca odadakiler arasında iletilir
