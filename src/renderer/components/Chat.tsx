@@ -3,7 +3,7 @@ import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
   ArrowDown, LoaderCircle, CircleAlert, Clock, ArrowRight, Settings, Bell, BellOff, EyeOff, Globe,
-  Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Dices, Coins, Braces, UserRound, Phone, Video,
+  Mic, Square, SendHorizontal, Type, Bold, Italic, Strikethrough, Code, Quote, EyeOff as SpoilerIcon, Paperclip, Braces, UserRound, Phone, Video,
   Swords, ChartNoAxesColumn, CalendarClock, Bookmark, BookmarkCheck,
 } from 'lucide-react';
 import { parseCard, isCardReaction } from '../lib/cards';
@@ -998,12 +998,6 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
       el?.setSelectionRange(a + t.length, a + t.length);
     });
   };
-  const roll = () => {
-    const n = 1 + Math.floor(Math.random() * 6);
-    sendMessage(ch.id, `🎲 Zar attı: **${n}**`);
-  };
-  const flip = () => sendMessage(ch.id, `🪙 Yazı tura: **${Math.random() < 0.5 ? 'Yazı' : 'Tura'}**`);
-
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (sug) {
       if (e.key === 'ArrowDown') return e.preventDefault(), setSel((s) => (s + 1) % sug.items.length);
@@ -1163,21 +1157,6 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
               <span>
                 <b>Zamanlanmış gönder</b>
                 <small>Yazdığın mesaj sonra gitsin</small>
-              </span>
-            </button>
-            <div className="cp-sep" />
-            <button onClick={roll}>
-              <Dices size={17} />
-              <span>
-                <b>Zar at</b>
-                <small>1 ile 6 arası</small>
-              </span>
-            </button>
-            <button onClick={flip}>
-              <Coins size={17} />
-              <span>
-                <b>Yazı tura</b>
-                <small>Şansına güven</small>
               </span>
             </button>
           </div>
