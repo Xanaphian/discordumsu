@@ -11,6 +11,7 @@ import { initEkstralar, blockNotify, isPopout } from './ekstralar';
 import { initOverlay, destroyOverlay } from './overlay';
 import { initTemplateFetch } from './sablon';
 import { DEFAULT_PORT, makeId } from '../shared/protocol';
+import { OFFICIAL_SERVER, isLoopbackHost, normHost } from '../shared/guvenlik';
 
 const isDev = !app.isPackaged;
 app.setAppUserModelId('com.xanaphian.kovan');
@@ -110,6 +111,10 @@ interface Config {
   settings: Record<string, unknown>;
   onboarded: boolean;
   bounds?: { x?: number; y?: number; width: number; height: number; maximized?: boolean };
+  /** 1 = gizli anahtar sunucuya göre ayrılıyor (bkz. hostSecret) */
+  secretScope?: number;
+  /** Bu düzenden önce bağlanılmış sunucular: eski üyelikler bozulmasın diye asıl anahtarı almaya devam eder */
+  trustedHosts?: string[];
 }
 
 const cfgFile = path.join(app.getPath('userData'), 'kovan-config.json');
@@ -118,7 +123,19 @@ const COLORS = ['#f5a524', '#3ecf8e', '#6cb6ff', '#f2555a', '#c084fc', '#22d3ee'
 function loadConfig(): Config {
   try {
     const c = JSON.parse(fs.readFileSync(cfgFile, 'utf8')) as Config;
-    if (c.profile?.id && c.profile.secret) return Object.assign({ hosts: [], settings: {}, onboarded: false }, c);
+    if (c.profile?.id && c.profile.secret) {
+      const cfg: Config = Object.assign({ hosts: [], settings: {}, onboarded: false }, c);
+      if (cfg.secretScope !== 1) {
+        // Güncellemeden önce bağlanılan sunucular asıl anahtarı zaten biliyor; oradaki üyelikler aynı anahtarla sürer.
+        // Bundan sonra eklenen her sunucu yalnız kendine özel türetilmiş anahtarı görür.
+        const old = [...(Array.isArray(cfg.hosts) ? cfg.hosts.map((h) => h?.url) : []), cfg.settings?.serverUrl];
+        cfg.trustedHosts = [...new Set(old.map(normHost).filter(Boolean))].slice(0, 200);
+        cfg.secretScope = 1;
+        scopeMigrated = true;
+      }
+      if (!Array.isArray(cfg.trustedHosts)) cfg.trustedHosts = [];
+      return cfg;
+    }
   } catch {
     /* ilk açılış */
   }
@@ -133,9 +150,32 @@ function loadConfig(): Config {
     hosts: [],
     settings: {},
     onboarded: false,
+    secretScope: 1,
+    trustedHosts: [],
   };
 }
 
+/**
+ * Bir sunucuya gönderilecek gizli anahtar.
+ * Asıl anahtar yalnız resmî sunucuya, bu bilgisayardaki yerel sunucuya ve güncellemeden önce bağlanılmış sunuculara gider.
+ * Diğer her sunucu, asıl anahtardan o adres için türetilmiş ayrı bir anahtar görür: davetle bağlanılan bir sunucu
+ * bu anahtarla resmî sunucuda (ya da başka bir yerde) senin yerine oturum açamaz.
+ */
+function hostSecret(host: unknown): string {
+  const h = normHost(typeof host === 'string' ? host.slice(0, 300) : '');
+  if (!h) return '';
+  const master = config.profile.secret;
+  const env = normHost(process.env.KOVAN_SERVER);
+  if (h === normHost(OFFICIAL_SERVER) || isLoopbackHost(h) || (env && h === env) || config.trustedHosts?.includes(h)) return master;
+  return crypto.createHmac('sha256', master).update('xanaphian-host:v1:' + h).digest('hex');
+}
+
+/** Arayüze verilen yapılandırma: asıl gizli anahtar ana süreçten çıkmaz */
+function publicConfig(): Config {
+  return { ...config, profile: { ...config.profile, secret: '' } };
+}
+
+let scopeMigrated = false;
 let config = loadConfig();
 let saveTimer: NodeJS.Timeout | null = null;
 function saveConfig(now = false) {
@@ -147,6 +187,14 @@ function saveConfig(now = false) {
   };
   if (now) write();
   else saveTimer = setTimeout(write, 300);
+}
+// anahtar düzeni ilk kez uygulandıysa hemen diske yaz (eski sunucu listesi bir sonraki açılışta yeniden hesaplanmasın)
+if (scopeMigrated) {
+  try {
+    saveConfig(true);
+  } catch (e) {
+    console.error('Yapılandırma yazılamadı', e);
+  }
 }
 
 // ---------- pencere ----------
@@ -522,7 +570,7 @@ function registerIpc() {
       const ex = hub.exportCommunity(cid, config.profile.id);
       if (!ex) throw new Error('Bu topluluğu yalnızca sahibi taşıyabilir.');
       const base = server.replace(/\/+$/, '');
-      const auth = { 'x-kovan-user': config.profile.id, 'x-kovan-secret': config.profile.secret };
+      const auth = { 'x-kovan-user': config.profile.id, 'x-kovan-secret': hostSecret(server) };
       const body = [JSON.stringify(ex.head), ...ex.lines()].join('\n');
       const r = await fetch(base + '/import', { method: 'POST', headers: { ...auth, 'content-type': 'application/x-ndjson' }, body });
       const j = (await r.json().catch(() => ({}))) as { error?: string };
@@ -559,7 +607,11 @@ function registerIpc() {
     powerSaver,
   }));
   ipcMain.handle('mcp:claude-desktop', (_e, a: { name: string; url: string; token: string }) => installClaudeDesktop(a));
-  ipcMain.handle('cfg:get', () => config);
+  ipcMain.handle('cfg:get', () => publicConfig());
+  // eşzamanlı: bağlantı açılırken kimlik çerçevesi hemen gönderilir
+  ipcMain.on('cfg:host-secret', (e, host: unknown) => {
+    e.returnValue = hostSecret(host);
+  });
   ipcMain.handle('act:config', (_e, c: ActivityConfig) => (configureActivity(c), getActivity()));
   ipcMain.handle('act:apps', () => runningApps());
   ipcMain.handle('spotify:status', () => spotifyStatus());
@@ -575,13 +627,16 @@ function registerIpc() {
       ...patch,
       profile: { ...config.profile, ...(patch.profile || {}), id: config.profile.id, secret: config.profile.secret },
       settings: { ...config.settings, ...(patch.settings || {}) },
+      // arayüz bu alanları değiştiremez
+      secretScope: config.secretScope,
+      trustedHosts: config.trustedHosts,
     };
     if (patch.profile?.name) hub.ownerName = config.profile.name;
     saveConfig();
     if (patch.settings?.openAtLogin !== undefined && !isDev) {
       app.setLoginItemSettings({ openAtLogin: !!patch.settings.openAtLogin, args: ['--hidden'] });
     }
-    return config;
+    return publicConfig();
   });
   ipcMain.handle('app:pending-invite', () => {
     const p = pendingInvite;
