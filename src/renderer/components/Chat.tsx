@@ -28,6 +28,8 @@ import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
 import { can, canIn, channelPerms, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
 import { LinkPreviews } from './BaglantiOnizleme';
 import { PopoutButton } from './AyriPencere';
+import { memberMenu } from './Moderation';
+import { insertMention } from './Members';
 
 const BASE = 1_000_000;
 const GROUP_MS = 7 * 60 * 1000;
@@ -244,6 +246,19 @@ function sameItem(a: ItemProps, b: ItemProps) {
   return x === y || (x.id === y.id && x.ownerId === y.ownerId && x.members === y.members && x.roles === y.roles && x.channels === y.channels && x.users[a.m.authorId] === y.users[b.m.authorId]);
 }
 
+/** İşlem düğmeleri mesajın altında açılır; altta yer yoksa (en son mesaj) üstüne alınır */
+function toolsSide(e: React.MouseEvent<HTMLElement>) {
+  const el = e.currentTarget;
+  const main = el.querySelector('.msg-main');
+  const sc = el.closest('.msg-scroller') || el.parentElement;
+  if (!main || !sc) return;
+  const below = sc.getBoundingClientRect().bottom - main.getBoundingClientRect().bottom;
+  const up = below < 44;
+  el.classList.toggle('tools-up', up);
+  // yanıt satırını örtmesin: düğmeler yanıt satırının da üstüne çıkar
+  if (up) el.style.setProperty('--tools-up', ((el.querySelector('.reply-ref') as HTMLElement | null)?.offsetHeight || 0) + 'px');
+}
+
 const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, isEditing, isNew, highlight, compact }: ItemProps) {
   const authorUser = useStore((s) => s.users[m.authorId]);
   const parent = useStore((s) => (m.replyTo ? findItem(s.chans[m.channelId]?.items, m.replyTo) : undefined));
@@ -279,9 +294,17 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
     if (e?.shiftKey) return deleteMessage(m.channelId, m.id);
     confirmDialog('Mesajı sil', 'Bu mesajı silmek istediğine emin misin? (İpucu: Shift basılıyken silersen onay sorulmaz.)', () => deleteMessage(m.channelId, m.id), 'Sil');
   };
-  const more = (e: React.MouseEvent) =>
+  // Sağ tık: önce kişi (Profil, Bahset, Mesaj…), sonra mesaj işlemleri; kişinin geri kalan seçenekleri tek alt menüde
+  const more = (e: React.MouseEvent) => {
+    const person = memberMenu(c, me, m.authorId, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) });
+    const cut = person.findIndex((x) => x.sep);
+    const top = cut < 0 ? person : person.slice(0, cut);
+    const rest = (cut < 0 ? [] : person.slice(cut + 1)).filter((x, i, a) => !(x.sep && (i === 0 || a[i - 1].sep || i === a.length - 1)));
     openMenu(e, [
-      { emojis: QUICK_REACTIONS, onEmoji: (x) => toggleReaction(m, x) },
+      ...top,
+      ...(rest.length ? [{ label: 'Kişi seçenekleri', sub: rest }] : []),
+      { sep: true },
+      { emojis: QUICK_REACTIONS, onEmoji: (x: string) => toggleReaction(m, x) },
       { label: 'Yanıtla', onClick: reply },
       ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
       { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
@@ -290,6 +313,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
       { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
       ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
     ]);
+  };
 
   if (m.kind === 'join' && !showJoin) return newDay ? <DayDivider ts={m.ts} /> : null;
   if (blocked && !reveal && !m.kind) {
@@ -350,6 +374,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
           isEditing && 'editing',
         )}
         onContextMenu={more}
+        onMouseEnter={toolsSide}
         onDoubleClick={(e) => {
           if (mine && !card && !isEditing && !(e.target as HTMLElement).closest('a,button,.att-img,.md-pre')) startEdit();
         }}
@@ -443,58 +468,58 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 </button>
               </div>
             )}
+            {!m.pending && !m.failed && !isEditing && (
+              <div className="msg-tools">
+                {QUICK_REACTIONS.slice(0, 3).map((e) => (
+                  <button key={e} className="mt-btn emoji" onClick={() => toggleReaction(m, e)}>
+                    {e}
+                  </button>
+                ))}
+                <span className="mt-sep" />
+                <Tooltip text="Tepki ekle" side="top">
+                  <button
+                    className="mt-btn"
+                    onClick={(ev) => {
+                      const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+                      openPicker(r.left - 300, r.top, (e) => toggleReaction(m, e));
+                    }}
+                  >
+                    <SmilePlus size={17} />
+                  </button>
+                </Tooltip>
+                <Tooltip text="Yanıtla" side="top">
+                  <button className="mt-btn" onClick={reply}>
+                    <Reply size={17} />
+                  </button>
+                </Tooltip>
+                <Tooltip text={saved ? 'Kaydedildi' : 'Kaydet'} side="top">
+                  <button className={cx('mt-btn', saved && 'on')} onClick={() => toggleSaved(c.id, m)}>
+                    {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+                  </button>
+                </Tooltip>
+                {mine && !card && (
+                  <Tooltip text="Düzenle" side="top">
+                    <button className="mt-btn" onClick={startEdit}>
+                      <Pencil size={16} />
+                    </button>
+                  </Tooltip>
+                )}
+                {(mine || canManage) && (
+                  <Tooltip text="Sil" side="top">
+                    <button className="mt-btn danger" onClick={del}>
+                      <Trash2 size={16} />
+                    </button>
+                  </Tooltip>
+                )}
+                <Tooltip text="Diğer" side="top">
+                  <button className="mt-btn" onClick={more}>
+                    <MoreHorizontal size={17} />
+                  </button>
+                </Tooltip>
+              </div>
+            )}
           </div>
         </div>
-        {!m.pending && !m.failed && !isEditing && (
-          <div className="msg-tools">
-            {QUICK_REACTIONS.slice(0, 3).map((e) => (
-              <button key={e} className="mt-btn emoji" onClick={() => toggleReaction(m, e)}>
-                {e}
-              </button>
-            ))}
-            <span className="mt-sep" />
-            <Tooltip text="Tepki ekle" side="top">
-              <button
-                className="mt-btn"
-                onClick={(ev) => {
-                  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-                  openPicker(r.left - 300, r.top, (e) => toggleReaction(m, e));
-                }}
-              >
-                <SmilePlus size={17} />
-              </button>
-            </Tooltip>
-            <Tooltip text="Yanıtla" side="top">
-              <button className="mt-btn" onClick={reply}>
-                <Reply size={17} />
-              </button>
-            </Tooltip>
-            <Tooltip text={saved ? 'Kaydedildi' : 'Kaydet'} side="top">
-              <button className={cx('mt-btn', saved && 'on')} onClick={() => toggleSaved(c.id, m)}>
-                {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
-              </button>
-            </Tooltip>
-            {mine && !card && (
-              <Tooltip text="Düzenle" side="top">
-                <button className="mt-btn" onClick={startEdit}>
-                  <Pencil size={16} />
-                </button>
-              </Tooltip>
-            )}
-            {(mine || canManage) && (
-              <Tooltip text="Sil" side="top">
-                <button className="mt-btn danger" onClick={del}>
-                  <Trash2 size={16} />
-                </button>
-              </Tooltip>
-            )}
-            <Tooltip text="Diğer" side="top">
-              <button className="mt-btn" onClick={more}>
-                <MoreHorizontal size={17} />
-              </button>
-            </Tooltip>
-          </div>
-        )}
       </div>
     </>
   );
