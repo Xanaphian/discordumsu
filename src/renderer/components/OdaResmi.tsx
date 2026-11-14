@@ -4,7 +4,8 @@ import React, { useRef } from 'react';
 import { Hash, Volume2, Megaphone, Globe, ImagePlus, Trash2 } from 'lucide-react';
 import { ToolIcon } from './Tools';
 import { toast } from '../lib/store';
-import { cleanChannelBanner, isToolChannel, type Channel } from '../../shared/protocol';
+import { CHANNEL_BANNER_MAX, cleanChannelBanner, isToolChannel, type Channel } from '../../shared/protocol';
+import { cropImage } from './Kirpma';
 
 /** Kanal türünün simgesi (site odasında sitenin kendi simgesi varsa o) */
 export function ChannelGlyph({ type, size = 18, icon }: { type: Channel['type']; size?: number; icon?: string }) {
@@ -24,49 +25,6 @@ export function ChannelBannerBg({ banner }: { banner: string }) {
       <span className="ch-banner-shade" aria-hidden />
     </>
   );
-}
-
-const BW = 600;
-const BH = 200;
-
-/** Dosyadan oda afişi: ortadan 3:1 kırpılır, 600x200 webp'e küçültülür */
-export function readChannelBanner(file: File): Promise<string | undefined> {
-  if (!file.type.startsWith('image/')) {
-    toast('Bir resim dosyası seç.', 'err');
-    return Promise.resolve(undefined);
-  }
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const ratio = BW / BH;
-      let sw = img.width;
-      let sh = img.width / ratio;
-      if (sh > img.height) {
-        sh = img.height;
-        sw = img.height * ratio;
-      }
-      const c = document.createElement('canvas');
-      c.width = BW;
-      c.height = BH;
-      const ctx = c.getContext('2d')!;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, BW, BH);
-      let q = 0.85;
-      let out = c.toDataURL('image/webp', q);
-      while (!cleanChannelBanner(out) && q > 0.35) out = c.toDataURL('image/webp', (q -= 0.15));
-      const ok = cleanChannelBanner(out);
-      if (!ok) toast('Bu resim kullanılamadı.', 'err');
-      resolve(ok);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      toast('Resim okunamadı.', 'err');
-      resolve(undefined);
-    };
-    img.src = url;
-  });
 }
 
 /** Ayarlarda / oluştururken afiş seçme alanı; önizleme oda satırının kendisi */
@@ -112,7 +70,7 @@ export function ChannelBannerField({
             </button>
           )}
         </div>
-        <small className="field-hint">{banner ? 'Oda listesinde odanın arkasında bu afiş görünür.' : 'İsteğe bağlı. Geniş bir resim seç; ortadan kırpılır.'}</small>
+        <small className="field-hint">{banner ? 'Oda listesinde odanın arkasında bu afiş görünür.' : 'İsteğe bağlı. Resmi seçince hangi kısmının görüneceğini ayarlarsın.'}</small>
       </div>
       <input
         ref={file}
@@ -123,8 +81,11 @@ export function ChannelBannerField({
           const f = e.target.files?.[0];
           e.target.value = '';
           if (!f) return;
-          const v = await readChannelBanner(f);
+          const r = await cropImage(f, { title: 'Oda afişi · ' + (name || 'oda'), aspect: 6, outW: 720, max: CHANNEL_BANNER_MAX, hint: 'Oda listesinde odanın arkasında bu kısım görünür.' });
+          if (!r) return;
+          const v = cleanChannelBanner(r.image);
           if (v) onChange(v);
+          else toast('Bu resim kullanılamadı.', 'err');
         }}
       />
     </div>

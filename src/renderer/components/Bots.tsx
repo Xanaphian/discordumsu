@@ -11,6 +11,7 @@ import { cx, COLORS, resizeImage, copyText, fmtDay } from '../lib/util';
 import { isVoiceLike, makeId } from '../../shared/protocol';
 import { AI_MODELS, type BotPatch, type BotRule, type BotTemplate, type BotView, type BotMcpServer } from '../../shared/bots';
 import '../styles/bots.css';
+import { cropImage, BOT_CROP } from './Kirpma';
 
 const TEMPLATES: { id: BotTemplate; icon: React.ReactNode; title: string; sub: string }[] = [
   { id: 'ai', icon: <Sparkles size={22} />, title: 'Yapay zekâ (Claude)', sub: 'Anıldığında ya da seçtiğin kanallarda Claude ile yanıt verir. Anthropic API anahtarı gerekir.' },
@@ -171,7 +172,12 @@ function GeneralPane({ cid, bot, onDeleted }: { cid: string; bot: BotView; onDel
           <Avatar user={bot.user} size={88} />
           <span className="iu-hover">Değiştir</span>
         </button>
-        <input ref={file} hidden type="file" accept="image/*" onChange={async (e) => e.target.files?.[0] && update(cid, bot.id, { avatar: await resizeImage(e.target.files[0], 128) })} />
+        <input ref={file} hidden type="file" accept="image/*" onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          const r = f && (await cropImage(f, BOT_CROP));
+          if (r) update(cid, bot.id, { avatar: r.image });
+        }} />
         <div className="overview-form">
           <label className="field">
             <span>Bot adı</span>

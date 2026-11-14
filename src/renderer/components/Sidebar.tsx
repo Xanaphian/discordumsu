@@ -18,7 +18,9 @@ import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
 import { focusProfileSection } from './profile/ProfileEditor';
 import { activeCustom, type ProfileExtra } from '../../shared/profile';
-import { bannerBackground, imgFrameStyle } from './profile/look';
+import { bannerBackground } from './profile/look';
+import { BannerPic } from './Kirpma';
+import { BANNER_H } from '../../shared/profile';
 import { useActsOf } from '../lib/activity';
 import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
@@ -95,7 +97,7 @@ const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chI
               openMenu(e, memberMenu(c, meId, m.userId, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
             }}
           >
-            {img && <img className="vc-card-img" src={img} alt="" draggable={false} style={imgFrameStyle(b)} />}
+            {img && <BannerPic className="vc-card-img" image={img} framing={b} aspect={330 / (b?.h || BANNER_H.def)} align="end" />}
             <span className="vc-card-shade" aria-hidden />
             <Avatar user={u ? { ...u, profile: prof } : undefined} size={compact ? 26 : 34} speaking={talk} />
             <span className="vc-name">{displayName(c, m.userId, users)}</span>
@@ -340,7 +342,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
   return (
     <>
       <button className={cx('side-header comm-head', c.profile?.banner && 'has-banner')} onClick={headerMenu} style={{ ['--cc' as any]: c.color }}>
-        {c.profile?.banner && <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} className="sh-banner" />}
+        {c.profile?.banner && <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} refW={560} className="sh-banner" />}
         <span className="sh-icon">
           <CommunityIcon c={c} size={34} />
         </span>
