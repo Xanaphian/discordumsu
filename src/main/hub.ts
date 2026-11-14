@@ -1210,6 +1210,8 @@ export class Hub {
 
   /** a, b'ye özel mesaj yazamıyorsa nedeni (arkadaşlık, ortak topluluk ve b'nin gizlilik ayarı) */
   private dmBlockReason(a: ID, b: ID): string | null {
+    // engelleme sunucuda da geçerli: engellenen kişi (ya da engelleyen) yazamaz, arayamaz
+    if (this.posts.blockedEither(a, b)) return 'Bu kişiyle mesajlaşamazsın.';
     const friends = !!this.data.friends?.[dmChannelId(a, b)]?.ok;
     if (friends) return null;
     if (this.data.dmFriendsOnly?.[b]) return 'Bu kişi yalnızca arkadaşlarından özel mesaj alıyor. Önce arkadaşlık isteği gönder.';
@@ -1525,7 +1527,7 @@ export class Hub {
     switch (f.t) {
       case 'send': {
         if (!this.canMessage(uid, peer)) {
-          const why = this.data.dmFriendsOnly?.[peer] ? this.dmBlockReason(uid, peer)! : 'Bu kişiyle artık ortak bir topluluğunuz yok ve arkadaş değilsiniz, mesaj gönderemezsin.';
+          const why = this.data.dmFriendsOnly?.[peer] || this.posts.blockedEither(uid, peer) ? this.dmBlockReason(uid, peer)! : 'Bu kişiyle artık ortak bir topluluğunuz yok ve arkadaş değilsiniz, mesaj gönderemezsin.';
           return this.send(s, { t: 'err', msg: why, nonce: f.nonce }), true;
         }
         if (Date.now() - (s.lastSend[ch] || 0) < 80) return this.send(s, { t: 'err', msg: 'Biraz yavaş yaz.', nonce: f.nonce }), true;

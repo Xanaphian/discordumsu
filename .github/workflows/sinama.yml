@@ -1,7 +1,10 @@
 name: Otomatik sınama
 
-# Uygulamayı ve sunucuyu gerçekten açıp ana ekranları gezer (test/duman/duman.mjs).
-# Her PR'da ve her sürümden önce çalışır; başarısız olursa sürüm yayınlanmaz.
+# İki iş aynı anda çalışır:
+#  - sunucu: sunucu kuralları (giriş, mesaj, özel mesaj, arkadaş etiketi, ses odası, yetkiler, bozuk girdi)
+#    ve sürüm/güncelleme denetimi; ~1 dakika (test/sunucu, test/surum)
+#  - duman: uygulamayı ve sunucuyu gerçekten açıp ana ekranları gezer (test/duman/duman.mjs)
+# Her PR'da ve her sürümden önce çalışır; biri başarısız olursa sürüm yayınlanmaz.
 on:
   pull_request:
   workflow_call:
@@ -16,6 +19,26 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  sunucu:
+    name: Sunucu ve sürüm sınaması
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Sürüm ve güncelleme ayarları
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run test:surum
+      - name: Sunucuyu derle
+        run: npm run build:server
+      - name: Sunucu kurallarını sına
+        run: npm run test:sunucu
+
   duman:
     name: Duman sınaması
     runs-on: ubuntu-latest
