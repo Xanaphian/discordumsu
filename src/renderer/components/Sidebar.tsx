@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { NOISE_MODES, noiseModeOf } from '../lib/ses/gurultu';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, AudioWaveform, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin, LayoutGrid, MessagesSquare, Sparkles,
+  Signal, AudioWaveform, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin, LayoutGrid, MessagesSquare, Sparkles, Pencil,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
@@ -11,6 +11,7 @@ import {
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen, voiceBlocked } from '../lib/voice';
 import { yeniKayitVar } from '../lib/yenilikler';
+import { useHasDraft } from '../lib/taslak';
 import { enterSpace, exitSpace, toggle3d, useSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
@@ -112,6 +113,11 @@ const VoiceCard = memo(function VoiceCard({ c, m, compact }: { c: Community; m: 
     </div>
   );
 });
+
+/** Gönderilmemiş taslağı olan kanalda küçük kalem. */
+function DraftMark({ ch }: { ch: string }) {
+  return useHasDraft(ch) ? <Pencil size={12} className="ch-draft" aria-label="Gönderilmemiş taslak" /> : null;
+}
 
 const ChannelRow = memo(function ChannelRow({
   c,
@@ -262,6 +268,7 @@ const ChannelRow = memo(function ChannelRow({
           </span>
         )}
         {ch.type === 'site' && <span className="room-tag">WEB</span>}
+        {!active && !isVoiceLike(ch.type) && <DraftMark ch={ch.id} />}
         {ch.overwrites?.some((o) => o.id === c.id && o.deny & Perm.VIEW_CHANNEL) && <Lock size={12} className="ch-lock" aria-label="Özel kanal" />}
         {isVoiceLike(ch.type) && ch.userLimit ? <span className="ch-limit">{(useStore.getState().voice[ch.id] || []).length}/{ch.userLimit}</span> : null}
         {mentions > 0 && <span className="badge">{mentions}</span>}
@@ -684,6 +691,7 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
         <span className="ch-name">
           {user?.name || c.name}
           {pinned && <Pin size={12} className="dm-pin" aria-label="Sabitlendi" />}
+          {!active && c.channels[0] && <DraftMark ch={c.channels[0].id} />}
         </span>
         {live ? <ActivityLine uid={c.dm!} className="ch-sub" /> : custom?.text ? <span className="ch-sub">{custom.emoji ? custom.emoji + ' ' : ''}{custom.text}</span> : null}
       </span>

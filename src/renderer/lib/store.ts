@@ -272,6 +272,7 @@ export type Modal =
   | { type: 'createCategory'; cid: ID; catId?: ID }
   | { type: 'confirm'; title: string; body: string; confirmText?: string; danger?: boolean; onConfirm: () => void }
   | { type: 'image'; src: string; name: string }
+  | { type: 'forward'; cid: ID; chId: ID; id: ID }
   | { type: 'quick' }
   | { type: 'shortcuts' }
   | { type: 'screenShare' }

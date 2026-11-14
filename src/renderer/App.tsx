@@ -64,7 +64,7 @@ function railList(): (string | 'home')[] {
 }
 
 /** Açık bir katman (menü, seçici, açılır pencere) varsa Esc onu kapatır, kanalı okundu saymaz */
-const LAYERS = '.ctx-menu, .emoji-picker, .popover, .pcard, .ns-pop, .dev-menu, .cp-plus, .suggest, .modal-backdrop, .edit-box';
+const LAYERS = '.ctx-menu, .popout, .emoji-picker, .popover, .pcard, .ns-pop, .dev-menu, .cp-plus, .suggest, .modal-backdrop, .edit-box';
 
 /** Mesaj yazma kutusunun yanındaki düğmeye kısayolla basar (emoji, dosya) */
 function clickIn(sel: string) {

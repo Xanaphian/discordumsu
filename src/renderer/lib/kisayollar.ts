@@ -43,6 +43,7 @@ export function kisayolGruplari(): KisayolGrubu[] {
         { keys: [`${M}+Shift+U`], label: 'Dosya yükle' },
         { keys: ['Page Up', 'Page Down'], label: 'Mesajlarda yukarı / aşağı kaydır' },
         { keys: ['Esc'], label: 'Yanıtı ya da düzenlemeyi iptal et' },
+        { keys: ['/'], label: 'Kutunun başında komutlar: /shrug, /me, /spoiler…', tags: 'komut' },
       ],
     },
     {
@@ -62,6 +63,8 @@ export function kisayolGruplari(): KisayolGrubu[] {
         { keys: ['Tab', 'Shift+Tab'], label: 'Düğmeler arasında gezin' },
         { keys: ['↑', '↓'], label: 'Açık menüde gezin, Enter ile seç' },
         { keys: ['Esc'], label: 'Pencereyi ya da menüyü kapat' },
+        { keys: ['←', '→'], label: 'Resim açıkken önceki / sonraki resim', tags: 'görüntüleyici' },
+        { keys: ['+', '−', '0'], label: 'Resim açıkken yakınlaştır / uzaklaştır / sığdır', tags: 'görüntüleyici zoom' },
       ],
     },
   ];
