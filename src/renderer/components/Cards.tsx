@@ -6,7 +6,7 @@ import { useVoice, joinVoice } from '../lib/voice';
 import { Avatar } from './Common';
 import { cx, displayName, hm, fmtTime } from '../lib/util';
 import {
-  encodeCard, lfgSlots, pollVotes, slotKey, voteKey,
+  encodeCard, lfgSlots, lfgClosed, pollVotes, slotKey, voteKey,
   type LfgCard, type PollCard, type Card,
 } from '../lib/cards';
 import { presets, schedule } from '../lib/later';
@@ -28,8 +28,10 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
   const mySlot = slots.indexOf(me);
   const roles = card.s.some((x) => x);
   const mineCard = m.authorId === me;
+  const closed = lfgClosed(m, card);
 
   const take = (i: number) => {
+    if (closed) return;
     if (slots[i] && slots[i] !== me) return;
     if (mineCard && card.own !== undefined) return toast('Bu senin ilanın; zaten takımdasın.', 'info');
     // tek yer: önce eski yerden çık
@@ -57,14 +59,19 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
     return best;
   }, [c.channels, voice, team.join(','), me]); // eslint-disable-line
   const gk = lfgGameOf(card)?.key;
-  const canJoinGame = !mineCard && inTeam && !!accountFor(m.authorId, gk) && (gk === 'lol' || STEAM_JOIN.has(gk || ''));
+  const canJoinGame = !closed && !mineCard && inTeam && !!accountFor(m.authorId, gk) && (gk === 'lol' || STEAM_JOIN.has(gk || ''));
 
   const game = lfgGameOf(card);
   const theme = game?.theme.a ? ({ '--g-a': game.theme.a, '--g-b': game.theme.b, '--g-bg': game.theme.bg, '--g-ink': game.theme.ink || '#111' } as React.CSSProperties) : undefined;
   const cols = slots.length <= 5 ? slots.length : Math.ceil(slots.length / 2);
 
   return (
-    <div className={cx('xcard lfg', full && 'full', theme && 'themed', game && 'g-' + game.key)} style={theme}>
+    <div className={cx('xcard lfg', full && 'full', theme && 'themed', game && 'g-' + game.key, closed && 'closed')} style={theme}>
+      {game?.brand && (
+        <span className="lfg-wm" aria-hidden>
+          <BrandLogo k={game.brand} size={150} plain />
+        </span>
+      )}
       <div className="xcard-head">
         {game?.brand ? (
           <BrandLogo k={game.brand} size={40} className="lfg-logo" />
@@ -94,8 +101,8 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
                 key={i}
                 className={cx('pl-row', u ? 'taken' : 'open', u === me && 'me')}
                 onClick={() => take(i)}
-                disabled={!!u && u !== me}
-                title={u === me ? 'Yerinden çık' : u ? undefined : 'Bu yere geç'}
+                disabled={!!closed || (!!u && u !== me)}
+                title={closed ? undefined : u === me ? 'Yerinden çık' : u ? undefined : 'Bu yere geç'}
               >
                 <span className="pl-ix">{i + 1}</span>
                 {u ? (
@@ -103,11 +110,13 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
                     <Avatar user={users[u] || c.users[u]} size={30} />
                   </span>
                 ) : (
-                  <span className="pl-av empty">+</span>
+                  <span className="pl-av empty">
+                    <Plus size={16} />
+                  </span>
                 )}
                 <span className="pl-name">
                   <b>{u ? (u === me ? 'Sen' : displayName(c, u, users)) : 'Boş yer'}</b>
-                  <small>{u ? (acc && !/^\d{17}$/.test(acc) ? acc : 'Hazır') : 'Katılmak için tıkla'}</small>
+                  <small>{u ? (acc && !/^\d{17}$/.test(acc) ? acc : 'Hazır') : closed ? '—' : 'Katılmak için tıkla'}</small>
                 </span>
                 <span className="pl-rank">
                   <i />
@@ -129,11 +138,19 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
                 key={i}
                 className={cx('bn', u ? 'taken' : 'open', u === me && 'me')}
                 onClick={() => take(i)}
-                disabled={!!u && u !== me}
-                title={u === me ? 'Yerinden çık' : u ? undefined : 'Bu yere geç'}
+                disabled={!!closed || (!!u && u !== me)}
+                title={closed ? undefined : u === me ? 'Yerinden çık' : u ? undefined : 'Bu yere geç'}
               >
                 <span className="bn-role">{role}</span>
-                <span className="bn-frame">{u ? <Avatar user={users[u] || c.users[u]} size={46} /> : <span className="bn-plus">+</span>}</span>
+                <span className="bn-frame">
+                  {u ? (
+                    <Avatar user={users[u] || c.users[u]} size={46} />
+                  ) : (
+                    <span className="bn-plus">
+                      <Plus size={20} strokeWidth={2.2} />
+                    </span>
+                  )}
+                </span>
                 <span className="bn-plate">
                   {u ? (
                     <>
@@ -143,7 +160,7 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
                   ) : (
                     <>
                       <b>Boş</b>
-                      <small>Katıl</small>
+                      <small>{closed ? '—' : 'Katıl'}</small>
                     </>
                   )}
                 </span>
@@ -152,7 +169,7 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
           })}
         </div>
       )}
-      {(teamVc && myVc !== teamVc.id) || canJoinGame || (gk === 'lol' && mineCard) ? (
+      {!closed && ((teamVc && myVc !== teamVc.id) || canJoinGame || (gk === 'lol' && mineCard)) ? (
         <div className="lfg-extra">
           {teamVc && myVc !== teamVc.id && (
             <div className="lfg-row">
@@ -194,7 +211,12 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
         </div>
       ) : null}
       <div className="xcard-foot">
-        {full ? (
+        {closed ? (
+          <span className="lfg-closed">
+            <X size={15} /> {closed === 'gone' ? 'Lobi dağıldı' : 'İlanın süresi doldu'}
+            <small>{closed === 'gone' ? 'Bu takıma artık katılınamaz.' : 'Katılım kapandı.'}</small>
+          </span>
+        ) : full ? (
           <>
             <span className="xcard-ok">
               <Check size={15} /> Takım hazır!
@@ -313,6 +335,7 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
   const sharing = useStore((s) => s.settings.actShare && s.settings.actGames);
   const live = playing ? lfgGameOf({ g: playing }) : undefined;
   const [lobby, setLobby] = useState<boolean | null>(null);
+  const [lobbyId, setLobbyId] = useState<string | undefined>();
   const [tries, setTries] = useState(0);
   const game = live && (live.key !== 'lol' || lobby) ? live : null;
   const [modeIx, setModeIx] = useState(live?.key === 'lol' ? 1 : 0);
@@ -325,7 +348,7 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
     setLobby(null);
     (window as any).kovan?.game
       ?.lolState()
-      .then((x: { lobby: boolean }) => setLobby(!!x?.lobby))
+      .then((x: { lobby: boolean; lobbyId?: string }) => (setLobby(!!x?.lobby), setLobbyId(x?.lobbyId)))
       .catch(() => setLobby(false));
   }, [live?.key, tries]);
 
@@ -379,6 +402,7 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
   const send = () => {
     const card: LfgCard = { k: 'lfg', g: name || 'Oyun', gk: game.key, s: slots };
     if (mode) card.m = mode.name;
+    if (game.key === 'lol' && lobbyId) card.lb = lobbyId;
     if (n.trim()) card.n = n.trim().slice(0, 200);
     card.own = named ? (own ?? undefined) : 0;
     if (card.own === undefined) delete card.own;
@@ -389,7 +413,7 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
     <Dialog
       title="Takım kur"
       onClose={onClose}
-      className={cx('lfg-dialog', theme && 'themed')}
+      className={cx('lfg-dialog', theme && 'themed', 'g-' + game.key)}
       style={theme}
       foot={
         <>

@@ -105,17 +105,27 @@ export interface LolState {
   running: boolean;
   me?: string;
   lobby: boolean;
+  /** açık lobinin kimliği (lobi dağılıp yenisi kurulursa değişir) */
+  lobbyId?: string;
+  /** maç akışı: Lobby, Matchmaking, ChampSelect, InProgress… (takım oyundaysa lobi uç noktası boş dönebilir) */
+  phase?: string;
 }
 
 export async function lolState(): Promise<LolState> {
-  if (process.env.KOVAN_FAKE_LOBBY) return { running: true, lobby: process.env.KOVAN_FAKE_LOBBY === '1', me: 'Xanaphian#TR1' };
+  if (process.env.KOVAN_FAKE_LOBBY) {
+    const on = process.env.KOVAN_FAKE_LOBBY === '1';
+    return { running: true, lobby: on, lobbyId: on ? 'sahte-lobi' : undefined, me: 'Xanaphian#TR1' };
+  }
   const l = await lcu();
   if (!l) return { running: false, lobby: false };
   const me = await req(l, 'GET', '/lol-summoner/v1/current-summoner');
   if (me.status !== 200) return { running: false, lobby: false };
   const lobby = await req(l, 'GET', '/lol-lobby/v2/lobby');
   const id = me.data?.gameName ? `${me.data.gameName}#${me.data.tagLine}` : me.data?.displayName;
-  return { running: true, me: id, lobby: lobby.status === 200 };
+  const open = lobby.status === 200;
+  const ph = await req(l, 'GET', '/lol-gameflow/v1/gameflow-phase');
+  const phase = ph.status === 200 && typeof ph.data === 'string' ? ph.data : undefined;
+  return { running: true, me: id, lobby: open, phase, lobbyId: open ? String(lobby.data?.partyId || lobby.data?.gameConfig?.queueId || 'lobi') : undefined };
 }
 
 /** Riot ID (Ad#Etiket) -> sihirdar kimliği */

@@ -19,6 +19,10 @@ export interface LfgCard {
   s: string[];
   /** ilanı verenin tuttuğu yer */
   own?: number;
+  /** LoL: ilanın verildiği lobinin kimliği */
+  lb?: string;
+  /** 1: lobi dağıldı (ilan sahibinin uygulaması işaretler), katılım kapanır */
+  x?: 1;
   /** ne zaman (ms); yoksa "şimdi" */
   at?: number;
 }
@@ -87,4 +91,13 @@ export function lfgSlots(m: Message, c: LfgCard): (string | null)[] {
 
 export function pollVotes(m: Message, c: PollCard): string[][] {
   return c.o.map((_, i) => m.reactions?.[voteKey(i)] || []);
+}
+
+/** İlan ne kadar süre açık sayılır */
+export const LFG_TTL = 6 * 3600_000;
+/** İlan kapandıysa nedeni */
+export function lfgClosed(m: { ts: number }, card: LfgCard): 'gone' | 'old' | null {
+  if (card.x) return 'gone';
+  if (Date.now() - m.ts > LFG_TTL) return 'old';
+  return null;
 }

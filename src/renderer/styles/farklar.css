@@ -995,7 +995,7 @@
   background: conic-gradient(from 210deg, var(--accent), color-mix(in srgb, var(--accent) 30%, #000), var(--accent), color-mix(in srgb, var(--g-b, var(--accent)) 70%, #000), var(--accent));
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
 }
-.bn-frame > :first-child {
+.bn.taken .bn-frame > :first-child {
   border-radius: 50%;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
 }
@@ -1004,7 +1004,8 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 .bn-plus {
-  font-size: 24px;
+  display: grid;
+  place-items: center;
   color: rgba(255, 255, 255, 0.45);
 }
 .bn:not(:disabled):hover .bn-plus {
@@ -1178,4 +1179,582 @@
 .lfg-hint {
   font-size: 12.5px;
   color: var(--text-3);
+}
+
+/* ======================================================================
+   v1.33: her oyunun kartı ve penceresi kendi havasında. Oyun şirketlerinin
+   görselleri kullanılmaz; yalnız renk, biçim, yazı ve CSS süsleri.
+   ====================================================================== */
+.xcard.lfg.themed {
+  position: relative;
+  isolation: isolate;
+}
+.lfg-wm {
+  position: absolute;
+  right: -26px;
+  top: -18px;
+  z-index: -1;
+  opacity: 0.06;
+  color: var(--g-a);
+  pointer-events: none;
+}
+.lfg-wm svg {
+  fill: currentColor !important;
+}
+
+/* kapanmış ilan */
+.xcard.lfg.closed .lfg-banners,
+.xcard.lfg.closed .lfg-plates {
+  filter: grayscale(0.85) brightness(0.75);
+}
+.xcard.lfg.closed .xcard-count {
+  opacity: 0.5;
+}
+.lfg-closed {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 800;
+  font-size: 13.5px;
+  color: #ff8a8a;
+}
+.lfg-closed small {
+  font-weight: 500;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ---- League of Legends: hextech altın çerçeve, klasik yazı, camgöbeği ışık ---- */
+.g-lol {
+  --g-font: 'Marcellus', 'Cinzel Variable', serif;
+}
+.xcard.lfg.g-lol,
+.modal.lfg-dialog.g-lol {
+  border-radius: 3px;
+  border: 1px solid #785a28;
+  box-shadow:
+    inset 0 0 0 1px rgba(1, 10, 19, 0.9),
+    inset 0 0 0 2px rgba(200, 170, 110, 0.35),
+    0 6px 24px rgba(0, 0, 0, 0.45);
+  background:
+    radial-gradient(80% 60% at 50% 0%, rgba(10, 200, 185, 0.08), transparent 70%),
+    linear-gradient(180deg, #091428 0%, #0a1428 55%, #010a13 100%);
+}
+.xcard.lfg.g-lol::before {
+  /* üstte altın çizgi ve ortasında elmas */
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #c8aa6e 30%, #f0e6d2 50%, #c8aa6e 70%, transparent);
+}
+.xcard.lfg.g-lol::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: calc(50% - 4px);
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  background: #0a1428;
+  border: 1px solid #c8aa6e;
+}
+.g-lol .xcard-title b,
+.g-lol .lfg-hero b,
+.modal.lfg-dialog.g-lol .modal-head h2 {
+  font-family: var(--g-font);
+  font-weight: 400;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #f0e6d2;
+}
+.g-lol .xcard-title b {
+  font-size: 16px;
+}
+.g-lol .xcard-title small {
+  color: #a09b8c !important;
+  letter-spacing: 0.3px;
+}
+.g-lol .lfg-logo,
+.g-lol .lfg-hero .brand-logo {
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 1px #c8aa6e, 0 0 0 3px #010a13, 0 0 0 4px #785a28 !important;
+}
+.xcard.lfg.g-lol .xcard-count {
+  border-radius: 0;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%);
+  padding: 3px 14px;
+  background: linear-gradient(180deg, #1e2328, #010a13);
+  color: #c8aa6e;
+  box-shadow: none;
+}
+.xcard.lfg.g-lol .xcard-count.ok {
+  background: linear-gradient(180deg, #c8aa6e, #785a28);
+  color: #010a13;
+}
+.xcard.lfg.g-lol .xcard-foot,
+.modal.lfg-dialog.g-lol .modal-foot {
+  border-top: 1px solid rgba(200, 170, 110, 0.25);
+  background: linear-gradient(180deg, rgba(1, 10, 19, 0.4), rgba(1, 10, 19, 0.8));
+}
+.xcard.lfg.g-lol .btn,
+.modal.lfg-dialog.g-lol .modal-foot .btn {
+  border-radius: 0 !important;
+  font-family: var(--g-font);
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  font-weight: 400;
+}
+.xcard.lfg.g-lol .btn.primary,
+.modal.lfg-dialog.g-lol .btn.primary {
+  background: linear-gradient(180deg, #0a323c, #091428) !important;
+  color: #cdfafa !important;
+  border: 1px solid #0ac8b9 !important;
+  box-shadow: inset 0 0 10px rgba(10, 200, 185, 0.35), 0 0 0 1px #010a13 !important;
+}
+.xcard.lfg.g-lol .btn.primary:hover,
+.modal.lfg-dialog.g-lol .btn.primary:hover {
+  box-shadow: inset 0 0 14px rgba(10, 200, 185, 0.6), 0 0 10px rgba(10, 200, 185, 0.35) !important;
+}
+.xcard.lfg.g-lol .btn.ghost,
+.modal.lfg-dialog.g-lol .btn.ghost {
+  background: #1e2328 !important;
+  color: #cdbe91 !important;
+  border: 1px solid #785a28 !important;
+}
+.g-lol .bn {
+  clip-path: polygon(0 0, 100% 0, 100% 86%, 50% 100%, 0 86%);
+  background: linear-gradient(180deg, rgba(200, 170, 110, 0.16), rgba(1, 10, 19, 0.2) 45%, rgba(1, 10, 19, 0.7));
+}
+.g-lol .bn::after {
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 0;
+  background: linear-gradient(90deg, #785a28, #f0e6d2, #785a28);
+}
+.g-lol .bn-role {
+  font-family: var(--g-font);
+  color: #c8aa6e;
+}
+.g-lol .bn-frame {
+  background: conic-gradient(from 200deg, #785a28, #f0e6d2, #c8aa6e, #463714, #c8aa6e, #f0e6d2, #785a28);
+  box-shadow: 0 0 0 2px #010a13, 0 0 16px rgba(200, 170, 110, 0.3);
+}
+.g-lol .bn.open .bn-frame {
+  background: radial-gradient(circle, rgba(10, 200, 185, 0.1), #010a13 70%);
+  box-shadow: inset 0 0 0 1px rgba(10, 200, 185, 0.55), 0 0 0 2px #010a13, 0 0 0 3px rgba(200, 170, 110, 0.35);
+}
+.g-lol .bn.open .bn-plus,
+.g-lol .bn:not(:disabled):hover .bn-plus {
+  color: #0ac8b9;
+}
+.g-lol .bn-plate b {
+  font-family: var(--g-font);
+  font-weight: 400;
+  letter-spacing: 0.4px;
+  color: #f0e6d2;
+}
+.g-lol .bn.open .bn-plate b {
+  color: #a09b8c;
+}
+.g-lol .lfg-row {
+  border-radius: 0;
+  border-color: rgba(200, 170, 110, 0.3);
+  background: rgba(1, 10, 19, 0.55);
+}
+.g-lol .lfg-row > svg {
+  color: #0ac8b9;
+}
+.modal.lfg-dialog.g-lol .lfg-hero,
+.modal.lfg-dialog.g-lol .lfg-pslot,
+.modal.lfg-dialog.g-lol input {
+  border-radius: 0 !important;
+}
+.modal.lfg-dialog.g-lol .lfg-hero {
+  border-color: #785a28;
+  background: linear-gradient(90deg, rgba(200, 170, 110, 0.1), rgba(1, 10, 19, 0.5));
+}
+.modal.lfg-dialog.g-lol .lfg-chip {
+  border-radius: 0;
+  font-family: var(--g-font);
+  letter-spacing: 0.6px;
+  border-color: #463714;
+  color: #a09b8c;
+  background: #010a13;
+}
+.modal.lfg-dialog.g-lol .lfg-chip.on {
+  color: #f0e6d2;
+  border-color: #c8aa6e;
+  background: linear-gradient(180deg, rgba(200, 170, 110, 0.3), rgba(120, 90, 40, 0.2));
+}
+.modal.lfg-dialog.g-lol .lfg-pslot {
+  border: 1px solid #463714;
+}
+.modal.lfg-dialog.g-lol .lfg-pslot b {
+  font-family: var(--g-font);
+  font-weight: 400;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.modal.lfg-dialog.g-lol .lfg-pslot.mine {
+  border-color: #c8aa6e;
+  background: linear-gradient(180deg, rgba(200, 170, 110, 0.25), rgba(1, 10, 19, 0.4));
+}
+
+/* ---- Dota 2: koyu taş, kan kırmızısı, oyma başlık ---- */
+.g-dota2 {
+  --g-font: 'Cinzel Variable', 'Marcellus', serif;
+}
+.xcard.lfg.g-dota2,
+.modal.lfg-dialog.g-dota2 {
+  border-radius: 2px;
+  border: 1px solid #3a1612;
+  border-top: 2px solid #b8321f;
+  background:
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.012) 0 2px, transparent 2px 6px),
+    radial-gradient(90% 70% at 0% 0%, rgba(227, 72, 44, 0.16), transparent 60%),
+    linear-gradient(180deg, #1a0e0c, #0d0807);
+}
+.g-dota2 .xcard-title b,
+.g-dota2 .lfg-hero b,
+.modal.lfg-dialog.g-dota2 .modal-head h2 {
+  font-family: var(--g-font);
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #efe3c8;
+  text-shadow: 0 1px 0 #000, 0 0 12px rgba(227, 72, 44, 0.35);
+}
+.g-dota2 .bn-role,
+.g-dota2 .bn-plate b {
+  font-family: var(--g-font);
+  letter-spacing: 0.8px;
+}
+.g-dota2 .bn {
+  clip-path: polygon(0 0, 100% 0, 100% 82%, 70% 92%, 50% 100%, 30% 92%, 0 82%);
+  background: linear-gradient(180deg, rgba(184, 50, 31, 0.28), rgba(0, 0, 0, 0.45) 60%);
+}
+.g-dota2 .bn::after {
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 0;
+  background: linear-gradient(90deg, #5a140b, #e3482c, #5a140b);
+}
+.g-dota2 .bn-frame {
+  border-radius: 0;
+  clip-path: polygon(16% 0, 84% 0, 100% 16%, 100% 84%, 84% 100%, 16% 100%, 0 84%, 0 16%);
+  background: linear-gradient(160deg, #e3482c, #5a140b 55%, #c9b27a);
+}
+.g-dota2 .bn.taken .bn-frame > :first-child {
+  border-radius: 0;
+  clip-path: polygon(16% 0, 84% 0, 100% 16%, 100% 84%, 84% 100%, 16% 100%, 0 84%, 0 16%);
+  box-shadow: none;
+}
+.g-dota2 .bn.open .bn-frame {
+  background: linear-gradient(160deg, rgba(227, 72, 44, 0.35), rgba(0, 0, 0, 0.6));
+}
+.xcard.lfg.g-dota2 .btn,
+.modal.lfg-dialog.g-dota2 .modal-foot .btn,
+.xcard.lfg.g-dota2 .xcard-count {
+  border-radius: 2px !important;
+  font-family: var(--g-font);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.xcard.lfg.g-dota2 .btn.primary,
+.modal.lfg-dialog.g-dota2 .btn.primary {
+  background: linear-gradient(180deg, #e3482c, #8f2414) !important;
+  color: #fff !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 0 1px #000 !important;
+}
+.modal.lfg-dialog.g-dota2 .lfg-chip,
+.modal.lfg-dialog.g-dota2 .lfg-pslot,
+.modal.lfg-dialog.g-dota2 .lfg-hero,
+.modal.lfg-dialog.g-dota2 input {
+  border-radius: 2px !important;
+}
+.modal.lfg-dialog.g-dota2 .lfg-pslot b {
+  font-family: var(--g-font);
+  letter-spacing: 0.5px;
+}
+
+/* ---- Counter-Strike 2: taktik, köşeli, turuncu şerit ---- */
+.xcard.lfg.g-cs2,
+.modal.lfg-dialog.g-cs2 {
+  border-radius: 0;
+  border: 1px solid #2b313b;
+  border-left: 3px solid #de9b35;
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 9px),
+    linear-gradient(160deg, #1a1f27 0%, #12161d 60%, #1b1610 100%);
+}
+.g-cs2 .xcard-title b,
+.g-cs2 .lfg-hero b,
+.modal.lfg-dialog.g-cs2 .modal-head h2 {
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  font-style: italic;
+}
+.g-cs2 .xcard-title small {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 11.5px !important;
+}
+.g-cs2 .lfg-logo,
+.g-cs2 .lfg-hero .brand-logo {
+  border-radius: 0 !important;
+}
+.xcard.lfg.g-cs2 .xcard-count {
+  border-radius: 0;
+  transform: skewX(-14deg);
+  background: #de9b35;
+  color: #14100a;
+}
+.xcard.lfg.g-cs2 .btn,
+.modal.lfg-dialog.g-cs2 .modal-foot .btn {
+  border-radius: 0 !important;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  font-style: italic;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  padding-left: 18px;
+  padding-right: 18px;
+}
+.g-cs2 .pl-row {
+  border-radius: 0;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+.g-cs2 .pl-name b {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.g-cs2 .pl-rank {
+  background: linear-gradient(90deg, #3a2a12, #0b0d12);
+}
+.g-cs2 .lfg-row {
+  border-radius: 0;
+}
+.modal.lfg-dialog.g-cs2 .lfg-chip,
+.modal.lfg-dialog.g-cs2 .lfg-pslot,
+.modal.lfg-dialog.g-cs2 .lfg-hero,
+.modal.lfg-dialog.g-cs2 input {
+  border-radius: 0 !important;
+}
+.modal.lfg-dialog.g-cs2 .lfg-chip {
+  transform: skewX(-12deg);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.modal.lfg-dialog.g-cs2 .lfg-pslot b {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ---- THE FINALS: yarışma sahnesi, kalın eğik yazı, kırmızı-beyaz ---- */
+.xcard.lfg.g-thefinals,
+.modal.lfg-dialog.g-thefinals {
+  border-radius: 0;
+  border: 2px solid #f2f2f2;
+  box-shadow: 5px 5px 0 #d31f3c;
+  background:
+    linear-gradient(135deg, transparent 0 72%, rgba(211, 31, 60, 0.18) 72% 78%, transparent 78%),
+    linear-gradient(180deg, #161616, #0e0e0e);
+}
+.xcard.lfg.g-thefinals {
+  margin-right: 6px;
+  margin-bottom: 6px;
+}
+.g-thefinals .xcard-title b,
+.g-thefinals .lfg-hero b,
+.modal.lfg-dialog.g-thefinals .modal-head h2 {
+  text-transform: uppercase;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.2px;
+  font-size: 18px;
+  color: #fff;
+}
+.g-thefinals .xcard-title small {
+  text-transform: uppercase;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: 0.6px;
+}
+.xcard.lfg.g-thefinals .xcard-count {
+  border-radius: 0;
+  background: #d31f3c;
+  color: #fff;
+  font-style: italic;
+  font-weight: 900;
+}
+.xcard.lfg.g-thefinals .btn,
+.modal.lfg-dialog.g-thefinals .modal-foot .btn {
+  border-radius: 0 !important;
+  text-transform: uppercase;
+  font-weight: 900 !important;
+  font-style: italic;
+  letter-spacing: 0.4px;
+}
+.xcard.lfg.g-thefinals .btn.primary,
+.modal.lfg-dialog.g-thefinals .btn.primary {
+  background: #d31f3c !important;
+  color: #fff !important;
+  box-shadow: 3px 3px 0 #fff !important;
+}
+.g-thefinals .pl-row {
+  border-radius: 0;
+  border-left-width: 6px;
+}
+.g-thefinals .pl-name b {
+  text-transform: uppercase;
+  font-style: italic;
+  font-weight: 900;
+}
+.g-thefinals .pl-rank {
+  transform: none;
+  border-radius: 999px;
+  background: #fff;
+  border-color: #fff;
+}
+.g-thefinals .pl-rank span {
+  transform: none;
+  color: #111;
+  font-style: italic;
+}
+.g-thefinals .pl-rank i {
+  background: #d31f3c;
+  border-radius: 2px;
+}
+.g-thefinals .pl-row.open .pl-rank {
+  background: transparent;
+}
+.g-thefinals .pl-row.open .pl-rank span {
+  color: #fff;
+}
+.modal.lfg-dialog.g-thefinals .lfg-chip,
+.modal.lfg-dialog.g-thefinals .lfg-pslot,
+.modal.lfg-dialog.g-thefinals .lfg-hero,
+.modal.lfg-dialog.g-thefinals input {
+  border-radius: 0 !important;
+}
+.modal.lfg-dialog.g-thefinals .lfg-chip {
+  text-transform: uppercase;
+  font-style: italic;
+  font-weight: 800;
+}
+.modal.lfg-dialog.g-thefinals .lfg-pslot b {
+  text-transform: uppercase;
+  font-style: italic;
+  font-weight: 900;
+  font-size: 15px;
+}
+
+/* ---- PUBG: askerî, sarı-siyah uyarı şeridi, şablon yazı ---- */
+.xcard.lfg.g-pubg,
+.modal.lfg-dialog.g-pubg {
+  border-radius: 0;
+  border: 1px solid #3b3423;
+  background:
+    linear-gradient(180deg, rgba(242, 169, 0, 0.06), transparent 40%),
+    linear-gradient(160deg, #1d1b14, #121109);
+}
+.xcard.lfg.g-pubg::before,
+.modal.lfg-dialog.g-pubg::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  background: repeating-linear-gradient(-45deg, #f2a900 0 10px, #111 10px 20px);
+}
+.modal.lfg-dialog.g-pubg {
+  position: relative;
+}
+.g-pubg .xcard-head {
+  padding-top: 16px;
+}
+.g-pubg .xcard-title b,
+.g-pubg .lfg-hero b,
+.modal.lfg-dialog.g-pubg .modal-head h2 {
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 2.4px;
+  color: #f2e7c9;
+}
+.g-pubg .lfg-logo,
+.g-pubg .lfg-hero .brand-logo {
+  border-radius: 0 !important;
+}
+.xcard.lfg.g-pubg .xcard-count {
+  border-radius: 0;
+  background: #f2a900;
+  color: #111;
+  letter-spacing: 1px;
+}
+.xcard.lfg.g-pubg .btn,
+.modal.lfg-dialog.g-pubg .modal-foot .btn {
+  border-radius: 0 !important;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.g-pubg .pl-row {
+  border-radius: 0;
+  border-left: 0;
+  box-shadow: inset 4px 0 0 #f2a900;
+}
+.g-pubg .pl-row.open {
+  box-shadow: inset 4px 0 0 rgba(255, 255, 255, 0.18);
+}
+.g-pubg .pl-ix {
+  opacity: 0.8;
+  color: #f2a900;
+}
+.g-pubg .pl-name b {
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+.g-pubg .pl-rank {
+  transform: none;
+  border-radius: 0;
+  background: #f2a900;
+  border-color: #f2a900;
+}
+.g-pubg .pl-rank span {
+  transform: none;
+  color: #111;
+  letter-spacing: 1.6px;
+}
+.g-pubg .pl-rank i {
+  background: #111;
+}
+.g-pubg .pl-row.open .pl-rank {
+  background: transparent;
+  border-color: rgba(242, 169, 0, 0.4);
+}
+.g-pubg .pl-row.open .pl-rank span {
+  color: #f2a900;
+}
+.g-pubg .pl-row.open .pl-rank i {
+  background: #f2a900;
+}
+.modal.lfg-dialog.g-pubg .lfg-chip,
+.modal.lfg-dialog.g-pubg .lfg-pslot,
+.modal.lfg-dialog.g-pubg .lfg-hero,
+.modal.lfg-dialog.g-pubg input {
+  border-radius: 0 !important;
+}
+.modal.lfg-dialog.g-pubg .lfg-chip {
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+.modal.lfg-dialog.g-cs2 .modal-head h2,
+.modal.lfg-dialog.g-thefinals .modal-head h2,
+.modal.lfg-dialog.g-pubg .modal-head h2 {
+  font-family: inherit;
 }
