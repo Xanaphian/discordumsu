@@ -38,6 +38,8 @@ export interface DetectedMedia {
   /** pos'un ölçüldüğü an */
   at?: number;
   art?: string;
+  /** Spotify şarkı adresi (hesaptan ya da Retrofy'den okunduysa); "Beraber dinle" aynı şarkıyı bulur */
+  url?: string;
 }
 export interface DetectedStream {
   svc: 'kick' | 'twitch';
@@ -782,6 +784,7 @@ function onRemoteTrack(slot: 'account' | 'retrofy', t: SpotifyTrack | null) {
       dur: t.dur,
       at: t.at,
       art: art || undefined,
+      url: t.url && /^https:\/\/open\.spotify\.com\//.test(t.url) ? t.url : undefined,
     });
     const testOk = (!!process.env.KOVAN_SPOTIFY_TEST && t.artUrl?.startsWith(process.env.KOVAN_SPOTIFY_TEST)) || (!!process.env.KOVAN_RETROFY_TEST && t.artUrl?.startsWith('http://127.0.0.1'));
     if (t.artUrl && art === undefined && (/^https:\/\//.test(t.artUrl) || testOk)) {

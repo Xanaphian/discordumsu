@@ -24,12 +24,13 @@ export interface DetectedState {
     dur?: number;
     at?: number;
     art?: string;
+    url?: string;
   } | null;
   streams: { svc: 'kick' | 'twitch'; name: string; live: boolean; title?: string; category?: string; viewers?: number; start?: number; url: string }[];
   spotify?: SpotifyStatus;
   mediaFrom?: 'account' | 'retrofy' | 'windows';
 }
-export type SpotifyStatus = { clientId: string; defaultClientId: boolean; connected: boolean; user?: string; error?: string; redirect: string };
+export type SpotifyStatus = { clientId: string; defaultClientId: boolean; connected: boolean; canPlay?: boolean; user?: string; error?: string; redirect: string };
 
 interface ActState {
   /** "Beraber dinle": takip edilen kişi */
@@ -116,6 +117,7 @@ function build(d: DetectedState | null, st: Settings): LiveActivity[] {
       end: start && m.dur ? start + m.dur : undefined,
       art: m.art,
       src: m.src,
+      url: m.url && /^https:\/\/open\.spotify\.com\/track\//.test(m.url) ? m.url : undefined,
     });
   }
   return out.slice(0, 3);
@@ -384,22 +386,41 @@ else {
 }
 
 // ---------------------------------------------------------------------------
-// Beraber dinle: takip edilen kişinin şarkısı değiştikçe kendi Spotify'ında açılır.
-export function spotifyUri(a: LiveActivity) {
-  const q = [a.details, a.state].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 200);
-  return 'spotify:search:' + encodeURIComponent(q);
-}
+// Beraber dinle: takip edilen kişinin şarkısı, dinleyenin bağlı Spotify hesabında (Premium) aynı saniyeden çalar
+// ve şarkı değiştikçe değişir. Hiçbir uygulama kendiliğinden açılmaz; hesap bağlı değilse yalnız şeritte izlenir.
+/** Elle "Spotify'da aç": spotify: bağlantısı (Spotifast gibi başka bir uygulamaya gidebilir) yerine web adresi */
 export function openInSpotify(a: LiveActivity) {
-  window.kovan.openExternal(spotifyUri(a));
+  const q = [a.details, a.state].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+  window.kovan.openExternal(a.url && /^https:\/\/open\.spotify\.com\/track\//.test(a.url) ? a.url : 'https://open.spotify.com/search/' + encodeURIComponent(q));
 }
+
+/** Şarkıyı dinleyenin kendi Spotify hesabında, davet edenle aynı saniyeden çal. Uygulama açılmaz. */
+let warned = '';
+async function playAlong(a: LiveActivity, first: boolean) {
+  const sp = (window as any).kovan?.spotify;
+  if (!sp?.play || !a.details) return;
+  const pos = a.start ? Math.max(0, Date.now() - a.start + 600) : 0;
+  const r = await sp.play({ url: a.url, title: a.details, artist: a.state, pos }).catch(() => ({ ok: false, code: 'error', error: 'Spotify\'a ulaşılamadı.' }));
+  if (r.ok) {
+    if (first) toast(`Spotify'ında çalıyor: ${a.details}${r.device ? ' (' + r.device + ')' : ''}. Şarkı değiştikçe seninki de değişir.`, 'ok');
+    return;
+  }
+  // aynı uyarıyı her şarkıda tekrarlama
+  if (!first && warned === r.code) return;
+  warned = r.code || '';
+  if (r.code === 'noauth') toast('Şarkının senin Spotify\'ında da çalması için Ayarlar > Etkinlik\'ten Spotify hesabını bağla. Şimdilik ne dinlediğini kenarda görüyorsun.', 'info');
+  else toast(r.error || 'Spotify çalmadı.', r.code === 'notfound' ? 'info' : 'err');
+}
+
 const songOf = (uid: ID) => A().acts[uid]?.find((x) => x.kind === 'listening');
 let alongKey = '';
 export function startAlong(uid: ID) {
   const a = songOf(uid);
   if (!a) return;
   alongKey = (a.details || '') + '|' + (a.state || '');
+  warned = '';
   useActs.setState({ along: uid });
-  openInSpotify(a);
+  void playAlong(a, true);
 }
 export function stopAlong() {
   alongKey = '';
@@ -414,8 +435,9 @@ useActs.subscribe((s, prev) => {
     return stopAlong();
   }
   const key = (a.details || '') + '|' + (a.state || '');
+  // şarkı değişti: dinleyenin hesabında da değiştir (dış uygulama açılmaz)
   if (key !== alongKey) {
     alongKey = key;
-    openInSpotify(a);
+    void playAlong(a, false);
   }
 });

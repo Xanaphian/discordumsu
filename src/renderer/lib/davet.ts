@@ -76,14 +76,13 @@ export function leaveInvite(m: Message) {
   if (m.reactions?.[JOIN_KEY]?.includes(me)) toggleReaction(m, JOIN_KEY);
 }
 
-/** Dinlemeye davete katıl: gönderen hâlâ dinliyorsa "Beraber dinle" başlar, Spotify'da onu takip eder */
+/** Dinlemeye davete katıl: gönderen hâlâ dinliyorsa "Beraber dinle" başlar (dış uygulama açılmaz) */
 export function joinListen(m: Message) {
   const s = useStore.getState();
   if (!m.reactions?.[JOIN_KEY]?.includes(s.me.id)) toggleReaction(m, JOIN_KEY);
   const live = useActs.getState().acts[m.authorId]?.find((x) => x.kind === 'listening');
   if (!live) return toast('Şarkı bitti ya da müzik durdu; şimdilik dinlenecek bir şey yok.', 'info');
-  startAlong(m.authorId);
-  toast(`${s.users[m.authorId]?.name || 'Arkadaşın'} ile beraber dinliyorsun; şarkı değiştikçe Spotify'ında da değişir.`, 'ok');
+  startAlong(m.authorId); // bağlı Spotify hesabında çalar ya da ne yapılacağını söyler
 }
 
 export function closeInvite(m: Message, card: PlayCard | ListenCard) {

@@ -12,7 +12,9 @@ import path from 'node:path';
 export const DEFAULT_SPOTIFY_CLIENT_ID = '';
 export const SPOTIFY_REDIRECT_PORT = 47833;
 export const SPOTIFY_REDIRECT = `http://127.0.0.1:${SPOTIFY_REDIRECT_PORT}/spotify`;
-const SCOPES = 'user-read-currently-playing user-read-playback-state';
+// user-modify-playback-state: "Beraber dinle" şarkıyı dinleyenin kendi Spotify'ında çalar (Premium gerekir)
+const SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state';
+const CAN_PLAY = 'user-modify-playback-state';
 // deneme için sahte Spotify sunucusu (yalnız geliştirme): KOVAN_SPOTIFY_TEST=http://127.0.0.1:port
 const TEST = process.env.KOVAN_SPOTIFY_TEST || '';
 const ACCOUNTS = TEST || 'https://accounts.spotify.com';
@@ -34,6 +36,8 @@ export interface SpotifyStatus {
   clientId: string;
   defaultClientId: boolean;
   connected: boolean;
+  /** hesapta çalma izni var mı (eski bağlantılarda yok: yeniden bağlanmak gerekir) */
+  canPlay?: boolean;
   user?: string;
   error?: string;
   redirect: string;
@@ -43,6 +47,8 @@ interface Saved {
   clientId?: string;
   refresh?: string; // safeStorage ile şifreli (base64)
   user?: string;
+  /** verilen izinler */
+  scope?: string;
 }
 
 const file = () => path.join(app.getPath('userData'), 'spotify.json');
@@ -85,6 +91,7 @@ export function spotifyStatus(): SpotifyStatus {
     clientId: saved.clientId || '',
     defaultClientId: !!DEFAULT_SPOTIFY_CLIENT_ID,
     connected: !!saved.refresh && !!clientId(),
+    canPlay: !!saved.refresh && !!clientId() && (saved.scope || '').split(' ').includes(CAN_PLAY),
     user: saved.user,
     error: lastError,
     redirect: SPOTIFY_REDIRECT,
@@ -128,6 +135,7 @@ async function getAccess(): Promise<string | null> {
     const j = await tokenRequest({ grant_type: 'refresh_token', refresh_token: rt, client_id: clientId() });
     access = { token: j.access_token, until: Date.now() + (j.expires_in || 3600) * 1000 };
     if (j.refresh_token && j.refresh_token !== rt) (saved.refresh = enc(j.refresh_token)), save();
+    if (typeof j.scope === 'string' && j.scope !== saved.scope) (saved.scope = j.scope), save(), onStatus();
     if (lastError) (lastError = undefined), onStatus();
     return access.token;
   } catch (e: any) {
@@ -224,6 +232,7 @@ export function spotifyConnect(id?: string): Promise<SpotifyStatus> {
         const j = await tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: SPOTIFY_REDIRECT, client_id: cid, code_verifier: verifier });
         access = { token: j.access_token, until: Date.now() + (j.expires_in || 3600) * 1000 };
         saved.refresh = enc(j.refresh_token);
+        saved.scope = typeof j.scope === 'string' ? j.scope : SCOPES;
         try {
           const me: any = await (await net.fetch(API + '/v1/me', { headers: { authorization: 'Bearer ' + j.access_token } })).json();
           saved.user = String(me.display_name || me.id || '').slice(0, 64) || undefined;
@@ -278,4 +287,66 @@ export function spotifyDisconnect(): SpotifyStatus {
   if (timer) clearTimeout(timer), (timer = null);
   onTrack(null);
   return spotifyStatus();
+}
+
+// ---------------------------------------------------------------------------
+// Beraber dinle: şarkıyı dinleyenin kendi hesabında, açık olan Spotify cihazında çal (hiçbir uygulama açılmaz).
+export interface PlayReq {
+  /** https://open.spotify.com/track/<id> (gönderenden geldiyse) */
+  url?: string;
+  title: string;
+  artist?: string;
+  /** başlangıç konumu (ms) */
+  pos?: number;
+}
+export type PlayRes = { ok: true; device?: string } | { ok: false; code: 'noauth' | 'scope' | 'notfound' | 'nodevice' | 'premium' | 'error'; error: string };
+
+async function api(tok: string, p: string, init?: RequestInit) {
+  return net.fetch(API + p, { ...init, headers: { authorization: 'Bearer ' + tok, 'content-type': 'application/json', ...(init?.headers || {}) } });
+}
+
+async function findUri(tok: string, q: PlayReq): Promise<string | null> {
+  const m = /open\.spotify\.com\/(?:intl-[a-z-]+\/)?track\/([A-Za-z0-9]{10,40})/.exec(q.url || '');
+  if (m) return 'spotify:track:' + m[1];
+  const clean = (x: string) => x.replace(/["]/g, '').slice(0, 120);
+  const tries = [q.artist ? `track:"${clean(q.title)}" artist:"${clean(q.artist.split(',')[0])}"` : '', `${clean(q.title)} ${q.artist ? clean(q.artist) : ''}`.trim()].filter(Boolean);
+  for (const t of tries) {
+    const r = await api(tok, '/v1/search?' + new URLSearchParams({ q: t, type: 'track', limit: '1' }).toString());
+    if (!r.ok) continue;
+    const j: any = await r.json().catch(() => null);
+    const uri = j?.tracks?.items?.[0]?.uri;
+    if (typeof uri === 'string' && uri.startsWith('spotify:track:')) return uri;
+  }
+  return null;
+}
+
+export async function spotifyPlay(q: PlayReq): Promise<PlayRes> {
+  if (!saved.refresh || !clientId()) return { ok: false, code: 'noauth', error: 'Spotify hesabı bağlı değil.' };
+  if (!spotifyStatus().canPlay) return { ok: false, code: 'scope', error: 'Spotify bağlantısında çalma izni yok; Ayarlar > Etkinlik\'ten bir kez yeniden bağlan.' };
+  try {
+    let tok = await getAccess();
+    if (!tok) return { ok: false, code: 'noauth', error: lastError || 'Spotify hesabına ulaşılamadı.' };
+    const uri = await findUri(tok, q);
+    if (!uri) return { ok: false, code: 'notfound', error: `"${q.title}" Spotify'da bulunamadı.` };
+    const body = JSON.stringify({ uris: [uri], position_ms: Math.max(0, Math.round(q.pos || 0)) });
+    const play = (dev?: string) => api(tok!, '/v1/me/player/play' + (dev ? '?device_id=' + encodeURIComponent(dev) : ''), { method: 'PUT', body });
+    let r = await play();
+    if (r.status === 401) (access = null), (tok = await getAccess()), tok && (r = await play());
+    if (r.ok) return { ok: true };
+    const err: any = await r.json().catch(() => ({}));
+    const reason = err?.error?.reason || '';
+    if (r.status === 403 && /PREMIUM/i.test(reason + JSON.stringify(err))) return { ok: false, code: 'premium', error: 'Spotify şarkıyı uzaktan çaldırmaya yalnız Premium hesaplarda izin veriyor.' };
+    if (r.status === 404 || /NO_ACTIVE_DEVICE/.test(reason)) {
+      // etkin cihaz yok: hesaba bağlı ilk cihazda (bilgisayar, telefon, Retrofy/Spotifast gibi Spotify Connect çalarlar) çal
+      const d = await api(tok!, '/v1/me/player/devices');
+      const list: any[] = (d.ok && (await d.json().catch(() => null))?.devices) || [];
+      const dev = list.find((x) => !x.is_restricted && x.type === 'Computer') || list.find((x) => !x.is_restricted);
+      if (!dev) return { ok: false, code: 'nodevice', error: 'Spotify şu an hiçbir cihazında açık değil. Spotify\'ı (ya da bağlı bir çaları) açık bırak, sonra yeniden dene.' };
+      r = await play(dev.id);
+      if (r.ok) return { ok: true, device: String(dev.name || '') };
+    }
+    return { ok: false, code: 'error', error: 'Spotify çalmayı kabul etmedi (' + (err?.error?.message || 'HTTP ' + r.status) + ').' };
+  } catch (e: any) {
+    return { ok: false, code: 'error', error: 'Spotify\'a ulaşılamadı: ' + (e?.message || e) };
+  }
 }
