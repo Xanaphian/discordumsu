@@ -3,6 +3,7 @@
 // Renkler Xanaphian Gece paletinden: gece mavisi duvarlar, ince altın çıtalar, turkuaz vurgu.
 import * as THREE from 'three';
 import { textCanvas, roundRect, type Collider, type Seat, type World } from './world';
+import { propPlacer, UNIT } from './props';
 
 export const SALON = { minX: -11.4, maxX: 11.4, minZ: -9.4, maxZ: 10.6, H: 6 };
 const GOLD = '#c8aa6e';
@@ -152,13 +153,10 @@ export function buildSalon(quality: 'low' | 'high'): World & { tables: TableSpot
   const frame = put(box(SW + 0.32, SH + 0.32, 0.18), lambert('#05080f'), 0, 3.25, minZ - 0.5);
   frame.castShadow = false;
   const screen = put(track(new THREE.PlaneGeometry(SW, SH)), screenMat, 0, 3.25, minZ - 0.39);
-  // ekranın altında turkuaz ışık çizgisi
-  put(box(SW * 0.9, 0.04, 0.04), lambert(TURQ, { emissive: TURQ }), 0, 0.72, minZ - 0.4);
-  // konsol
+  // konsolun üst kenarında turkuaz ışık çizgisi
+  put(box(SW * 0.66, 0.03, 0.03), lambert(TURQ, { emissive: TURQ }), 0, 0.775, minZ - 0.38);
   const consoleMat = lambert('#2a1f17');
-  put(box(7, 0.55, 0.8), consoleMat, 0, 0.28, minZ + 0.05);
-  put(box(7.05, 0.04, 0.82), trimMat, 0, 0.57, minZ + 0.05);
-  for (let k = -1; k <= 1; k++) colliders.push({ x: k * 2.4, z: minZ + 0.1, r: 1.2 });
+  for (let k = -1; k <= 1; k++) colliders.push({ x: k * 2.2, z: minZ + 0.1, r: 1.15 });
 
   let video: HTMLVideoElement | null = null;
   let videoTex: THREE.VideoTexture | null = null;
@@ -195,102 +193,150 @@ export function buildSalon(quality: 'low' | 'high'): World & { tables: TableSpot
   const rug = put(track(new THREE.PlaneGeometry(10, 6.2)), lambert('#ffffff', { map: track(rugTexture()) }), 0, 0.012, -1.4);
   rug.rotation.x = -Math.PI / 2;
 
-  // --- mobilya yardımcıları
-  const sofaMats = { body: lambert('#2c3f73'), cush: lambert('#36508e'), leg: lambert('#1a120c') };
-  const chairMats = { body: lambert('#16676c'), cush: lambert('#1c7e83'), leg: sofaMats.leg };
-  /** kanepe: n kişilik, yüzü ry yönüne bakar */
-  const sofa = (x: number, z: number, ry: number, n: number, mats = sofaMats) => {
-    const g = new THREE.Group();
-    g.position.set(x, 0, z);
-    g.rotation.y = ry;
-    group.add(g);
-    const len = n * 1.05 + 0.5;
-    put(box(len, 0.36, 1.0), mats.body, 0, 0.3, 0, g);
-    put(box(len, 0.85, 0.28), mats.body, 0, 0.62, -0.42, g);
-    for (const s of [-1, 1]) put(box(0.28, 0.62, 1.0), mats.body, s * (len / 2 - 0.14), 0.42, 0, g);
-    for (let i = 0; i < n; i++) {
-      const ox = (i - (n - 1) / 2) * 1.05;
-      const cu = put(box(0.98, 0.14, 0.78), mats.cush, ox, 0.53, 0.08, g);
-      cu.scale.y = 1;
-      put(box(0.9, 0.5, 0.16), mats.cush, ox, 0.85, -0.25, g);
-      // dünya koordinatında oturak
-      const sx = x + Math.cos(ry) * ox + Math.sin(ry) * 0.12, sz = z - Math.sin(ry) * ox + Math.cos(ry) * 0.12;
-      seats.push({ x: sx, z: sz, ry, y: 0.46 });
+  // --- mobilya (KayKit modelleri; ölçüler model birimi x UNIT)
+  const P = propPlacer('salon', group);
+  /** yerel (yüzü +Z) koordinatı dünya koordinatına çevir */
+  const at = (x: number, z: number, ry: number, lx: number, lz: number): [number, number] => [x + Math.cos(ry) * lx + Math.sin(ry) * lz, z - Math.sin(ry) * lx + Math.cos(ry) * lz];
+  const SEAT_H = 0.5 * UNIT;
+  /** iki kişilik kanepe (2,25 x 1,2) */
+  const couch = (x: number, z: number, ry: number, model = 'couch') => {
+    P.put(model, x, 0, z, ry);
+    for (const lx of [-0.52, 0.52]) {
+      const [sx, sz] = at(x, z, ry, lx, 0.02);
+      seats.push({ x: sx, z: sz, ry, y: SEAT_H });
     }
-    for (const s of [-1, 1]) for (const t of [-1, 1]) put(box(0.08, 0.12, 0.08), mats.leg, s * (len / 2 - 0.15), 0.06, t * 0.4, g);
-    for (let i = -n / 2; i <= n / 2; i += 0.5) colliders.push({ x: x + Math.cos(ry) * i * 1.05 - Math.sin(ry) * 0.15, z: z - Math.sin(ry) * i * 1.05 - Math.cos(ry) * 0.15, r: 0.5 });
+    for (const lx of [-0.75, 0, 0.75]) {
+      const [cx2, cz2] = at(x, z, ry, lx, -0.15);
+      colliders.push({ x: cx2, z: cz2, r: 0.5 });
+    }
   };
-  const roundTable = (x: number, z: number, r: number, h: number, top: THREE.Material) => {
-    put(track(new THREE.CylinderGeometry(r, r, 0.08, 28)), top, x, h, z);
-    put(track(new THREE.CylinderGeometry(0.08, 0.1, h, 10)), consoleMat, x, h / 2, z);
-    put(track(new THREE.CylinderGeometry(r * 0.45, r * 0.5, 0.05, 20)), consoleMat, x, 0.03, z);
-    colliders.push({ x, z, r: r + 0.05 });
+  const armchair = (x: number, z: number, ry: number, model = 'armchair') => {
+    P.put(model, x, 0, z, ry);
+    const [sx, sz] = at(x, z, ry, 0, 0.02);
+    seats.push({ x: sx, z: sz, ry, y: SEAT_H });
+    const [cx2, cz2] = at(x, z, ry, 0, -0.15);
+    colliders.push({ x: cx2, z: cz2, r: 0.6 });
   };
+  const lowTable = (x: number, z: number, ry: number) => {
+    P.put('table_low', x, 0, z, ry);
+    for (const lx of [-0.5, 0.5]) {
+      const [cx2, cz2] = at(x, z, ry, lx, 0);
+      colliders.push({ x: cx2, z: cz2, r: 0.58 });
+    }
+  };
+  const LOW_H = 0.5 * UNIT;
 
-  // orta: ekrana bakan kanepe + iki koltuk + sehpa
-  sofa(0, 2.4, Math.PI, 4);
-  sofa(-4.7, -0.6, Math.PI - 0.5, 1, chairMats);
-  sofa(4.7, -0.6, Math.PI + 0.5, 1, chairMats);
-  const marble = lambert('#e7e1d6');
-  roundTable(0, -1.2, 1.1, 0.42, marble);
-  // sehpa üstü: kitaplar ve küçük bitki
-  put(box(0.6, 0.08, 0.42), lambert('#7a2f35'), -0.35, 0.5, -1.25);
-  put(box(0.55, 0.07, 0.38), lambert(GOLD), -0.33, 0.575, -1.22).rotation.y = 0.2;
-  // sol kanat: duvara yaslı uzun kanepe, doğuya bakar
-  sofa(minX + 0.55, -2.2, Math.PI / 2, 3);
-  sofa(minX + 0.55, 3.4, Math.PI / 2, 2);
-  roundTable(minX + 2.3, 0.6, 0.45, 0.5, marble);
+  // orta: ekrana bakan iki kanepe + iki koltuk + sehpa
+  couch(-1.2, 2.5, Math.PI);
+  couch(1.2, 2.5, Math.PI);
+  armchair(-4.4, -0.3, Math.PI - 0.6, 'armchair_pillows');
+  armchair(4.4, -0.3, Math.PI + 0.6, 'armchair_pillows');
+  lowTable(0, -0.9, 0);
+  P.put('book_set', -0.45, LOW_H + 0.07, -0.95, 1.2, 0.8).rotation.z = Math.PI / 2;
+  P.put('mug', 0.25, LOW_H, -0.7, 0.6, 0.7);
+  P.put('mug', 0.55, LOW_H, -1.1, 2.4, 0.7);
+  P.put('cactus_small_A', 0.05, LOW_H, -1.15, 0, 0.7);
+  P.put('pillow_B', -1.7, 0.47, 2.62, 0.4, 0.8).rotation.x = -0.9;
+  P.put('pillow_A', 1.72, 0.47, 2.62, -0.4, 0.8).rotation.x = -0.9;
 
-  // sağ kanat: iki masa, tabureli
-  const tableTop = lambert('#1f4f4b');
-  const stoolMat = lambert('#8a6243');
+  // sol kanat: duvara yaslı iki kanepe (doğuya bakar), aralarında lambalı sehpa, önlerinde alçak masa
+  couch(minX + 0.7, -2.6, Math.PI / 2);
+  couch(minX + 0.7, 3.2, Math.PI / 2, 'couch_pillows');
+  P.put('table_small', minX + 0.5, 0, 0.3, 0);
+  P.put('lamp_table', minX + 0.5, UNIT, 0.3, 0, 0.8);
+  colliders.push({ x: minX + 0.5, z: 0.3, r: 0.55 });
+  lowTable(minX + 2.7, -2.6, Math.PI / 2);
+  P.put('plate', minX + 2.7, LOW_H, -2.9, 0, 0.55);
+  P.put('food_burger', minX + 2.7, LOW_H + 0.03, -2.9, 0.5, 0.5);
+  P.put('mug', minX + 2.6, LOW_H, -2.2, 1, 0.7);
+  armchair(minX + 3.4, 3.2, -Math.PI / 2 - 0.25);
+  P.put('table_round', minX + 2.2, 0, 3.4, 0, 0.75);
+  P.put('bottle', minX + 2.2, UNIT * 0.75, 3.4, 0, 0.8);
+  colliders.push({ x: minX + 2.2, z: 3.4, r: 0.5 });
+
+  // sağ kanat: iki uzun masa, dörder sandalye
   const label = (i: number, x: number, z: number) => {
     const c = textCanvas(256, 64);
     const tex = track(new THREE.CanvasTexture(c));
     tex.colorSpace = THREE.SRGBColorSpace;
     const sp = new THREE.Sprite(track(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })));
     sp.scale.set(1.6, 0.4, 1);
-    sp.position.set(x, 2.35, z);
+    sp.position.set(x, 2.6, z);
     group.add(sp);
     return { c, tex };
   };
   [[7.6, -4.6], [7.6, 3.2]].forEach(([x, z], ti) => {
-    put(box(2.4, 0.08, 1.6), tableTop, x, 0.78, z);
-    put(box(2.46, 0.03, 1.66), trimMat, x, 0.735, z);
-    for (const s of [-1, 1]) for (const t of [-1, 1]) put(box(0.08, 0.74, 0.08), consoleMat, x + s * 1.05, 0.37, z + t * 0.65);
-    colliders.push({ x: x - 0.6, z, r: 0.85 }, { x: x + 0.6, z, r: 0.85 });
+    P.put('table_medium_long', x, 0, z, 0);
+    colliders.push({ x: x - 0.6, z, r: 0.8 }, { x: x + 0.6, z, r: 0.8 });
     const ids: number[] = [];
     const spots: [number, number, number][] = [
-      [x - 0.6, z - 1.25, 0], [x + 0.6, z - 1.25, 0],
-      [x - 0.6, z + 1.25, Math.PI], [x + 0.6, z + 1.25, Math.PI],
+      [x - 0.6, z - 1.12, 0], [x + 0.6, z - 1.12, 0],
+      [x - 0.6, z + 1.12, Math.PI], [x + 0.6, z + 1.12, Math.PI],
     ];
     for (const [sx, sz, ry] of spots) {
-      put(track(new THREE.CylinderGeometry(0.26, 0.22, 0.08, 16)), stoolMat, sx, 0.5, sz);
-      put(track(new THREE.CylinderGeometry(0.05, 0.07, 0.48, 8)), consoleMat, sx, 0.24, sz);
+      P.put('chair_A', sx, 0, sz - Math.cos(ry) * 0.1, ry);
       ids.push(seats.length);
-      seats.push({ x: sx, z: sz, ry, y: 0.54 });
+      seats.push({ x: sx, z: sz, ry, y: SEAT_H });
+    }
+    // masa üstü
+    const T = UNIT;
+    P.put('mug', x - 0.7, T, z - 0.3, 0.8, 0.7);
+    P.put('mug', x + 0.5, T, z + 0.35, 3.6, 0.7);
+    if (ti === 0) {
+      P.put('plate', x + 0.55, T, z - 0.3, 0, 0.5);
+      P.put('food_burger', x + 0.55, T + 0.03, z - 0.3, 1, 0.45);
+      P.put('menu', x - 0.1, T, z + 0.05, 0.5, 0.7);
+    } else {
+      P.put('bottle', x - 0.15, T, z - 0.1, 0, 0.8);
+      P.put('book_single', x - 0.65, T + 0.1, z + 0.3, 0.3, 0.8).rotation.z = Math.PI / 2;
+      P.put('cactus_small_B', x + 0.1, T, z + 0.1, 0, 0.6);
     }
     const { c, tex } = label(ti, x, z);
     tables.push({ i: ti, x, z, seats: ids, canvas: c, tex, last: '' });
   });
 
+  // arka (güney): iki yuvarlak masa, üçer tabure
+  for (const x of [-5.4, 5.4]) {
+    const z = 8.1;
+    P.put('table_round', x, 0, z, 0);
+    P.put('mug', x - 0.2, UNIT, z + 0.1, 1.3, 0.7);
+    P.put('mug', x + 0.25, UNIT, z - 0.15, 4, 0.7);
+    colliders.push({ x, z, r: 0.62 });
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 + (x < 0 ? 0.5 : -0.5);
+      const sx = x + Math.sin(a) * 1.15, sz = z + Math.cos(a) * 1.15;
+      P.put('stool', sx, 0, sz, a);
+      seats.push({ x: sx, z: sz, ry: a + Math.PI, y: SEAT_H });
+    }
+  }
+  // güney duvarının iki ucunda dolaplar (orta boş: girişte kamera oraya sığar), kuzeyde ekranın altında alçak konsol
+  P.put('cabinet_medium_decorated', -8.8, 0, maxZ + 0.15, Math.PI);
+  P.put('cabinet_small_decorated', -7.3, 0, maxZ + 0.15, Math.PI);
+  P.put('cabinet_medium', 8.4, 0, maxZ + 0.15, Math.PI);
+  P.put('pictureframe_standing_A', 8.4, UNIT, maxZ + 0.15, Math.PI + 0.3);
+  for (const x of [-8.8, -7.3, 8.4]) colliders.push({ x, z: maxZ + 0.2, r: 0.75 });
+  for (const x of [-2.25, -0.75, 0.75, 2.25]) P.put('cabinet_medium', x, 0, minZ + 0.05, 0);
+  // duvar rafları
+  P.put('shelf_B_large_decorated', minX - 0.55, 2.3, 0.3, Math.PI / 2, 1.3);
+  P.put('shelf_B_small_decorated', maxX + 0.55, 2.2, 5.6, -Math.PI / 2, 1.3);
+  P.put('shelf_B_large_decorated', maxX + 0.55, 2.2, -6.6, -Math.PI / 2, 1.3);
+  P.put('shelf_B_large_decorated', 7.5, 2.4, minZ - 0.55, 0, 1.3);
+
   // --- lambalar ve ışıklar
-  const lampShade = lambert('#f3e3c0', { emissive: '#7a5a20' });
   const lampMat = lambert('#ffe3a3', { emissive: '#ffcf7a' });
   const floorLamp = (x: number, z: number) => {
-    put(track(new THREE.CylinderGeometry(0.03, 0.03, 1.9, 6)), consoleMat, x, 0.95, z);
-    put(track(new THREE.CylinderGeometry(0.22, 0.25, 0.04, 16)), consoleMat, x, 0.02, z);
-    put(track(new THREE.CylinderGeometry(0.24, 0.36, 0.42, 16, 1, true)), lampShade, x, 2.05, z);
+    P.put('lamp_standing', x, 0, z, 0);
     colliders.push({ x, z, r: 0.3 });
   };
-  floorLamp(-6.2, -3.4);
-  floorLamp(6.2, -3.4);
-  floorLamp(minX + 0.6, 1.4);
+  floorLamp(-6.2, -1.7);
+  floorLamp(6.2, -1.7);
+  floorLamp(minX + 0.5, 6.4);
+  floorLamp(maxX - 0.5, -0.7);
   const lights: THREE.PointLight[] = [];
   const pend: [number, number][] = [[0, -1], [7.6, -4.6], [7.6, 3.2], [-8, 0.6], [0, 7]];
   for (const [x, z] of pend) {
-    put(track(new THREE.CylinderGeometry(0.01, 0.01, 1.3, 4)), consoleMat, x, H - 0.65, z);
-    put(track(new THREE.SphereGeometry(0.26, 16, 10)), lampMat, x, H - 1.4, z);
+    put(track(new THREE.CylinderGeometry(0.01, 0.01, 1.1, 4)), consoleMat, x, H - 0.55, z);
+    put(track(new THREE.SphereGeometry(0.22, 16, 10)), lampMat, x, H - 1.25, z);
   }
   const lightSpots: [number, number, number][] = quality === 'high' ? [[0, 4.2, -1], [7.6, 4.2, -0.6], [-8, 4.2, 1], [0, 4.2, 7]] : [[0, 4.2, 0], [6, 4.2, 0]];
   for (const [x, y, z] of lightSpots) {
@@ -331,13 +377,14 @@ export function buildSalon(quality: 'low' | 'high'): World & { tables: TableSpot
     group.add(nl);
   }
   const frameMat = lambert(GOLD);
-  [[-7.5, minZ - 0.55, 0, 0], [minX - 0.55, -5.5, Math.PI / 2, 1], [minX - 0.55, 6.5, Math.PI / 2, 2]].forEach(([x, z, ry, s]) => {
+  [[-7.5, minZ - 0.58, 0, 0], [minX - 0.58, -5.9, Math.PI / 2, 1], [minX - 0.58, 6.6, Math.PI / 2, 2]].forEach(([x, z, ry, sd]) => {
     const g = new THREE.Group();
-    g.position.set(x, 3.2, z);
+    g.position.set(x, 3.3, z);
     g.rotation.y = ry;
     group.add(g);
-    put(box(1.5, 1.86, 0.06), frameMat, 0, 0, 0, g);
-    put(track(new THREE.PlaneGeometry(1.36, 1.72)), lambert('#ffffff', { map: track(artTexture(s)) }), 0, 0, 0.035, g);
+    // çerçeve 1 x 1,2 birim; içindeki boş tuvalin önüne özgün tablo
+    P.put('pictureframe_large_A', 0, 0, 0, 0, 2.1, g);
+    put(track(new THREE.PlaneGeometry(1.16, 1.48)), lambert('#ffffff', { map: track(artTexture(sd)) }), 0, 0, 0.3, g);
   });
   // güney duvarında pencereler
   const skyMat = track(new THREE.MeshBasicMaterial({ color: '#0d1838', toneMapped: false }));
@@ -360,18 +407,11 @@ export function buildSalon(quality: 'low' | 'high'): World & { tables: TableSpot
     put(box(0.05, 2.7, 0.05), frameMat, 0, 0, 0.08, g);
     put(box(2.4, 0.05, 0.05), frameMat, 0, 0.3, 0.08, g);
   }
-  // köşelerde bitkiler
-  const potMat = lambert('#c9b79a');
-  const leafMat = lambert('#2f7a52');
-  const leafGeo = track(new THREE.ConeGeometry(0.18, 0.9, 5));
-  for (const [x, z] of [[minX + 0.4, minZ + 0.4], [maxX - 0.4, minZ + 0.4], [minX + 0.4, maxZ - 0.4], [maxX - 0.4, maxZ - 0.4], [-4.6, minZ + 0.3], [4.6, minZ + 0.3]]) {
-    put(track(new THREE.CylinderGeometry(0.32, 0.24, 0.6, 12)), potMat, x, 0.3, z);
-    for (let k = 0; k < 7; k++) {
-      const lf = put(leafGeo, leafMat, x + Math.cos(k * 0.9) * 0.12, 1.0 + (k % 3) * 0.18, z + Math.sin(k * 0.9) * 0.12);
-      lf.rotation.set(Math.cos(k * 0.9) * 0.6, 0, Math.sin(k * 0.9) * 0.6);
-    }
-    colliders.push({ x, z, r: 0.42 });
-  }
+  // köşelerde ve ekranın iki yanında saksılar
+  ([[minX + 0.5, minZ + 0.5, 'A'], [maxX - 0.5, minZ + 0.5, 'B'], [minX + 0.5, maxZ - 0.5, 'B'], [maxX - 0.5, maxZ - 0.5, 'A'], [-5.2, minZ + 0.4, 'B'], [5.2, minZ + 0.4, 'A']] as [number, number, string][]).forEach(([x, z, v], i) => {
+    P.put('cactus_medium_' + v, x, 0, z, i * 1.3, 1.55);
+    colliders.push({ x, z, r: 0.5 });
+  });
 
   // --- boş oturak işaretleri (yakına gelince görünür)
   const ringGeo = track(new THREE.RingGeometry(0.16, 0.2, 24));
@@ -379,7 +419,7 @@ export function buildSalon(quality: 'low' | 'high'): World & { tables: TableSpot
   const rings = seats.map((s) => {
     const r = new THREE.Mesh(ringGeo, ringMat.clone());
     track(r.material as THREE.Material);
-    r.position.set(s.x, s.y + 0.95, s.z);
+    r.position.set(s.x, s.y + 1.25, s.z);
     group.add(r);
     return r;
   });
@@ -488,6 +528,7 @@ export function buildSalon(quality: 'low' | 'high'): World & { tables: TableSpot
     },
     dispose() {
       videoTex?.dispose();
+      P.dispose();
       for (const d of disposables) d.dispose();
     },
   };

@@ -9,7 +9,7 @@ import os from 'node:os';
 import { WebSocketServer } from 'ws';
 import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
-  Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook, cleanRoom3d,
+  Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook, AVATAR_MODELS, cleanRoom3d,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
   hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
   DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN, cleanChannelImage, cleanChannelBanner,
@@ -230,6 +230,7 @@ function cleanLook(l: Partial<AvatarLook> | undefined): AvatarLook {
   return {
     color: typeof l?.color === 'string' && /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : '#f5a524',
     hat: HATS.includes(l?.hat as any) ? (l!.hat as AvatarLook['hat']) : 'antenna',
+    ...(AVATAR_MODELS.includes(l?.model as any) ? { model: l!.model } : {}),
   };
 }
 

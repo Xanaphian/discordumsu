@@ -2,6 +2,7 @@ import type { NoiseMode } from './ses/gurultu';
 import { create } from 'zustand';
 import {
   type AvatarLook,
+  type AvatarModel,
   Attachment, ChannelType, ClientFrame, Community, ID, Message, ServerFrame, Status, UserPublic, VoiceMember,
   decodeInvite, encodeInvite, makeId, isVoiceLike, encodeHostToken, parseShortInvite, Perm,
   type AuditEntry, type Ban, type DmInfo, type FriendInfo, type DmPrivacy,
@@ -56,6 +57,8 @@ export interface Settings {
   showLinkPreviews: boolean;
   avatarHat: AvatarLook['hat'];
   avatarColor: string;
+  /** 3D karakter; boşsa kişiye göre sabit bir karakter */
+  avatarModel?: AvatarModel;
   spaceNight: boolean;
   spaceQuality: 'low' | 'high';
   // ses

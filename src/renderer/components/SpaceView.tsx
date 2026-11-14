@@ -11,82 +11,73 @@ import { useVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../l
 import { useSpace, exitSpace, say, setBooth, pushLook, worldOf, WORLDS } from '../lib/space';
 import { Avatar, Tooltip } from './Common';
 import { cx, COLORS, displayName } from '../lib/util';
-import { canIn, Perm, type AvatarLook, type Channel, type Community, type ID, type Room3d } from '../../shared/protocol';
+import { canIn, Perm, type AvatarLook, type AvatarModel, type Channel, type Community, type ID, type Room3d } from '../../shared/protocol';
 import type { SpaceEngine, Prompt } from '../space/engine';
+import { modelFor } from '../lib/avatarModel';
 
+// 'antenna' eski varsayılan değer; v1.51'den beri karakterin kendi başlığı (miğfer, büyücü şapkası...) demek
 const HATS: { id: AvatarLook['hat']; label: string }[] = [
-  { id: 'antenna', label: 'Anten' },
+  { id: 'antenna', label: 'Kendi başlığı' },
+  { id: 'none', label: 'Başı açık' },
   { id: 'crown', label: 'Taç' },
   { id: 'cap', label: 'Şapka' },
-  { id: 'wizard', label: 'Büyücü' },
+  { id: 'wizard', label: 'Sivri şapka' },
   { id: 'halo', label: 'Hale' },
   { id: 'headphones', label: 'Kulaklık' },
-  { id: 'none', label: 'Yok' },
+];
+const MODELS: { id: AvatarModel; label: string }[] = [
+  { id: 'knight', label: 'Şövalye' },
+  { id: 'mage', label: 'Büyücü' },
+  { id: 'rogue', label: 'Gezgin' },
+  { id: 'hooded', label: 'Kukuletalı' },
+  { id: 'barbarian', label: 'Barbar' },
 ];
 
-/** Avatarın 2B önizlemesi (giriş ekranı ve görünüm paneli) */
-function AvatarPreview({ look, size = 120 }: { look: AvatarLook; size?: number }) {
-  const c = look.color;
-  return (
-    <svg width={size} height={size * 1.15} viewBox="0 0 100 115" className="sv-preview">
-      <ellipse cx="50" cy="108" rx="26" ry="5" fill="rgba(0,0,0,.25)" />
-      <rect x="27" y="52" width="46" height="54" rx="23" fill={c} />
-      <ellipse cx="50" cy="80" rx="16" ry="19" fill="#fff3dc" />
-      <rect x="18" y="58" width="11" height="28" rx="5.5" fill={c} transform="rotate(12 23 60)" />
-      <rect x="71" y="58" width="11" height="28" rx="5.5" fill={c} transform="rotate(-12 77 60)" />
-      <circle cx="50" cy="38" r="21" fill="#ffe7c2" />
-      <ellipse cx="43" cy="39" rx="2.6" ry="3.6" fill="#1b1410" />
-      <ellipse cx="57" cy="39" rx="2.6" ry="3.6" fill="#1b1410" />
-      <circle cx="37" cy="45" r="3" fill="#ff8fa3" opacity=".7" />
-      <circle cx="63" cy="45" r="3" fill="#ff8fa3" opacity=".7" />
-      {look.hat === 'antenna' && (
-        <g stroke="#1b1410" strokeWidth="1.6">
-          <line x1="44" y1="19" x2="38" y2="6" />
-          <line x1="56" y1="19" x2="62" y2="6" />
-          <circle cx="38" cy="6" r="4" fill="#f5a524" stroke="none" />
-          <circle cx="62" cy="6" r="4" fill="#f5a524" stroke="none" />
-        </g>
-      )}
-      {look.hat === 'crown' && <path d="M35 22 L35 9 L42 16 L50 6 L58 16 L65 9 L65 22 Z" fill="#f6c343" stroke="#c99a1e" strokeWidth="1" />}
-      {look.hat === 'cap' && (
-        <g>
-          <path d="M30 28 A20 18 0 0 1 70 28 Z" fill={c} filter="brightness(.8)" />
-          <rect x="45" y="25" width="30" height="5" rx="2.5" fill={c} />
-        </g>
-      )}
-      {look.hat === 'wizard' && (
-        <g>
-          <path d="M33 22 L53 -6 L67 22 Z" fill="#5a3fb5" />
-          <ellipse cx="50" cy="22" rx="24" ry="4" fill="#4a3196" />
-          <circle cx="54" cy="10" r="2.6" fill="#ffd84d" />
-        </g>
-      )}
-      {look.hat === 'halo' && <ellipse cx="50" cy="10" rx="15" ry="4" fill="none" stroke="#ffe680" strokeWidth="3" />}
-      {look.hat === 'headphones' && (
-        <g>
-          <path d="M28 40 A22 24 0 0 1 72 40" fill="none" stroke="#2b2b33" strokeWidth="4" />
-          <rect x="24" y="34" width="8" height="14" rx="3" fill="#2b2b33" />
-          <rect x="68" y="34" width="8" height="14" rx="3" fill="#2b2b33" />
-        </g>
-      )}
-    </svg>
-  );
+/** Karakterin 3D önizlemesi (kıyafet paneli) */
+function AvatarPreview({ look, seed, size = 132 }: { look: AvatarLook; seed: string; size?: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    let live = true;
+    const cv = ref.current;
+    if (cv)
+      void import('../space/preview')
+        .then((m) => {
+          if (live) return m.drawAvatarPreview(cv, look, seed, () => live);
+        })
+        .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [look.color, look.hat, look.model, seed]);
+  return <canvas ref={ref} className="sv-preview" width={size * 2} height={Math.round(size * 2.4)} style={{ width: size, height: Math.round(size * 1.2) }} />;
 }
 
 function LookPicker() {
   const hat = useStore((s) => s.settings.avatarHat);
   const color = useStore((s) => s.settings.avatarColor);
+  const model = useStore((s) => s.settings.avatarModel);
   const meColor = useStore((s) => s.me.color);
-  const set = (p: { avatarHat?: AvatarLook['hat']; avatarColor?: string }) => {
+  const meId = useStore((s) => s.me.id);
+  const set = (p: { avatarHat?: AvatarLook['hat']; avatarColor?: string; avatarModel?: AvatarModel }) => {
     updateSettings(p);
     setTimeout(pushLook, 0);
   };
   const cur = color || meColor || '#f5a524';
+  // seçim yapılmadıysa herkesin gördüğü (kişiye göre sabit) karakter işaretli görünsün
+  const shown = model || modelFor(undefined, meId);
   return (
     <div className="sv-look">
-      <AvatarPreview look={{ color: cur, hat }} />
+      <AvatarPreview look={{ color: cur, hat, model: shown }} seed={meId} />
       <div className="sv-look-opts">
-        <div className="sv-label">Şapka</div>
+        <div className="sv-label">Karakter</div>
+        <div className="sv-hats">
+          {MODELS.map((m) => (
+            <button key={m.id} className={cx('sv-chip', shown === m.id && 'on')} onClick={() => set({ avatarModel: m.id })}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <div className="sv-label">Başlık</div>
         <div className="sv-hats">
           {HATS.map((h) => (
             <button key={h.id} className={cx('sv-chip', hat === h.id && 'on')} onClick={() => set({ avatarHat: h.id })}>
@@ -94,7 +85,7 @@ function LookPicker() {
             </button>
           ))}
         </div>
-        <div className="sv-label">Renk</div>
+        <div className="sv-label">Kıyafet rengi</div>
         <div className="sv-colors">
           {COLORS.map((c) => (
             <button key={c} className={cx('sv-swatch', cur.toLowerCase() === c.toLowerCase() && 'on')} style={{ background: c }} onClick={() => set({ avatarColor: c })} aria-label={c} />
@@ -621,6 +612,9 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
           <button className="btn ghost sm" onClick={() => openModal({ type: 'settings', tab: 'voice' })}>
             Ses ve görüntü ayarları
           </button>
+          <p className="sv-credits">
+            <b>Emeği geçenler</b> · Karakterler, mobilyalar ve dekor: KayKit, Kay Lousberg (CC0, kaylousberg.com). Çeşme, ateş, şapkalar ve tepki hareketleri Xanaphian için üretildi.
+          </p>
         </div>
       )}
       {panel === 'help' && (
