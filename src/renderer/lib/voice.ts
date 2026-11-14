@@ -1,6 +1,6 @@
 // Sesli kanallar: WebRTC eşler arası (mesh) ses, kamera ve ekran paylaşımı.
 // Sinyalleşme kovan sunucusu üzerinden; "perfect negotiation" ile istediğin an görüntü ekleyip çıkarılabilir.
-import { buildNoiseChain, noiseModeOf, browserNS, type NoiseChain, type NoiseMode } from './ses/gurultu';
+import { buildNoiseChain, noiseModeOf, browserNS, onNoiseFallback, dfLoaded, type NoiseChain, type NoiseMode } from './ses/gurultu';
 import { create } from 'zustand';
 import { canIn, Perm, type Channel, type Community, type ID, type VoiceMember } from '../../shared/protocol';
 import { useStore, voiceHooks, cmd, toast, request } from './store';
@@ -686,6 +686,13 @@ function deviceGone(e: unknown) {
 
 /** Gürültü engelleme zincirini (yeniden) kur: ham mikrofon → zincir → giriş kazancı */
 let noiseSeq = 0;
+// Maksimum'da DeepFilterNet bilgisayara ağır gelirse zincir RNNoise ile yeniden kurulur
+onNoiseFallback(() => {
+  if (actx && micSrc && noiseNow === 'maksimum') {
+    attachNoise(actx);
+    toast('Maksimum gürültü engelleme bu bilgisayarda hafif modda çalışıyor.', 'info');
+  }
+});
 async function attachNoise(ctx: AudioContext) {
   const mode = noiseModeOf(ST());
   const seq = ++noiseSeq;
@@ -796,6 +803,11 @@ export function leaveVoice(silent = false) {
   cmd(ch, { t: 'vc.leave' });
   for (const sid of [...peers.keys()]) closePeer(sid);
   closeMic();
+  // Maksimum gürültü engellemenin modeli (~100 MB) yalnız ses bağlamı kapatılınca bırakılır; sesten çıkınca kapat
+  if (actx && dfLoaded(actx)) {
+    actx.close().catch(() => {});
+    actx = master = null;
+  }
   V().cam?.getTracks().forEach((t) => t.stop());
   V().screen?.getTracks().forEach((t) => t.stop());
   screenCfg = null;
