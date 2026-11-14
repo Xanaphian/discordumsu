@@ -665,7 +665,7 @@ function Akis({ c, ps }: { c: Community; ps: P[] }) {
               <span className="sd-akis-art">
                 <Back p={p} />
               </span>
-              {(hist[p.uid] || []).map(([a, b], i) => (
+              {(hist[p.uid] || []).filter(([, b]) => b == null || now - b < SPAN).map(([a, b], i) => (
                 <span key={i} className={cx('sd-seg', b == null && 'live')} style={{ left: `${x(a)}%`, width: `${Math.max(0.6, x(b ?? now) - x(a))}%` }} />
               ))}
             </div>
