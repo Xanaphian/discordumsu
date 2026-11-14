@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { create } from 'zustand';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
@@ -266,9 +267,10 @@ function toolsSide(e: React.MouseEvent<HTMLElement>) {
   if (up) el.style.setProperty('--tools-up', ((el.querySelector('.reply-ref') as HTMLElement | null)?.offsetHeight || 0) + 'px');
 }
 
-/** Mesajın üstüne gelince çıkan işlem düğmeleri. Yalnız fareyle üstüne gelinen mesajda çizilir:
- *  her mesajda hazır beklemesi sayfadaki öğe sayısını ikiye katlıyor, sohbeti açmayı ve kaydırmayı ağırlaştırıyordu. */
-function MsgTools({ m, saved, canEdit, canDelete, onReply, onEdit, onDelete, onSave, onMore }: {
+/** Fare hangi mesajın üstünde? Ayrı küçük bir depo: fare gezdikçe mesajın kendisi yeniden çizilmez, yalnız düğme yuvası. */
+const useHot = create<{ id: string | null }>(() => ({ id: null }));
+
+type ToolsProps = {
   m: Message;
   saved: boolean;
   canEdit: boolean;
@@ -278,7 +280,16 @@ function MsgTools({ m, saved, canEdit, canDelete, onReply, onEdit, onDelete, onS
   onDelete: (e?: React.MouseEvent) => void;
   onSave: () => void;
   onMore: (e: React.MouseEvent) => void;
-}) {
+};
+
+function HotTools(p: ToolsProps) {
+  const hot = useHot((s) => s.id === p.m.id);
+  return hot ? <MsgTools {...p} /> : null;
+}
+
+/** Mesajın üstüne gelince çıkan işlem düğmeleri. Yalnız fareyle üstüne gelinen mesajda çizilir:
+ *  her mesajda hazır beklemesi sayfadaki öğe sayısını ikiye katlıyor, sohbeti açmayı ve kaydırmayı ağırlaştırıyordu. */
+function MsgTools({ m, saved, canEdit, canDelete, onReply, onEdit, onDelete, onSave, onMore }: ToolsProps) {
   return (
     <div className="msg-tools">
       {QUICK_REACTIONS.slice(0, 3).map((e) => (
@@ -349,7 +360,6 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
   const showJoin = useStore((s) => s.settings.showJoinMessages);
   const showIcons = useStore((s) => s.settings.showRoleIcons);
   const [reveal, setReveal] = useState(false);
-  const [hot, setHot] = useState(false); // fare üstünde: işlem düğmeleri yalnız o zaman çizilir
   const roleIcon = showIcons ? memberRoles(c, memberOf(c, m.authorId)).find((r) => r.icon)?.icon : undefined;
   const card = useMemo(() => parseCard(m.content), [m.content]);
   const body = useMemo(() => (m.content && !card ? renderMarkdown(m.content, md) : null), [m.content, md, card]);
@@ -449,9 +459,9 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
         onContextMenu={more}
         onMouseEnter={(e) => {
           toolsSide(e);
-          setHot(true);
+          useHot.setState({ id: m.id });
         }}
-        onMouseLeave={() => setHot(false)}
+        onMouseLeave={() => useHot.getState().id === m.id && useHot.setState({ id: null })}
         onDoubleClick={(e) => {
           if (mine && !card && !isEditing && !(e.target as HTMLElement).closest('a,button,.att-img,.md-pre')) startEdit();
         }}
@@ -545,8 +555,8 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 </button>
               </div>
             )}
-            {hot && !m.pending && !m.failed && !isEditing && (
-              <MsgTools m={m} saved={saved} canEdit={mine && !card} canDelete={mine || canManage} onReply={reply} onEdit={startEdit} onDelete={del} onSave={() => toggleSaved(c.id, m)} onMore={more} />
+            {!m.pending && !m.failed && !isEditing && (
+              <HotTools m={m} saved={saved} canEdit={mine && !card} canDelete={mine || canManage} onReply={reply} onEdit={startEdit} onDelete={del} onSave={() => toggleSaved(c.id, m)} onMore={more} />
             )}
           </div>
         </div>
