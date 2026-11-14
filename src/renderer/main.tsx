@@ -6,6 +6,7 @@ import { HataSiniri } from './components/HataSiniri';
 import './lib/yayinci';
 import { boot } from './lib/store';
 import './lib/activity';
+import { hataDinle } from './lib/hata';
 import './styles/app.css';
 import './styles/admin.css';
 import './styles/kovan.css';
@@ -37,6 +38,8 @@ import './styles/okunaklilik.css';
 import './styles/ust-cubuk.css';
 import './styles/paylasim.css';
 import './styles/etiket.css';
+
+hataDinle();
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
 const booting = boot().catch((e) => console.error('Açılış hatası', e));

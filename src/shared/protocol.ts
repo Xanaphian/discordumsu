@@ -5,6 +5,7 @@ import type { Sticker } from './stickers';
 export type { Sticker } from './stickers';
 import type { JoinGuard, Listing, Blueprint } from './topluluk';
 import type { FeedScope, PostVis, PostView } from './paylasim';
+import type { ErrItem } from './ekler';
 
 export type ID = string;
 
@@ -417,6 +418,12 @@ export type ClientFrame =
   | { t: 'web.at'; ch: ID; url: string; title: string }
   | { t: 'web.leave' }
   | { t: 'dm.open'; to: ID; rid: string }
+  /** v1.50 hata bildirimi (kişisel veri taşımaz); err.list / err.clear yalnız sunucu yöneticisine açık */
+  | { t: 'err.report'; ver: string; os: string; items: ErrItem[]; rid: string }
+  | { t: 'err.list'; rid: string }
+  | { t: 'err.clear'; id?: ID; rid: string }
+  /** v1.50 ses için ICE sunucuları (TURN süreli kimliği); cevap: ok.data = IceInfo | null */
+  | { t: 'ice'; rid: string }
   | { t: 'friend.req'; to: ID; rid?: string }
   | { t: 'friend.accept'; to: ID }
   | { t: 'friend.remove'; to: ID }

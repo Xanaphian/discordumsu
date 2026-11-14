@@ -5,6 +5,11 @@
 //   KOVAN_DATA     veri klasörü (varsayılan ./data)
 //   KOVAN_SECRET   bot API anahtarlarını diskte şifrelemek için uzun rastgele bir dize (isteğe bağlı)
 //   KOVAN_MAX_OWNED kişi başı kurulabilecek topluluk sayısı (varsayılan 20)
+//   KOVAN_ADMINS   hata bildirimlerini görebilen kullanıcı kimlikleri, virgülle ayrılır (isteğe bağlı)
+//   KOVAN_TURN_URLS / KOVAN_TURN_SECRET  ses için aktarma (TURN) sunucusu; turn-kur.sh yazar (isteğe bağlı)
+//   KOVAN_UPLOAD_MB_HOUR kişi başı saatlik yükleme sınırı, MB (varsayılan 1024)
+//   KOVAN_UPLOAD_PER_10MIN kişi başı 10 dakikada en çok dosya (varsayılan 60)
+//   KOVAN_MIN_FREE_MB diskte bu kadar boş yer kalmazsa yükleme durur (varsayılan 1024)
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { Hub } from '../src/main/hub';
@@ -14,7 +19,18 @@ const port = Number(env.KOVAN_PORT) || 47900;
 const host = env.KOVAN_HOST || '127.0.0.1';
 const dataDir = path.resolve(env.KOVAN_DATA || './data');
 
-const hub = new Hub(dataDir, { server: true, maxOwned: Number(env.KOVAN_MAX_OWNED) || 20 });
+const list = (v?: string) => (v || '').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+const num = (v?: string) => (v && Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : undefined);
+const turnUrls = list(env.KOVAN_TURN_URLS);
+const hub = new Hub(dataDir, {
+  server: true,
+  maxOwned: Number(env.KOVAN_MAX_OWNED) || 20,
+  ek: {
+    admins: list(env.KOVAN_ADMINS),
+    turn: turnUrls.length && env.KOVAN_TURN_SECRET ? { urls: turnUrls, secret: env.KOVAN_TURN_SECRET } : undefined,
+    upload: { mbPerHour: num(env.KOVAN_UPLOAD_MB_HOUR), perTenMin: num(env.KOVAN_UPLOAD_PER_10MIN), minFreeMb: num(env.KOVAN_MIN_FREE_MB) },
+  },
+});
 
 if (env.KOVAN_SECRET && env.KOVAN_SECRET.length >= 16) {
   const key = crypto.createHash('sha256').update(env.KOVAN_SECRET).digest();

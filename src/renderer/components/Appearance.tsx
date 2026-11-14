@@ -102,6 +102,7 @@ function SwitchRow({ title, sub, children }: { title: string; sub?: string; chil
 
 export function AppearanceTab() {
   const s = useStore((x) => x.settings);
+  const info = useStore((x) => x.info);
   return (
     <div className="ap">
       <h1>Görünüm</h1>
@@ -162,9 +163,20 @@ export function AppearanceTab() {
       <h3>Yazı boyutu: {s.fontSize}px</h3>
       <input type="range" min={12} max={20} step={1} value={s.fontSize} onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })} />
       <div className="divider" />
-      <SwitchRow title="Arka plan dokusu" sub="Arka planda hafif bir ışık ve doku.">
-        <Toggle value={s.backdrop} onChange={(v) => updateSettings({ backdrop: v })} />
+      <SwitchRow title="Arka plan dokusu" sub="Arka planda hafif bir ışık ve doku. Kapatırsan eski bilgisayarlarda uygulama daha akıcı çalışır.">
+        <Toggle value={s.backdrop && !s.powerSaver} onChange={(v) => updateSettings(v ? { backdrop: true, powerSaver: false } : { backdrop: false })} />
       </SwitchRow>
+      <SwitchRow title="Pil dostu mod" sub="Dizüstü için: güçlü ekran kartı zorlanmaz ve arka plan dokusu kapanır, pil daha uzun gider.">
+        <Toggle value={!!s.powerSaver} onChange={(v) => updateSettings({ powerSaver: v })} />
+      </SwitchRow>
+      {!!s.powerSaver !== !!info?.powerSaver && (
+        <div className="pil-not">
+          <span>Ekran kartı ayarı uygulama yeniden başlayınca değişir.</span>
+          <button className="btn primary sm" onClick={() => window.kovan.relaunch()}>
+            Yeniden başlat
+          </button>
+        </div>
+      )}
       <SwitchRow title="Sıkışık mod" sub="Mesajlar arasında daha az boşluk, avatarlar gizli.">
         <Toggle value={s.compact} onChange={(v) => updateSettings({ compact: v })} />
       </SwitchRow>

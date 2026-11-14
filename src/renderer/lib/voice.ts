@@ -3,7 +3,8 @@
 import { buildNoiseChain, noiseModeOf, browserNS, type NoiseChain, type NoiseMode } from './ses/gurultu';
 import { create } from 'zustand';
 import { canIn, Perm, type Channel, type Community, type ID, type VoiceMember } from '../../shared/protocol';
-import { useStore, voiceHooks, cmd, toast } from './store';
+import { useStore, voiceHooks, cmd, toast, request } from './store';
+import { FEAT_ICE, type IceInfo } from '../../shared/ekler';
 import { playSound } from './sound';
 
 export interface RemoteMedia {
@@ -89,6 +90,27 @@ const ICE: RTCConfiguration = {
   bundlePolicy: 'max-bundle',
   iceCandidatePoolSize: 2,
 };
+
+// v1.50: sunucu aktarma (TURN) bilgisi veriyorsa doğrudan bağlanamayan iki kişi sunucu üstünden konuşur.
+// Kimlik süreli olduğundan sunucudan istenir ve süresi dolmadan yenilenir; alınamazsa yalnız STUN ile devam edilir.
+let iceCfg: RTCConfiguration = ICE;
+const iceCache = new Map<string, { cfg: RTCConfiguration; until: number }>();
+async function iceFor(h: string, cid: ID): Promise<RTCConfiguration> {
+  if (!useStore.getState().conns[h]?.feats?.includes(FEAT_ICE)) return ICE;
+  const hit = iceCache.get(h);
+  if (hit && hit.until > Date.now()) return hit.cfg;
+  try {
+    const r = await Promise.race([request<{ data: IceInfo | null }>(cid, { t: 'ice', rid: '' }), new Promise<null>((ok) => setTimeout(() => ok(null), 2500))]);
+    const info = r?.data;
+    if (!info?.iceServers?.length) return ICE;
+    const cfg: RTCConfiguration = { ...ICE, iceServers: [...(ICE.iceServers || []), ...info.iceServers] };
+    // sürenin yarısında yenile: uzun süren bir aramada sonradan katılanlar için kimlik hâlâ geçerli olsun
+    iceCache.set(h, { cfg, until: Date.now() + (info.ttl * 1000) / 2 });
+    return cfg;
+  } catch {
+    return ICE;
+  }
+}
 
 let mySid: ID | null = null;
 let host: string | null = null;
@@ -310,7 +332,7 @@ function addLocalVideo(p: Peer) {
 }
 
 function createPeer(sid: ID, uid: ID): Peer {
-  const pc = new RTCPeerConnection(ICE);
+  const pc = new RTCPeerConnection(iceCfg);
   const p: Peer = { sid, uid, pc, polite: (mySid || '') > sid, makingOffer: false, ignoreOffer: false, queue: [], streams: new Map(), audio: new Map(), senders: {} };
   peers.set(sid, p);
   const mic = local?.getAudioTracks()[0];
@@ -733,6 +755,7 @@ export async function joinVoice(cid: ID, ch: ID) {
   mySid = null;
   lastMembers = new Set();
   noiseFloor = 0.004;
+  const ice = iceFor(host, cid);
   try {
     await openMic();
     setV({ noMic: false });
@@ -741,6 +764,7 @@ export async function joinVoice(cid: ID, ch: ID) {
     setV({ noMic: true });
     toast('Mikrofona erişilemedi; sadece dinleyici olarak bağlandın.', 'err');
   }
+  iceCfg = await ice;
   if (V().ch !== ch) return; // bu arada ayrıldı
   applyTracks();
   startLoop();
