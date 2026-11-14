@@ -51,6 +51,7 @@ export function ContextMenu() {
   const close = () => useStore.setState({ menu: null });
   useClickOutside(ref, close, !!menu);
   const pos = useFit(ref, menu?.x || 0, menu?.y || 0, [menu]);
+  useMenuKeys(ref, !!menu);
   if (!menu) return null;
   return (
     <MenuGuard key={menu.x + ':' + menu.y} onError={close}>
@@ -59,6 +60,53 @@ export function ContextMenu() {
       </div>
     </MenuGuard>
   );
+}
+
+/** Açık menüde ↑/↓ ile gezinme, Home/End, → alt menüyü açar, ← kapatır; kapanınca odak eski yerine döner */
+function useMenuKeys(ref: React.RefObject<HTMLDivElement | null>, open: boolean) {
+  useEffect(() => {
+    if (!open) return;
+    const before = document.activeElement as HTMLElement | null;
+    const items = (root: Element) => [...root.querySelectorAll<HTMLButtonElement>(':scope > .ctx-item, :scope > .ctx-sub-wrap > .ctx-item, :scope > .ctx-emojis > button')].filter((b) => !b.disabled);
+    const k = (e: KeyboardEvent) => {
+      const box = ref.current;
+      if (!box) return;
+      const cur = document.activeElement as HTMLElement | null;
+      // odak bir alt menüdeyse o listede gez
+      const level = (cur && box.contains(cur) && cur.closest('.ctx-menu')) || box;
+      const list = items(level);
+      if (!list.length) return;
+      const i = cur ? list.indexOf(cur as HTMLButtonElement) : -1;
+      let to: HTMLElement | undefined;
+      if (e.key === 'ArrowDown') to = list[(i + 1) % list.length];
+      else if (e.key === 'ArrowUp') to = list[i < 0 ? list.length - 1 : (i - 1 + list.length) % list.length];
+      else if (e.key === 'Home') to = list[0];
+      else if (e.key === 'End') to = list[list.length - 1];
+      else if (e.key === 'ArrowRight' && cur?.parentElement?.classList.contains('ctx-sub-wrap')) {
+        cur.click();
+        requestAnimationFrame(() => {
+          const sub = cur.parentElement?.querySelector('.ctx-sub');
+          if (sub) items(sub)[0]?.focus();
+        });
+        e.preventDefault();
+        return;
+      } else if (e.key === 'ArrowLeft' && level !== box) {
+        const owner = level.parentElement?.querySelector<HTMLElement>(':scope > .ctx-item');
+        owner?.focus();
+        e.preventDefault();
+        return;
+      } else return;
+      e.preventDefault();
+      to?.focus();
+    };
+    document.addEventListener('keydown', k, true);
+    return () => {
+      document.removeEventListener('keydown', k, true);
+      // menüden açılan bir pencere odağı aldıysa ona dokunma
+      const now = document.activeElement;
+      if ((!now || now === document.body) && before && before.isConnected && before !== document.body) before.focus({ preventScroll: true });
+    };
+  }, [open, ref]);
 }
 
 /** Menüde bir çizim hatası bütün uygulamayı boş ekrana düşürmesin: menü kapanır, uygulama çalışmaya devam eder */

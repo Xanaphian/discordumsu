@@ -208,6 +208,21 @@ const ChannelRow = memo(function ChannelRow({
         )}
         onClick={click}
         onContextMenu={menu}
+        role="button"
+        tabIndex={0}
+        aria-current={active ? 'page' : undefined}
+        onKeyDown={(e) => {
+          // klavyeyle: Enter/Boşluk kanala girer, menü tuşu ya da Shift+F10 sağ tık menüsünü açar
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            click();
+          } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+            e.preventDefault();
+            const r = e.currentTarget.getBoundingClientRect();
+            menu({ clientX: r.left + 24, clientY: r.bottom, preventDefault() {} } as never);
+          }
+        }}
         draggable={manage}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';

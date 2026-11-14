@@ -17,6 +17,7 @@ export const close = () => openModal(null);
 import { ChatTab, PrivacyTab, AdvancedTab, NotifyExtras } from './MoreSettings';
 import { StreamerTab } from './YayinciModu';
 import { OverlayTab } from './Kaplama';
+import { ShortcutSettings } from './Kisayollar';
 
 export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: string; label: string; group?: string; danger?: boolean }[]; tab: string; setTab: (t: string) => void; children: React.ReactNode; footer?: React.ReactNode }) {
   useEffect(() => {
@@ -240,25 +241,7 @@ function AppTab() {
       <Row title="Bilgisayar açılınca başlat" sub="Windows oturumu açıldığında Xanaphian tepside başlar.">
         <Toggle value={s.openAtLogin} onChange={(v) => updateSettings({ openAtLogin: v })} />
       </Row>
-      <h3>Klavye kısayolları</h3>
-      <div className="shortcuts">
-        {[
-          [`${modKey}+K`, 'Hızlı geçiş'],
-          ['Alt+↑ / Alt+↓', 'Önceki / sonraki kanal'],
-          ['Alt+Shift+↑ / ↓', 'Okunmamış kanala atla'],
-          [`${modKey}+Shift+M`, 'Mikrofonu aç/kapat'],
-          [`${modKey}+Shift+D`, 'Sağırlaştır'],
-          [`${modKey}+,`, 'Ayarlar'],
-          ['↑ (boş kutuda)', 'Son mesajını düzenle'],
-          ['Esc', 'Yanıtı / düzenlemeyi iptal et'],
-          ['Shift+Enter', 'Yeni satır'],
-        ].map(([k, d]) => (
-          <div key={k} className="sc-row">
-            <span>{d}</span>
-            <kbd>{k}</kbd>
-          </div>
-        ))}
-      </div>
+      <ShortcutSettings />
     </>
   );
 }
