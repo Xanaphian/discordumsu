@@ -6,6 +6,7 @@ import { buildMeydan, drawBoothSign, BOOTH_COLORS, type World } from './world';
 import { Avatar } from './avatar';
 import { varlikTut, varlikBirak } from './assets';
 import { buildSalon } from './salon';
+import { camReach } from './camera';
 import { live, sendMove, emote as sendEmote, useSpace, type SpaceEvent } from '../lib/space';
 import { useVoice, spatialListener, spatialSource, spatialForget } from '../lib/voice';
 
@@ -56,6 +57,8 @@ export class SpaceEngine {
   private yaw = 0;
   private pitch = 0.42;
   private dist = 8.5;
+  /** engellere göre yumuşatılmış kamera uzaklığı (-1: henüz yok) */
+  private camD = -1;
   private dragging = false;
   private lastPtr = { x: 0, y: 0 };
   private me = { x: 0, z: 14, y: 0.14, vy: 0, ry: Math.PI, air: false, sit: -1 as number, a: 0 };
@@ -592,22 +595,17 @@ export class SpaceEngine {
     const me = this.me;
     this.camTarget.lerp(this.tmp.set(me.x, me.y + 1.45, me.z), Math.min(1, dt * 10));
     const cp = Math.cos(this.pitch);
-    this.camera.position.set(
-      this.camTarget.x + Math.sin(this.yaw) * cp * this.dist,
-      this.camTarget.y + Math.sin(this.pitch) * this.dist,
-      this.camTarget.z + Math.cos(this.yaw) * cp * this.dist,
-    );
-    // kamera çarpışması: direk, ağaç, tezgâh gibi engellerin içine girmesin
-    let d = this.dist;
-    for (let it = 0; it < 24 && this.blocked(this.camera.position); it++) {
-      d *= 0.86;
-      this.camera.position.set(
-        this.camTarget.x + Math.sin(this.yaw) * cp * d,
-        this.camTarget.y + Math.sin(this.pitch) * d,
-        this.camTarget.z + Math.cos(this.yaw) * cp * d,
-      );
-    }
-    // duvara ya da engele sıkışan kamera yükselir: kendi karakterin ekranı kapatmasın
+    const dx = Math.sin(this.yaw) * cp, dy = Math.sin(this.pitch), dz = Math.cos(this.yaw) * cp;
+    // kamera çarpışması: direk, dolap, tezgâh, duvar. Uzaklık kesin hesaplanır ve yumuşatılır:
+    // engele girince çabuk yaklaşır, çıkınca yavaşça geri açılır; böylece yürürken ileri geri sıçramaz.
+    const reach = camReach(this.world, this.camTarget.x, this.camTarget.y, this.camTarget.z, dx, dy, dz, this.dist);
+    const want = Math.max(0.8, Math.min(reach.any, reach.wall - 0.05));
+    if (this.camD < 0) this.camD = want;
+    else this.camD += (want - this.camD) * Math.min(1, dt * (want < this.camD ? 7 : 2.2));
+    // yaklaşırken kısa an duvarın dışına taşan nokta aşağıdaki kutu sınırıyla duvar boyunca kaydırılır
+    const d = this.camD;
+    this.camera.position.set(this.camTarget.x + dx * d, this.camTarget.y + dy * d, this.camTarget.z + dz * d);
+    // engele yaklaşan kamera biraz yükselir: kendi karakterin ekranı kapatmasın
     if (d < this.dist) this.camera.position.y += Math.min(0.9, (this.dist - d) * 0.2);
     if (this.camera.position.y < 0.4) this.camera.position.y = 0.4;
     const lim = this.world.camLimit;
@@ -647,17 +645,6 @@ export class SpaceEngine {
       if (this.me.sit >= 0) occ.add(this.me.sit);
       this.world.seatOccupancy(occ, this.meReady ? this.me : null);
     }
-  }
-
-  private blocked(p: THREE.Vector3) {
-    const lim = this.world.camLimit;
-    if (lim && (p.x < lim.minX || p.x > lim.maxX || p.z < lim.minZ || p.z > lim.maxZ || p.y > lim.maxY)) return true;
-    if (p.y > 4.2) return false;
-    for (const c of this.world.colliders) {
-      const dx = p.x - c.x, dz = p.z - c.z, r = c.r + 0.35;
-      if (dx * dx + dz * dz < r * r) return true;
-    }
-    return false;
   }
 
   private seatY(x: number, z: number) {
