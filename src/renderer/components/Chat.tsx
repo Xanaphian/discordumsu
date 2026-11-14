@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { create } from 'zustand';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
   Hash, Megaphone, Users, Pin, Search, Reply, Pencil, Trash2, SmilePlus, MoreHorizontal, Plus, X, FileText, Download, CornerUpLeft,
@@ -7,6 +8,7 @@ import {
   Swords, ChartNoAxesColumn, CalendarClock, Bookmark, BookmarkCheck,
 } from 'lucide-react';
 import { parseCard, isCardReaction } from '../lib/cards';
+import { mediaLabel } from '../lib/medya';
 import { CardView, LfgCreator, PollCreator, ScheduleDialog } from './Cards';
 import { CatchUp, summarize } from './CatchUp';
 import { SavedPopover, ScheduledStrip } from './Later';
@@ -122,6 +124,12 @@ const AttachmentView = memo(function AttachmentView({ a, base }: { a: Attachment
 });
 
 const Reactions = memo(function Reactions({ m, me }: { m: Message; me: string }) {
+  // tepkisi olmayan mesaj (çoğu mesaj) kişi listesine abone olmasın
+  for (const e in m.reactions) if (!isCardReaction(e)) return <ReactionList m={m} me={me} />;
+  return null;
+});
+
+function ReactionList({ m, me }: { m: Message; me: string }) {
   const users = useStore((s) => s.users);
   const entries = Object.entries(m.reactions || {}).filter(([e]) => !isCardReaction(e));
   if (!entries.length) return null;
@@ -148,7 +156,7 @@ const Reactions = memo(function Reactions({ m, me }: { m: Message; me: string })
       </button>
     </div>
   );
-});
+}
 
 // tek bir global emoji seçici
 type PickerReq = { x: number; y: number; onPick: (e: string) => void; media?: PickerMedia };
@@ -257,6 +265,81 @@ function toolsSide(e: React.MouseEvent<HTMLElement>) {
   el.classList.toggle('tools-up', up);
   // yanıt satırını örtmesin: düğmeler yanıt satırının da üstüne çıkar
   if (up) el.style.setProperty('--tools-up', ((el.querySelector('.reply-ref') as HTMLElement | null)?.offsetHeight || 0) + 'px');
+}
+
+/** Fare hangi mesajın üstünde? Ayrı küçük bir depo: fare gezdikçe mesajın kendisi yeniden çizilmez, yalnız düğme yuvası. */
+const useHot = create<{ id: string | null }>(() => ({ id: null }));
+
+type ToolsProps = {
+  m: Message;
+  saved: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  onReply: () => void;
+  onEdit: () => void;
+  onDelete: (e?: React.MouseEvent) => void;
+  onSave: () => void;
+  onMore: (e: React.MouseEvent) => void;
+};
+
+function HotTools(p: ToolsProps) {
+  const hot = useHot((s) => s.id === p.m.id);
+  return hot ? <MsgTools {...p} /> : null;
+}
+
+/** Mesajın üstüne gelince çıkan işlem düğmeleri. Yalnız fareyle üstüne gelinen mesajda çizilir:
+ *  her mesajda hazır beklemesi sayfadaki öğe sayısını ikiye katlıyor, sohbeti açmayı ve kaydırmayı ağırlaştırıyordu. */
+function MsgTools({ m, saved, canEdit, canDelete, onReply, onEdit, onDelete, onSave, onMore }: ToolsProps) {
+  return (
+    <div className="msg-tools">
+      {QUICK_REACTIONS.slice(0, 3).map((e) => (
+        <button key={e} className="mt-btn emoji" onClick={() => toggleReaction(m, e)}>
+          {e}
+        </button>
+      ))}
+      <span className="mt-sep" />
+      <Tooltip text="Tepki ekle" side="top">
+        <button
+          className="mt-btn"
+          onClick={(ev) => {
+            const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+            openPicker(r.left - 300, r.top, (e) => toggleReaction(m, e));
+          }}
+        >
+          <SmilePlus size={17} />
+        </button>
+      </Tooltip>
+      <Tooltip text="Yanıtla" side="top">
+        <button className="mt-btn" onClick={onReply}>
+          <Reply size={17} />
+        </button>
+      </Tooltip>
+      <Tooltip text={saved ? 'Kaydedildi' : 'Kaydet'} side="top">
+        <button className={cx('mt-btn', saved && 'on')} onClick={onSave}>
+          {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+        </button>
+      </Tooltip>
+      {canEdit && (
+        <Tooltip text="Düzenle" side="top">
+          <button className="mt-btn" onClick={onEdit}>
+            <Pencil size={16} />
+          </button>
+        </Tooltip>
+      )}
+      {canDelete && (
+        <Tooltip text="Sil" side="top">
+          <button className="mt-btn danger" onClick={onDelete}>
+            <Trash2 size={16} />
+          </button>
+        </Tooltip>
+      )}
+      <Tooltip text="Diğer" side="top">
+        <button className="mt-btn" onClick={onMore}>
+          <MoreHorizontal size={17} />
+        </button>
+      </Tooltip>
+    </div>
+  );
 }
 
 const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, isEditing, isNew, highlight, compact }: ItemProps) {
@@ -374,7 +457,11 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
           isEditing && 'editing',
         )}
         onContextMenu={more}
-        onMouseEnter={toolsSide}
+        onMouseEnter={(e) => {
+          toolsSide(e);
+          useHot.setState({ id: m.id });
+        }}
+        onMouseLeave={() => useHot.getState().id === m.id && useHot.setState({ id: null })}
         onDoubleClick={(e) => {
           if (mine && !card && !isEditing && !(e.target as HTMLElement).closest('a,button,.att-img,.md-pre')) startEdit();
         }}
@@ -469,54 +556,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
               </div>
             )}
             {!m.pending && !m.failed && !isEditing && (
-              <div className="msg-tools">
-                {QUICK_REACTIONS.slice(0, 3).map((e) => (
-                  <button key={e} className="mt-btn emoji" onClick={() => toggleReaction(m, e)}>
-                    {e}
-                  </button>
-                ))}
-                <span className="mt-sep" />
-                <Tooltip text="Tepki ekle" side="top">
-                  <button
-                    className="mt-btn"
-                    onClick={(ev) => {
-                      const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-                      openPicker(r.left - 300, r.top, (e) => toggleReaction(m, e));
-                    }}
-                  >
-                    <SmilePlus size={17} />
-                  </button>
-                </Tooltip>
-                <Tooltip text="Yanıtla" side="top">
-                  <button className="mt-btn" onClick={reply}>
-                    <Reply size={17} />
-                  </button>
-                </Tooltip>
-                <Tooltip text={saved ? 'Kaydedildi' : 'Kaydet'} side="top">
-                  <button className={cx('mt-btn', saved && 'on')} onClick={() => toggleSaved(c.id, m)}>
-                    {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
-                  </button>
-                </Tooltip>
-                {mine && !card && (
-                  <Tooltip text="Düzenle" side="top">
-                    <button className="mt-btn" onClick={startEdit}>
-                      <Pencil size={16} />
-                    </button>
-                  </Tooltip>
-                )}
-                {(mine || canManage) && (
-                  <Tooltip text="Sil" side="top">
-                    <button className="mt-btn danger" onClick={del}>
-                      <Trash2 size={16} />
-                    </button>
-                  </Tooltip>
-                )}
-                <Tooltip text="Diğer" side="top">
-                  <button className="mt-btn" onClick={more}>
-                    <MoreHorizontal size={17} />
-                  </button>
-                </Tooltip>
-              </div>
+              <HotTools m={m} saved={saved} canEdit={mine && !card} canDelete={mine || canManage} onReply={reply} onEdit={startEdit} onDelete={del} onSave={() => toggleSaved(c.id, m)} onMore={more} />
             )}
           </div>
         </div>
@@ -1043,7 +1083,8 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
     if (e.key === 'ArrowUp' && !value) {
       const items = useStore.getState().chans[ch.id]?.items || [];
       for (let i = items.length - 1; i >= 0; i--)
-        if (items[i].authorId === me && !items[i].kind && !items[i].pending) {
+        // anket, takım kartı, GIF ve çıkartma ham yazı olarak düzenlenmez: sıradaki düz mesaja geç
+        if (items[i].authorId === me && !items[i].kind && !items[i].pending && !items[i].failed && !parseCard(items[i].content) && !mediaLabel(items[i].content)) {
           e.preventDefault();
           useStore.setState({ editing: items[i].id });
           break;
@@ -1395,7 +1436,7 @@ function DmHeader({ c, ch, pins, setPins }: { c: Community; ch: Channel; pins: b
   const chMuted = useStore((s) => s.settings.mutedIds.includes(c.id));
   const custom = activeCustom(user?.profile);
   const pop = (e: React.MouseEvent) => useStore.setState({ popout: { uid, cid: c.id, x: e.clientX, y: e.clientY + 16 } });
-  const inCall = useVoice().ch === ch.id;
+  const inCall = useVoice((s) => s.ch === ch.id);
   return (
     <div className="chat-header dm-head">
       <span className="dm-head-av" onClick={pop}>
@@ -1450,6 +1491,12 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const [pins, setPins] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   const [q, setQ] = useState('');
+  // başka kanala geçince arama yazısı ve açık pencereler (sabitlenenler, kaydedilenler) önceki kanaldan kalmasın
+  useEffect(() => {
+    setPins(false);
+    setSavedOpen(false);
+    setQ('');
+  }, [ch.id]);
   if (c.dm) return <DmHeader c={c} ch={ch} pins={pins} setPins={setPins} />;
   return (
     <div className="chat-header">

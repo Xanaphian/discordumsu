@@ -433,7 +433,8 @@ export function homeHost() {
 
 export function localHost() {
   const info = S().info;
-  return info ? `127.0.0.1:${info.hubPort}` : '';
+  // hubPort 0: bu bilgisayarda yerel sunucu çalışmıyor (v1.48'den beri yalnız eski yerel topluluk varsa açılır)
+  return info?.hubPort ? `127.0.0.1:${info.hubPort}` : '';
 }
 
 let toastSeq = 0;
@@ -604,15 +605,23 @@ function removeCommunity(cid: ID) {
     const commHost = { ...s.commHost };
     delete commHost[cid];
     const chanComm = { ...s.chanComm };
-    if (c) for (const ch of c.channels) delete chanComm[ch.id];
+    // ayrılınan topluluğun bahsetmeleri rozet sayısında kalmasın
+    let mentions = s.mentions;
+    if (c)
+      for (const ch of c.channels) {
+        delete chanComm[ch.id];
+        if (mentions[ch.id]) mentions = omit(mentions, ch.id);
+      }
     return {
       communities,
       commHost,
       chanComm,
+      mentions,
       current: s.current === cid ? 'home' : s.current,
       settings: { ...s.settings, railOrder: s.settings.railOrder.filter((x) => x !== cid) },
     };
   });
+  updateBadge();
 }
 
 // ---------------------------------------------------------------------------
@@ -860,12 +869,21 @@ export function plainText(content: string, c?: Community) {
 function onFrame(host: string, f: ServerFrame) {
   switch (f.t) {
     case 'ready': {
-      set((s) => ({
-        conns: { ...s.conns, [host]: { ...(s.conns[host] || { host, local: false }), status: 'online', hubId: f.hubId, hubName: f.hubName } },
-        presence: { ...s.presence, ...f.presence },
-        lastIds: { ...s.lastIds, ...f.lastIds },
-        voice: { ...s.voice, ...f.voice },
-      }));
+      set((s) => {
+        // Sunucu yalnız dolu ses odalarını yollar. Bağlantı kopukken boşalan odalarda eski kişiler "hayalet" kalmasın:
+        // bu sunucunun bütün odaları önce boşaltılır, sonra gelen liste yazılır.
+        const voice = { ...s.voice };
+        for (const ch of Object.keys(voice)) {
+          const cid = s.chanComm[ch];
+          if (cid && s.commHost[cid] === host) delete voice[ch];
+        }
+        return {
+          conns: { ...s.conns, [host]: { ...(s.conns[host] || { host, local: false }), status: 'online', hubId: f.hubId, hubName: f.hubName } },
+          presence: { ...s.presence, ...f.presence },
+          lastIds: { ...s.lastIds, ...f.lastIds },
+          voice: { ...voice, ...f.voice },
+        };
+      });
       siteHooks.onFrame?.(f);
       actHooks.onReady?.(host, f);
       // özel mesaj gizliliği her bağlantıda bildirilir (eski sunucular yok sayar)
@@ -895,6 +913,12 @@ function onFrame(host: string, f: ServerFrame) {
           const st = S().chans[ch.id];
           if (st?.loaded) refreshChannel(ch.id);
         }
+      // ekrandaki kanal bağlantı koptuğu için hiç yüklenememişse (boş iskelette kalmışsa) şimdi yükle
+      {
+        const st = S();
+        const shown = st.current !== 'home' ? st.chanByComm[st.current] : undefined;
+        if (shown && st.commHost[st.chanComm[shown]] === host && !st.chans[shown]?.loaded && !st.chans[shown]?.loading) loadHistory(shown);
+      }
       // ilk açılışta yerel kovanda hiç topluluk yoksa karşılama lobisi kur
       const conn = S().conns[host];
       // (eski sürümde yerel lobisi kurulmuş kişilere ikinci bir lobi açılmaz; onlar taşıyabilir)
@@ -985,6 +1009,8 @@ function onFrame(host: string, f: ServerFrame) {
         return;
       }
       const mentioned = !!c?.dm || mentionsMe(m, c);
+      // engellenen kişinin mesajı rozet ve bildirim üretmez
+      if (st.settings.blocked.includes(m.authorId)) return;
       if (mentioned) set((s) => ({ mentions: { ...s.mentions, [m.channelId]: (s.mentions[m.channelId] || 0) + 1 } }));
       updateBadge();
       notifyFor(m, c, mentioned);
@@ -1247,10 +1273,21 @@ export async function loadHistory(ch: ID, before?: ID) {
       }
       return { chans: { ...s.chans, [ch]: { items, more: r.more, loaded: true, loading: false, prepended } } };
     });
+    retried.delete(ch);
   } catch {
     set((s) => ({ chans: { ...s.chans, [ch]: { ...s.chans[ch], loading: false } } }));
+    // ilk sayfa gelmediyse ve kanal hâlâ ekrandaysa kısa süre sonra bir kez daha dene (bağlantı kopuksa 'ready' gelince yeniden yüklenir)
+    if (!before && !retried.has(ch)) {
+      retried.add(ch); // kanal başına tek ek deneme: kalıcı bir hata (ör. yetki yok) sonsuz döngüye girmesin
+      setTimeout(() => {
+        const st = S();
+        const shown = st.current !== 'home' ? st.chanByComm[st.current] : undefined;
+        if (shown === ch && !st.chans[ch]?.loaded && connFor(ch)?.status === 'online') loadHistory(ch);
+      }, 3000);
+    }
   }
 }
+const retried = new Set<ID>();
 
 /** Yeniden bağlanınca kaçırılan mesajları tamamla */
 async function refreshChannel(ch: ID) {

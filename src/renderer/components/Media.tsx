@@ -1,5 +1,6 @@
 // Ses odası: kamera ve ekran paylaşımı görüntüleri, yayın seçici.
 import { toggle3d } from '../lib/space';
+import { useShallow } from 'zustand/react/shallow';
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Video, VideoOff, MonitorUp, MonitorX, Maximize2, Minimize2, Expand, Settings2,
@@ -8,7 +9,7 @@ import {
 import { useStore, openModal, openMenu, updateSettings, dismissCall, selectCommunity } from '../lib/store';
 import { memberMenu } from './Moderation';
 import { insertMention } from './Members';
-import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, startScreen, stopScreen, setUserVolume, screenLabelOf } from '../lib/voice';
+import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, startScreen, stopScreen, setUserVolume, screenLabelOf, setScreenGate } from '../lib/voice';
 import { Avatar, Tooltip, Toggle } from './Common';
 import { Modal } from './Modals';
 import { cx, displayName } from '../lib/util';
@@ -40,7 +41,8 @@ interface Tile {
 function useTiles(chId: ID, inHere: boolean) {
   const members = useStore((s) => s.voice[chId]) || [];
   const me = useStore((s) => s.me.id);
-  const v = useVoice();
+  // yalnız gereken alanlar: konuşma ışığı gibi sık değişen alanlar karoları yeniden kurmasın
+  const v = useVoice(useShallow((s) => ({ ch: s.ch, media: s.media, cam: s.cam, screen: s.screen })));
   return useMemo(() => {
     const out: Tile[] = [];
     for (const m of members) {
@@ -139,7 +141,7 @@ function TileView({ t, c, focused, onFocus, small }: { t: Tile; c: Community; fo
 
 export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embedded?: boolean }) {
   const members = useStore((s) => s.voice[ch.id]) || [];
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ ch: s.ch, muted: s.muted, deaf: s.deaf, noMic: s.noMic, cam: s.cam, screen: s.screen })));
   const inHere = v.ch === ch.id;
   const tiles = useTiles(ch.id, inHere);
   const [focus, setFocus] = useState<string | null>(null);
@@ -159,6 +161,10 @@ export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embe
     if (fresh && !focus) setFocus(fresh.key);
     if (focus && !tiles.some((t) => t.key === focus)) setFocus(null);
   }, [tiles, focus, designed]);
+  // Klasik görünümde ve özel aramada bütün yayınların sesi açıktır
+  useEffect(() => {
+    if (inHere && !designed) setScreenGate(null);
+  }, [inHere, designed]);
   const focused = focus && !designed ? tiles.find((t) => t.key === focus) : undefined;
   const others = focused ? tiles.filter((t) => t !== focused) : tiles;
   const n = tiles.length;
@@ -414,8 +420,8 @@ export function ScreenPickerModal() {
 /** Özel sohbetin üstündeki arama alanı: biri aramadaysa görünür */
 export function DmCall({ c, ch }: { c: Community; ch: Channel }) {
   const members = useStore((s) => s.voice[ch.id]) || [];
-  const v = useVoice();
-  if (!members.length && v.ch !== ch.id) return null;
+  const inCall = useVoice((s) => s.ch === ch.id);
+  if (!members.length && !inCall) return null;
   return (
     <div className="dm-call">
       <VoiceView c={c} ch={ch} embedded />

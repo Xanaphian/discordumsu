@@ -2,7 +2,7 @@
 // Sinyalleşme kovan sunucusu üzerinden; "perfect negotiation" ile istediğin an görüntü ekleyip çıkarılabilir.
 import { buildNoiseChain, noiseModeOf, browserNS, type NoiseChain, type NoiseMode } from './ses/gurultu';
 import { create } from 'zustand';
-import type { ID, VoiceMember } from '../../shared/protocol';
+import { canIn, Perm, type Channel, type Community, type ID, type VoiceMember } from '../../shared/protocol';
 import { useStore, voiceHooks, cmd, toast } from './store';
 import { playSound } from './sound';
 
@@ -149,7 +149,7 @@ export function setScreenGate(uids: Set<ID> | null) {
 }
 
 function userGain(uid: ID, kind: 'mic' | 'screen') {
-  if (kind === 'screen' && screenGate && !screenGate.has(uid)) return 0;
+  if (kind === 'screen' && !spatialMode && screenGate && !screenGate.has(uid)) return 0;
   const v = ST().userVolumes[uid];
   const g = (v ?? 100) / 100;
   return kind === 'screen' ? g * 0.9 : g;
@@ -496,6 +496,7 @@ export function setSpatialMode(on: boolean) {
   spatialMode = on;
   if (!on) lastPos.clear();
   rerouteAll();
+  applyOutput(); // yayın sesi kısıtı 3D'de uygulanmaz
 }
 
 /** avatarı 3D'den çıkan kişi yeniden düz duyulsun */
@@ -586,9 +587,9 @@ async function openMic() {
     rawMic = null;
     micSrc = null;
   }
-  const raw = await navigator.mediaDevices.getUserMedia({
+  const want = (deviceId?: string): MediaStreamConstraints => ({
     audio: {
-      deviceId: s.micId && s.micId !== 'default' ? { exact: s.micId } : undefined,
+      deviceId: deviceId ? { exact: deviceId } : undefined,
       echoCancellation: s.echoCancellation,
       noiseSuppression: browserNS(noiseModeOf(s)),
       autoGainControl: s.autoGainControl,
@@ -597,6 +598,16 @@ async function openMic() {
     },
     video: false,
   });
+  const picked = s.micId && s.micId !== 'default' ? s.micId : undefined;
+  let raw: MediaStream;
+  try {
+    raw = await navigator.mediaDevices.getUserMedia(want(picked));
+  } catch (e) {
+    // Seçili mikrofon çıkarılmış ya da değişmiş olabilir (kulaklık takılı değil vb.): varsayılan mikrofonla dene
+    if (!picked || !deviceGone(e)) throw e;
+    raw = await navigator.mediaDevices.getUserMedia(want());
+    if (seq === micSeq) toast('Seçili mikrofon bulunamadı; varsayılan mikrofon kullanılıyor.');
+  }
   if (seq !== micSeq) {
     // bu arada daha yeni bir açma isteği geldi (ör. modlar hızlı değiştirildi)
     raw.getTracks().forEach((t) => t.stop());
@@ -619,8 +630,19 @@ async function openMic() {
   await attachNoise(ctx);
   inGain.gain.value = s.inputVolume / 100;
   raw.getAudioTracks()[0].onended = () => {
-    if (V().ch) toast('Mikrofon bağlantısı kesildi.', 'err');
+    // mikrofon çıkarıldı: bu hâlâ güncel mikrofonsa kalan (varsayılan) cihazla sürdürmeyi dene
+    if (!V().ch || rawMic !== raw) return;
+    openMic().then(
+      () => applyTracks(),
+      () => toast('Mikrofon bağlantısı kesildi.', 'err'),
+    );
   };
+}
+
+/** getUserMedia hatası "bu cihaz yok" anlamına mı geliyor? (izin reddi değil) */
+function deviceGone(e: unknown) {
+  const n = (e as Error)?.name;
+  return n === 'OverconstrainedError' || n === 'NotFoundError' || n === 'NotReadableError';
 }
 
 /** Gürültü engelleme zincirini (yeniden) kur: ham mikrofon → zincir → giriş kazancı */
@@ -677,12 +699,34 @@ function applyTracks() {
 }
 
 // ---------------------------------------------------------------- katıl / ayrıl
+/** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi (sunucu da denetler; burada reddedilen istek "bağlanıyor"da asılı kalmasın) */
+export function voiceBlocked(c: Community, ch: Channel, me: string): string | null {
+  if (c.dm) return null;
+  if (!canIn(c, me, ch, Perm.CONNECT)) return 'Bu kanala bağlanma yetkin yok.';
+  if (ch.userLimit && !canIn(c, me, ch, Perm.MANAGE_CHANNELS)) {
+    const n = new Set((useStore.getState().voice[ch.id] || []).map((m) => m.userId).filter((u) => u !== me)).size;
+    if (n >= ch.userLimit) return `Kanal dolu (${ch.userLimit} kişi sınırı).`;
+  }
+  return null;
+}
+
 export async function joinVoice(cid: ID, ch: ID) {
   if (V().ch === ch) return;
+  {
+    const st = useStore.getState();
+    const c = st.communities[cid];
+    const chan = c?.channels.find((x) => x.id === ch);
+    const why = c && chan ? voiceBlocked(c, chan, st.me.id) : null;
+    if (why) return void toast(why, 'err');
+  }
   if (V().ch) leaveVoice(true);
+  rejoin = null;
   const st = useStore.getState();
   host = st.commHost[cid] || null;
   if (!host) return;
+  // Baloncuklar/Akordeon'da yayın sesi yalnız "Yayını izle" denince gelir; oda görünümü açık olmasa da böyle başlasın.
+  // Klasik görünüm ve özel aramalarda kısıt yok.
+  screenGate = st.settings.voiceLayout !== 'klasik' && !st.communities[cid]?.dm ? new Set() : null;
   const muted = st.settings.joinMuted || V().muted;
   setV({ ch, cid, state: 'connecting', speaking: {}, media: {}, muted });
   spatialMode = false;
@@ -719,6 +763,7 @@ export function leaveVoice(silent = false) {
   if (loopTimer) clearInterval(loopTimer);
   loopTimer = null;
   spatialMode = false;
+  screenGate = null;
   lastPos.clear();
   window.kovan.inCall(false);
   setV({ ch: null, cid: null, state: 'idle', speaking: {}, media: {}, cam: null, screen: null, screenLabel: null });
@@ -760,15 +805,24 @@ export async function startCamera() {
   if (!V().ch || V().cam) return;
   const s = ST();
   try {
-    const cam = await navigator.mediaDevices.getUserMedia({
+    const want = (deviceId?: string): MediaStreamConstraints => ({
       video: {
-        deviceId: s.camId && s.camId !== 'default' ? { exact: s.camId } : undefined,
+        deviceId: deviceId ? { exact: deviceId } : undefined,
         width: { ideal: RES_W[s.camRes] || 1280 },
         height: { ideal: s.camRes },
         frameRate: { ideal: s.camFps, max: s.camFps },
       },
       audio: false,
     });
+    const picked = s.camId && s.camId !== 'default' ? s.camId : undefined;
+    let cam: MediaStream;
+    try {
+      cam = await navigator.mediaDevices.getUserMedia(want(picked));
+    } catch (e) {
+      // seçili kamera takılı değilse varsayılan kamerayla dene
+      if (!picked || !deviceGone(e)) throw e;
+      cam = await navigator.mediaDevices.getUserMedia(want());
+    }
     if (!V().ch) return cam.getTracks().forEach((t) => t.stop());
     const vt = cam.getVideoTracks()[0];
     vt.contentHint = 'motion';
@@ -908,11 +962,28 @@ window.addEventListener('mousedown', (e) => e.button >= 3 && pttLocal('Mouse' + 
 window.addEventListener('mouseup', (e) => e.button >= 3 && pttLocal('Mouse' + (e.button + 1), false));
 window.addEventListener('blur', () => !globalPtt && V().ptt && pttSet(false));
 
-// bağlantı koparsa sesten düş
+// bağlantı koparsa sesten düş; kısa sürede geri gelirse aynı odaya kendiliğinden dön
+let rejoin: { cid: ID; ch: ID; host: string; at: number } | null = null;
+const REJOIN_MS = 120_000;
 useStore.subscribe((s, prev) => {
+  if (rejoin && prev.conns[rejoin.host]?.status !== 'online' && s.conns[rejoin.host]?.status === 'online') {
+    const r = rejoin;
+    rejoin = null;
+    if (!V().ch && Date.now() - r.at < REJOIN_MS)
+      setTimeout(() => {
+        const st = useStore.getState();
+        const c = st.communities[r.cid];
+        if (V().ch || !c || !c.channels.some((x) => x.id === r.ch)) return;
+        // özel aramada karşı taraf kapattıysa yeniden çaldırma
+        if (c.dm && !st.voice[r.ch]?.length) return;
+        joinVoice(r.cid, r.ch);
+      }, 400);
+  }
   if (!host || !V().ch) return;
   if (prev.conns[host]?.status === 'online' && s.conns[host]?.status !== 'online') {
-    toast('Ses bağlantısı koptu.', 'err');
+    const back = { cid: V().cid!, ch: V().ch!, host, at: Date.now() };
+    toast('Ses bağlantısı koptu. Bağlantı gelince odaya geri döneceksin.', 'err');
     leaveVoice(true);
+    rejoin = back;
   }
 });

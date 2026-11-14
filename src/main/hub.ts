@@ -263,6 +263,16 @@ export class Hub {
     this.bots = new BotManager(this.botHost());
   }
 
+  /** Bu bilgisayarda kayıtlı (eski, yerel) topluluk var mı? Sunucuyu başlatmadan yalnız dosyaya bakar. */
+  hasStoredCommunities(): boolean {
+    try {
+      const d = JSON.parse(fs.readFileSync(path.join(this.dir, 'hub.json'), 'utf8'));
+      return Array.isArray(d?.communities) && d.communities.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   // ---------- kalıcılık ----------
   private load() {
     fs.mkdirSync(path.join(this.dir, 'communities'), { recursive: true });
@@ -533,9 +543,30 @@ export class Hub {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   }
 
+  /** Bozuk bir istek (geçersiz adres, hatalı başlık) sunucuyu düşürmesin: hata yalnız o isteğe 400 döner */
   handleHttp(req: http.IncomingMessage, res: http.ServerResponse) {
+    try {
+      this.handleHttpInner(req, res);
+    } catch (e) {
+      console.error('HTTP isteği işlenemedi', (e as Error)?.message);
+      try {
+        if (!res.headersSent) res.writeHead(400);
+        res.end();
+      } catch {
+        /* bağlantı zaten kapanmış */
+      }
+    }
+  }
+
+  private handleHttpInner(req: http.IncomingMessage, res: http.ServerResponse) {
     this.cors(res);
-    const url = new URL(req.url || '/', 'http://x');
+    let url: URL;
+    try {
+      url = new URL(req.url || '/', 'http://x');
+    } catch {
+      res.writeHead(400).end();
+      return;
+    }
     if (req.method === 'OPTIONS') {
       res.writeHead(204).end();
       return;
@@ -635,7 +666,13 @@ export class Hub {
       out.on('finish', () => {
         const mime = clampStr(req.headers['content-type'] || 'application/octet-stream', 100);
         fs.writeFileSync(file + '.mime', mime);
-        let name = decodeURIComponent(String(req.headers['x-kovan-name'] || 'dosya')).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120) || 'dosya';
+        let rawName = String(req.headers['x-kovan-name'] || 'dosya');
+        try {
+          rawName = decodeURIComponent(rawName);
+        } catch {
+          /* bozuk kodlama: olduğu gibi kullan */
+        }
+        const name = rawName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120) || 'dosya';
         const att: Attachment = { id, name, size, mime, url: `/f/${id}/${encodeURIComponent(name)}` };
         const w = Number(req.headers['x-kovan-w']), h = Number(req.headers['x-kovan-h']);
         if (w > 0 && h > 0) {
@@ -2780,6 +2817,6 @@ export class Hub {
     return this.data.communities.length > 0;
   }
   get hubId() {
-    return this.data.hubId;
+    return this.data?.hubId || '';
   }
 }
