@@ -77,7 +77,7 @@ export const CardFx = memo(function CardFx({ effect }: { effect?: CardEffect }) 
 });
 
 /** refW: afişin asıl genişliği (profil kartı 330, topluluk 560); seçilen kısım her yerde bu orana göre aynı görünür. */
-export function Banner({ user, profile, className, children, refW = 330 }: { user?: Pick<UserPublic, 'color'>; profile?: Pick<ProfileExtra, 'banner'>; className?: string; children?: React.ReactNode; refW?: number }) {
+export function Banner({ user, profile, className, children, refW = 330, align }: { user?: Pick<UserPublic, 'color'>; profile?: Pick<ProfileExtra, 'banner'>; className?: string; children?: React.ReactNode; refW?: number; align?: 'end' }) {
   const b = profile?.banner;
   return (
     <div
@@ -88,7 +88,7 @@ export function Banner({ user, profile, className, children, refW = 330 }: { use
         ['--bhn' as any]: b?.h || undefined,
       }}
     >
-      {b?.kind === 'image' && b.image && <BannerPic image={b.image} framing={b} aspect={refW / (b.h || BANNER_H.def)} />}
+      {b?.kind === 'image' && b.image && <BannerPic image={b.image} framing={b} aspect={refW / (b.h || BANNER_H.def)} align={align} />}
       {children}
     </div>
   );
