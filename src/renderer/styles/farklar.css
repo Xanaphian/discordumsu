@@ -1031,7 +1031,7 @@
   min-height: 13px;
 }
 [data-style='destan'] .bn-plate b {
-  font-family: 'Marcellus', serif;
+  font-family: var(--display);
   letter-spacing: 0.3px;
 }
 
@@ -1768,7 +1768,7 @@
   border-radius: 50%;
   background: radial-gradient(circle at 50% 35%, #1e2d3d, #091428);
   color: #f0e6d2;
-  font-family: 'Marcellus', serif;
+  font-family: var(--display);
   font-size: 20px;
 }
 .lfg-banners.lobby .bn {
@@ -1841,7 +1841,7 @@
   line-height: 1.2;
 }
 .lfg-lm-name b {
-  font-family: 'Marcellus', serif;
+  font-family: var(--display);
   font-weight: 400;
   font-size: 14.5px;
   color: #f0e6d2;
