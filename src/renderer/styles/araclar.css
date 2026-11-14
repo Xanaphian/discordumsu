@@ -546,7 +546,6 @@
   gap: 8px;
   padding: 4px 10px 12px;
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 .tk-none {
   padding: 18px 8px;

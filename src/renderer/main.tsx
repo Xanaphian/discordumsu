@@ -8,6 +8,7 @@ import { boot } from './lib/store';
 import './lib/activity';
 import { hataDinle } from './lib/hata';
 import './styles/app.css';
+import './styles/kaydirma.css';
 import './styles/admin.css';
 import './styles/kovan.css';
 import './styles/profile.css';

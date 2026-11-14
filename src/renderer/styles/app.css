@@ -155,21 +155,8 @@ code {
 /* kaydırma çubukları */
 .scroll-thin {
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
 }
-.scroll-thin::-webkit-scrollbar {
-  width: 8px;
-}
-.scroll-thin::-webkit-scrollbar-thumb {
-  background: var(--line-2);
-  border-radius: 8px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-.scroll-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* çubuğun görünümü bütün uygulama için kaydirma.css'te */
 
 /* ---------------- uygulama iskeleti ---------------- */
 .splash {

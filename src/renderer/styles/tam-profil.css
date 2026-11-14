@@ -8,6 +8,7 @@
   max-width: none;
 }
 .pcard.xp2 {
+  container: xp / inline-size;
   display: flex;
   flex-direction: column;
   height: min(720px, calc(100vh - 60px));
@@ -46,17 +47,39 @@
   height: 100%;
   object-fit: cover;
 }
-.pcard.xp2 > .xp-hero,
-.pcard.xp2 > .xp-idbar,
-.pcard.xp2 > .xp-body {
+/* v1.51.1: afiş, kimlik ve içerik tek parça kayar; fare pencerenin neresinde olursa olsun
+   tekerlek bütün sayfayı kaydırır (iç içe küçük kaydırma alanı yok) */
+.pcard.xp2 > .xp-scroll {
   position: relative;
   z-index: 2;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.xp-scroll > * {
+  flex: none;
+}
+.pcard.xp2 .xp-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--pcx, var(--accent)) 38%, transparent);
+}
+.pcard.xp2 .xp-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--pcx, var(--accent)) 62%, transparent);
+}
+.pcard.xp2 .xp-scroll::-webkit-scrollbar-track {
+  margin: 14px 0;
 }
 
 /* ---------------- afiş ---------------- */
 .xp-hero {
+  position: relative;
   flex: none;
-  margin: 10px 10px 0;
+  /* sağdaki 10px kaydırma çubuğunun yeri */
+  margin: 10px 0 0 10px;
 }
 .pcard .xp-banner {
   height: clamp(110px, var(--bh, 132px), 180px);
@@ -182,20 +205,33 @@
 .xp-idtext .pc-bubble::after {
   display: none;
 }
+.xp-right {
+  flex: 0 1 auto;
+  min-width: 0;
+  align-self: flex-start;
+  margin-top: 66px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
 .xp-actions.pc-actions {
   flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 0 8px;
+  padding: 0;
   margin: 0;
   border: 0;
 }
+.xp-actions.pc-actions:empty {
+  display: none;
+}
 .xp-actions .btn {
-  height: 40px;
+  height: 36px;
 }
 .xp-actions .xp-main-btn {
-  min-width: 150px;
+  min-width: 140px;
   justify-content: center;
   font-size: 14px;
 }
@@ -217,23 +253,16 @@
 
 /* ---------------- gövde ---------------- */
 .xp-body {
-  flex: 1;
-  min-height: 0;
   display: grid;
   grid-template-columns: 296px minmax(0, 1fr);
+  align-items: start;
   gap: 18px;
-  padding: 18px 20px 20px;
+  padding: 18px 10px 22px 20px;
 }
 .xp-side {
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: none;
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.xp-side::-webkit-scrollbar {
-  display: none;
 }
 .xp-card {
   flex: none;
@@ -356,53 +385,58 @@
   border-color: color-mix(in srgb, var(--pcx) 50%, transparent);
 }
 
-/* ---------------- düğmeler ---------------- */
+/* ---------------- düğmeler (v1.51.1: küçük, ad satırının sağında) ---------------- */
 .xp-main {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  min-width: 0;
 }
 .xp-nav {
   flex: none;
-  display: grid;
-  grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
 }
 .xp-tile {
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  padding: 12px 14px 11px;
-  border-radius: 14px;
+  height: 36px;
+  padding: 0 12px 0 5px;
+  border-radius: 11px;
   text-align: left;
-  background: color-mix(in srgb, var(--text) 4.5%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
-  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .xp-tile:hover {
-  background: color-mix(in srgb, var(--pcx) 8%, transparent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--pcx) 9%, transparent);
   border-color: color-mix(in srgb, var(--pcx) 35%, transparent);
-  transform: translateY(-1px);
 }
 .xp-tile.on {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--pcx) 22%, transparent), color-mix(in srgb, var(--pcx) 8%, transparent));
+  color: var(--text);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--pcx) 22%, transparent), color-mix(in srgb, var(--pcx) 9%, transparent));
   border-color: color-mix(in srgb, var(--pcx) 70%, transparent);
-  box-shadow: 0 8px 24px -14px var(--pcx);
+  box-shadow: 0 6px 18px -12px var(--pcx);
 }
 .xp-tile-ic {
   position: relative;
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 8px;
   color: var(--pcx);
   background: color-mix(in srgb, var(--pcx) 14%, transparent);
+}
+.xp-tile-ic svg {
+  width: 15px;
+  height: 15px;
 }
 .xp-tile.on .xp-tile-ic {
   color: color-mix(in srgb, var(--pcx) 12%, #0a0a0a);
@@ -412,21 +446,19 @@
   position: absolute;
   top: -3px;
   right: -3px;
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--green, #3ba55d) 30%, transparent);
 }
 .xp-tile-t {
   display: flex;
-  flex-direction: column;
   min-width: 0;
-  max-width: 100%;
-}
-.btn-tiles .xp-tile-t b em {
-  display: none;
 }
 .xp-tile-t b {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
+  font-size: 13.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -439,12 +471,9 @@
   color: var(--text-2);
   background: color-mix(in srgb, var(--text) 10%, transparent);
 }
+/* kısa bilgi düğmenin ipucunda (title) duruyor */
 .xp-tile-t small {
-  font-size: 12px;
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;
 }
 .xp-live {
   width: 9px;
@@ -453,46 +482,35 @@
   background: var(--green, #3ba55d);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--green, #3ba55d) 30%, transparent);
 }
-/* sade sekmeler */
+/* bitişik sekmeler: tek şerit */
 .btn-pills .xp-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 5px;
-  border-radius: 14px;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 13px;
   background: color-mix(in srgb, var(--text) 4.5%, transparent);
   border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
 }
 .btn-pills .xp-tile {
-  flex-direction: row;
-  align-items: center;
-  padding: 6px 12px 6px 7px;
-  gap: 8px;
+  height: 32px;
   border-radius: 10px;
+  padding: 0 11px 0 4px;
   background: transparent;
   border-color: transparent;
+  box-shadow: none;
+}
+.btn-pills .xp-tile.on {
+  background: color-mix(in srgb, var(--pcx) 18%, transparent);
 }
 .btn-pills .xp-tile-ic {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-}
-.btn-pills .xp-tile-ic svg {
-  width: 15px;
-  height: 15px;
-}
-.btn-pills .xp-tile-t small {
-  display: none;
+  width: 24px;
+  height: 24px;
+  background: transparent;
 }
 
 /* ---------------- içerik ---------------- */
 .xp-pane {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  padding: 2px 6px 6px 2px;
+  min-width: 0;
+  padding: 2px 0 0;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -822,12 +840,30 @@
 }
 
 
-@media (max-width: 900px) {
+/* dar pencere ya da düzenleme şeridi açıkken: düğmeler kimliğin altına, tam genişliğe iner */
+@container xp (max-width: 900px) {
   .xp-body {
     grid-template-columns: 250px minmax(0, 1fr);
   }
-  .xp-tile-t small {
-    display: none;
+  .xp-idbar {
+    flex-wrap: wrap;
+  }
+  .xp-right {
+    flex: 1 1 100%;
+    margin-top: 2px;
+    flex-direction: row-reverse;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .xp-nav {
+    flex: 0 1 auto;
+    justify-content: flex-start;
+  }
+}
+@container xp (max-width: 640px) {
+  .xp-body {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1054,7 +1090,6 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-width: thin;
   padding: 10px 12px 14px;
   display: flex;
   flex-direction: column;
