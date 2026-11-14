@@ -287,20 +287,39 @@
   flex: none;
 }
 
-/* v1.43.3 oda afişi çerçeveye tam oturur: oda kutusunun iç boşluğunu ve satırın kendi kenarlığını
-   yok sayıp kenardan kenara uzanır, köşeleri kutunun iç köşesine uyar. */
+/* v1.45.1 oda afişi çerçevenin altında: kutunun iç boşluğu ve çerçeve kalınlığı kadar dışarı taşar,
+   kutunun dış köşesine kadar uzanır; çerçeve çizgisi ::after ile afişin üstüne yeniden çizilir. */
+.room-box:has(> .ch-row.room.has-banner) {
+  position: relative;
+}
+.room-box:has(> .ch-row.room.has-banner)::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  z-index: 3;
+  border: 2px solid var(--room-frame);
+  border-radius: 12px;
+  pointer-events: none;
+  transition: border-color 0.12s;
+}
 .room-box > .ch-row.room.has-banner {
-  margin: -3px -3px 0;
+  width: calc(100% + 10px);
+  max-width: none;
+  box-sizing: border-box;
+  margin: -5px -5px 0;
+  padding: 11px 13px 6px 12px;
   border: 0;
-  border-radius: 10px 10px 0 0;
+  /* Destan görünümü satır köşelerini !important ile sıfırlıyor; afiş kutunun köşesine uymalı */
+  border-radius: 12px 12px 0 0 !important;
   box-shadow: none;
   background: transparent;
 }
 .room-box > .ch-row.room.has-banner:last-child {
-  margin-bottom: -3px;
-  border-radius: 10px;
+  margin-bottom: -5px;
+  padding-bottom: 11px;
+  border-radius: 12px !important;
 }
-/* afiş altındaki ayırıcı çizgi doğrudan afişin altına bitişir */
+/* afiş altındaki ayırıcı çizgi doğrudan afişin altına bitişir ve kutunun iki kenarına uzanır */
 .room-box > .ch-row.room.has-banner + .vc-members.vc-cards {
   margin-top: 0;
 }
