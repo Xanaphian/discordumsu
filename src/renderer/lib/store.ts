@@ -19,6 +19,7 @@ import { toolSummary } from './tools';
 import type { Blueprint } from '../../shared/topluluk';
 import { FEAT_DM_QUIET } from '../../shared/ekler';
 import { OFFICIAL_SERVER } from '../../shared/guvenlik';
+import { FEAT_INVITES, inviteCodeOfLink, inviteLink, type Invite, type InviteInfo } from '../../shared/davetBaglanti';
 
 export interface Profile {
   id: ID;
@@ -851,6 +852,26 @@ export async function openDm(uid: ID) {
   }
 }
 
+/** Bulunduğun yerden ayrılmadan birine özel mesaj gönderir (davet penceresindeki "Davet et"). Gönderilemezse false. */
+export async function sendDmQuiet(uid: ID, text: string): Promise<boolean> {
+  const st = S();
+  if (!uid || uid === st.me.id) return false;
+  const cid = dmCid(uid);
+  if (!st.communities[cid]) {
+    const fr = st.friends[uid];
+    const host = fr?.state === 'ok' && st.conns[fr.host]?.status === 'online' ? fr.host : sharedHost(uid);
+    if (!host) return false;
+    const r = await conns.get(host)!.request<{ data: DmInfo }>({ t: 'dm.open', to: uid, rid: '' }).catch(() => null);
+    if (!r?.data) return false;
+    upsertDm(host, r.data);
+  }
+  openedDms.add(cid);
+  const ch = S().chanByComm[cid];
+  if (!ch) return false;
+  sendMessage(ch, text);
+  return true;
+}
+
 /** Özel mesajı listenin üstüne sabitler / sabitlemeyi kaldırır (v1.26) */
 export function togglePinDm(cid: ID) {
   const list = S().settings.pinnedDms;
@@ -1628,8 +1649,8 @@ export function makeInvite(cid: ID, hostPick?: string): string {
   const host = s.commHost[cid];
   if (!host) return '';
   const opts = inviteHostOptions(cid);
-  // merkezi sunucudaki topluluk: "xanaphian/s3gas25"
-  if (host === homeHost()) return c?.inviteCode ? `${INVITE_PREFIX}/${c.inviteCode}` : '';
+  // merkezi sunucudaki topluluk: "https://xanaphian.com/davet/s3gas25"
+  if (host === homeHost()) return c?.inviteCode ? inviteLink(c.inviteCode) : '';
   if (c?.inviteCode && opts.length) {
     const want = hostPick || s.settings.inviteHost;
     const h = opts.find((o) => o.host === want)?.host || opts[0].host;
@@ -1689,7 +1710,54 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
   );
 }
 
+/** Merkezi sunucu süreli / sınırlı davetleri ve davet önizlemesini destekliyor mu (eski sunucuda false) */
+export function invitesSupported(cid?: ID): boolean {
+  const s = S();
+  if (cid && s.commHost[cid] !== homeHost()) return false;
+  return !!s.conns[homeHost()]?.feats?.includes(FEAT_INVITES);
+}
+
+const inviteInfoCache = new Map<string, { at: number; p: Promise<InviteInfo | null> }>();
+
+/** Davetin özeti (topluluk adı, resmi, üye sayısı). Geçersizse ya da sunucu desteklemiyorsa null. 1 dakika önbellekte durur. */
+export function fetchInviteInfo(code: string, fresh = false): Promise<InviteInfo | null> {
+  const old = inviteInfoCache.get(code);
+  if (old && !fresh && Date.now() - old.at < 60_000) return old.p;
+  const conn = conns.get(homeHost());
+  if (!conn || !invitesSupported()) return Promise.resolve(null);
+  const p = conn
+    .request<{ data: InviteInfo }>({ t: 'invite.info', code, rid: '' })
+    .then((r) => r.data)
+    .catch(() => null);
+  inviteInfoCache.set(code, { at: Date.now(), p });
+  if (inviteInfoCache.size > 300) inviteInfoCache.delete(inviteInfoCache.keys().next().value!);
+  return p;
+}
+
+/** Süreli / sınırlı davet bağlantısı oluşturur (age saniye, 0 = süresiz; max 0 = sınırsız) */
+export async function createInvite(cid: ID, age: number, max: number): Promise<string> {
+  if ((!age && !max) || !invitesSupported(cid)) return makeInvite(cid);
+  const r = await request<{ data: { code: string } }>(cid, { t: 'invite.create', cid, age, max, rid: '' });
+  return inviteLink(r.data.code);
+}
+
+export async function listInvites(cid: ID): Promise<Invite[]> {
+  if (!invitesSupported(cid)) return [];
+  const r = await request<{ data: Invite[] }>(cid, { t: 'invite.list', cid, rid: '' });
+  return r.data || [];
+}
+
+export function deleteInvite(cid: ID, code: string) {
+  return request(cid, { t: 'invite.del', cid, code, rid: '' });
+}
+
 export async function joinByInvite(code: string): Promise<ID> {
+  // davet bağlantısı: "https://xanaphian.com/davet/s3gas25" (ya da xanaphian://davet/...)
+  const linkCode = inviteCodeOfLink(code);
+  if (linkCode) {
+    // katıldıktan sonra kartlar güncel üye sayısını ve "Topluluğa git"i göstersin
+    return joinShort(null, linkCode, INVITE_PREFIX).finally(() => inviteInfoCache.delete(linkCode));
+  }
   const short = parseShortInvite(code);
   if (short) return joinShort(short.host, short.code, short.prefix);
   const d = decodeInvite(code);

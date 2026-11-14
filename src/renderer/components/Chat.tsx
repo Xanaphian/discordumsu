@@ -32,6 +32,7 @@ import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleCo
 import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
 import { can, canIn, channelPerms, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
 import { LinkPreviews } from './BaglantiOnizleme';
+import { InviteCards } from './DavetBaglantisi';
 import { PopoutButton } from './AyriPencere';
 import { memberMenu } from './Moderation';
 import { insertMention } from './Members';
@@ -544,6 +545,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
                 ))}
               </div>
             )}
+            {!isEditing && <InviteCards content={m.content} mine={m.authorId === me} />}
             {!isEditing && <LinkPreviews content={m.content} />}
             <Reactions m={m} me={me} />
             {m.failed && (

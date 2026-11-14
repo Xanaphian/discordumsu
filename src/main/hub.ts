@@ -11,7 +11,7 @@ import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook, AVATAR_MODELS, cleanRoom3d,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
-  hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
+  hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode, SHORT_CODE_RE,
   DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN, cleanChannelImage, cleanChannelBanner,
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
@@ -21,6 +21,8 @@ import { PostStore } from './paylasim';
 import { FEAT_POSTS } from '../shared/paylasim';
 import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, TAG_CHANGES_PER_DAY, formatCode, tagKey, parseTag, customCodeError, nameError } from '../shared/etiket';
 import { Ekler, type EkOptions } from './ekler';
+import { cleanAge, cleanMax, iconBytes, inviteAlive, invitePage, invitePageHeaders } from './davetSayfasi';
+import { FEAT_INVITES, MAX_INVITES, type Invite, type InviteInfo } from '../shared/davetBaglanti';
 import { cleanAttachments, cleanImportedCommunity, cleanImportedMessage, SAFE_ID, USER_ID } from './ithal';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
@@ -186,7 +188,7 @@ export interface CommunityExport {
   files: { id: string; mime: string; size: number }[];
 }
 
-type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number; m112?: number; m131?: number };
+type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number; m112?: number; m131?: number; /** süreli / sınırlı davetler (v1.57) */ invites?: Invite[] };
 
 const MAX_TIMEOUT_MIN = 28 * 24 * 60;
 const LINK_RE = /(https?:\/\/|www\.)\S+/i;
@@ -361,8 +363,135 @@ export class Hub {
   private newInviteCode(): string {
     for (;;) {
       const code = makeShortCode((n) => crypto.randomBytes(n));
-      if (![...this.comms.values()].some((x) => x.inviteCode === code)) return code;
+      if (![...this.comms.values()].some((x) => x.inviteCode === code || x.invites?.some((i) => i.code === code))) return code;
     }
+  }
+
+  // ---------- davet bağlantıları (v1.57) ----------
+  /** Kodun ait olduğu topluluk: kalıcı kod ya da süresi/sınırı dolmamış bir davet */
+  private findInvite(code: string): { c: StoredCommunity; inv?: Invite } | null {
+    if (!SHORT_CODE_RE.test(code)) return null;
+    const now = Date.now();
+    for (const c of this.comms.values()) {
+      if (c.inviteCode === code) return { c };
+      const inv = c.invites?.find((i) => i.code === code);
+      if (inv) return inviteAlive(inv, now) ? { c, inv } : null;
+    }
+    return null;
+  }
+
+  private onlineCount(c: StoredCommunity): number {
+    let online = 0;
+    for (const m of c.members) {
+      const set = this.userSessions.get(m.userId);
+      if (set && [...set].some((x) => x.status !== 'invisible')) online++;
+    }
+    return online;
+  }
+
+  /** Davetin herkese gösterilen özeti. Davetler durdurulmuşsa davet yok sayılır. */
+  private inviteInfo(code: string, uid?: ID, withIcon = true): InviteInfo | null {
+    const r = this.findInvite(code);
+    if (!r || r.c.invitesPaused) return null;
+    const c = r.c;
+    const info: InviteInfo = { code, cid: c.id, name: c.name, color: c.color, members: c.members.filter((m) => m.userId !== BOT_ID).length, online: this.onlineCount(c) };
+    if (withIcon && c.icon) info.icon = c.icon;
+    const about = (c.profile?.tagline || c.description || '').trim().slice(0, 160);
+    if (about) info.about = about;
+    if (r.inv?.exp) info.exp = r.inv.exp;
+    if (uid && c.members.some((m) => m.userId === uid)) info.joined = true;
+    return info;
+  }
+
+  /** Davet sayfası ve önizlemesi girişsiz açılır: adres başına dakikada 300 istek (xanaphian.com üzerinden gelenler az sayıda adresten görünür) */
+  private inviteHttpRate = new Map<string, number[]>();
+  private inviteHttpLimited(req: http.IncomingMessage): boolean {
+    const ip = this.clientIp(req);
+    if (!ip) return false;
+    const now = Date.now();
+    const list = (this.inviteHttpRate.get(ip) || []).filter((t) => now - t < 60_000);
+    list.push(now);
+    this.inviteHttpRate.set(ip, list);
+    if (this.inviteHttpRate.size > 20_000) for (const [k, v] of this.inviteHttpRate) if (now - v[v.length - 1] > 60_000) this.inviteHttpRate.delete(k);
+    return list.length > 300;
+  }
+
+  /** GET /davet/<kod> (sayfa), /davet/<kod>/simge (topluluk resmi), /invite/<kod> (JSON özet) */
+  private handleInviteHttp(req: http.IncomingMessage, res: http.ServerResponse, url: URL): boolean {
+    const m = /^\/(davet|invite)\/([A-Za-z0-9]{1,16})(\/simge)?\/?$/.exec(url.pathname);
+    if (!m || req.method !== 'GET') return false;
+    if (this.inviteHttpLimited(req)) return void res.writeHead(429, { 'retry-after': '60' }).end(), true;
+    const code = m[2].toLowerCase();
+    if (m[3]) {
+      const img = iconBytes(this.inviteInfo(code)?.icon);
+      if (!img) return void res.writeHead(404).end(), true;
+      res.writeHead(200, { 'content-type': img.mime, 'content-length': img.buf.length, 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox" }).end(img.buf);
+      return true;
+    }
+    if (m[1] === 'invite') {
+      const info = this.inviteInfo(code, undefined, false);
+      res.writeHead(info ? 200 : 404, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }).end(JSON.stringify(info ? { ...info, hasIcon: !!this.findInvite(code)?.c.icon } : { error: 'Davet geçersiz ya da süresi dolmuş.' }));
+      return true;
+    }
+    const info = this.inviteInfo(code);
+    const nonce = crypto.randomBytes(12).toString('base64url');
+    res.writeHead(info ? 200 : 404, invitePageHeaders(nonce)).end(invitePage(info, SHORT_CODE_RE.test(code) ? code : '', nonce));
+    return true;
+  }
+
+  private handleInvite(s: Session, uid: ID, f: ClientFrame): boolean {
+    switch (f.t) {
+      case 'invite.info': {
+        const info = this.inviteInfo(typeof f.code === 'string' ? f.code.toLowerCase() : '', uid);
+        if (!info) this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
+        else this.send(s, { t: 'ok', rid: f.rid, data: info });
+        return true;
+      }
+      case 'invite.create': {
+        const c = this.comms.get(f.cid);
+        if (!c || !c.members.some((m) => m.userId === uid)) return true;
+        if (!can(c, uid, Perm.CREATE_INVITE)) return this.send(s, { t: 'err', msg: 'Davet oluşturma yetkin yok.', rid: f.rid }), true;
+        if (c.invitesPaused) return this.send(s, { t: 'err', msg: 'Davetler şu an durduruldu.', rid: f.rid }), true;
+        const age = cleanAge(f.age);
+        const max = cleanMax(f.max);
+        // süresiz ve sınırsız davet topluluğun kalıcı kodudur
+        if (!age && !max) return this.send(s, { t: 'ok', rid: f.rid, data: { code: c.inviteCode } }), true;
+        const now = Date.now();
+        c.invites = (c.invites || []).filter((i) => inviteAlive(i, now));
+        // aynı kişi aynı ayarla yeniden isterse (pencereyi açıp kapatmak) yeni kod üretilmez
+        const same = c.invites.find((i) => i.by === uid && !i.uses && (i.max || 0) === max && !!i.exp === !!age && (!age || Math.abs(i.exp! - (now + age * 1000)) < 600_000));
+        if (same) return this.send(s, { t: 'ok', rid: f.rid, data: { code: same.code } }), true;
+        if (c.invites.length >= MAX_INVITES) return this.send(s, { t: 'err', msg: 'Bu toplulukta çok fazla davet var. Ayarlar > Davetler\'den eskilerini sil.', rid: f.rid }), true;
+        const inv: Invite = { code: this.newInviteCode(), by: uid, at: now, uses: 0 };
+        if (age) inv.exp = now + age * 1000;
+        if (max) inv.max = max;
+        c.invites.push(inv);
+        this.saveComm(c.id);
+        this.send(s, { t: 'ok', rid: f.rid, data: { code: inv.code } });
+        return true;
+      }
+      case 'invite.list': {
+        const c = this.comms.get(f.cid);
+        if (!c || !c.members.some((m) => m.userId === uid)) return true;
+        const manage = !!(memberPerms(c, uid) & Perm.MANAGE_COMMUNITY);
+        const now = Date.now();
+        const list = (c.invites || []).filter((i) => inviteAlive(i, now) && (manage || i.by === uid));
+        this.send(s, { t: 'ok', rid: f.rid, data: list });
+        return true;
+      }
+      case 'invite.del': {
+        const c = this.comms.get(f.cid);
+        const inv = c?.invites?.find((i) => i.code === f.code);
+        if (!c || !inv) return true;
+        if (inv.by !== uid && !(memberPerms(c, uid) & Perm.MANAGE_COMMUNITY)) return this.send(s, { t: 'err', msg: 'Bu daveti silme yetkin yok.', rid: f.rid }), true;
+        c.invites = c.invites!.filter((i) => i !== inv);
+        this.audit(c, uid, 'invite.del', inv.code);
+        this.saveComm(c.id);
+        if (f.rid) this.send(s, { t: 'ok', rid: f.rid });
+        return true;
+      }
+    }
+    return false;
   }
 
   private migrate(c: StoredCommunity) {
@@ -634,6 +763,7 @@ export class Hub {
       return;
     }
     if (this.bots.handleHttp(req, res, url)) return;
+    if (this.handleInviteHttp(req, res, url)) return;
     if (req.method === 'GET' && url.pathname === '/info') {
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ app: 'kovan', hubId: this.data.hubId, v: PROTOCOL_VERSION }));
       return;
@@ -925,7 +1055,7 @@ export class Hub {
   }
 
   private snapshot(c: StoredCommunity, uid?: ID, users = this.commUsers(c)): Community {
-    const { bans: _b, audit: _a, m11: _m, m112: _m2, m131: _m3, ...rest } = c;
+    const { bans: _b, audit: _a, m11: _m, m112: _m2, m131: _m3, invites: _i, ...rest } = c;
     const out: Community = { ...rest, users };
     if (uid) {
       out.channels = c.channels.filter((ch) => this.canView(c, uid, ch));
@@ -1166,7 +1296,7 @@ export class Hub {
       friends: this.friendsFor(uid),
       acts,
       v: PROTOCOL_VERSION,
-      feats: [FEAT_POSTS, FEAT_TAGS, ...this.ek.feats(uid)],
+      feats: [FEAT_POSTS, FEAT_TAGS, FEAT_INVITES, ...this.ek.feats(uid)],
       tag: this.data.users[uid]?.pub.tag,
     });
   }
@@ -1630,11 +1760,13 @@ export class Hub {
     if (this.handleFriend(s, uid, f) || this.handleDm(s, uid, f)) return;
     if (this.posts.handle(uid, f, (x) => this.send(s, x))) return;
     if (this.ek.handle(uid, f, (x) => this.send(s, x))) return;
+    if (this.handleInvite(s, uid, f)) return;
 
     switch (f.t) {
       case 'join': {
         const code = typeof f.code === 'string' ? f.code.toLowerCase() : '';
-        const c = code ? [...this.comms.values()].find((x) => x.inviteCode === code) : f.cid ? this.comms.get(f.cid) : undefined;
+        const found = code ? this.findInvite(code) : null;
+        const c = code ? found?.c : f.cid ? this.comms.get(f.cid) : undefined;
         if (this.bots.isBot(uid)) return this.send(s, { t: 'err', msg: 'Botlar davetle katılamaz.', rid: f.rid });
         const keyOk = !!c && typeof f.key === 'string' && !!c.inviteKey && safeEq(c.inviteKey, f.key);
         if (!c || (!code && !keyOk && !c.listing)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
@@ -1644,6 +1776,11 @@ export class Hub {
           const guardErr = this.joinGuardCheck(c, uid);
           if (guardErr) return this.send(s, { t: 'err', msg: guardErr, rid: f.rid });
           c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
+          // süreli / sınırlı davet: kullanım sayılır, sınır dolunca davet silinir
+          if (found?.inv) {
+            found.inv.uses++;
+            if (!inviteAlive(found.inv)) c.invites = c.invites?.filter((i) => i !== found.inv);
+          }
           const sys = c.systemChannelId ? c.channels.find((x) => x.id === c.systemChannelId && !isVoiceLike(x.type)) : undefined;
           const first = sys || c.channels.find((x) => !isVoiceLike(x.type) && this.canView(c, uid, x));
           if (first && c.joinMessages !== false) {
@@ -1969,6 +2106,7 @@ export class Hub {
         if (!c) return;
         c.inviteKey = crypto.randomBytes(9).toString('base64url');
         c.inviteCode = this.newInviteCode();
+        delete c.invites;
         this.audit(c, uid, 'invite.reset');
         this.pushComm(c);
         return;

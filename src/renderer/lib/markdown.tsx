@@ -1,7 +1,8 @@
 // Hafif ve güvenli (innerHTML kullanmayan) mesaj biçimlendirici.
+import { isInviteLink } from '../../shared/davetBaglanti';
 import React, { ReactNode, useState } from 'react';
 import { highlight } from './highlight';
-import { useStore, confirmDialog } from './store';
+import { useStore, confirmDialog, openModal } from './store';
 import { openInSiteRoom } from './site';
 import { parseMedia, type MediaMsg } from './medya';
 
@@ -60,6 +61,8 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
       title={href}
       onClick={(e) => {
         e.preventDefault();
+        // davet bağlantısı tarayıcıya gitmez: katılma penceresi açılır
+        if (isInviteLink(href)) return openModal({ type: 'join', code: href });
         if (openInSiteRoom(href)) return;
         if (useStore.getState().settings.confirmLinks)
           confirmDialog('Bağlantı açılsın mı?', `Tarayıcında şu adres açılacak:\n${href}`, () => window.kovan.openExternal(href), 'Aç', false);
