@@ -162,7 +162,8 @@ const dayKey = (t = Date.now()) => {
 function loadRecent(): RecentRow[] {
   try {
     const r = JSON.parse(localStorage.getItem(RKEY) || '[]');
-    return Array.isArray(r) ? r : [];
+    // eski sürümler uygulamanın kendi sesini "com.xanaphian.kovan dinledi" diye kaydediyordu
+    return Array.isArray(r) ? r.filter((x) => x && !/xanaphian|kovan/i.test(String(x.name))) : [];
   } catch {
     return [];
   }

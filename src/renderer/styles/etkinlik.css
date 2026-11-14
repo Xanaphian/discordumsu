@@ -968,6 +968,10 @@
   border-radius: 5px;
   object-fit: contain;
 }
+.member-act-ic.member-act-art {
+  object-fit: cover;
+  border-radius: 4px;
+}
 .member-act-ic.brand-logo {
   display: grid;
   place-items: center;
