@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
-import { useStore, openModal, selectChannel, sortedChannels, markRead } from './lib/store';
+import { useStore, openModal, selectChannel, sortedChannels, selectCommunity, markRead, markCommunityRead, updateSettings, toast } from './lib/store';
+import { startGlobalKeys, handleGlobalKeysLocally, applyZoom, stepZoom } from './lib/kisayollar';
+import { modKey } from './lib/util';
 import { toggleMute, toggleDeaf, useVoice } from './lib/voice';
 import { TitleBar } from './components/TitleBar';
 import { ServerRail } from './components/ServerRail';
@@ -53,44 +55,97 @@ function useTheme() {
   }, [theme, accent, fontSize, compact, reduceMotion]);
 }
 
+/** Topluluk listesi sırası (sol şerit): Ana Sayfa + topluluklar */
+function railList(): (string | 'home')[] {
+  const st = useStore.getState();
+  const ids = st.settings.railOrder.filter((id) => st.communities[id] && !st.communities[id].dm);
+  for (const id of Object.keys(st.communities)) if (!ids.includes(id) && !st.communities[id].dm) ids.push(id);
+  return ['home', ...ids];
+}
+
+/** Açık bir katman (menü, seçici, açılır pencere) varsa Esc onu kapatır, kanalı okundu saymaz */
+const LAYERS = '.ctx-menu, .popout, .emoji-picker, .popover, .pcard, .ns-pop, .dev-menu, .cp-plus, .suggest, .modal-backdrop, .edit-box';
+
+/** Mesaj yazma kutusunun yanındaki düğmeye kısayolla basar (emoji, dosya) */
+function clickIn(sel: string) {
+  const el = document.querySelector<HTMLElement>(sel);
+  if (!el) return false;
+  el.click();
+  return true;
+}
+
 function useShortcuts() {
   useEffect(() => {
+    startGlobalKeys();
+    applyZoom(useStore.getState().settings.uiZoom);
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const mod = e.ctrlKey || e.metaKey;
       const st = useStore.getState();
-      if (mod && e.key.toLowerCase() === 'k') {
+      const k = e.key.toLowerCase();
+      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || !!(document.activeElement as HTMLElement | null)?.isContentEditable;
+      if (handleGlobalKeysLocally(e)) return;
+      // role="button" olan (düğme olmayan) öğeler de Enter / Boşluk ile çalışsın
+      const act = document.activeElement as HTMLElement | null;
+      if ((e.key === 'Enter' || e.key === ' ') && !mod && act && act === e.target && act.getAttribute('role') === 'button' && act.tagName !== 'BUTTON') {
+        e.preventDefault();
+        act.click();
+        return;
+      }
+      if (mod && k === 'k') {
         e.preventDefault();
         openModal(st.modal?.type === 'quick' ? null : { type: 'quick' });
         return;
       }
-      if (mod && e.key === '/') {
+      if (mod && (e.key === '/' || e.code === 'Slash' || e.code === 'NumpadDivide')) {
         e.preventDefault();
-        openModal(st.modal?.type === 'settings' ? null : { type: 'settings', tab: 'app' });
+        openModal(st.modal?.type === 'shortcuts' ? null : { type: 'shortcuts' });
         return;
-      }
-      // Esc: açık kanalı okundu say (pencere ya da menü açık değilken, yanıt/düzenleme yokken)
-      if (e.key === 'Escape' && !st.modal && !st.menu && !st.editing && st.current !== 'home' && !document.querySelector('.modal-backdrop, .suggest, .popout, .emoji-picker')) {
-        const ch = st.chanByComm[st.current];
-        if (ch && !st.replyTo[ch] && st.lastIds[ch] && st.lastIds[ch] > (st.read[ch] || '')) {
-          markRead(ch);
-        }
       }
       if (mod && e.key === ',') {
         e.preventDefault();
         openModal({ type: 'settings' });
         return;
       }
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'm') {
+      // yakınlaştırma: Ctrl+= / Ctrl++ / Ctrl+- / Ctrl+0 (uygulama menüsü olmadığından burada)
+      if (mod && !e.altKey && (e.key === '=' || e.key === '+' || e.code === 'NumpadAdd' || e.key === '-' || e.code === 'NumpadSubtract' || (e.key === '0' && !e.shiftKey))) {
+        e.preventDefault();
+        const z = stepZoom(e.key === '0' ? 0 : e.key === '-' || e.code === 'NumpadSubtract' ? -1 : 1);
+        if (z !== (st.settings.uiZoom || 100)) {
+          updateSettings({ uiZoom: z });
+          applyZoom(z);
+        }
+        // art arda basınca bildirimler üst üste yığılmasın
+        useStore.setState((x) => ({ toasts: x.toasts.filter((t) => !t.text.startsWith('Yakınlaştırma')) }));
+        toast(`Yakınlaştırma %${z}${z !== 100 ? ` · ${modKey}+0 ile sıfırla` : ''}`, 'info');
+        return;
+      }
+      if (mod && e.shiftKey && k === 'm') {
         e.preventDefault();
         toggleMute();
         return;
       }
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'd') {
+      if (mod && e.shiftKey && k === 'd') {
         e.preventDefault();
         toggleDeaf();
         return;
       }
-      if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && st.current !== 'home') {
+      if (mod && e.shiftKey && k === 'n' && !st.modal) {
+        e.preventDefault();
+        openModal({ type: 'createCommunity' });
+        return;
+      }
+      // önceki / sonraki topluluk
+      if (mod && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const list = railList();
+        const at = st.communities[st.current]?.dm ? 0 : Math.max(0, list.indexOf(st.current));
+        const next = list[(at + (e.key === 'ArrowUp' ? -1 : 1) + list.length) % list.length];
+        if (next) selectCommunity(next);
+        return;
+      }
+      if (e.altKey && !mod && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && st.current !== 'home') {
         const c = st.communities[st.current];
         if (!c) return;
         e.preventDefault();
@@ -109,10 +164,48 @@ function useShortcuts() {
         if (next) selectChannel(c.id, next.id);
         return;
       }
+      // sohbet ekranındaki kısayollar (pencere açıkken çalışmaz)
+      const chat = !st.modal && document.querySelector('.content .chat .msg-scroller');
+      if (chat && mod && !e.altKey) {
+        if (k === 'f' && !e.shiftKey) {
+          const box = document.querySelector<HTMLInputElement>('.content .search-box input');
+          if (box) {
+            e.preventDefault();
+            box.focus();
+            box.select();
+            return;
+          }
+        }
+        if (k === 'p' && !e.shiftKey && clickIn('.content button[aria-label="Sabitlenmiş mesajlar"]')) return e.preventDefault();
+        if (k === 'u' && !e.shiftKey) {
+          e.preventDefault();
+          updateSettings({ membersOpen: !st.settings.membersOpen });
+          return;
+        }
+        if (k === 'u' && e.shiftKey && clickIn('.content .composer input[type=file]')) return e.preventDefault();
+        if (k === 'e' && !e.shiftKey && clickIn('.content .composer button[aria-label="Emoji"]')) return e.preventDefault();
+      }
+      // Page Up / Page Down: yazarken de mesajları kaydır
+      if (chat && !mod && !e.altKey && (e.key === 'PageUp' || e.key === 'PageDown') && (!typing || (document.activeElement as HTMLElement)?.id === 'composer-input')) {
+        e.preventDefault();
+        const sc = chat as HTMLElement;
+        sc.scrollBy({ top: (e.key === 'PageUp' ? -1 : 1) * sc.clientHeight * 0.85 });
+        return;
+      }
+      // Esc: kanalı (Shift ile topluluğu) okundu say; açık bir katman, yanıt ya da düzenleme varken değil
+      if (chat && e.key === 'Escape' && !mod && !e.altKey && !st.menu && !st.popout && !st.editing && !document.querySelector(LAYERS)) {
+        const c = st.communities[st.current];
+        const chId = c && st.chanByComm[c.id];
+        const inComposer = (document.activeElement as HTMLElement | null)?.id === 'composer-input';
+        if (c && chId && !st.replyTo[chId] && (!typing || inComposer)) {
+          if (e.shiftKey) markCommunityRead(c.id);
+          else markRead(chId);
+          return;
+        }
+      }
       // herhangi bir yerde yazmaya başlayınca mesaj kutusuna odaklan
-      const tag = (document.activeElement?.tagName || '').toLowerCase();
       if (st.settings.inputMode === 'ptt' && e.code === st.settings.pttKey && useVoice.getState().ch) return; // bas-konuş tuşu
-      if (!st.modal && !mod && !e.altKey && e.key.length === 1 && tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+      if (!st.modal && !mod && !e.altKey && e.key.length === 1 && !typing && !(e.key === ' ' && tag === 'button')) {
         const ta = document.getElementById('composer-input') as HTMLTextAreaElement | null;
         ta?.focus();
       }

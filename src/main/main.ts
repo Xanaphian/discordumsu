@@ -65,23 +65,32 @@ function setPtt(on: boolean) {
   pttDown = on;
   win?.webContents.send('ptt', on);
 }
-function configurePtt(cfg: { enabled: boolean; code: string }): boolean {
+// genel sustur / sağırlaştır: "Ctrl+Shift+KeyM" biçimindeki birleşimler
+type Bind = { action: 'mute' | 'deaf'; code: number; ctrl: boolean; shift: boolean; alt: boolean; meta: boolean };
+let binds: Bind[] = [];
+const held = new Set<number>();
+function parseBind(action: Bind['action'], combo: string): Bind | null {
+  if (!combo) return null;
+  const parts = combo.split('+');
+  const t = codeToUio(parts[parts.length - 1]);
+  if (!t || t.kind !== 'key') return null;
+  return { action, code: t.code, ctrl: parts.includes('Ctrl'), shift: parts.includes('Shift'), alt: parts.includes('Alt'), meta: parts.includes('Meta') };
+}
+function onHookKey(e: any, down: boolean) {
+  if (pttTarget?.kind === 'key' && e.keycode === pttTarget.code) setPtt(down);
+  if (!down) return void held.delete(e.keycode);
+  if (held.has(e.keycode)) return; // basılı tutunca tekrar tekrar çevirmesin
+  held.add(e.keycode);
+  for (const b of binds)
+    if (b.code === e.keycode && b.ctrl === !!e.ctrlKey && b.shift === !!e.shiftKey && b.alt === !!e.altKey && b.meta === !!e.metaKey) win?.webContents.send('keys:press', b.action);
+}
+function ensureHook(): boolean {
   try {
-    if (!cfg.enabled) {
-      pttTarget = null;
-      setPtt(false);
-      // kanca boşta CPU harcamasın: görüşme/bas-konuş yokken durdur
-      if (hookRunning) {
-        hook.uIOhook.stop();
-        hookRunning = false;
-      }
-      return true;
-    }
     if (!hook) {
       hook = require('uiohook-napi');
       const u = hook.uIOhook;
-      u.on('keydown', (e: any) => pttTarget?.kind === 'key' && e.keycode === pttTarget.code && setPtt(true));
-      u.on('keyup', (e: any) => pttTarget?.kind === 'key' && e.keycode === pttTarget.code && setPtt(false));
+      u.on('keydown', (e: any) => onHookKey(e, true));
+      u.on('keyup', (e: any) => onHookKey(e, false));
       u.on('mousedown', (e: any) => pttTarget?.kind === 'mouse' && e.button === pttTarget.button && setPtt(true));
       u.on('mouseup', (e: any) => pttTarget?.kind === 'mouse' && e.button === pttTarget.button && setPtt(false));
     }
@@ -89,13 +98,46 @@ function configurePtt(cfg: { enabled: boolean; code: string }): boolean {
       hook.uIOhook.start();
       hookRunning = true;
     }
-    pttTarget = codeToUio(cfg.code);
-    return !!pttTarget;
+    return true;
   } catch (e) {
-    console.error('Genel bas-konuş başlatılamadı', e);
+    console.error('Genel klavye kancası başlatılamadı', e);
     hook = null;
     return false;
   }
+}
+/** kanca boşta CPU harcamasın: bas-konuş ve genel tuş yokken durdur */
+function maybeStopHook() {
+  if (pttTarget || binds.length || !hookRunning) return;
+  try {
+    hook.uIOhook.stop();
+  } catch {
+    /* zaten durmuş */
+  }
+  hookRunning = false;
+  held.clear();
+}
+function configurePtt(cfg: { enabled: boolean; code: string }): boolean {
+  if (!cfg.enabled) {
+    pttTarget = null;
+    setPtt(false);
+    maybeStopHook();
+    return true;
+  }
+  if (!ensureHook()) return false;
+  pttTarget = codeToUio(cfg.code);
+  if (!pttTarget) maybeStopHook();
+  return !!pttTarget;
+}
+function configureKeys(cfg: { enabled: boolean; mute?: string; deaf?: string }): boolean {
+  if (!cfg.enabled) {
+    binds = [];
+    maybeStopHook();
+    return true;
+  }
+  if (!ensureHook()) return false;
+  binds = [parseBind('mute', String(cfg.mute || '')), parseBind('deaf', String(cfg.deaf || ''))].filter((b): b is Bind => !!b);
+  if (!binds.length) maybeStopHook();
+  return binds.length > 0;
 }
 app.on('will-quit', () => {
   try {
@@ -687,6 +729,7 @@ function registerIpc() {
     pendingCapture = sel;
   });
   ipcMain.handle('ptt:config', (_e, cfg: { enabled: boolean; code: string }) => configurePtt(cfg));
+  ipcMain.handle('keys:config', (_e, cfg: { enabled: boolean; mute?: string; deaf?: string }) => configureKeys(cfg));
   ipcMain.on('win:in-call', (_e, on: boolean) => {
     // görüşmedeyken pencere arka planda/küçültülmüşken bile ses ve görüntü takılmasın
     win?.webContents.setBackgroundThrottling(!on);

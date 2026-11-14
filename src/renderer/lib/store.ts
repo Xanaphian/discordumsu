@@ -72,6 +72,11 @@ export interface Settings {
   vadThreshold: number; // 0-100, 0 = otomatik
   pttKey: string; // KeyboardEvent.code
   pttRelease: number; // ms
+  /** genel sustur / sağırlaştır tuşları ("Ctrl+Shift+KeyM" biçiminde, boş = atanmadı) */
+  globalMuteKey: string;
+  globalDeafKey: string;
+  /** arayüz yakınlaştırması, yüzde */
+  uiZoom: number;
   userVolumes: Record<ID, number>; // %
   joinMuted: boolean;
   // kamera
@@ -188,6 +193,9 @@ export const DEFAULT_SETTINGS: Settings = {
   vadThreshold: 0,
   pttKey: 'KeyV',
   pttRelease: 200,
+  globalMuteKey: '',
+  globalDeafKey: '',
+  uiZoom: 100,
   userVolumes: {},
   joinMuted: false,
   camId: 'default',
@@ -266,6 +274,7 @@ export type Modal =
   | { type: 'image'; src: string; name: string }
   | { type: 'forward'; cid: ID; chId: ID; id: ID }
   | { type: 'quick' }
+  | { type: 'shortcuts' }
   | { type: 'screenShare' }
   | { type: 'search'; cid: ID; q?: string }
   | { type: 'profile'; uid: ID; cid?: ID }
