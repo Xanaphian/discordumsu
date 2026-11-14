@@ -153,7 +153,7 @@ function audioCtx() {
   return actx;
 }
 
-/** v1.54.1: görüşme bitince ses bağlamı askıya alınır. Çalışır durumda kalan bağlam hiçbir ses yokken bile Windows'ta
+/** v1.59.1: görüşme bitince ses bağlamı askıya alınır. Çalışır durumda kalan bağlam hiçbir ses yokken bile Windows'ta
  *  ses hizmetini ve arayüzün ses iş parçacığını sürekli çalıştırıyordu. Yeni görüşmede audioCtx() yeniden başlatır. */
 function sleepAudio() {
   const c = actx;
@@ -231,7 +231,7 @@ function startLoop() {
       gate.gain.setTargetAtTime(open ? 1 : 0, actx.currentTime, open ? 0.004 : 0.04);
     }
     if (++tick % 3) return;
-    // v1.54.1: pencere küçültülmüş/tepsideyken ve kaplama da yoksa göstergeleri güncellemek yalnız boşa çizim demek;
+    // v1.59.1: pencere küçültülmüş/tepsideyken ve kaplama da yoksa göstergeleri güncellemek yalnız boşa çizim demek;
     // pencere açılınca ilk turda güncel duruma gelir. (Kapı yukarıda her turda çalışmaya devam eder.)
     if (pencere.gizli && !pencere.kaplama) return;
     // konuşma göstergeleri (~120 ms)

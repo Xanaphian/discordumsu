@@ -104,7 +104,7 @@ function Minimap({ engine }: { engine: SpaceEngine | null }) {
     if (!engine) return;
     const id = setInterval(() => {
       const cv = ref.current;
-      // v1.58.2: pencere küçültülmüşken harita çizilmez (her çizim bütün pencereyi yeniden birleştirtiyordu)
+      // v1.59.1: pencere küçültülmüşken harita çizilmez (her çizim bütün pencereyi yeniden birleştirtiyordu)
       if (!cv || pencere.gizli) return;
       const g = cv.getContext('2d')!;
       const md = engine.mapDraw;

@@ -21,7 +21,7 @@ export class Updater {
   private timer: NodeJS.Timeout | null = null;
   private version = '';
   private notes?: string;
-  /** v1.54.1: electron-updater (ve bağımlılıkları) açılışı yavaşlatmasın diye ilk denetimde yüklenir */
+  /** v1.59.1: electron-updater (ve bağımlılıkları) açılışı yavaşlatmasın diye ilk denetimde yüklenir */
   private au: AppUpdater | null = null;
 
   constructor(private getWin: () => BrowserWindow | null, private dev: boolean) {}

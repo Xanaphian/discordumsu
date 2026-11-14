@@ -32,7 +32,7 @@ function Member({ m, avatar }: { m: OvlMember; avatar?: string }) {
 
 function Overlay() {
   const [st, setSt] = useState<OvlPayload | null>(null);
-  // profil resimleri yalnız değişince gelir (v1.54.1)
+  // profil resimleri yalnız değişince gelir (v1.59.1)
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [msgs, setMsgs] = useState<(OvlMessage & { out?: boolean })[]>([]);
   useEffect(() => {

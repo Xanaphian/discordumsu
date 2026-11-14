@@ -21,7 +21,7 @@ let last: OverlayState | null = null;
 let ready = false;
 let userHidden = false;
 let shortcut = '';
-// v1.54.1: profil resimleri yalnız değişince gelir; hepsi burada tutulur, kaplamaya henüz gitmemiş değişiklikler ayrıca
+// v1.59.1: profil resimleri yalnız değişince gelir; hepsi burada tutulur, kaplamaya henüz gitmemiş değişiklikler ayrıca
 const avatars = new Map<string, string>();
 let avPending: Record<string, string | null> | null = null;
 

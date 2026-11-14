@@ -86,7 +86,7 @@ export interface OvlPayload {
   onlySpeaking: boolean;
   theme: string;
   accent: string;
-  /** v1.54.1: yalnız değişen profil resimleri (null = kaldırıldı); üyelerin kendi avatar alanı gönderilmez */
+  /** v1.59.1: yalnız değişen profil resimleri (null = kaldırıldı); üyelerin kendi avatar alanı gönderilmez */
   avatars?: Record<ID, string | null>;
 }
 export interface OvlMessage {
@@ -155,7 +155,7 @@ function push() {
     timer = null;
     let p = build();
     pencere.kaplama = p.show;
-    // v1.54.1: kaplama görünmüyorken sesliler gönderilmez. Önceden her konuşma değişikliğinde (saniyede birkaç kez)
+    // v1.59.1: kaplama görünmüyorken sesliler gönderilmez. Önceden her konuşma değişikliğinde (saniyede birkaç kez)
     // herkesin profil resmiyle birlikte yüzlerce KB JSON'a çevrilip ana sürece yollanıyordu, kaplama kapalıyken bile.
     if (!p.show) p = { ...p, voice: null };
     // profil resimleri (kişi başı 200 KB'a kadar data URL) yalnız değişince gider; kaplama kendisi saklar

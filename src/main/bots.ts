@@ -13,7 +13,7 @@ import {
   BotAiConfig, BotClientFrame, BotPatch, BotRule, BotTemplate, BotView, DEFAULT_AI_MODEL, parseBotToken, AI_MODELS,
 } from '../shared/bots';
 
-// v1.54.1: Anthropic SDK'sı (ana paketin yarıdan fazlası) yalnız yapay zekâlı bot ilk kez çalışınca yüklenir;
+// v1.59.1: Anthropic SDK'sı (ana paketin yarıdan fazlası) yalnız yapay zekâlı bot ilk kez çalışınca yüklenir;
 // açılışta her seferinde ayrıştırılıp çalıştırılması uygulamanın açılışını geciktiriyordu.
 type Sdk = { Anthropic: typeof import('@anthropic-ai/sdk').default; betaTool: typeof import('@anthropic-ai/sdk/helpers/beta/json-schema').betaTool };
 let sdk: Sdk | null = null;

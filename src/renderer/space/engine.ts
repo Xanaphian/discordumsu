@@ -454,7 +454,7 @@ export class SpaceEngine {
     this.camera.updateProjectionMatrix();
   }
 
-  // v1.54.1: pencere küçültülmüş/tepsideyken çizim tamamen durur (kare istenmez). Konumsal ses doğru kalsın diye
+  // v1.59.1: pencere küçültülmüş/tepsideyken çizim tamamen durur (kare istenmez). Konumsal ses doğru kalsın diye
   // sahne (yürüyenler, ses kaynaklarının yeri) saniyede 4 kez çizimsiz ilerletilir; pencere açılınca döngü sürer.
   private bgTimer: ReturnType<typeof setInterval> | null = null;
   private offVisible = pencereDinle((gizli) => {

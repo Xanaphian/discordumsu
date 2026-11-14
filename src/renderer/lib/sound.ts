@@ -18,7 +18,7 @@ const TONES: Record<Kind, [number, number, number][]> = {
 /** yayıncı modu ya da ayrı pencere sesleri susturabilir */
 export const soundGate = { muted: false };
 
-// v1.54.1: çalışır durumda kalan bir AudioContext, hiçbir ses çalmasa da Windows'ta ses hizmetini (AudioService)
+// v1.59.1: çalışır durumda kalan bir AudioContext, hiçbir ses çalmasa da Windows'ta ses hizmetini (AudioService)
 // ve arayüzün ses iş parçacığını sürekli çalıştırır (ölçüm: boştayken tek çekirdeğin %6-8'i). Bu yüzden son sesten
 // kısa süre sonra bağlam askıya alınır; sıradaki ses onu yeniden başlatır.
 let idleTimer: ReturnType<typeof setTimeout> | null = null;

@@ -327,7 +327,7 @@ function createWindow() {
     }
   });
   win.on('focus', () => win?.flashFrame(false));
-  // v1.54.1: görüşmede arka plan kısıtlaması kapalıyken Chromium küçültülmüş pencereyi de çizer; arayüz gerçek durumu bilsin
+  // v1.59.1: görüşmede arka plan kısıtlaması kapalıyken Chromium küçültülmüş pencereyi de çizer; arayüz gerçek durumu bilsin
   const sendVisible = () => {
     if (win && !win.isDestroyed()) win.webContents.send('win:gorunur', win.isVisible() && !win.isMinimized());
   };

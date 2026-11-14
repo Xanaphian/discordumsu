@@ -1,4 +1,4 @@
-// v1.54.1: pencere gerçekten görünüyor mu?
+// v1.59.1: pencere gerçekten görünüyor mu?
 // Görüşmedeyken ses kesilmesin diye arka plan kısıtlaması kapatılıyor (main.ts 'win:in-call'). Bu durumda Chromium
 // pencere küçültülse ya da tepsiye gizlense de sayfayı "görünür" sayar ve saniyede 60 kare çizmeye devam eder
 // (document.hidden hiç true olmaz). Ana süreç gerçek durumu bildirir; gizliyken animasyonlar ve 3D sahne durur.
