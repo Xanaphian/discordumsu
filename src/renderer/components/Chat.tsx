@@ -10,6 +10,7 @@ import {
 import { parseCard, isCardReaction } from '../lib/cards';
 import { mediaLabel } from '../lib/medya';
 import { CardView, LfgCreator, PollCreator, ScheduleDialog } from './Cards';
+import { InviteStrip, InviteMenuItems } from './DavetMenu';
 import { CatchUp, summarize } from './CatchUp';
 import { SavedPopover, ScheduledStrip } from './Later';
 import { useLater, toggleSaved, isSaved } from '../lib/later';
@@ -1136,6 +1137,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
           ))}
         </div>
       )}
+      {canSend && !replyTo && <InviteStrip c={c} ch={ch} />}
       {replyTo && (
         <div className="reply-bar">
           <span>
@@ -1170,6 +1172,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
         <>
           <div className="cp-scrim" onMouseDown={() => setPlusOpen(false)} />
           <div className="cp-plus" onClick={() => setPlusOpen(false)}>
+            <InviteMenuItems c={c} ch={ch} />
             {canAttach && (
               <button onClick={() => fileInput.current?.click()}>
                 <Paperclip size={17} />

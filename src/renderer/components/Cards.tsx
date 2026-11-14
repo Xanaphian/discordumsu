@@ -14,6 +14,7 @@ import { useActs } from '../lib/activity';
 import { LFG_GAMES, lfgGameOf, slotsFor } from '../lib/lfgGames';
 import { BrandLogo } from './profile/Activity';
 import { STEAM_JOIN, accountFor, lolWaitInvite, steamJoin, lobbyCard } from '../lib/lfgJoin';
+import { PlayInviteView, ListenInviteView } from './Davetler';
 import { isVoiceLike, type Community, type Message, type ID } from '../../shared/protocol';
 
 // ---------------------------------------------------------------------------
@@ -375,6 +376,8 @@ function PollView({ m, card, c, me }: { m: Message; card: PollCard; c: Community
 
 export function CardView({ m, card, c, me }: { m: Message; card: Card; c: Community; me: ID }) {
   if (card.k === 'lfg') return <LfgView m={m} card={card} c={c} me={me} />;
+  if (card.k === 'play') return <PlayInviteView m={m} card={card} c={c} me={me} />;
+  if (card.k === 'listen') return <ListenInviteView m={m} card={card} c={c} me={me} />;
   return <PollView m={m} card={card} c={c} me={me} />;
 }
 

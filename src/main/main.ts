@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { Hub } from './hub';
+import { hasGame, launchGame } from './oyunAc';
 import { initActivity, configureActivity, getActivity, runningApps, stopActivity, type ActivityConfig } from './activity';
 import { spotifyConnect, spotifyDisconnect, spotifyStatus } from './spotify';
 import { Updater } from './updater';
@@ -562,6 +563,8 @@ function registerIpc() {
   ipcMain.handle('cfg:get', () => config);
   ipcMain.handle('act:config', (_e, c: ActivityConfig) => (configureActivity(c), getActivity()));
   ipcMain.handle('act:apps', () => runningApps());
+  ipcMain.handle('game:has', (_e, name: string) => hasGame(String(name).slice(0, 80)));
+  ipcMain.handle('game:launch', (_e, name: string) => launchGame(String(name).slice(0, 80)));
   ipcMain.handle('spotify:status', () => spotifyStatus());
   ipcMain.handle('spotify:connect', (_e, id?: string) => spotifyConnect(typeof id === 'string' ? id.slice(0, 64) : undefined));
   ipcMain.handle('spotify:disconnect', () => spotifyDisconnect());

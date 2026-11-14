@@ -56,7 +56,35 @@ export interface PollCard {
   end?: number;
 }
 
-export type Card = LfgCard | PollCard;
+/** Oyuna davet: gönderen o an oynadığı oyuna kanalı/kişiyi çağırır */
+export interface PlayCard {
+  k: 'play';
+  /** oyun adı */
+  g: string;
+  /** oyundaki ayrıntı (kip, harita) */
+  d?: string;
+  s?: string;
+  /** oyunun mağazası (steam, epic, riot…) */
+  st?: string;
+  /** 1: davet sahibi kapattı */
+  x?: 1;
+}
+
+/** Dinlemeye davet: gönderenin o an çaldığı şarkı */
+export interface ListenCard {
+  k: 'listen';
+  /** şarkı */
+  t: string;
+  /** sanatçı / albüm */
+  a?: string;
+  /** çalan uygulama (Spotify, YouTube Music…) */
+  p: string;
+  /** kaynak: spotify | music | browser | other */
+  src?: string;
+  x?: 1;
+}
+
+export type Card = LfgCard | PollCard | PlayCard | ListenCard;
 
 export function encodeCard(c: Card): string {
   return CARD_PREFIX + c.k + ' ' + JSON.stringify(c);
@@ -75,6 +103,8 @@ export function parseCard(content: string): Card | null {
     if (j && j.k === kind) {
       if (kind === 'lfg' && typeof j.g === 'string' && Array.isArray(j.s) && j.s.length >= 2 && j.s.length <= 10) out = j;
       else if (kind === 'poll' && typeof j.q === 'string' && Array.isArray(j.o) && j.o.length >= 2 && j.o.length <= 10) out = j;
+      else if (kind === 'play' && typeof j.g === 'string' && j.g) out = j;
+      else if (kind === 'listen' && typeof j.t === 'string' && j.t && typeof j.p === 'string') out = j;
     }
   } catch {
     out = null;
@@ -89,12 +119,16 @@ export function cardSummary(content: string): string | null {
   const c = parseCard(content);
   if (!c) return null;
   if (c.k === 'lfg') return `🎮 Takım arıyor: ${c.g}${c.m ? ' · ' + c.m : ''}`;
+  if (c.k === 'play') return `🎮 ${c.g} oynamaya davet`;
+  if (c.k === 'listen') return `🎧 Dinlemeye davet: ${c.t}${c.a ? ' · ' + c.a : ''}`;
   return `📊 Anket: ${c.q}`;
 }
 
 // ---- tepki anahtarları ----
 export const slotKey = (i: number) => '~s' + i;
 export const voteKey = (i: number) => '~p' + i;
+/** oyuna / dinlemeye davette "katıldım" */
+export const JOIN_KEY = '~j';
 export const isCardReaction = (e: string) => e.startsWith('~');
 
 /** Takım ilanında her yerde kim var (ilan sahibi kendi yerinde) */
@@ -120,3 +154,6 @@ export function lfgClosed(m: { ts: number }, card: LfgCard): 'gone' | 'old' | nu
   if (Date.now() - m.ts > LFG_TTL) return 'old';
   return null;
 }
+
+/** Davetler ne kadar süre açık sayılır (gönderen hâlâ oynuyor/dinliyorsa) */
+export const INVITE_TTL = 6 * 3600_000;
