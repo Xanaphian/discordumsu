@@ -18,6 +18,7 @@ import { cardSummary } from './cards';
 import { toolSummary } from './tools';
 import type { Blueprint } from '../../shared/topluluk';
 import { FEAT_DM_QUIET } from '../../shared/ekler';
+import { OFFICIAL_SERVER } from '../../shared/guvenlik';
 
 export interface Profile {
   id: ID;
@@ -336,7 +337,6 @@ interface Conn {
 export interface State {
   booted: boolean;
   info: AppInfo | null;
-  secret: string;
   me: Profile;
   onboarded: boolean;
   settings: Settings;
@@ -385,7 +385,6 @@ const loadRead = (): Record<ID, ID> => {
 export const useStore = create<State>(() => ({
   booted: false,
   info: null,
-  secret: '',
   me: { id: '', name: '', color: '#f5a524', status: 'online' },
   onboarded: false,
   settings: DEFAULT_SETTINGS,
@@ -435,7 +434,7 @@ export function hostHttp(cid: ID): string {
 }
 
 /** Herkesin bağlandığı merkezi sunucu */
-export const DEFAULT_SERVER = 'https://45-87-173-18.sslip.io/kovan';
+export const DEFAULT_SERVER = OFFICIAL_SERVER;
 /** Davet kodlarının ön eki: "xanaphian/s3gas25" */
 export const INVITE_PREFIX = 'xanaphian';
 const HOME_PREFIXES = new Set([INVITE_PREFIX, 'kovan']);
@@ -469,8 +468,10 @@ export function updateSettings(patch: Partial<Settings>) {
   if (patch.blocked) conns.forEach((c) => c.send({ t: 'privacy', dms: settings.dmPrivacy, blocked: settings.blocked }));
 }
 
-function hello(): ClientFrame {
-  const { me, secret } = S();
+function hello(host: string): ClientFrame {
+  const { me } = S();
+  // her sunucu kendi anahtarını görür: asıl anahtar yalnız resmî sunucuya gider (bkz. main.ts hostSecret)
+  const secret = window.kovan.hostSecret(host);
   return { t: 'hello', user: { id: me.id, name: me.name || 'Arı', color: me.color, avatar: me.avatar, bio: me.bio, profile: me.extra }, secret, status: me.status, v: 1 };
 }
 
@@ -516,7 +517,6 @@ export async function boot() {
   }
   set({
     info,
-    secret: cfg.profile.secret,
     me: { id: cfg.profile.id, name: cfg.profile.name, color: cfg.profile.color, avatar: cfg.profile.avatar, bio: cfg.profile.bio, extra: sanitizeProfile(cfg.profile.extra), status: (cfg.profile.status as Status) || 'online' },
     onboarded: !!cfg.onboarded && !!cfg.profile.name,
     settings,
@@ -1508,7 +1508,7 @@ export async function uploadFile(cid: ID, file: File, w?: number, h?: number): P
   const headers: Record<string, string> = {
     'content-type': file.type || 'application/octet-stream',
     'x-kovan-user': s.me.id,
-    'x-kovan-secret': s.secret,
+    'x-kovan-secret': window.kovan.hostSecret(s.commHost[cid] || ''),
     'x-kovan-name': encodeURIComponent(file.name || 'dosya'),
   };
   if (w && h) {
