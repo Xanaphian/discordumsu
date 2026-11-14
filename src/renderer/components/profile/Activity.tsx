@@ -311,7 +311,7 @@ export const LiveActivityCard = memo(function LiveActivityCard({ a, compact, uid
           ) : (
             <Icon size={compact ? 20 : 26} />
           )}
-          {a.art && (a.icon ? <img className="act-badge" src={a.icon} alt="" /> : brand && <BrandLogo k={brand} size={22} className="act-badge" />)}
+          {a.art && a.kind !== 'listening' && (a.icon ? <img className="act-badge" src={a.icon} alt="" /> : brand && <BrandLogo k={brand} size={22} className="act-badge" />)}
         </div>
         <div className="act-text">
           <b title={title}>{title}</b>
@@ -430,6 +430,8 @@ export const ActivityBadge = memo(function ActivityBadge({ uid }: { uid: string 
       {marks}
       {a.icon && a.kind === 'playing' ? (
         <img className="member-act-ic" src={a.icon} alt="" title={title} />
+      ) : a.art && a.kind === 'listening' ? (
+        <img className="member-act-ic member-act-art" src={a.art} alt="" title={title} />
       ) : brand ? (
         <BrandLogo k={brand} size={20} className="member-act-ic" />
       ) : null}

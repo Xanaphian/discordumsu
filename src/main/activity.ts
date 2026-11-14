@@ -76,6 +76,7 @@ let ps: ChildProcess | null = null;
 let psRestart: NodeJS.Timeout | null = null;
 let lastProcs: Proc[] = [];
 let lastThumb: string | undefined;
+let lastThumbKey = '';
 let lolTimer: NodeJS.Timeout | null = null;
 let streamTimer: NodeJS.Timeout | null = null;
 const iconCache = new Map<string, string>();
@@ -165,6 +166,8 @@ $info = @{}
 $tick = 0
 $last = ''
 $lastKey = ''
+$thumbTries = 0
+$thumbOk = $false
 while ($true) {
   if (-not (Get-Process -Id $parent -ErrorAction SilentlyContinue)) { exit }
   $tick++
@@ -199,25 +202,37 @@ while ($true) {
   if (-not $mgr -and ($tick % 15) -eq 1) { $mgr = GetMgr }
   if ($mgr) {
     try {
-      $best = $null; $bestScore = -1; $bestPlaying = $false
+      # Xanaphian'ın kendi ses oturumu (ses odası, bildirim sesi) müzik sayılmaz. Kalan oturumlar puanlanır,
+      # adı (başlığı) olan en yüksek puanlı oturum seçilir: çalan > Spotify ya da Spotify'a bağlı oynatıcı > bilinen müzik uygulaması.
+      $cands = New-Object System.Collections.ArrayList
       foreach ($ss in $mgr.GetSessions()) {
+        $id = "$($ss.SourceAppUserModelId)"
         $pi = $ss.GetPlaybackInfo()
         $playing = ("$($pi.PlaybackStatus)" -eq 'Playing')
-        $sess += "$($ss.SourceAppUserModelId):$($pi.PlaybackStatus)"
+        $sess += "$($id):$($pi.PlaybackStatus)"
+        if ($id -match '(?i)xanaphian|kovan') { continue }
         $score = 0
         if ($playing) { $score += 10 }
-        if ($ss.SourceAppUserModelId -match 'spotify') { $score += 5 }
-        if ($score -gt $bestScore) { $best = $ss; $bestScore = $score; $bestPlaying = $playing }
+        if ($id -match '(?i)spotify|retrofy|spotif') { $score += 5 }
+        elseif ($id -match '(?i)music|deezer|tidal|foobar|aimp|winamp|musicbee|vlc|fizy|soundcloud') { $score += 3 }
+        [void]$cands.Add(@{ ss = $ss; sc = $score; pl = $playing })
+      }
+      $best = $null; $bestPlaying = $false; $pr = $null
+      foreach ($c in @($cands | Sort-Object -Property @{ Expression = { $_.sc }; Descending = $true })) {
+        $p2 = Await ($c.ss.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
+        if ($p2 -and $p2.Title) { $best = $c.ss; $bestPlaying = $c.pl; $pr = $p2; break }
       }
       if ($best) {
-        $pr = Await ($best.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
         if ($pr -and $pr.Title) {
           $tl = $null
           try { $tl = $best.GetTimelineProperties() } catch {}
           $key = "$($best.SourceAppUserModelId)|$($pr.Title)|$($pr.Artist)"
-          if ($key -ne $lastKey) {
-            $lastKey = $key
+          # Spotify kapağı çoğu zaman şarkı adından birkaç saniye sonra verir: alınamazsa sonraki turlarda yeniden dene
+          if ($key -ne $lastKey) { $lastKey = $key; $thumbTries = 0; $thumbOk = $false }
+          if (-not $thumbOk -and $thumbTries -lt 6) {
+            $thumbTries++
             if ($pr.Thumbnail) { $thumb = Thumb $pr.Thumbnail }
+            if ($thumb) { $thumbOk = $true }
           }
           $media = [ordered]@{ app = $best.SourceAppUserModelId; title = $pr.Title; artist = $pr.Artist; album = $pr.AlbumTitle; playing = [bool]$bestPlaying }
           if ($tl) {
@@ -230,7 +245,7 @@ while ($true) {
   $sig = (@{ p = $procs; m = $media; s = $sess; ok = [bool]$mgr } | ConvertTo-Json -Compress -Depth 4)
   if ($sig -ne $last -or $thumb) {
     $last = $sig
-    $out = [ordered]@{ p = $procs; m = $media; th = $thumb; ok = [bool]$mgr; s = $sess; e = $mgrErr }
+    $out = [ordered]@{ p = $procs; m = $media; th = $thumb; tk = $lastKey; ok = [bool]$mgr; s = $sess; e = $mgrErr }
     [Console]::Out.WriteLine(($out | ConvertTo-Json -Compress -Depth 4))
     [Console]::Out.Flush()
   }
@@ -303,9 +318,11 @@ function spotifyFromTitle(procs: Proc[]): DetectedMedia | null {
   return null;
 }
 
-async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; ok?: boolean; s?: string | string[]; e?: string }) {
+async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; tk?: string; ok?: boolean; s?: string | string[]; e?: string }) {
   lastProcs = arr(o.p);
-  if (o.th) lastThumb = resizeArt(o.th);
+  if (o.th) (lastThumb = resizeArt(o.th)), (lastThumbKey = o.tk || '');
+  // kapak yalnız alındığı şarkıya aittir: şarkı değişip yenisinin kapağı henüz gelmediyse eskisini gösterme
+  else if ((o.tk || '') !== lastThumbKey) lastThumb = undefined;
   const game = await pickGame(lastProcs);
   const m = o.m;
   let media: DetectedMedia | null = null;
@@ -324,7 +341,7 @@ async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; ok?
       at: typeof m.upd === 'number' && m.upd > 0 ? m.upd : Date.now(),
       art: lastThumb,
     };
-  } else lastThumb = undefined;
+  } else (lastThumb = undefined), (lastThumbKey = '');
   // medya denetimleri Spotify'ı vermediyse (kapalı, hata ya da başka uygulama seçildi) pencere başlığından oku
   if (!media || !media.playing) {
     const sp = spotifyFromTitle(lastProcs);
@@ -333,6 +350,7 @@ async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; ok?
       else media = sp;
     }
   }
+  if (media) withOnlineArt(media);
   const prevGame = state.game;
   // LoL maç ayrıntılarını koru (ayrı zamanlayıcı günceller)
   if (game && prevGame && prevGame.exe === game.exe && prevGame.name === game.name) {
@@ -347,7 +365,8 @@ async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; ok?
 
 function mediaSource(app: string): { src: string; name: string } {
   const a = app.toLowerCase();
-  if (a.includes('spotify')) return { src: 'spotify', name: 'Spotify' };
+  // Spotify'a bağlı üçüncü taraf oynatıcılar (Retrofy vb.) da Spotify sayılır: şarkı Spotify'dan çalar
+  if (/spotif|retrofy/.test(a)) return { src: 'spotify', name: 'Spotify' };
   const music: [RegExp, string][] = [
     [/applemusic|itunes/, 'Apple Music'],
     [/deezer/, 'Deezer'],
@@ -374,8 +393,99 @@ function mediaSource(app: string): { src: string; name: string } {
     [/yandex/, 'Yandex'],
   ];
   for (const [re, name] of browsers) if (re.test(a)) return { src: 'browser', name };
-  const base = app.split('!').pop()!.replace(/\.exe$/i, '');
-  return { src: 'other', name: base.slice(0, 32) || 'Medya' };
+  // "com.firma.Uygulama" ya da "Firma.Uygulama_abc123!App" gibi kimliklerden okunur bir ad çıkar
+  let base = app.split('!')[0].replace(/\.exe$/i, '').replace(/_[a-z0-9]{10,}$/i, '');
+  base = base.split(/[.\\/]/).filter(Boolean).pop() || base;
+  base = base.replace(/[-_]+/g, ' ').trim();
+  return { src: 'other', name: (base.charAt(0).toLocaleUpperCase('tr-TR') + base.slice(1)).slice(0, 32) || 'Medya' };
+}
+
+// ---------------------------------------------------------------------------
+// Albüm kapağı yedeği: medya denetimleri kapak vermediyse (ya da şarkı Spotify pencere başlığından okunduysa)
+// kapak Deezer / iTunes'un herkese açık aramasından alınır (anahtar gerekmez). Yalnız müzik uygulamalarında;
+// tarayıcıdaki videolar için arama yapılmaz, yanlış kapak çıkmasın.
+const artCache = new Map<string, string | null>();
+const artPending = new Set<string>();
+const fold = (t: string) =>
+  t
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+/** "Şarkı - Remastered 2011", "Şarkı (feat. X)" gibi ekleri at */
+const baseTitle = (t: string) => t.replace(/\s*[([].*?[)\]]/g, '').replace(/\s+-\s+.*$/, '').trim() || t;
+const mainArtist = (a: string) => a.split(/,|&| feat\.? | ft\.? | x | ve /i)[0].trim();
+
+function sameSong(wantTitle: string, wantArtist: string, title: string, artist: string): boolean {
+  const wt = fold(baseTitle(wantTitle)), t = fold(baseTitle(title));
+  const wa = fold(mainArtist(wantArtist)), a = fold(artist);
+  if (!wt || !t) return false;
+  const [s1, s2] = wt.length < t.length ? [wt, t] : [t, wt];
+  const titleOk = wt === t || (s2.startsWith(s1 + ' ') && s1.length >= s2.length * 0.6);
+  const artistOk = !wa || a.includes(wa) || wa.includes(fold(mainArtist(artist)));
+  return titleOk && artistOk;
+}
+
+async function getJson(url: string): Promise<any> {
+  const r = await net.fetch(url, { headers: { accept: 'application/json', 'user-agent': UA } });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function findCoverUrl(title: string, artist: string): Promise<string | null> {
+  const q = (artist ? mainArtist(artist) + ' ' : '') + baseTitle(title);
+  try {
+    const d = await getJson('https://api.deezer.com/search?limit=8&q=' + encodeURIComponent(q));
+    for (const x of d?.data || []) {
+      if (x?.album?.cover_medium && sameSong(title, artist, String(x.title || ''), String(x.artist?.name || ''))) return String(x.album.cover_medium);
+    }
+  } catch {
+    /* Deezer'a ulaşılamadı */
+  }
+  try {
+    const d = await getJson('https://itunes.apple.com/search?media=music&entity=song&limit=8&country=TR&term=' + encodeURIComponent(q));
+    for (const x of d?.results || []) {
+      if (x?.artworkUrl100 && sameSong(title, artist, String(x.trackName || ''), String(x.artistName || '')))
+        return String(x.artworkUrl100).replace(/100x100bb/, '256x256bb');
+    }
+  } catch {
+    /* iTunes'a ulaşılamadı */
+  }
+  return null;
+}
+
+function withOnlineArt(media: DetectedMedia) {
+  if (media.art || (media.src !== 'spotify' && media.src !== 'music')) return;
+  const key = fold(media.artist || '') + '|' + fold(media.title);
+  const hit = artCache.get(key);
+  if (hit !== undefined) {
+    if (hit) media.art = hit;
+    return;
+  }
+  if (artPending.has(key)) return;
+  artPending.add(key);
+  (async () => {
+    let art: string | null = null;
+    try {
+      const url = await findCoverUrl(media.title, media.artist || '');
+      if (url && /^https:\/\//.test(url)) {
+        const r = await net.fetch(url, { headers: { 'user-agent': UA } });
+        if (r.ok) art = resizeArt(Buffer.from(await r.arrayBuffer()).toString('base64')) || null;
+      }
+    } catch {
+      art = null;
+    }
+    artPending.delete(key);
+    if (artCache.size > 300) artCache.clear();
+    artCache.set(key, art);
+    const cur = state.media;
+    if (art && cur && !cur.art && cur.title === media.title && (cur.artist || '') === (media.artist || '')) {
+      state = { ...state, media: { ...cur, art } };
+      emit();
+    }
+  })();
 }
 
 function resizeArt(b64: string): string | undefined {
@@ -387,7 +497,7 @@ function resizeArt(b64: string): string | undefined {
     const side = Math.min(width, height);
     const sq = width !== height ? img.crop({ x: Math.floor((width - side) / 2), y: Math.floor((height - side) / 2), width: side, height: side }) : img;
     const out = sq.resize({ width: 128, height: 128, quality: 'good' }).toJPEG(78);
-    if (out.length > 22_000) return 'data:image/jpeg;base64,' + sq.resize({ width: 96, height: 96 }).toJPEG(65).toString('base64');
+    if (out.length > 16_500) return 'data:image/jpeg;base64,' + sq.resize({ width: 96, height: 96 }).toJPEG(65).toString('base64');
     return 'data:image/jpeg;base64,' + out.toString('base64');
   } catch {
     return undefined;
@@ -604,6 +714,7 @@ function loadFake() {
     if (state.game && !state.game.start) state.game.start = Date.now() - 23 * 60_000;
     if (state.game?.matchStart) state.game.matchStart = Date.now() - state.game.matchStart;
     for (const s of state.streams) if (s.start && s.start < 1e9) s.start = Date.now() - s.start;
+    if (state.media && !state.media.art) withOnlineArt(state.media);
   } catch {
     /* sahte veri yok */
   }
