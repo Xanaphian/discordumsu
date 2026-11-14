@@ -399,6 +399,8 @@ export type ClientFrame =
   | { t: 'friend.accept'; to: ID }
   | { t: 'friend.remove'; to: ID }
   | { t: 'friend.code'; reset?: boolean; rid: string }
+  /** ortak arkadaşlar (tam profil); cevap: ok.data = UserPublic[] */
+  | { t: 'friend.mutual'; uid: ID; rid: string }
   /** özel mesaj gizliliği (her bağlantıda gönderilir) */
   | { t: 'privacy'; dms: DmPrivacy }
   | { t: 'ping' }

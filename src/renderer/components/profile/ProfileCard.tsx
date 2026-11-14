@@ -91,19 +91,19 @@ export function Banner({ user, profile, className, children }: { user?: Pick<Use
   );
 }
 
-function tzNow(tz: number) {
+export function tzNow(tz: number) {
   const d = new Date(Date.now() + tz * 60000);
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
-function tzDiff(tz: number) {
+export function tzDiff(tz: number) {
   const mine = -new Date().getTimezoneOffset();
   const diff = Math.round((tz - mine) / 60);
   if (!diff) return 'seninle aynı saat diliminde';
   return diff > 0 ? `senden ${diff} saat ileride` : `senden ${-diff} saat geride`;
 }
 
-function useMinuteTick(on: boolean) {
+export function useMinuteTick(on: boolean) {
   const [, setT] = useState(0);
   useEffect(() => {
     if (!on) return;
@@ -121,13 +121,13 @@ export function isBirthday(p?: ProfileExtra) {
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 export const fmtBirthday = (b: string) => `${Number(b.slice(3))} ${MONTHS[Number(b.slice(0, 2)) - 1]}`;
 
-interface Badge {
+export interface Badge {
   id: string;
   label: string;
   icon: React.ReactNode;
 }
 
-function useBadges(uid: string, c: Community | undefined, profile?: ProfileExtra, bot?: boolean): Badge[] {
+export function useBadges(uid: string, c: Community | undefined, profile?: ProfileExtra, bot?: boolean): Badge[] {
   const ownsAny = useStore((s) => Object.values(s.communities).some((x) => x.ownerId === uid && x.members.length > 1));
   const out: Badge[] = [];
   if (uid === 'kovan-asistan') out.push({ id: 'bot', label: 'Asistan', icon: <Sparkles size={14} /> });
@@ -205,7 +205,7 @@ export interface CardProps {
 }
 
 /** Profil kartındaki arkadaşlık düğmesi: durumuna göre ekle / kabul et / arkadaşsınız */
-function FriendButton({ uid }: { uid: string }) {
+export function FriendButton({ uid }: { uid: string }) {
   const f = useStore((s) => s.friends[uid]);
   if (f?.state === 'ok')
     return (
