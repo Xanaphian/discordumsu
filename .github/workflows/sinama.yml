@@ -1,0 +1,40 @@
+name: Otomatik sınama
+
+# Uygulamayı ve sunucuyu gerçekten açıp ana ekranları gezer (test/duman/duman.mjs).
+# Her PR'da ve her sürümden önce çalışır; başarısız olursa sürüm yayınlanmaz.
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Aynı PR'a yeni gönderim gelince eski sınama iptal edilir; sürüm yayınlarken hiçbir zaman iptal edilmez
+concurrency:
+  group: sinama-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  duman:
+    name: Duman sınaması
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Derle
+        run: npm run build && npm run build:server
+      - name: Uygulamayı açıp sına
+        run: xvfb-run -a npm run test:duman
+      - name: Hata görüntüsünü sakla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duman-cikti
+          path: test/duman/cikti
+          if-no-files-found: ignore
