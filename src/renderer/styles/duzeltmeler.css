@@ -92,7 +92,7 @@
   border-color: var(--accent);
 }
 
-/* v1.36.1: mesaj işlem düğmeleri satırın en sağında değil, mesajın hemen altında (yer tutmaz, mesaj zıplamaz) */
+/* v1.37.1: mesaj işlem düğmeleri satırın en sağında değil, mesajın hemen altında (yer tutmaz, mesaj zıplamaz) */
 .msg-main {
   position: relative;
 }
