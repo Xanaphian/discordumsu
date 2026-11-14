@@ -9,6 +9,7 @@ import https from 'node:https';
 import path from 'node:path';
 import { KNOWN_GAMES, NOT_GAMES, gameFromPath } from './games';
 import { initSpotify, setSpotifyPolling, spotifyStatus, type SpotifyStatus, type SpotifyTrack } from './spotify';
+import { initRetrofy, setRetrofyWatch } from './retrofy';
 
 export interface DetectedGame {
   name: string;
@@ -57,8 +58,8 @@ export interface ActivityState {
   streams: DetectedStream[];
   /** Spotify hesabı bağlantısı (Ayarlar > Etkinlik) */
   spotify?: SpotifyStatus;
-  /** şarkı Spotify hesabından mı okundu */
-  mediaFrom?: 'account' | 'windows';
+  /** şarkı nereden okundu */
+  mediaFrom?: 'account' | 'retrofy' | 'windows';
 }
 export interface ActivityConfig {
   enabled: boolean;
@@ -86,6 +87,8 @@ let lastThumbKey = '';
 let localMedia: DetectedMedia | null = null;
 /** Spotify hesabından okunan şarkı */
 let accountMedia: DetectedMedia | null = null;
+/** Retrofy'nin yerel çalma motorundan (soloist) okunan şarkı */
+let retrofyMedia: DetectedMedia | null = null;
 const accountArt = new Map<string, string | null>();
 let lolTimer: NodeJS.Timeout | null = null;
 let streamTimer: NodeJS.Timeout | null = null;
@@ -369,7 +372,7 @@ async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; tk?
     game.matchStart = prevGame.matchStart;
   }
   localMedia = media;
-  state = { ...state, game, media: pickMedia(), mediaFrom: accountMedia?.playing ? 'account' : media ? 'windows' : undefined, mediaOk: !!o.ok, sessions: arr(o.s).slice(0, 8), mediaErr: o.e ? String(o.e).slice(0, 200) : undefined };
+  state = { ...state, game, media: pickMedia(), mediaFrom: mediaFrom(), mediaOk: !!o.ok, sessions: arr(o.s).slice(0, 8), mediaErr: o.e ? String(o.e).slice(0, 200) : undefined };
   syncLol();
   emit();
 }
@@ -735,7 +738,8 @@ function loadFake() {
 
 export function initActivity(sender: (s: ActivityState) => void) {
   send = sender;
-  initSpotify(onAccountTrack, () => emit());
+  initSpotify((t) => onRemoteTrack('account', t), () => emit());
+  initRetrofy((t) => onRemoteTrack('retrofy', t));
   if (process.env.KOVAN_FAKE_ACTIVITY) loadFake();
 }
 
@@ -747,15 +751,23 @@ export function getActivity(): ActivityState {
 // Spotify hesabı: çalıyorsa Windows'tan okunanın önüne geçer (Retrofy, telefon, web çalar dahil her yerden dinleneni görür)
 function pickMedia(): DetectedMedia | null {
   if (accountMedia?.playing) return accountMedia;
-  return localMedia || accountMedia;
+  if (retrofyMedia?.playing) return retrofyMedia;
+  if (localMedia?.playing) return localMedia;
+  return localMedia || retrofyMedia || accountMedia;
+}
+function mediaFrom(): ActivityState['mediaFrom'] {
+  const m = pickMedia();
+  return !m ? undefined : m === accountMedia ? 'account' : m === retrofyMedia ? 'retrofy' : 'windows';
 }
 
-function onAccountTrack(t: SpotifyTrack | null) {
-  if (!t || !t.title) accountMedia = null;
+function onRemoteTrack(slot: 'account' | 'retrofy', t: SpotifyTrack | null) {
+  const get = () => (slot === 'account' ? accountMedia : retrofyMedia);
+  const set = (m: DetectedMedia | null) => (slot === 'account' ? (accountMedia = m) : (retrofyMedia = m));
+  if (!t || !t.title) set(null);
   else {
     const art = t.artUrl ? accountArt.get(t.artUrl) : undefined;
-    accountMedia = {
-      app: 'Spotify',
+    set({
+      app: slot === 'retrofy' ? 'Retrofy' : 'Spotify',
       src: 'spotify',
       appName: 'Spotify',
       title: t.title,
@@ -766,8 +778,9 @@ function onAccountTrack(t: SpotifyTrack | null) {
       dur: t.dur,
       at: t.at,
       art: art || undefined,
-    };
-    if (t.artUrl && art === undefined && (/^https:\/\//.test(t.artUrl) || (!!process.env.KOVAN_SPOTIFY_TEST && t.artUrl.startsWith(process.env.KOVAN_SPOTIFY_TEST)))) {
+    });
+    const testOk = (!!process.env.KOVAN_SPOTIFY_TEST && t.artUrl?.startsWith(process.env.KOVAN_SPOTIFY_TEST)) || (!!process.env.KOVAN_RETROFY_TEST && t.artUrl?.startsWith('http://127.0.0.1'));
+    if (t.artUrl && art === undefined && (/^https:\/\//.test(t.artUrl) || testOk)) {
       const url = t.artUrl;
       accountArt.set(url, null);
       net
@@ -778,16 +791,17 @@ function onAccountTrack(t: SpotifyTrack | null) {
           if (accountArt.size > 200) accountArt.clear();
           if (!a) return accountArt.delete(url);
           accountArt.set(url, a);
-          if (accountMedia && t.artUrl === url) (accountMedia = { ...accountMedia, art: a }), (state = { ...state, media: pickMedia() }), emit();
+          const cur = get();
+          if (cur && cur.title === t.title && !cur.art) set({ ...cur, art: a }), (state = { ...state, media: pickMedia() }), emit();
         });
     }
     // hesap kapak vermediyse (yerel dosya) internetten bul
-    if (!t.artUrl) withOnlineArt(accountMedia);
+    if (!t.artUrl) withOnlineArt(get()!);
   }
   // ilerleme her yoklamada değişir; yalnız şarkı, durum, kapak ya da atlama (başlangıç anı kayması) olunca gönder
   const sig = (m: DetectedMedia | null) => (m ? [m.title, m.artist, m.playing, m.art ? 1 : 0, Math.round(((m.at || 0) - (m.pos || 0)) / 3000)].join('|') : '');
   const before = sig(state.media);
-  state = { ...state, media: pickMedia(), mediaFrom: accountMedia?.playing ? 'account' : localMedia ? 'windows' : undefined };
+  state = { ...state, media: pickMedia(), mediaFrom: mediaFrom() };
   if (before !== sig(state.media)) emit();
 }
 
@@ -802,6 +816,7 @@ export function configureActivity(next: ActivityConfig) {
   };
   if (process.env.KOVAN_FAKE_ACTIVITY) return emit();
   setSpotifyPolling(cfg.enabled);
+  setRetrofyWatch(cfg.enabled);
   if (!cfg.enabled) {
     stopWatcher();
     localMedia = null;
@@ -863,6 +878,7 @@ export async function runningApps(): Promise<RunningApp[]> {
 
 export function stopActivity() {
   setSpotifyPolling(false);
+  setRetrofyWatch(false);
   stopWatcher();
   if (lolTimer) clearInterval(lolTimer);
   if (streamTimer) clearInterval(streamTimer);

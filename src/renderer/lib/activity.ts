@@ -27,7 +27,7 @@ export interface DetectedState {
   } | null;
   streams: { svc: 'kick' | 'twitch'; name: string; live: boolean; title?: string; category?: string; viewers?: number; start?: number; url: string }[];
   spotify?: SpotifyStatus;
-  mediaFrom?: 'account' | 'windows';
+  mediaFrom?: 'account' | 'retrofy' | 'windows';
 }
 export type SpotifyStatus = { clientId: string; defaultClientId: boolean; connected: boolean; user?: string; error?: string; redirect: string };
 
