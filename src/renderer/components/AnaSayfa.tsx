@@ -14,7 +14,7 @@ import { useVoice, joinVoice } from '../lib/voice';
 import { useActs } from '../lib/activity';
 import { parseCard, lfgSlots, type LfgCard } from '../lib/cards';
 import { Avatar, CommunityIcon, STATUS_LABEL } from './Common';
-import { ChannelGlyph, ChannelPic } from './OdaResmi';
+import { ChannelGlyph } from './OdaResmi';
 import { PresenceLine, ActivityBadge } from './profile/Activity';
 import { Banner } from './profile/ProfileCard';
 import { useUnread } from './ServerRail';
@@ -381,7 +381,7 @@ function RoomCard({ r, users }: { r: Room; users: State['users'] }) {
   return (
     <div className={cx('ah-room', here && 'here')} style={{ ['--cc' as any]: r.c.color }}>
       <button className="ah-room-top" onClick={() => selectChannel(r.c.id, r.ch.id)}>
-        <span className="ah-room-ic">{r.ch.image ? <ChannelPic type={r.ch.type} image={r.ch.image} size={40} /> : <ChannelGlyph type={r.ch.type} size={20} />}</span>
+        <span className="ah-room-ic"><ChannelGlyph type={r.ch.type} size={20} /></span>
         <span className="ah-room-t">
           <b>{r.ch.name}</b>
           <span>

@@ -11,7 +11,6 @@ import { Avatar, Tooltip, Toggle } from './Common';
 import { Modal } from './Modals';
 import { cx, displayName } from '../lib/util';
 import type { Channel, Community, ID, VoiceMember } from '../../shared/protocol';
-import { ChannelPic } from './OdaResmi';
 
 /** Akışı bir <video> öğesine bağlar; akış değişmedikçe yeniden bağlamaz */
 export const StreamVideo = memo(function StreamVideo({ stream, mirror, fit = 'cover', muted = true }: { stream: MediaStream; mirror?: boolean; fit?: 'cover' | 'contain'; muted?: boolean }) {
@@ -150,13 +149,9 @@ export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embe
   return (
     <section className={cx('voice-view', embedded && 'embedded')}>
       {!embedded && <div className="chat-header">
-        {ch.image ? (
-          <ChannelPic type={ch.type} image={ch.image} size={28} />
-        ) : (
-          <span className="ch-head-icon">
+        <span className="ch-head-icon">
             <Volume2 size={22} />
           </span>
-        )}
         <h2>{ch.name}</h2>
         <span className="head-sep" />
         <span className="ch-topic">{members.length ? `${members.length} kişi bağlı` : 'Kimse yok'}</span>

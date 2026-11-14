@@ -21,7 +21,7 @@ import { ScreenPickerModal } from './Media';
 import { ProfileModal, CustomStatusModal } from './profile/ProfileModal';
 import { SelfRolesModal } from './RolSec';
 import { TemplateImport } from './ToplulukAraclari';
-import { ChannelPicField } from './OdaResmi';
+import { ChannelBannerField } from './OdaResmi';
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
   useEffect(() => {
@@ -249,14 +249,14 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
   const [url, setUrl] = useState(DEFAULT_SITE_URL);
   const [cat, setCat] = useState<string | null>(categoryId);
   const [priv, setPriv] = useState(false);
-  const [image, setImage] = useState<string | undefined>();
+  const [banner, setBanner] = useState<string | undefined>();
   if (!c) return null;
   const urlOk = type !== 'site' || !!cleanSiteUrl(url);
   const tool = isToolChannel(type);
   const submit = async () => {
     if ((!name.trim() && type !== 'site' && !tool) || !urlOk) return;
     try {
-      const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name, type, categoryId: cat, private: priv, ...(type === 'site' ? { url: cleanSiteUrl(url)! } : {}), ...(image ? { image } : {}) });
+      const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name, type, categoryId: cat, private: priv, ...(type === 'site' ? { url: cleanSiteUrl(url)! } : {}), ...(banner ? { banner } : {}) });
       close();
       if (type === 'voice' && !priv) joinVoice(cid, r.data);
       selectChannel(cid, r.data);
@@ -311,7 +311,7 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
             <small className={cx('field-hint', !urlOk && 'err')}>{urlOk ? 'Oda bu adresle açılır; bu sitenin tüm sayfaları odanın içinde gezilebilir.' : 'Geçerli bir http(s) adresi yaz.'}</small>
           </label>
         )}
-        <ChannelPicField type={type} image={image} onChange={setImage} />
+        <ChannelBannerField type={type} name={name} banner={banner} onChange={setBanner} />
         <label className="field">
           <span>Kategori</span>
           <select value={cat || ''} onChange={(e) => setCat(e.target.value || null)}>

@@ -12,7 +12,7 @@ import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, 
 import { enterSpace, exitSpace, toggle3d, useSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
-import { ChannelGlyph, ChannelPic } from './OdaResmi';
+import { ChannelGlyph, ChannelBannerBg } from './OdaResmi';
 import { isToolChannel } from '../../shared/protocol';
 import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
@@ -136,7 +136,7 @@ const ChannelRow = memo(function ChannelRow({
   const occupants = useStore((s) => (isVoiceLike(ch.type) ? s.voice[ch.id]?.length || 0 : 0));
   const viewers = useSite((s) => (ch.type === 'site' ? new Set((s.viewers[ch.id] || []).map((v) => v.userId)).size : 0));
   const live = useVoice((v) => isVoiceLike(ch.type) && (useStore.getState().voice[ch.id] || []).some((m) => v.speaking[m.userId] && !m.muted));
-  const sub = room ? roomSub(ch, occupants, viewers) : ch.image && ch.topic ? ch.topic.replace(/\s+/g, ' ').slice(0, 80) : '';
+  const sub = room ? roomSub(ch, occupants, viewers) : ch.banner && ch.topic ? ch.topic.replace(/\s+/g, ' ').slice(0, 80) : '';
   const click = () => {
     if (isVoiceLike(ch.type) && !inVoice) tryJoinVoice(c, ch);
     selectChannel(c.id, ch.id);
@@ -185,13 +185,13 @@ const ChannelRow = memo(function ChannelRow({
           ]
         : []),
     ]);
-  return (
+  const body = (
     <>
       <div
         className={cx(
           'ch-row',
           room && 'room room-' + ch.type,
-          ch.image && 'has-pic',
+          ch.banner && 'has-banner',
           (occupants > 0 || viewers > 0) && 'occupied',
           live && 'live',
           active && 'active',
@@ -221,13 +221,10 @@ const ChannelRow = memo(function ChannelRow({
       >
         {unread && !active && !muted && <span className="ch-unread-pill" />}
         {room && <span className="room-art" aria-hidden />}
-        {ch.image ? (
-          <ChannelPic type={ch.type} image={ch.image} />
-        ) : (
-          <span className="ch-icon">
-            <ChannelGlyph type={ch.type} icon={ch.icon} size={room ? 20 : 18} />
-          </span>
-        )}
+        {ch.banner && <ChannelBannerBg banner={ch.banner} />}
+        <span className="ch-icon">
+          <ChannelGlyph type={ch.type} icon={ch.icon} size={room ? 20 : 18} />
+        </span>
         {room || sub ? (
           <span className="ch-text">
             <span className="ch-name">{ch.name}</span>
@@ -264,6 +261,8 @@ const ChannelRow = memo(function ChannelRow({
       {ch.type === 'site' && <SiteViewers c={c} chId={ch.id} />}
     </>
   );
+  // odalar (ses, site) bir çerçevenin içinde: altındaki kişiler odaya ait görünür, kişi kartlarıyla karışmaz
+  return room ? <div className={cx('room-box', (active || inVoice) && 'on', (occupants > 0 || viewers > 0) && 'occupied')}>{body}</div> : body;
 });
 
 export function ChannelSidebar({ c }: { c: Community }) {
