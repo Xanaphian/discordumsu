@@ -104,7 +104,7 @@ async function uploadHome(file: File): Promise<Attachment> {
   const headers: Record<string, string> = {
     'content-type': file.type || 'application/octet-stream',
     'x-kovan-user': s.me.id,
-    'x-kovan-secret': s.secret,
+    'x-kovan-secret': window.kovan.hostSecret(homeHost()),
     'x-kovan-name': encodeURIComponent(file.name || 'resim'),
   };
   const sz = await imageSize(file);

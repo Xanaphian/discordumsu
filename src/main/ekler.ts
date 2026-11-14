@@ -28,7 +28,7 @@ export class Ekler {
   /** hata bildirimi hız sınırı: kullanıcı -> son 10 dakikadaki bildirim anları */
   private reportRate = new Map<ID, number[]>();
   /** yükleme kotası: kullanıcı -> son bir saatteki yüklemeler */
-  private uploads = new Map<ID, { at: number; bytes: number }[]>();
+  private uploads = new Map<ID, { at: number; bytes: number; bulk?: boolean }[]>();
 
   constructor(
     private dir: string,
@@ -113,14 +113,15 @@ export class Ekler {
 
   // ---------- yükleme kotası ----------
   /** Yüklemeye izin var mı? İzin yoksa kullanıcıya gösterilecek açıklama döner. */
-  uploadBlocked(uid: ID, bytes: number): string | null {
+  uploadBlocked(uid: ID, bytes: number, bulk = false): string | null {
     const o = this.opts.upload || {};
     const perHour = (o.mbPerHour ?? 1024) * 1024 * 1024;
     const perTen = o.perTenMin ?? 60;
     const now = Date.now();
     const list = (this.uploads.get(uid) || []).filter((u) => now - u.at < HOUR);
     this.uploads.set(uid, list);
-    if (list.filter((u) => now - u.at < 600_000).length >= perTen) return 'Kısa sürede çok fazla dosya yükledin. Birkaç dakika sonra yeniden dene.';
+    // topluluk taşımasındaki dosyalar (bulk) adet sınırına sayılmaz, yalnız saatlik boyut sınırına sayılır
+    if (!bulk && list.filter((u) => !u.bulk && now - u.at < 600_000).length >= perTen) return 'Kısa sürede çok fazla dosya yükledin. Birkaç dakika sonra yeniden dene.';
     const used = list.reduce((s, u) => s + u.bytes, 0);
     if (used + bytes > perHour) {
       const wait = Math.max(1, Math.ceil((list[0].at + HOUR - now) / 60_000));
@@ -138,9 +139,9 @@ export class Ekler {
   }
 
   /** Yükleme başlarken sayılır (yarıda kesilen de sayılır; aksi halde sınır atlatılabilir) */
-  uploadCount(uid: ID, bytes: number) {
+  uploadCount(uid: ID, bytes: number, bulk = false) {
     const list = this.uploads.get(uid) || [];
-    list.push({ at: Date.now(), bytes });
+    list.push({ at: Date.now(), bytes, ...(bulk ? { bulk } : {}) });
     this.uploads.set(uid, list);
     if (this.uploads.size > 5000) for (const [k, v] of this.uploads) if (!v.some((u) => Date.now() - u.at < HOUR)) this.uploads.delete(k);
   }
