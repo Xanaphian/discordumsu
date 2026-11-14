@@ -1,6 +1,6 @@
 // Odalara özel resim (v1.29): oda listesinde türün simgesi yerine küçük resim, sağ altında tür işareti.
 import React, { useRef } from 'react';
-import { Hash, Volume2, Megaphone, Box, Globe, ImagePlus, Trash2 } from 'lucide-react';
+import { Hash, Volume2, Megaphone, Globe, ImagePlus, Trash2 } from 'lucide-react';
 import { ToolIcon } from './Tools';
 import { toast } from '../lib/store';
 import { resizeImage } from '../lib/util';
@@ -10,8 +10,7 @@ import { isToolChannel, cleanChannelImage, type Channel } from '../../shared/pro
 export function ChannelGlyph({ type, size = 18, icon }: { type: Channel['type']; size?: number; icon?: string }) {
   if (type === 'site' && icon) return <img className="ch-site-icon" src={icon} alt="" width={size} height={size} draggable={false} />;
   if (isToolChannel(type)) return <ToolIcon type={type} size={size} />;
-  if (type === 'voice') return <Volume2 size={size} />;
-  if (type === 'space') return <Box size={size} />;
+  if (type === 'voice' || type === 'space') return <Volume2 size={size} />;
   if (type === 'site') return <Globe size={size} />;
   if (type === 'announce') return <Megaphone size={size} />;
   return <Hash size={size} />;
@@ -21,7 +20,7 @@ const TYPE_LABEL: Partial<Record<Channel['type'], string>> = {
   text: 'Metin kanalı',
   announce: 'Duyuru kanalı',
   voice: 'Sesli oda',
-  space: '3D oda',
+  space: 'Sesli oda',
   site: 'Site odası',
 };
 

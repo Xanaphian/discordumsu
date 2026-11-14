@@ -1,7 +1,7 @@
 // 3D odalar: avatar durumu ve sunucu ile konuşma.
 // Yüksek frekanslı hareket verisi React durumuna girmez; sahne doğrudan `live` üzerinden okur.
 import { create } from 'zustand';
-import type { AvatarLook, Booth, ID, ServerFrame, SpaceAvatar } from '../../shared/protocol';
+import type { AvatarLook, Booth, Channel, ID, Room3d, ServerFrame, SpaceAvatar } from '../../shared/protocol';
 import { useStore, spaceHooks, cmd, toast } from './store';
 import { useVoice, joinVoice, leaveVoice, setSpatialMode } from './voice';
 import { playSound } from './sound';
@@ -126,10 +126,21 @@ spaceHooks.onFrame = (h, f: ServerFrame) => {
   }
 };
 
+/** Odanın 3D dünyası: kanalda seçilmişse o, eski 3D odalar meydan, diğer ses odaları salon */
+export const worldOf = (ch: Channel | undefined): Room3d => ch?.room3d || (ch?.type === 'space' ? 'meydan' : 'salon');
+
+export const WORLDS: { id: Room3d; label: string; sub: string }[] = [
+  { id: 'salon', label: 'Salon', sub: 'Kapalı oturma salonu: duvarda yayın ekranı, kanepeler, masalar' },
+  { id: 'meydan', label: 'Meydan', sub: 'Açık hava: sahne, standlar, kamp ateşi, gölet' },
+];
+
+let joinTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Bulunduğun ses odasının 3D görünümünü aç. Seste değilsen önce o odanın sesine katılır. */
 export async function enterSpace(cid: ID, ch: ID) {
   const st = useStore.getState();
   if (SP().ch === ch && SP().status !== 'idle') return;
-  if (SP().ch) exitSpace(true);
+  if (SP().ch) exitSpace();
   host = st.commHost[cid] || null;
   if (!host || st.conns[host]?.status !== 'online') {
     toast('Bu topluluğun sunucusuna bağlı değilsin.', 'err');
@@ -137,21 +148,38 @@ export async function enterSpace(cid: ID, ch: ID) {
   }
   live.avatars.clear();
   setSP({ ch, cid, status: 'joining', you: null, roster: {}, booths: [], log: [] });
+  if (useVoice.getState().ch !== ch) await joinVoice(cid, ch);
+  if (SP().ch !== ch) return; // bu arada vazgeçildi
   cmd(ch, { t: 'sp.join', ch, look: myLook() });
-  // ses: aynı kanalın ses odasına konumsal modda katıl (mikrofon izni burada istenir)
-  await joinVoice(cid, ch);
   setSpatialMode(true);
+  clearTimeout(joinTimer);
+  joinTimer = setTimeout(() => {
+    if (SP().ch !== ch || SP().status !== 'joining') return;
+    exitSpace();
+    toast('3D görünüm açılamadı. Sunucu güncellenince her ses odasında çalışacak.', 'err');
+  }, 6000);
 }
 
-export function exitSpace(silent = false) {
+/** 3D görünümü kapat; ses bağlantısı sürer (leaveCall: aramadan da çık) */
+export function exitSpace(leaveCall = false) {
   const ch = SP().ch;
   if (!ch) return;
+  clearTimeout(joinTimer);
   cmd(ch, { t: 'sp.leave' });
   live.avatars.clear();
   live.emit({ k: 'snap' });
   setSP({ ch: null, cid: null, status: 'idle', you: null, roster: {}, booths: [], log: [] });
   host = null;
-  if (useVoice.getState().ch === ch) leaveVoice(silent);
+  setSpatialMode(false);
+  if (leaveCall && useVoice.getState().ch === ch) leaveVoice();
+}
+
+/** Ses panelindeki 3D tuşu */
+export function toggle3d() {
+  const v = useVoice.getState();
+  if (!v.ch || !v.cid) return;
+  if (SP().ch === v.ch && SP().status !== 'idle') exitSpace();
+  else enterSpace(v.cid, v.ch);
 }
 
 let lastSent = { x: NaN, z: NaN, ry: NaN, a: -1, t: 0 };
@@ -197,10 +225,10 @@ export function pushLook() {
 // ses bağlantısı başka yerden kesilirse (panel, bağlantı kopması) odadan da çık
 useVoice.subscribe((v, prev) => {
   const ch = SP().ch;
-  if (ch && prev.ch === ch && v.ch !== ch) exitSpace(true);
+  if (ch && prev.ch === ch && v.ch !== ch) exitSpace();
 });
 // sunucu bağlantısı koparsa
 useStore.subscribe((s, prev) => {
   if (!host || !SP().ch) return;
-  if (prev.conns[host]?.status === 'online' && s.conns[host]?.status !== 'online') exitSpace(true);
+  if (prev.conns[host]?.status === 'online' && s.conns[host]?.status !== 'online') exitSpace();
 });

@@ -1,6 +1,8 @@
 // Kanal ve kategori ayarları (tam ekran)
 import React, { useEffect, useState } from 'react';
-import { Hash, Volume2, Megaphone, Box, Folder, Globe } from 'lucide-react';
+import { Hash, Volume2, Megaphone, Folder, Globe } from 'lucide-react';
+import { worldOf, WORLDS } from '../lib/space';
+import type { Room3d } from '../../shared/protocol';
 import { useStore, cmd, toast, confirmDialog, request, selectChannel } from '../lib/store';
 import { Shell, Row, close } from './Settings';
 import { OverwriteEditor } from './Permissions';
@@ -56,6 +58,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
   const [topic, setTopic] = useState(ch?.topic || '');
   const [slow, setSlow] = useState(ch?.slowmode || 0);
   const [limit, setLimit] = useState(ch?.userLimit || 0);
+  const [world, setWorld] = useState<Room3d>(worldOf(ch));
   const [type, setType] = useState(ch?.type || 'text');
   const [cat, setCat] = useState<string | null>(ch?.categoryId ?? null);
   const [ow, setOw] = useState<Overwrite[]>(ch?.overwrites || []);
@@ -74,13 +77,14 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
   const canManage = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const canPerms = canIn(c, me, ch, Perm.MANAGE_ROLES);
   const dirtyOverview =
-    name !== ch.name || topic !== (ch.topic || '') || (site && url !== (ch.url || DEFAULT_SITE_URL)) || slow !== (ch.slowmode || 0) || limit !== (ch.userLimit || 0) || type !== ch.type || cat !== (ch.categoryId ?? null) || image !== ch.image;
+    name !== ch.name || topic !== (ch.topic || '') || (site && url !== (ch.url || DEFAULT_SITE_URL)) || slow !== (ch.slowmode || 0) || limit !== (ch.userLimit || 0) || type !== ch.type || cat !== (ch.categoryId ?? null) || image !== ch.image || (voice && world !== worldOf(ch));
   const dirtyPerms = !sameOw(ow, ch.overwrites);
   const resetOverview = () => {
     setName(ch.name);
     setTopic(ch.topic || '');
     setSlow(ch.slowmode || 0);
     setLimit(ch.userLimit || 0);
+    setWorld(worldOf(ch));
     setType(ch.type);
     setCat(ch.categoryId ?? null);
     setUrl(ch.url || DEFAULT_SITE_URL);
@@ -89,7 +93,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
   const saveOverview = () => {
     if (!name.trim()) return toast('Kanal adı boş olamaz.', 'err');
     if (!urlOk) return toast('Geçerli bir http(s) adresi yaz.', 'err');
-    cmd(cid, { t: 'chan.update', cid, id: chId, name, topic, slowmode: slow, userLimit: limit, type: type !== ch.type ? type : undefined, categoryId: cat, ...(site ? { url: cleanSiteUrl(url)! } : {}), ...(image !== ch.image ? { image: image ?? null } : {}) });
+    cmd(cid, { t: 'chan.update', cid, id: chId, name, topic, slowmode: slow, userLimit: limit, type: type !== ch.type ? type : undefined, categoryId: cat, ...(site ? { url: cleanSiteUrl(url)! } : {}), ...(image !== ch.image ? { image: image ?? null } : {}), ...(voice && world !== worldOf(ch) ? { room3d: world } : {}) });
     toast('Kanal kaydedildi', 'ok');
     if (image !== ch.image)
       setTimeout(() => {
@@ -111,7 +115,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
       toast((e as Error).message, 'err');
     }
   };
-  const Icon = isToolChannel(ch.type) ? TOOL_INFO[ch.type].Icon : ch.type === 'voice' ? Volume2 : ch.type === 'space' ? Box : site ? Globe : ch.type === 'announce' ? Megaphone : Hash;
+  const Icon = isToolChannel(ch.type) ? TOOL_INFO[ch.type].Icon : isVoiceLike(ch.type) ? Volume2 : site ? Globe : ch.type === 'announce' ? Megaphone : Hash;
   const nav = [
     { id: 'overview', label: 'Genel Bakış', group: (free ? '' : '#') + ch.name },
     ...(canPerms ? [{ id: 'perms', label: 'İzinler', group: (free ? '' : '#') + ch.name }] : []),
@@ -180,6 +184,19 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
               <span>Kişi sınırı: {limit ? `${limit} kişi` : 'sınırsız'}</span>
               <input type="range" min={0} max={99} step={1} value={limit} disabled={!canManage} onChange={(e) => setLimit(Number(e.target.value))} />
               <small className="note">Kanal dolunca yeni kimse katılamaz. "Kanalları yönet" yetkisi olanlar sınırı aşabilir.</small>
+            </div>
+          )}
+          {voice && (
+            <div className="field">
+              <span>3D görünüm</span>
+              <div className="seg-row">
+                {WORLDS.map((w) => (
+                  <button key={w.id} type="button" className={cx('btn sm', world === w.id ? 'primary' : 'ghost')} disabled={!canManage} onClick={() => setWorld(w.id)}>
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+              <small className="note">Sese katılınca ses panelindeki 3D tuşuyla odanın avatarlı görünümü açılır. Burada odadaki herkesin göreceği yeri seçersin.</small>
             </div>
           )}
           {canManage && (

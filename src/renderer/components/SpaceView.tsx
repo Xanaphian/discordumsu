@@ -1,11 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Box, Mic, MicOff, Headphones, HeadphoneOff, LogOut, Moon, Sun, Shirt, HelpCircle, MessageSquare, Users, Store, X, Check } from 'lucide-react';
-import { useStore, updateSettings } from '../lib/store';
-import { useVoice, toggleMute, toggleDeaf } from '../lib/voice';
-import { useSpace, enterSpace, exitSpace, say, setBooth, pushLook } from '../lib/space';
+// 3D görünüm (v1.31): ayrı bir kanal değil, ses odasının avatarlı görünümü.
+// Sese katılınca ses panelindeki 3D tuşuyla açılır, aynı tuşla normal görünüme dönülür.
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Box, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Moon, Sun, Shirt, Keyboard, MessageSquare, Users, Store, X, Check, Volume2,
+  Video, VideoOff, MonitorUp, MonitorX, Hand, Music2, Sparkles, Heart, Laugh, RotateCw, ArrowUpFromLine, Eye, Settings2, ChevronDown, ChevronUp, SendHorizontal, Tv,
+} from 'lucide-react';
+import { useStore, updateSettings, openModal, cmd } from '../lib/store';
+import { useVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
+import { useSpace, exitSpace, say, setBooth, pushLook, worldOf, WORLDS } from '../lib/space';
 import { Avatar, Tooltip } from './Common';
 import { cx, COLORS, displayName } from '../lib/util';
-import type { AvatarLook, Channel, Community, ID } from '../../shared/protocol';
+import { canIn, Perm, type AvatarLook, type Channel, type Community, type ID, type Room3d } from '../../shared/protocol';
 import type { SpaceEngine, Prompt } from '../space/engine';
 
 const HATS: { id: AvatarLook['hat']; label: string }[] = [
@@ -16,16 +21,6 @@ const HATS: { id: AvatarLook['hat']; label: string }[] = [
   { id: 'halo', label: 'Hale' },
   { id: 'headphones', label: 'Kulaklık' },
   { id: 'none', label: 'Yok' },
-];
-
-const EMOTE_BAR = [
-  { e: 'wave', key: '1', icon: '👋', label: 'El salla' },
-  { e: 'dance', key: '2', icon: '💃', label: 'Dans' },
-  { e: 'clap', key: '3', icon: '👏', label: 'Alkış' },
-  { e: 'heart', key: '4', icon: '💖', label: 'Kalp' },
-  { e: 'laugh', key: '5', icon: '😂', label: 'Gül' },
-  { e: 'spin', key: '6', icon: '🌀', label: 'Dön' },
-  { e: 'jump', key: '7', icon: '⤴️', label: 'Zıpla' },
 ];
 
 /** Avatarın 2B önizlemesi (giriş ekranı ve görünüm paneli) */
@@ -109,68 +104,6 @@ function LookPicker() {
   );
 }
 
-function Lobby({ c, ch }: { c: Community; ch: Channel }) {
-  const members = useStore((s) => s.voice[ch.id]) || [];
-  const users = useStore((s) => s.users);
-  const joining = useSpace((s) => s.status === 'joining' && s.ch === ch.id);
-  return (
-    <div className="sv-lobby">
-      <div className="sv-card">
-        <div className="sv-hero">
-          <div className="sv-hero-hex">
-            <Box size={34} />
-          </div>
-          <div>
-            <h2>{ch.name}</h2>
-            <p>{ch.topic || 'Avatarınla dolaş, yakındakilerle sesli konuş.'}</p>
-          </div>
-        </div>
-        <div className="sv-who">
-          {members.length ? (
-            <>
-              <div className="sv-faces">
-                {members.slice(0, 8).map((m) => (
-                  <Avatar key={m.sessionId} user={users[m.userId]} size={28} />
-                ))}
-              </div>
-              <span>
-                {members.length} kişi içeride: {members.slice(0, 3).map((m) => displayName(c, m.userId, users)).join(', ')}
-                {members.length > 3 ? '…' : ''}
-              </span>
-            </>
-          ) : (
-            <span>Şu an kimse yok. Meydanı ilk sen aç!</span>
-          )}
-        </div>
-        <LookPicker />
-        <div className="sv-features">
-          <div>
-            <b>🔊 Yakınlık sesi</b>
-            <span>Yaklaştıkça duyarsın, sesin yönü de gelir.</span>
-          </div>
-          <div>
-            <b>🎤 Sahne</b>
-            <span>Sahneye çık, herkes seni duysun.</span>
-          </div>
-          <div>
-            <b>🏪 Standlar</b>
-            <span>Bir stand kirala, tabelana ne istersen yaz.</span>
-          </div>
-          <div>
-            <b>🔥 Kamp ateşi</b>
-            <span>Banklara otur, sohbet et, emote yap.</span>
-          </div>
-        </div>
-        <button className="btn primary lg sv-enter" disabled={joining} onClick={() => enterSpace(c.id, ch.id)}>
-          {joining ? 'Giriliyor…' : 'Odaya gir'}
-        </button>
-        <div className="sv-keys">
-          <kbd>W A S D</kbd> yürü · <kbd>Shift</kbd> koş · <kbd>Boşluk</kbd> zıpla · <kbd>E</kbd> etkileşim · <kbd>Enter</kbd> sohbet · <kbd>1-7</kbd> emote · fareyle sürükle: kamera
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function Minimap({ engine }: { engine: SpaceEngine | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -180,9 +113,12 @@ function Minimap({ engine }: { engine: SpaceEngine | null }) {
       const cv = ref.current;
       if (!cv) return;
       const g = cv.getContext('2d')!;
-      const S = cv.width, k = S / 2 / 37;
+      const md = engine.mapDraw;
+      const S = cv.width, k = S / 2 / (md ? md.scale : 37);
       const P = (x: number, z: number): [number, number] => [S / 2 + x * k, S / 2 + z * k];
       g.clearRect(0, 0, S, S);
+      if (md) md.draw(g, P, k);
+      else {
       g.fillStyle = 'rgba(30,60,30,.85)';
       g.beginPath();
       g.arc(S / 2, S / 2, S / 2 - 1, 0, Math.PI * 2);
@@ -209,6 +145,7 @@ function Minimap({ engine }: { engine: SpaceEngine | null }) {
       for (const [x, z] of [[-15, -5], [-15.5, 1.5], [-15, 8], [15, -5], [15.5, 1.5], [15, 8]]) {
         const [px, pz] = P(x, z);
         g.fillRect(px - 3, pz - 3, 6, 6);
+      }
       }
       const s = engine.snapshot();
       for (const o of s.others) {
@@ -239,28 +176,6 @@ function Minimap({ engine }: { engine: SpaceEngine | null }) {
     return () => clearInterval(id);
   }, [engine]);
   return <canvas ref={ref} width={150} height={150} className="sv-minimap" />;
-}
-
-function ChatLog({ c }: { c: Community }) {
-  const log = useSpace((s) => s.log);
-  const users = useStore((s) => s.users);
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => tick((x) => x + 1), 2000);
-    return () => clearInterval(id);
-  }, []);
-  const now = Date.now();
-  const recent = log.filter((l) => now - l.ts < 60_000).slice(-6);
-  if (!recent.length) return null;
-  return (
-    <div className="sv-log">
-      {recent.map((l) => (
-        <div key={l.id} className={cx('sv-log-line', now - l.ts > 45_000 && 'old')}>
-          <b style={{ color: users[l.uid]?.color }}>{displayName(c, l.uid, users)}</b> {l.text}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function BoothEditor({ i, onClose }: { i: number; onClose: () => void }) {
@@ -317,16 +232,19 @@ function BoothEditor({ i, onClose }: { i: number; onClose: () => void }) {
   );
 }
 
-function People({ c }: { c: Community }) {
+function People({ c, ch }: { c: Community; ch: Channel }) {
   const roster = useSpace((s) => s.roster);
   const users = useStore((s) => s.users);
   const speaking = useVoice((s) => s.speaking);
+  const voice = useStore((s) => s.voice[ch.id]) || [];
   const list = Object.values(roster);
+  const in3d = new Set(list.map((r) => r.userId));
+  const flat = voice.filter((m) => !in3d.has(m.userId));
   return (
     <div className="sv-panel sv-people">
       <div className="sv-panel-head">
         <Users size={18} />
-        <b>Odadakiler · {list.length}</b>
+        <b>3D'de · {list.length}</b>
       </div>
       <div className="sv-people-list">
         {list.map((r) => (
@@ -337,8 +255,140 @@ function People({ c }: { c: Community }) {
           </div>
         ))}
       </div>
+      {flat.length > 0 && (
+        <>
+          <div className="sv-label">Yalnız seste · {flat.length}</div>
+          <div className="sv-people-list">
+            {flat.map((m) => (
+              <div key={m.sessionId} className={cx('sv-person', speaking[m.userId] && 'speaking')}>
+                <Avatar user={users[m.userId]} size={24} />
+                <span>{displayName(c, m.userId, users)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
+}
+
+const ACTIONS: { e: string; key: string; label: string; Icon: typeof Hand }[] = [
+  { e: 'wave', key: '1', label: 'El salla', Icon: Hand },
+  { e: 'dance', key: '2', label: 'Dans', Icon: Music2 },
+  { e: 'clap', key: '3', label: 'Alkış', Icon: Sparkles },
+  { e: 'heart', key: '4', label: 'Kalp', Icon: Heart },
+  { e: 'laugh', key: '5', label: 'Gül', Icon: Laugh },
+  { e: 'spin', key: '6', label: 'Dön', Icon: RotateCw },
+  { e: 'jump', key: '7', label: 'Zıpla', Icon: ArrowUpFromLine },
+];
+const QUICK = ['😂', '😮', '😍', '👍', '🔥', '🎉', '❤️', '👏'];
+
+/** Sağ altta: son konuşmalar, hızlı tepkiler, yazı kutusu */
+function ChatDock({ c, inputRef }: { c: Community; inputRef: React.RefObject<HTMLInputElement | null> }) {
+  const log = useSpace((s) => s.log);
+  const users = useStore((s) => s.users);
+  const [text, setText] = useState('');
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((x) => x + 1), 2000);
+    return () => clearInterval(id);
+  }, []);
+  const now = Date.now();
+  const recent = log.filter((l) => now - l.ts < 90_000).slice(-6);
+  const send = () => {
+    if (text.trim()) say(text);
+    setText('');
+    inputRef.current?.blur();
+  };
+  return (
+    <div className="sv-dock">
+      {recent.length > 0 && (
+        <div className="sv-log">
+          {recent.map((l) => (
+            <div key={l.id} className={cx('sv-log-line', now - l.ts > 70_000 && 'old')}>
+              <b style={{ color: users[l.uid]?.color }}>{displayName(c, l.uid, users)}</b> {l.text}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="sv-dock-box">
+        <div className="sv-quick">
+          {QUICK.map((q) => (
+            <button key={q} className="sv-q" onClick={() => say(q)} aria-label={`${q} gönder`}>
+              {q}
+            </button>
+          ))}
+        </div>
+        <div className="sv-say">
+          <input
+            ref={inputRef}
+            maxLength={200}
+            placeholder="Bir şey yaz… (Enter)"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') send();
+              if (e.key === 'Escape') {
+                setText('');
+                inputRef.current?.blur();
+              }
+            }}
+          />
+          <button className="sv-send" onClick={send} aria-label="Gönder" disabled={!text.trim()}>
+            <SendHorizontal size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Kamerası açık olanlar: üstte küçük şerit */
+function CamStrip({ c, ch }: { c: Community; ch: Channel }) {
+  const media = useVoice((s) => s.media);
+  const myCam = useVoice((s) => s.cam);
+  const members = useStore((s) => s.voice[ch.id]) || [];
+  const users = useStore((s) => s.users);
+  const me = useStore((s) => s.me.id);
+  const cams: { key: string; uid: ID; stream: MediaStream }[] = [];
+  if (myCam) cams.push({ key: 'me', uid: me, stream: myCam });
+  for (const m of members) {
+    const st = media[m.sessionId]?.cam;
+    if (st) cams.push({ key: m.sessionId, uid: m.userId, stream: st });
+  }
+  if (!cams.length) return null;
+  return (
+    <div className="sv-cams">
+      {cams.slice(0, 4).map((x) => (
+        <div key={x.key} className="sv-cam">
+          <video
+            autoPlay
+            muted
+            playsInline
+            ref={(el) => {
+              if (el && el.srcObject !== x.stream) el.srcObject = x.stream;
+            }}
+          />
+          <span>{displayName(c, x.uid, users)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Odadaki ilk ekran paylaşımı: duvardaki ekrana gider */
+function useWallScreen(ch: Channel) {
+  const media = useVoice((s) => s.media);
+  const myScreen = useVoice((s) => s.screen);
+  const members = useStore((s) => s.voice[ch.id]) || [];
+  const me = useStore((s) => s.me.id);
+  for (const m of members) {
+    const st = media[m.sessionId]?.screen;
+    if (st) return { stream: st, uid: m.userId };
+  }
+  if (myScreen) return { stream: myScreen, uid: me };
+  return null;
 }
 
 function Room({ c, ch }: { c: Community; ch: Channel }) {
@@ -347,26 +397,38 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
   const [failed, setFailed] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<Prompt>(null);
   const [booth, setBoothOpen] = useState<number | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chat, setChat] = useState('');
-  const [panel, setPanel] = useState<'look' | 'help' | 'people' | null>(null);
+  const [panel, setPanel] = useState<'look' | 'help' | 'people' | 'settings' | null>(null);
   const [onStage, setOnStage] = useState(false);
+  const [firstPerson, setFirstPerson] = useState(false);
+  const [barOpen, setBarOpen] = useState(true);
+  const [typing, setTyping] = useState(false);
   const night = useStore((s) => s.settings.spaceNight);
   const quality = useStore((s) => s.settings.spaceQuality);
   const me = useStore((s) => s.me.id);
   const users = useStore((s) => s.users);
   const status = useSpace((s) => s.status);
   const count = useSpace((s) => Object.keys(s.roster).length);
+  const inVoice = (useStore((s) => s.voice[ch.id]) || []).length;
   const v = useVoice();
+  const world: Room3d = worldOf(ch);
+  const canManage = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const chatRef = useRef<HTMLInputElement>(null);
-  const engineRef = useRef<SpaceEngine | null>(null);
   const cRef = useRef(c);
   cRef.current = c;
+  const wall = useWallScreen(ch);
+  const videoEl = useMemo(() => {
+    const el = document.createElement('video');
+    el.muted = true;
+    el.playsInline = true;
+    el.autoplay = true;
+    return el;
+  }, []);
 
-  // motoru tembel yükle
+  // motoru tembel yükle (dünya ya da kalite değişince yeniden kur)
   useEffect(() => {
     let alive = true;
     let eng: SpaceEngine | null = null;
+    setEngine(null);
     import('../space/engine')
       .then(({ SpaceEngine }) => {
         if (!alive || !hostRef.current) return;
@@ -374,14 +436,15 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
           eng = new SpaceEngine(hostRef.current, {
             quality: useStore.getState().settings.spaceQuality,
             night: useStore.getState().settings.spaceNight,
+            world,
             myUid: useStore.getState().me.id,
             nameOf: (uid: ID) => displayName(cRef.current, uid, useStore.getState().users),
             onPrompt: setPrompt,
             onBooth: (i) => setBoothOpen(i),
             onStage: setOnStage,
           });
-          engineRef.current = eng;
           setEngine(eng);
+          setFirstPerson(false);
         } catch (e) {
           setFailed('3D görüntü başlatılamadı. Ekran kartı sürücülerini güncellemeyi dene.');
           console.error(e);
@@ -391,97 +454,139 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
     return () => {
       alive = false;
       eng?.dispose();
-      engineRef.current = null;
     };
-  }, [quality]);
+  }, [quality, world]);
 
   useEffect(() => engine?.setNight(night), [engine, night]);
   useEffect(() => engine?.refreshNames(), [engine, users, c.members]);
   useEffect(() => {
-    if (engine) engine.typing = chatOpen || booth !== null;
-  }, [engine, chatOpen, booth]);
+    if (engine) engine.typing = typing || booth !== null;
+  }, [engine, typing, booth]);
+  // duvardaki ekran
+  useEffect(() => {
+    if (!engine?.hasScreen) return;
+    if (wall) {
+      if (videoEl.srcObject !== wall.stream) {
+        videoEl.srcObject = wall.stream;
+        videoEl.play().catch(() => {});
+      }
+      engine.setScreen(videoEl);
+    } else {
+      videoEl.srcObject = null;
+      engine.setScreen(null);
+    }
+  }, [engine, wall?.stream, videoEl]); // eslint-disable-line
+  useEffect(() => () => void (videoEl.srcObject = null), [videoEl]);
 
-  // Enter: sohbet, Esc: panelleri kapat
+  const toggleView = () => {
+    if (!engine) return;
+    engine.toggleView();
+    setFirstPerson(engine.firstPerson);
+  };
+
+  // kısayollar: Enter yaz, Esc kapat, O kıyafet, V bakış, P kişiler, ? kısayollar, H çubuğu gizle
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || document.querySelector('.modal-backdrop')) return;
-      if (e.key === 'Enter' && !e.ctrlKey && !e.altKey) {
+      if (tag === 'input' || tag === 'textarea' || document.querySelector('.modal-backdrop') || e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
+      const k = e.key.toLowerCase();
+      const flip = (p: NonNullable<typeof panel>) => setPanel((cur) => (cur === p ? null : p));
+      if (e.key === 'Enter') {
         e.preventDefault();
-        setChatOpen(true);
-        setTimeout(() => chatRef.current?.focus(), 0);
+        chatRef.current?.focus();
       } else if (e.key === 'Escape') setPanel(null);
+      else if (k === 'o') flip('look');
+      else if (k === 'p') flip('people');
+      else if (e.key === '?') flip('help');
+      else if (k === 'v') toggleView();
+      else if (k === 'h') setBarOpen((x) => !x);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [engine]); // eslint-disable-line
 
-  const sendChat = () => {
-    if (chat.trim()) say(chat);
-    setChat('');
-    setChatOpen(false);
-    chatRef.current?.blur();
+  const setWorld = (w: Room3d) => {
+    if (w === world || !canManage) return;
+    cmd(c.id, { t: 'chan.update', cid: c.id, id: ch.id, room3d: w });
   };
 
   return (
-    <div className="sv-room">
+    <div className={cx('sv-room', `w-${world}`)}>
       <div className="sv-canvas-host" ref={hostRef} />
       {(!engine || status !== 'in') && !failed && (
         <div className="sv-loading">
           <div className="sv-hero-hex spin">
             <Box size={30} />
           </div>
-          <span>{status !== 'in' ? 'Odaya bağlanılıyor…' : 'Meydan hazırlanıyor…'}</span>
+          <span>{status !== 'in' ? '3D görünüme bağlanılıyor…' : 'Oda hazırlanıyor…'}</span>
         </div>
       )}
       {failed && (
         <div className="sv-loading">
           <span>{failed}</span>
           <button className="btn" onClick={() => exitSpace()}>
-            Çık
+            Normal görünüme dön
           </button>
         </div>
       )}
 
       <div className="sv-top">
-        <div className="sv-pill">
-          <Box size={16} />
+        <div className="sv-pill sv-where">
+          <Volume2 size={16} />
           <b>{ch.name}</b>
           <span className="sv-dot" />
           <button className="sv-link" onClick={() => setPanel(panel === 'people' ? null : 'people')}>
-            {count} kişi
+            {count} kişi 3D'de{inVoice > count ? ` · ${inVoice - count} kişi yalnız seste` : ''}
           </button>
         </div>
-        <div className="sv-pill sv-tools">
-          <Tooltip text={night ? 'Gündüz yap' : 'Gece yap'}>
-            <button className="sv-icon" onClick={() => updateSettings({ spaceNight: !night })} aria-label="Gece/gündüz">
-              {night ? <Sun size={17} /> : <Moon size={17} />}
-            </button>
-          </Tooltip>
-          <Tooltip text="Görünüm">
-            <button className={cx('sv-icon', panel === 'look' && 'on')} onClick={() => setPanel(panel === 'look' ? null : 'look')} aria-label="Görünüm">
-              <Shirt size={17} />
-            </button>
-          </Tooltip>
-          <Tooltip text="Kontroller">
-            <button className={cx('sv-icon', panel === 'help' && 'on')} onClick={() => setPanel(panel === 'help' ? null : 'help')} aria-label="Yardım">
-              <HelpCircle size={17} />
-            </button>
-          </Tooltip>
+        <span className="grow" />
+        <div className="sv-theme">
+          <label>Oda teması</label>
+          <div className="sv-theme-row">
+            <select value={world} disabled={!canManage} onChange={(e) => setWorld(e.target.value as Room3d)} title={canManage ? 'Odadaki herkes için değişir' : 'Yalnız odayı yönetenler değiştirebilir'}>
+              {WORLDS.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.label}
+                </option>
+              ))}
+            </select>
+            <Tooltip text={night ? 'Gündüz yap' : 'Gece yap'} side="bottom">
+              <button className="sv-icon" onClick={() => updateSettings({ spaceNight: !night })} aria-label="Gece/gündüz">
+                {night ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+            </Tooltip>
+          </div>
         </div>
       </div>
       <Minimap engine={engine} />
+      <CamStrip c={c} ch={ch} />
+      {wall && engine?.hasScreen && (
+        <div className="sv-onair">
+          <Tv size={14} /> {wall.uid === me ? 'Ekranın duvarda' : `${displayName(c, wall.uid, users)} ekranını paylaşıyor`}
+        </div>
+      )}
 
       {panel === 'look' && (
         <div className="sv-panel sv-look-panel">
           <div className="sv-panel-head">
             <Shirt size={18} />
-            <b>Görünüm</b>
+            <b>Kıyafet</b>
             <button className="icon-btn" onClick={() => setPanel(null)} aria-label="Kapat">
               <X size={16} />
             </button>
           </div>
           <LookPicker />
+        </div>
+      )}
+      {panel === 'settings' && (
+        <div className="sv-panel sv-look-panel">
+          <div className="sv-panel-head">
+            <Settings2 size={18} />
+            <b>3D ayarları</b>
+            <button className="icon-btn" onClick={() => setPanel(null)} aria-label="Kapat">
+              <X size={16} />
+            </button>
+          </div>
           <div className="sv-quality">
             <span>Grafik kalitesi</span>
             <button className={cx('sv-chip', quality === 'high' && 'on')} onClick={() => updateSettings({ spaceQuality: 'high' })}>
@@ -491,45 +596,59 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
               Performans
             </button>
           </div>
+          <div className="sv-quality">
+            <span>Işık</span>
+            <button className={cx('sv-chip', night && 'on')} onClick={() => updateSettings({ spaceNight: true })}>
+              Gece
+            </button>
+            <button className={cx('sv-chip', !night && 'on')} onClick={() => updateSettings({ spaceNight: false })}>
+              Gündüz
+            </button>
+          </div>
+          <button className="btn ghost sm" onClick={() => openModal({ type: 'settings', tab: 'voice' })}>
+            Ses ve görüntü ayarları
+          </button>
         </div>
       )}
       {panel === 'help' && (
         <div className="sv-panel sv-help">
           <div className="sv-panel-head">
-            <HelpCircle size={18} />
-            <b>Kontroller</b>
+            <Keyboard size={18} />
+            <b>Kısayollar</b>
             <button className="icon-btn" onClick={() => setPanel(null)} aria-label="Kapat">
               <X size={16} />
             </button>
           </div>
           <dl>
             <dt>W A S D / oklar</dt>
-            <dd>Yürü</dd>
-            <dt>Shift</dt>
-            <dd>Koş</dd>
+            <dd>Yürü (Shift ile koş)</dd>
             <dt>Boşluk</dt>
             <dd>Zıpla</dd>
             <dt>Fare sürükle · tekerlek</dt>
             <dd>Kamerayı çevir · yakınlaştır</dd>
             <dt>E</dt>
-            <dd>Otur / kalk, stand kirala</dd>
-            <dt>Enter</dt>
-            <dd>Başının üstünde balonla yaz</dd>
+            <dd>Otur / kalk{world === 'meydan' ? ', stand kirala' : ''}</dd>
             <dt>1 – 7</dt>
-            <dd>Emote</dd>
+            <dd>Hareketler</dd>
+            <dt>Enter</dt>
+            <dd>Yaz (başının üstünde balon çıkar)</dd>
+            <dt>O · V · P</dt>
+            <dd>Kıyafet · bakış · kişiler</dd>
+            <dt>H</dt>
+            <dd>Hareket çubuğunu gizle / göster</dd>
             <dt>Ctrl+Shift+M</dt>
-            <dd>Mikrofonu kapat/aç</dd>
+            <dd>Mikrofonu kapat / aç</dd>
           </dl>
-          <p>Ses yakınlığa göre ayarlanır: yaklaştıkça yükselir, ~24 metrede kaybolur. Sahnedeki kişiyi herkes duyar.</p>
+          <p>Ses yakınlığa göre ayarlanır: yaklaştıkça yükselir, ~24 metrede kaybolur. 3D'ye geçmeyenleri her zamanki gibi duyarsın.</p>
         </div>
       )}
-      {panel === 'people' && <People c={c} />}
+      {panel === 'people' && <People c={c} ch={ch} />}
 
       {onStage && <div className="sv-stage-badge">🎤 Sahnedesin, herkes seni duyuyor</div>}
-      <ChatLog c={c} />
-      {prompt && booth === null && !chatOpen && (
+      {prompt && booth === null && (
         <div className="sv-prompt">
           <kbd>E</kbd> {prompt.label}
+          <span className="sv-prompt-sub">Kalkmak için yürü ya da yine E</span>
         </div>
       )}
       {booth !== null && (
@@ -542,68 +661,84 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
         />
       )}
 
-      <div className="sv-bottom">
-        {chatOpen ? (
-          <div className="sv-chat">
-            <MessageSquare size={16} />
-            <input
-              ref={chatRef}
-              maxLength={200}
-              placeholder="Yakındakilere bir şey söyle… (Enter gönder, Esc kapat)"
-              value={chat}
-              onChange={(e) => setChat(e.target.value)}
-              onBlur={() => !chat && setChatOpen(false)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') sendChat();
-                if (e.key === 'Escape') {
-                  setChat('');
-                  setChatOpen(false);
-                  chatRef.current?.blur();
-                }
-              }}
-            />
-          </div>
-        ) : (
-          <div className="sv-emotes">
-            {EMOTE_BAR.map((x) => (
-              <Tooltip key={x.e} text={`${x.label} (${x.key})`} side="top">
-                <button className="sv-emote" onClick={() => engine?.doEmote(x.e)}>
-                  <span>{x.icon}</span>
-                  <kbd>{x.key}</kbd>
-                </button>
-              </Tooltip>
-            ))}
-            <Tooltip text="Sohbet (Enter)" side="top">
-              <button
-                className="sv-emote"
-                onClick={() => {
-                  setChatOpen(true);
-                  setTimeout(() => chatRef.current?.focus(), 0);
-                }}
-              >
-                <MessageSquare size={18} />
+      <div className={cx('sv-actions', !barOpen && 'closed')}>
+        {barOpen && (
+          <>
+            {ACTIONS.map((x) => (
+              <button key={x.e} className="sv-act" onClick={() => engine?.doEmote(x.e)} title={`${x.label} (${x.key})`}>
+                <kbd>{x.key}</kbd>
+                <x.Icon size={18} />
+                <span>{x.label}</span>
               </button>
-            </Tooltip>
-          </div>
+            ))}
+            <i className="sv-act-sep" />
+            <button className={cx('sv-act', panel === 'look' && 'on')} onClick={() => setPanel(panel === 'look' ? null : 'look')}>
+              <kbd>O</kbd>
+              <Shirt size={18} />
+              <span>Kıyafet</span>
+            </button>
+            <button className={cx('sv-act', firstPerson && 'on')} onClick={toggleView}>
+              <kbd>V</kbd>
+              <Eye size={18} />
+              <span>{firstPerson ? 'Göz' : 'Bakış'}</span>
+            </button>
+            <button className={cx('sv-act', panel === 'people' && 'on')} onClick={() => setPanel(panel === 'people' ? null : 'people')}>
+              <kbd>P</kbd>
+              <Users size={18} />
+              <span>Kişiler</span>
+            </button>
+            <button className={cx('sv-act', panel === 'help' && 'on')} onClick={() => setPanel(panel === 'help' ? null : 'help')}>
+              <kbd>?</kbd>
+              <Keyboard size={18} />
+              <span>Kısayollar</span>
+            </button>
+            <button className={cx('sv-act', panel === 'settings' && 'on')} onClick={() => setPanel(panel === 'settings' ? null : 'settings')}>
+              <Settings2 size={18} />
+              <span>Ayarlar</span>
+            </button>
+          </>
         )}
-        <div className="sv-voice">
-          <Tooltip text={v.noMic ? 'Mikrofon yok' : v.muted ? 'Sesi aç' : 'Sustur'} side="top">
-            <button className={cx('sv-vbtn', (v.muted || v.noMic) && 'off', !v.muted && v.speaking[me] && 'talk')} onClick={toggleMute} aria-label="Mikrofon">
-              {v.muted || v.noMic ? <MicOff size={19} /> : <Mic size={19} />}
-            </button>
-          </Tooltip>
-          <Tooltip text={v.deaf ? 'Sağırlaştırmayı kapat' : 'Sağırlaştır'} side="top">
-            <button className={cx('sv-vbtn', v.deaf && 'off')} onClick={toggleDeaf} aria-label="Kulaklık">
-              {v.deaf ? <HeadphoneOff size={19} /> : <Headphones size={19} />}
-            </button>
-          </Tooltip>
-          <Tooltip text="Odadan çık" side="top">
-            <button className="sv-vbtn leave" onClick={() => exitSpace()} aria-label="Odadan çık">
-              <LogOut size={19} />
-            </button>
-          </Tooltip>
-        </div>
+        <button className="sv-act sv-act-fold" onClick={() => setBarOpen(!barOpen)} title={barOpen ? 'Çubuğu gizle (H)' : 'Hareketler (H)'}>
+          {barOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          {!barOpen && <span>Hareketler</span>}
+        </button>
+      </div>
+
+      <div onFocus={() => setTyping(true)} onBlur={() => setTyping(false)}>
+        <ChatDock c={c} inputRef={chatRef} />
+      </div>
+
+      <div className="sv-call">
+        <Tooltip text={v.noMic ? 'Mikrofon yok' : v.muted ? 'Sesi aç' : 'Sustur'} side="top">
+          <button className={cx('sv-vbtn', (v.muted || v.noMic) && 'off', !v.muted && v.speaking[me] && 'talk')} onClick={toggleMute} aria-label="Mikrofon">
+            {v.muted || v.noMic ? <MicOff size={19} /> : <Mic size={19} />}
+          </button>
+        </Tooltip>
+        <Tooltip text={v.deaf ? 'Sağırlaştırmayı kapat' : 'Sağırlaştır'} side="top">
+          <button className={cx('sv-vbtn', v.deaf && 'off')} onClick={toggleDeaf} aria-label="Kulaklık">
+            {v.deaf ? <HeadphoneOff size={19} /> : <Headphones size={19} />}
+          </button>
+        </Tooltip>
+        <Tooltip text={v.cam ? 'Kamerayı kapat' : 'Kamerayı aç'} side="top">
+          <button className={cx('sv-vbtn', v.cam && 'on')} onClick={toggleCamera} aria-label="Kamera">
+            {v.cam ? <Video size={19} /> : <VideoOff size={19} />}
+          </button>
+        </Tooltip>
+        <Tooltip text={v.screen ? 'Yayını durdur' : 'Ekran paylaş (duvardaki ekranda görünür)'} side="top">
+          <button className={cx('sv-vbtn', v.screen && 'live')} onClick={() => (v.screen ? stopScreen() : openModal({ type: 'screenShare' }))} aria-label="Ekran paylaş">
+            {v.screen ? <MonitorX size={19} /> : <MonitorUp size={19} />}
+          </button>
+        </Tooltip>
+        <Tooltip text="3D görünümü kapat" side="top">
+          <button className="sv-vbtn on3d" onClick={() => exitSpace()} aria-label="3D görünümü kapat" aria-pressed>
+            <Box size={19} />
+          </button>
+        </Tooltip>
+        <Tooltip text="Bağlantıyı kes" side="top">
+          <button className="sv-vbtn leave" onClick={() => exitSpace(true)} aria-label="Bağlantıyı kes">
+            <PhoneOff size={19} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -611,10 +746,10 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
 
 export function SpaceView({ c, ch }: { c: Community; ch: Channel }) {
   const inHere = useSpace((s) => s.ch === ch.id && s.status !== 'idle');
-  const status = useSpace((s) => s.status);
+  if (!inHere) return null;
   return (
     <section className="space-view">
-      {inHere && status === 'in' ? <Room key={ch.id} c={c} ch={ch} /> : <Lobby c={c} ch={ch} />}
+      <Room key={ch.id} c={c} ch={ch} />
     </section>
   );
 }

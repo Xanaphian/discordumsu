@@ -1,17 +1,19 @@
 // 3D oda motoru: sahne, kamera, kontroller, ağ senkronu ve konumsal ses dinleyicisi.
 // Bu modül dinamik olarak yüklenir (three.js yalnızca 3D odaya girince indirilir).
 import * as THREE from 'three';
-import type { ID } from '../../shared/protocol';
-import { buildWorld, drawBoothSign, BOOTH_COLORS, type World } from './world';
+import type { ID, Room3d } from '../../shared/protocol';
+import { buildMeydan, drawBoothSign, BOOTH_COLORS, type World } from './world';
 import { Avatar } from './avatar';
+import { buildSalon } from './salon';
 import { live, sendMove, emote as sendEmote, useSpace, type SpaceEvent } from '../lib/space';
-import { useVoice, spatialListener, spatialSource } from '../lib/voice';
+import { useVoice, spatialListener, spatialSource, spatialForget } from '../lib/voice';
 
 export type Prompt = { kind: 'sit'; label: string } | { kind: 'stand'; label: string } | { kind: 'booth'; i: number; label: string } | null;
 
 export interface EngineOpts {
   quality: 'low' | 'high';
   night: boolean;
+  world: Room3d;
   nameOf: (uid: ID) => string;
   myUid: ID;
   onPrompt: (p: Prompt) => void;
@@ -61,6 +63,9 @@ export class SpaceEngine {
   private tmp = new THREE.Vector3();
   private fps = { n: 0, t: 0, v: 60 };
   paused = false;
+  /** birinci şahıs bakış (V) */
+  firstPerson = false;
+  private occT = 0;
   /** Sohbet kutusu açıkken klavye hareketi durur */
   typing = false;
 
@@ -76,7 +81,12 @@ export class SpaceEngine {
     this.sun = new THREE.DirectionalLight('#fff3dd', 1.8);
     this.sun.position.set(30, 50, 20);
     this.scene.add(this.hemi, this.sun, new THREE.AmbientLight('#ffffff', 0.25));
-    this.world = buildWorld(opts.quality);
+    this.world = opts.world === 'meydan' ? buildMeydan(opts.quality) : buildSalon(opts.quality);
+    if (this.world.camLimit) {
+      // kapalı salonda daha alçak ve yakın kamera: tavana çarpmasın, ekran görünsün
+      this.pitch = 0.26;
+      this.dist = 6.5;
+    }
     this.scene.add(this.world.group);
     this.setNight(opts.night);
     this.ro = new ResizeObserver(() => this.resize());
@@ -142,8 +152,10 @@ export class SpaceEngine {
       this.scene.add(av.root);
       if (sid === you && !this.meReady) {
         this.meReady = true;
-        Object.assign(this.me, { x: a.x, z: a.z, ry: a.ry, y: this.world.height(a.x, a.z) });
-        this.yaw = a.ry + Math.PI;
+        const sp = this.world.spawn?.() || { x: a.x, z: a.z, ry: a.ry };
+        Object.assign(this.me, { x: sp.x, z: sp.z, ry: sp.ry, y: this.world.height(sp.x, sp.z) });
+        a.ry = sp.ry;
+        this.yaw = sp.ry + Math.PI;
       }
     }
     for (const [sid, av] of this.avatars)
@@ -151,6 +163,7 @@ export class SpaceEngine {
         this.scene.remove(av.root);
         av.dispose();
         this.avatars.delete(sid);
+        spatialForget(sid);
       }
     if (!you) this.meReady = false;
   }
@@ -173,14 +186,37 @@ export class SpaceEngine {
 
   setNight(night: boolean) {
     this.world.setNight(night);
-    const bg = new THREE.Color(night ? '#0b1026' : '#9fd3f5');
+    const L = this.world.light?.(night) || {
+      bg: night ? '#0b1026' : '#9fd3f5',
+      fog: night ? [28, 95] : [45, 150],
+      hemi: night ? ['#6c7bc4', '#1b2a1a', 0.7] : ['#cfe8ff', '#5b7a3a', 1.6],
+      sun: night ? ['#a9b8ff', 0.35] : ['#fff3dd', 1.8],
+    };
+    const bg = new THREE.Color(L.bg);
     this.scene.background = bg;
-    this.scene.fog = new THREE.Fog(bg, night ? 28 : 45, night ? 95 : 150);
-    this.hemi.color.set(night ? '#6c7bc4' : '#cfe8ff');
-    this.hemi.groundColor.set(night ? '#1b2a1a' : '#5b7a3a');
-    this.hemi.intensity = night ? 0.7 : 1.6;
-    this.sun.color.set(night ? '#a9b8ff' : '#fff3dd');
-    this.sun.intensity = night ? 0.35 : 1.8;
+    this.scene.fog = new THREE.Fog(bg, L.fog[0], L.fog[1]);
+    this.hemi.color.set(L.hemi[0]);
+    this.hemi.groundColor.set(L.hemi[1]);
+    this.hemi.intensity = L.hemi[2];
+    this.sun.color.set(L.sun[0]);
+    this.sun.intensity = L.sun[1];
+  }
+
+  /** duvardaki büyük ekran (yalnız salonda) */
+  setScreen(v: HTMLVideoElement | null, label?: string) {
+    this.world.setScreen?.(v, label);
+  }
+
+  get hasScreen() {
+    return !!this.world.setScreen;
+  }
+
+  get mapDraw() {
+    return this.world.drawMap ? { draw: this.world.drawMap, scale: this.world.mapScale || 13 } : null;
+  }
+
+  toggleView() {
+    this.firstPerson = !this.firstPerson;
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
@@ -358,7 +394,8 @@ export class SpaceEngine {
       const you = useSpace.getState().you;
       you && this.avatars.get(you)?.cancelEmote();
     }
-    // çarpışmalar
+    // çarpışmalar (otururken yok: oturak mobilyanın içinde)
+    if (me.sit < 0)
     for (let pass = 0; pass < 2; pass++)
       for (const c of this.world.colliders) {
         const dx = me.x - c.x, dz = me.z - c.z;
@@ -369,7 +406,8 @@ export class SpaceEngine {
         }
       }
     const r = Math.hypot(me.x, me.z);
-    if (r > this.world.bounds) {
+    if (this.world.clamp) this.world.clamp(me);
+    else if (r > this.world.bounds) {
       me.x *= this.world.bounds / r;
       me.z *= this.world.bounds / r;
     }
@@ -432,7 +470,7 @@ export class SpaceEngine {
     );
     // kamera çarpışması: direk, ağaç, tezgâh gibi engellerin içine girmesin
     let d = this.dist;
-    for (let it = 0; it < 12 && this.blocked(this.camera.position); it++) {
+    for (let it = 0; it < 24 && this.blocked(this.camera.position); it++) {
       d *= 0.86;
       this.camera.position.set(
         this.camTarget.x + Math.sin(this.yaw) * cp * d,
@@ -441,7 +479,23 @@ export class SpaceEngine {
       );
     }
     if (this.camera.position.y < 0.4) this.camera.position.y = 0.4;
-    this.camera.lookAt(this.camTarget);
+    const lim = this.world.camLimit;
+    if (lim) {
+      const P = this.camera.position;
+      P.x = Math.max(lim.minX, Math.min(lim.maxX, P.x));
+      P.z = Math.max(lim.minZ, Math.min(lim.maxZ, P.z));
+      P.y = Math.min(lim.maxY, P.y);
+    }
+    if (this.firstPerson) {
+      const fp = this.pitch - 0.42;
+      this.camera.position.set(me.x - Math.sin(this.yaw) * 0.25, me.y + 1.5, me.z - Math.cos(this.yaw) * 0.25);
+      this.tmp.set(-Math.sin(this.yaw) * Math.cos(fp), -Math.sin(fp), -Math.cos(this.yaw) * Math.cos(fp)).add(this.camera.position);
+      this.camera.lookAt(this.tmp);
+    } else this.camera.lookAt(this.camTarget);
+    if (you) {
+      const mine = this.avatars.get(you);
+      if (mine) mine.root.visible = !this.firstPerson;
+    }
     // dinleyici: kendi avatarın, kameranın baktığı yöne dönük
     spatialListener(me.x, me.z, -Math.sin(this.yaw), -Math.cos(this.yaw));
     const onStage = this.onStage(me.x, me.z);
@@ -451,9 +505,22 @@ export class SpaceEngine {
     }
     this.world.update(t, dt);
     this.updatePrompt();
+    this.occT += dt;
+    if (this.world.seatOccupancy && this.occT > 0.2) {
+      this.occT = 0;
+      const occ = new Set<number>();
+      for (const av of this.avatars.values()) {
+        if (av.a !== 3) continue;
+        this.world.seats.forEach((s, i) => Math.hypot(s.x - av.x, s.z - av.z) < 0.3 && occ.add(i));
+      }
+      if (this.me.sit >= 0) occ.add(this.me.sit);
+      this.world.seatOccupancy(occ, this.meReady ? this.me : null);
+    }
   }
 
   private blocked(p: THREE.Vector3) {
+    const lim = this.world.camLimit;
+    if (lim && (p.x < lim.minX || p.x > lim.maxX || p.z < lim.minZ || p.z > lim.maxZ || p.y > lim.maxY)) return true;
     if (p.y > 4.2) return false;
     for (const c of this.world.colliders) {
       const dx = p.x - c.x, dz = p.z - c.z, r = c.r + 0.35;

@@ -200,7 +200,14 @@ export interface Channel {
   siteTitle?: string; // site odası: sitenin başlığı (hub doldurur)
   metaAt?: number; // site bilgisinin son alındığı an
   image?: string; // odanın özel resmi (küçük kare data URL); yoksa türünün simgesi görünür
+  room3d?: Room3d; // ses odasının 3D görünümünde kullanılan dünya (yoksa salon)
 }
+
+/** v1.31: 3D artık ayrı kanal türü değil; her ses odası ses panelindeki tuşla 3D'ye geçer.
+ * Odanın 3D dünyası kanalda saklanır ki odadaki herkes aynı yeri görsün. */
+export type Room3d = 'salon' | 'meydan';
+export const ROOM3D: Room3d[] = ['salon', 'meydan'];
+export const cleanRoom3d = (v: unknown): Room3d | undefined => (ROOM3D as unknown[]).includes(v) ? (v as Room3d) : undefined;
 
 /** Oda resmi için üst sınır (data URL uzunluğu); 96 px kare webp ~5-15 KB tutar */
 export const CHANNEL_IMAGE_MAX = 120_000;
@@ -369,7 +376,7 @@ export type ClientFrame =
   | { t: 'comm.listing'; cid: ID; listing: Listing | null }
   | { t: 'explore'; rid: string }
   | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; url?: string; rid?: string; private?: boolean; clone?: ID; image?: string }
-  | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string; overwrites?: Overwrite[]; userLimit?: number; type?: ChannelType; image?: string | null }
+  | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string; overwrites?: Overwrite[]; userLimit?: number; type?: ChannelType; image?: string | null; room3d?: Room3d }
   | { t: 'chan.delete'; cid: ID; id: ID }
   | { t: 'chan.move'; cid: ID; id: ID; categoryId: ID | null; index: number }
   | { t: 'cat.create'; cid: ID; name: string }

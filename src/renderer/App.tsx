@@ -11,6 +11,7 @@ import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
 import { HomeView, Onboarding } from './components/Views';
 import { VoiceView, IncomingCall } from './components/Media';
 import { SpaceView } from './components/SpaceView';
+import { useSpace } from './lib/space';
 import { SiteView } from './components/SiteView';
 import { Logo } from './components/Common';
 import { DESTAN_FAMILY } from './components/Appearance';
@@ -115,6 +116,7 @@ function Main() {
   const c = useStore((s) => (s.current !== 'home' ? s.communities[s.current] : undefined));
   const chId = useStore((s) => (s.current !== 'home' ? s.chanByComm[s.current] : undefined));
   const membersOpen = useStore((s) => s.settings.membersOpen);
+  const in3d = useSpace((s) => !!chId && s.ch === chId && s.status !== 'idle');
   if (current === 'explore') return <ExploreView />;
   if (current === 'home' || !c) return <HomeView />;
   const ch = c.channels.find((x) => x.id === chId);
@@ -137,7 +139,7 @@ function Main() {
     );
   return (
     <>
-      {ch.type === 'space' ? <SpaceView c={c} ch={ch} /> : ch.type === 'site' ? <SiteView c={c} ch={ch} /> : ch.type === 'voice' ? <VoiceView c={c} ch={ch} /> : isToolChannel(ch.type) ? <ToolView key={ch.id} c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
+      {isVoiceLike(ch.type) ? in3d ? <SpaceView c={c} ch={ch} /> : <VoiceView c={c} ch={ch} /> : ch.type === 'site' ? <SiteView c={c} ch={ch} /> : isToolChannel(ch.type) ? <ToolView key={ch.id} c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
       {membersOpen && !isVoiceLike(ch.type) && ch.type !== 'site' && !isToolChannel(ch.type) && <MemberList c={c} />}
     </>
   );
