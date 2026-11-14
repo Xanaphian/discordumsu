@@ -10,11 +10,12 @@ import type { Channel, Community } from '../../shared/protocol';
 import { useUnread } from './ServerRail';
 import { HomeStart } from './AnaSayfa';
 import { CommunitiesView } from './ToplulukOneri';
+import { SonEklenenler } from './SonEklenenler';
 import { cropImage, AVATAR_CROP } from './Kirpma';
 
 export function HomeView() {
   const tab = useStore((s) => s.homeTab);
-  return tab === 'home' ? <HomeStart /> : tab === 'communities' ? <CommunitiesView /> : <FriendsView />;
+  return tab === 'home' ? <HomeStart /> : tab === 'communities' ? <CommunitiesView /> : tab === 'news' ? <SonEklenenler /> : <FriendsView />;
 }
 
 export function Onboarding() {

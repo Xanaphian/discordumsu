@@ -366,7 +366,7 @@ export interface State {
   /** arkadaşlar: tüm kovanlardan birleşik liste */
   friends: Record<ID, FriendInfo & { host: string }>;
   /** Ana Sayfa'da açık sekme */
-  homeTab: 'home' | 'online' | 'all' | 'pending' | 'add' | 'communities';
+  homeTab: 'home' | 'online' | 'all' | 'pending' | 'add' | 'communities' | 'news';
   /** gelen özel arama */
   ringing: { cid: ID; ch: ID; from: ID } | null;
 }
