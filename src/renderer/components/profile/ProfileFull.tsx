@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Clock, Cake, Pencil, Copy, MessageCircle, X, CalendarDays, HeartHandshake, DoorOpen, Volume2, MonitorUp, LogIn, Users,
-  Activity as ActivityIcon, UserRound, Home, SlidersHorizontal, Gamepad2, Link2,
+  Activity as ActivityIcon, UserRound, Home, ImagePlus, SlidersHorizontal, Gamepad2, Link2,
 } from 'lucide-react';
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
 import { idTime } from '../../../shared/protocol';
@@ -133,7 +133,20 @@ const openLayout = (onClose?: () => void) => {
   openModal({ type: 'settings', tab: 'profile' });
 };
 
-export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: string; user: UserPublic | undefined; status?: Status; c?: Community; isMe?: boolean; onClose?: () => void }) {
+export function ProfileFull({
+  uid, user, status, c, isMe, onClose, editing, onEditAvatar, onEditBanner,
+}: {
+  uid: string;
+  user: UserPublic | undefined;
+  status?: Status;
+  c?: Community;
+  isMe?: boolean;
+  onClose?: () => void;
+  /** kendi profilinde düzenleme şeridiyle açık: afiş ve avatar tıklanınca değişir */
+  editing?: boolean;
+  onEditAvatar?: () => void;
+  onEditBanner?: () => void;
+}) {
   const users = useStore((s) => s.users);
   const communities = useStore((s) => s.communities);
   const friends = useStore((s) => s.friends);
@@ -150,7 +163,8 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
   const member = c?.members.find((x) => x.userId === uid);
   const roles = c && member ? memberRoles(c, member) : [];
   const shownName = c ? displayName(c, uid, users) : user?.name || 'İsimsiz';
-  const color = c ? roleColor(c, uid) : '';
+  // efektli isim kişinin kendi rengiyle başlar (toplulukta rol rengi önce gelir)
+  const color = (c ? roleColor(c, uid) : '') || (p?.nameFx ? user?.color || '' : '');
   const recent = (p?.recent || []).filter((r) => r.ts > Date.now() - 30 * 86_400_000);
 
   // ortak topluluklar (kendi profilinde: toplulukların)
@@ -217,7 +231,7 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
 
   return (
     <div
-      className={cx('pcard pcard-full pcard-wide xp2', 'btn-' + (layout?.btn || 'tiles'), theme && 'themed', theme && 'tone-' + theme.tone, p?.bg && 'has-bg')}
+      className={cx('pcard pcard-full pcard-wide xp2', editing && 'xp-editing', 'btn-' + (layout?.btn || 'tiles'), theme && 'themed', theme && 'tone-' + theme.tone, p?.bg && 'has-bg')}
       style={{ ...theme?.style, ['--hero' as any]: heroColor }}
     >
       {p?.bg && (
@@ -235,7 +249,13 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
       <CardFx effect={p?.effect} />
 
       <header className="xp-hero">
-        <Banner user={user} profile={p} className="xp-banner" />
+        <Banner user={user} profile={p} className="xp-banner">
+          {editing && (
+            <button className="xp-edit-hot ban" onClick={onEditBanner}>
+              <ImagePlus size={15} /> Afişi değiştir
+            </button>
+          )}
+        </Banner>
         <button className="icon-btn xp-close" onClick={onClose} aria-label="Kapat">
           <X size={18} />
         </button>
@@ -244,6 +264,12 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
       <div className="xp-idbar">
         <div className="xp-av">
           <Avatar user={user} size={124} status={status} />
+          {editing && (
+            <button className="xp-edit-hot av" onClick={onEditAvatar} aria-label="Profil resmini değiştir">
+              <ImagePlus size={18} />
+              <span>Değiştir</span>
+            </button>
+          )}
         </div>
         <div className="xp-idtext">
           <div className="xp-nameline">
@@ -269,7 +295,7 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
           <CustomStatusBubble profile={p} />
         </div>
         <div className="xp-actions pc-actions">
-          {isMe ? (
+          {editing ? null : isMe ? (
             <>
               <button className="btn ghost xp-sq-txt" onClick={() => openLayout(onClose)} title="Tam profil düzenini değiştir">
                 <SlidersHorizontal size={15} /> Düzen
