@@ -74,6 +74,10 @@ export interface RecentActivity {
   mins?: number;
   /** üst üste oynanan gün sayısı */
   streak?: number;
+  /** müzikte: dinlenen son şarkı, sanatçısı ve küçük kapağı (64px) */
+  song?: string;
+  artist?: string;
+  art?: string;
 }
 
 /** Anlık etkinlik: oyun, müzik, yayın. Profile kaydedilmez, yalnız çevrimiçiyken yayılır. */
@@ -132,6 +136,7 @@ export const ACTIVITY_KINDS: ActivityKind[] = ['playing', 'listening', 'watching
 export const BIO_MAX = 300;
 export const BANNER_MAX = 160_000;
 export const BG_MAX = 220_000;
+const RECENT_ART_MAX = 9_000;
 const IMG = /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i;
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -278,6 +283,15 @@ export function sanitizeProfile(p: unknown): ProfileExtra | undefined {
       const one: RecentActivity = { kind, name, ts };
       if (typeof r.mins === 'number' && isFinite(r.mins) && r.mins > 0) one.mins = Math.min(99999, Math.round(r.mins));
       if (typeof r.streak === 'number' && isFinite(r.streak) && r.streak > 1) one.streak = Math.min(999, Math.round(r.streak));
+      if (kind === 'listening') {
+        const song = str(r.song, 100);
+        if (song) {
+          one.song = song;
+          const artist = str(r.artist, 100);
+          if (artist) one.artist = artist;
+          if (typeof r.art === 'string' && r.art.length <= RECENT_ART_MAX && IMG.test(r.art)) one.art = r.art;
+        }
+      }
       rec.push(one);
       if (rec.length >= 8) break;
     }

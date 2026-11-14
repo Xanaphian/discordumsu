@@ -155,6 +155,10 @@ interface RecentRow {
   ts: number;
   /** gün -> dakika */
   days: Record<string, number>;
+  /** müzikte dinlenen son şarkı */
+  song?: string;
+  artist?: string;
+  art?: string;
 }
 const RKEY = 'kovan.recent';
 const DAY = 86_400_000;
@@ -180,6 +184,51 @@ function saveRecent(r: RecentRow[]) {
 }
 
 let lastTick = Date.now();
+
+/** Son etkinlikte gösterilecek şarkıyı yaz; kapak 64px'e küçültülür (profilde az yer tutsun) */
+function noteSong(r: RecentRow, a: LiveActivity) {
+  const song = a.details!.slice(0, 100);
+  const artist = a.state ? a.state.slice(0, 100) : undefined;
+  const changed = r.song !== song || r.artist !== artist;
+  if (changed) (r.song = song), (r.artist = artist), (r.art = undefined);
+  if ((changed || !r.art) && a.art) {
+    const key = song + '|' + (artist || '');
+    smallArt(a.art).then((art) => {
+      if (!art) return;
+      const rows = loadRecent();
+      const row = rows.find((x) => x.kind === 'listening' && x.name === r.name);
+      if (!row || (row.song || '') + '|' + (row.artist || '') !== key) return;
+      row.art = art;
+      saveRecent(rows);
+      publishRecent();
+    });
+  }
+}
+const smallCache = new Map<string, Promise<string | undefined>>();
+function smallArt(src: string): Promise<string | undefined> {
+  let p = smallCache.get(src);
+  if (!p) {
+    p = new Promise((res) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = c.height = 64;
+          c.getContext('2d')!.drawImage(img, 0, 0, 64, 64);
+          const out = c.toDataURL('image/jpeg', 0.72);
+          res(out.length <= 9000 ? out : c.toDataURL('image/jpeg', 0.5));
+        } catch {
+          res(undefined);
+        }
+      };
+      img.onerror = () => res(undefined);
+      img.src = src;
+    });
+    if (smallCache.size > 20) smallCache.clear();
+    smallCache.set(src, p);
+  }
+  return p;
+}
 /** Her dakika: şu an süren etkinliklere süre ekler */
 function tickRecent() {
   const now = Date.now();
@@ -195,6 +244,7 @@ function tickRecent() {
     if (!r) rows.push((r = { kind: a.kind, name, ts: now, days: {} }));
     r.ts = now;
     r.days[k] = (r.days[k] || 0) + mins;
+    if (a.kind === 'listening' && a.details) noteSong(r, a);
   }
   // 30 günden eskileri at
   const cutoff = now - 30 * DAY;
@@ -226,6 +276,11 @@ function summarize(rows: RecentRow[]): RecentActivity[] {
       const out: RecentActivity = { kind: r.kind, name: r.name, ts: Math.round(r.ts / 60_000) * 60_000 };
       if (mins > 0) out.mins = mins;
       if (streak > 1) out.streak = streak;
+      if (r.kind === 'listening' && r.song) {
+        out.song = r.song;
+        if (r.artist) out.artist = r.artist;
+        if (r.art) out.art = r.art;
+      }
       return out;
     });
 }
@@ -246,7 +301,7 @@ function runPublish() {
 }
 /** Profildeki özeti günceller: liste değişince birkaç saniye içinde, yalnız süreler değişince en çok 10 dakikada bir */
 function publishRecent(force = false) {
-  const names = (r: RecentActivity[]) => JSON.stringify(r.map((x) => [x.kind, x.name]));
+  const names = (r: RecentActivity[]) => JSON.stringify(r.map((x) => [x.kind, x.name, x.song || '', x.art ? 1 : 0]));
   const soon = force || names(wantRecent()) !== names(S().me.extra?.recent || []);
   if (soon) {
     if (pubTimer) clearTimeout(pubTimer);
