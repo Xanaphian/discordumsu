@@ -12,7 +12,7 @@ import {
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook, cleanRoom3d,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
   hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
-  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN, cleanChannelImage,
+  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN, cleanChannelImage, cleanChannelBanner,
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
@@ -1707,6 +1707,7 @@ export class Hub {
           if (src.userLimit) ch.userLimit = src.userLimit;
           if (src.overwrites?.length) ch.overwrites = src.overwrites.map((o) => ({ ...o }));
           if (src.image) ch.image = src.image;
+          if (src.banner) ch.banner = src.banner;
           if (src.room3d) ch.room3d = src.room3d;
         } else if (f.private) {
           ch.overwrites = [
@@ -1717,6 +1718,10 @@ export class Hub {
         if (!src && f.image !== undefined) {
           const img = cleanChannelImage(f.image);
           if (img) ch.image = img;
+        }
+        if (!src && f.banner !== undefined) {
+          const bn = cleanChannelBanner(f.banner);
+          if (bn) ch.banner = bn;
         }
         if (want === 'space') ch.room3d = 'meydan';
         if (type === 'site') {
@@ -1781,6 +1786,14 @@ export class Hub {
             if (img !== ch.image) changed.push(img ? 'resim' : 'resim kaldırıldı');
             if (img) ch.image = img;
             else delete ch.image;
+          }
+        }
+        if (f.banner !== undefined) {
+          const bn = f.banner === null ? undefined : cleanChannelBanner(f.banner);
+          if (f.banner === null || bn) {
+            if (bn !== ch.banner) changed.push(bn ? 'afiş' : 'afiş kaldırıldı');
+            if (bn) ch.banner = bn;
+            else delete ch.banner;
           }
         }
         if (f.room3d !== undefined && isVoiceLike(ch.type)) {
