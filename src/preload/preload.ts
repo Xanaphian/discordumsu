@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+type SpotifyStatusT = { clientId: string; defaultClientId: boolean; connected: boolean; user?: string; error?: string; redirect: string };
 import type { LinkMeta as LinkMetaT } from '../main/ekstralar';
 
 function on<T>(channel: string, cb: (v: T) => void) {
@@ -37,6 +38,12 @@ const api = {
     configure: (c: unknown) => ipcRenderer.invoke('act:config', c),
     apps: () => ipcRenderer.invoke('act:apps'),
     onUpdate: (cb: (s: any) => void) => on('act:update', cb),
+  },
+  /** Spotify hesabından şu an çalanı okuma (PKCE, yalnız Client ID) */
+  spotify: {
+    status: () => ipcRenderer.invoke('spotify:status') as Promise<SpotifyStatusT>,
+    connect: (clientId?: string) => ipcRenderer.invoke('spotify:connect', clientId) as Promise<SpotifyStatusT>,
+    disconnect: () => ipcRenderer.invoke('spotify:disconnect') as Promise<SpotifyStatusT>,
   },
   game: {
     lolState: () => ipcRenderer.invoke('game:lol-state') as Promise<{ running: boolean; me?: string; lobby: boolean }>,

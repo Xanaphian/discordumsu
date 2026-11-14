@@ -1,10 +1,10 @@
 // Ayarlar > Etkinlik: neyin paylaşılacağı, oyun listesi, son etkinlik
 import React, { useState } from 'react';
-import { Gamepad2, Plus, Trash2, Eye, EyeOff, RefreshCw, LoaderCircle, Link2 } from 'lucide-react';
+import { Gamepad2, Plus, Trash2, Eye, EyeOff, RefreshCw, LoaderCircle, Link2, Copy, Check } from 'lucide-react';
 import { useStore, updateSettings, openModal } from '../lib/store';
-import { useActs, useActsOf, runningApps, clearRecent } from '../lib/activity';
+import { useActs, useActsOf, runningApps, clearRecent, type SpotifyStatus } from '../lib/activity';
 import { focusProfileSection } from './profile/ProfileEditor';
-import { LiveActivityCard, RecentList, ServiceIcon, SERVICES } from './profile/Activity';
+import { LiveActivityCard, RecentList, ServiceIcon, SERVICES, BrandLogo } from './profile/Activity';
 import { Toggle, STATUS_LABEL } from './Common';
 import { Row } from './Settings';
 import { cx } from '../lib/util';
@@ -76,6 +76,8 @@ export function ActivityTab() {
       </div>
 
       <MusicDiag />
+
+      <SpotifyAccount />
 
       <Row title="Etkinliğimi paylaş" sub="Kapatırsan hiçbir etkinliğin görünmez ve bilgisayarındaki algılama durur.">
         <Toggle value={s.actShare} onChange={(v) => updateSettings({ actShare: v })} />
@@ -245,4 +247,72 @@ function MusicDiag() {
     (text = "Windows'un medya denetimlerine ulaşılamadı. Spotify masaüstü uygulaması yine de pencere başlığından tanınır; başka çalarlar görünmeyebilir."), (warn = true);
   else text = 'Şu an çalan bir müzik algılanmadı. Spotify masaüstü uygulamasında şarkı çalınca burada görünür.';
   return <p className={cx('act-diag', warn && 'warn')}>{text}</p>;
+}
+
+/** Spotify hesabından okuma: hangi oynatıcıdan dinlenirse dinlensin (Retrofy, telefon, web) şarkı görünür */
+function SpotifyAccount() {
+  const live = useActs((x) => x.detected?.spotify);
+  const from = useActs((x) => x.detected?.mediaFrom);
+  const [st, setSt] = useState<SpotifyStatus | null>(null);
+  const [id, setId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  React.useEffect(() => {
+    window.kovan.spotify.status().then(setSt);
+  }, []);
+  const cur = live || st;
+  if (!cur) return null;
+  const needId = !cur.defaultClientId;
+  const idVal = id ?? cur.clientId;
+  const connect = async () => {
+    setBusy(true);
+    try {
+      setSt(await window.kovan.spotify.connect(needId ? idVal : undefined));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const disconnect = async () => setSt(await window.kovan.spotify.disconnect());
+  const copy = () => (navigator.clipboard.writeText(cur.redirect), setCopied(true), setTimeout(() => setCopied(false), 1500));
+  return (
+    <div className="spotify-acc">
+      <div className="spotify-acc-head">
+        <BrandLogo k="spotify" size={22} />
+        <div>
+          <b>Spotify hesabından oku</b>
+          <span>
+            {cur.connected
+              ? `Bağlı${cur.user ? ': ' + cur.user : ''}. Hangi uygulamadan dinlersen dinle (Retrofy, telefon, web) çalan şarkı kapağıyla görünür.${from === 'account' ? ' Şu anki şarkı hesaptan okunuyor.' : ''}`
+              : 'Spotify uygulaması dışında (Retrofy, telefon, web çalar) dinlediklerin de görünsün diye çalan şarkıyı doğrudan hesabından okur.'}
+          </span>
+        </div>
+        {cur.connected ? (
+          <button className="btn sm ghost" onClick={disconnect}>
+            Bağlantıyı kes
+          </button>
+        ) : (
+          <button className="btn sm primary" disabled={busy || (needId && !/^[0-9a-f]{32}$/i.test(idVal.trim()))} onClick={connect}>
+            {busy ? <LoaderCircle size={14} className="spin" /> : null} {busy ? 'Tarayıcıda izin bekleniyor' : 'Spotify ile bağlan'}
+          </button>
+        )}
+      </div>
+      {!cur.connected && needId && (
+        <div className="spotify-acc-id">
+          <label>
+            Client ID
+            <input value={idVal} onChange={(e) => setId(e.target.value.trim())} placeholder="Spotify geliştirici panelindeki 32 karakterlik Client ID" spellCheck={false} />
+          </label>
+          <p>
+            Spotify geliştirici panelinde uygulamanın Redirect URI kısmına şunu ekle:{' '}
+            <code>{cur.redirect}</code>{' '}
+            <button className="icon-btn" onClick={copy} title="Kopyala">
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+            </button>
+            . Gizli anahtar (Client secret) gerekmez, hiçbir yere yazma.
+          </p>
+        </div>
+      )}
+      {cur.error && <p className="act-diag warn">{cur.error}</p>}
+    </div>
+  );
 }
