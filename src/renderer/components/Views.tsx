@@ -8,6 +8,7 @@ import { cx, COLORS, displayName, resizeImage, modKey } from '../lib/util';
 import type { Channel, Community } from '../../shared/protocol';
 import { useUnread } from './ServerRail';
 import { HomeStart } from './AnaSayfa';
+import { cropImage, AVATAR_CROP } from './Kirpma';
 
 export function HomeView() {
   const tab = useStore((s) => s.homeTab);
@@ -53,7 +54,12 @@ export function Onboarding() {
               <Avatar user={{ name: name || '?', color, avatar }} size={96} />
               <span className="ob-avatar-edit">Resim seç</span>
             </button>
-            <input ref={file} hidden type="file" accept="image/*" onChange={async (e) => e.target.files?.[0] && setAvatar(await resizeImage(e.target.files[0], 128))} />
+            <input ref={file} hidden type="file" accept="image/*" onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              const r = f && (await cropImage(f, AVATAR_CROP));
+              if (r) setAvatar(r.image);
+            }} />
             <label className="field">
               <span>Görünen ad</span>
               <input autoFocus maxLength={32} value={name} placeholder="ör. Enes" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && done()} />

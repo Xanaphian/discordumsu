@@ -1,7 +1,7 @@
 // Kendi tam profilini açınca: solda küçük düzenleme şeridi, sağda profilin canlı önizlemesi.
 // Her değişiklik önce taslakta kalır; "Kaydet" ile herkese gider.
 import React, { useMemo, useRef, useState } from 'react';
-import { Upload, Trash2, ImagePlus, Check, RotateCcw, Settings2, Smile, Sparkles, Palette, Type, Image as ImageIcon, CircleUser, Wand2, Frame } from 'lucide-react';
+import { Upload, Trash2, ImagePlus, Check, RotateCcw, Settings2, Smile, Sparkles, Palette, Type, Image as ImageIcon, CircleUser, Wand2, Frame, Crop } from 'lucide-react';
 import type { Status } from '../../../shared/protocol';
 import {
   BANNER_MAX, EFFECTS, FRAMES, NAME_FONTS, NAME_FX, PATTERNS, SHAPES, sanitizeProfile,
@@ -14,7 +14,8 @@ import { cx, resizeImage } from '../../lib/util';
 import { EFFECT_LABEL, FRAME_LABEL, NAME_FONT_LABEL, NAME_FX_LABEL, PATTERN_LABEL, PRESETS, SHAPE_LABEL, bannerBackground } from './look';
 import { TONE_PRESETS } from './Tones';
 import { NameText } from './ProfileCard';
-import { readImage, focusProfileSection } from './ProfileEditor';
+import { focusProfileSection } from './ProfileEditor';
+import { cropImage, recropImage, AVATAR_CROP, bannerCropOpts, BannerPic } from '../Kirpma';
 import { ProfileFull } from './ProfileFull';
 
 interface Draft {
@@ -166,7 +167,7 @@ export function ProfilStudyo({ status, onClose, setGuard }: { status?: Status; o
           <Block icon={<ImageIcon size={15} />} title="Afiş">
             <div className="xs-banners">
               <button className={cx('xs-ban', banner.kind === 'image' && 'on')} onClick={() => (banner.image ? setBanner({ kind: 'image' }) : pickBanner())}>
-                {banner.image ? <img src={banner.image} alt="" /> : <ImagePlus size={20} />}
+                {banner.image ? <BannerPic image={banner.image} framing={banner} aspect={330 / (banner.h || 108)} /> : <ImagePlus size={20} />}
                 <em>{banner.image ? 'Resim' : 'Resim yükle'}</em>
               </button>
               <button
@@ -200,8 +201,15 @@ export function ProfilStudyo({ status, onClose, setGuard }: { status?: Status; o
                 <button className="btn sm ghost" onClick={pickBanner}>
                   <Upload size={14} /> Başka resim
                 </button>
-                <button className="btn sm ghost" onClick={() => allSettings('banner')}>
-                  Konumla
+                <button
+                  className="btn sm ghost"
+                  onClick={async () => {
+                    if (!banner.image) return;
+                    const r = await recropImage(banner.image, bannerCropOpts(banner.h), banner);
+                    if (r) setBanner({ kind: 'image', ...r });
+                  }}
+                >
+                  <Crop size={14} /> Yerleşim
                 </button>
               </div>
             )}
@@ -317,8 +325,8 @@ export function ProfilStudyo({ status, onClose, setGuard }: { status?: Status; o
           const f = e.target.files?.[0];
           e.target.value = '';
           if (!f) return;
-          const av = await resizeImage(f, 160);
-          setD((o) => ({ ...o, avatar: av }));
+          const r = await cropImage(f, AVATAR_CROP);
+          if (r) setD((o) => ({ ...o, avatar: r.image }));
         }}
       />
       <input
@@ -330,7 +338,8 @@ export function ProfilStudyo({ status, onClose, setGuard }: { status?: Status; o
           const f = e.target.files?.[0];
           e.target.value = '';
           if (!f) return;
-          setBanner({ kind: 'image', image: await readImage(f, 1100, 700, BANNER_MAX), x: undefined, y: undefined, zoom: undefined });
+          const r = await cropImage(f, bannerCropOpts(banner.h));
+          if (r) setBanner({ kind: 'image', ...r });
         }}
       />
       {emojiAt && (
