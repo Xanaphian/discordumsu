@@ -35,6 +35,7 @@ import './styles/kirpma.css';
 import './styles/ses-duzeni.css';
 import './styles/okunaklilik.css';
 import './styles/ust-cubuk.css';
+import './styles/paylasim.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
 const booting = boot().catch((e) => console.error('Açılış hatası', e));

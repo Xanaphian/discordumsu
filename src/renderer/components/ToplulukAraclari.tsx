@@ -4,7 +4,7 @@ import {
   ShieldCheck, ShieldAlert, Search, Users, Compass, Hash, Volume2, Megaphone, ChevronLeft, LoaderCircle, Link2, FolderClosed, Check, ArrowRight, RefreshCw,
 } from 'lucide-react';
 import { useStore, cmd, toast, homeRequest, selectCommunity, createCommunity, openModal } from '../lib/store';
-import { CommunityIcon, Toggle } from './Common';
+import { Avatar, CommunityIcon, Toggle } from './Common';
 import { Row } from './Settings';
 import { Banner } from './profile/ProfileCard';
 import { cx } from '../lib/util';
@@ -124,7 +124,7 @@ export function JoinGuardTab({ c }: { c: Community }) {
 
 // ---------------------------------------------------------------------------
 // (9) Keşfet
-function ExploreCard({ it, onJoin, busy, preview }: { it: ExploreItem; onJoin?: () => void; busy?: boolean; preview?: boolean }) {
+export function ExploreCard({ it, onJoin, busy, preview }: { it: ExploreItem; onJoin?: () => void; busy?: boolean; preview?: boolean }) {
   return (
     <article className={cx('ex-card', preview && 'preview')}>
       <Banner user={{ color: it.color }} profile={{ banner: it.banner }} className="ex-banner" />
@@ -135,6 +135,19 @@ function ExploreCard({ it, onJoin, busy, preview }: { it: ExploreItem; onJoin?: 
         <div className="ex-cat">{catLabel(it.cat)}</div>
         <div className="ex-name">{it.name}</div>
         <p className="ex-desc">{it.tagline || it.description || 'Henüz bir tanıtım yazılmamış.'}</p>
+        {!!it.friendCount && !!it.friends?.length && (
+          <div className="ex-friends">
+            <span className="ex-friends-avs">
+              {it.friends.map((f) => (
+                <Avatar key={f.id} user={f} size={22} plain />
+              ))}
+            </span>
+            <span>
+              <b>{it.friends[0].name}</b>
+              {it.friendCount > 1 ? ` ve ${it.friendCount - 1} arkadaşın daha burada` : ' burada'}
+            </span>
+          </div>
+        )}
         {!!it.tags?.length && (
           <div className="ex-tags">
             {it.tags.slice(0, 4).map((t) => (

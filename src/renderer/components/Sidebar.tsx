@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { NOISE_MODES, noiseModeOf } from '../lib/ses/gurultu';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, AudioWaveform, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin,
+  Signal, AudioWaveform, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin, LayoutGrid, MessagesSquare,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
@@ -717,13 +717,17 @@ function HomeSidebar() {
       <div className="ch-list scroll-thin">
         <div className="home-links">
           <button className={cx('ch-row', onHome && homeTab === 'home' && 'active')} onClick={() => setHomeTab('home')}>
-            <span className="ch-icon"><Home size={18} /></span>
-            <span className="ch-name">Başlangıç</span>
+            <span className="ch-icon"><MessagesSquare size={18} /></span>
+            <span className="ch-name">Sosyal</span>
           </button>
-          <button className={cx('ch-row', onHome && homeTab !== 'home' && 'active')} onClick={() => setHomeTab(requests ? 'pending' : 'online')}>
+          <button className={cx('ch-row', onHome && homeTab !== 'home' && homeTab !== 'communities' && 'active')} onClick={() => setHomeTab(requests ? 'pending' : 'online')}>
             <span className="ch-icon"><Users size={18} /></span>
             <span className="ch-name">Arkadaşlar</span>
             {requests > 0 && <span className="badge">{requests}</span>}
+          </button>
+          <button className={cx('ch-row', onHome && homeTab === 'communities' && 'active')} onClick={() => setHomeTab('communities')}>
+            <span className="ch-icon"><LayoutGrid size={18} /></span>
+            <span className="ch-name">Topluluklar</span>
           </button>
         </div>
         <div className="cat-row static">

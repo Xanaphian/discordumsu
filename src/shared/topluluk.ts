@@ -65,6 +65,9 @@ export interface ExploreItem {
   createdAt: number;
   /** zaten üyesin */
   joined?: boolean;
+  /** v1.48: toplulukta olan arkadaşların (en çok 3) ve toplam sayısı */
+  friends?: { id: ID; name: string; color: string; avatar?: string }[];
+  friendCount?: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -317,6 +317,8 @@ interface Conn {
   local: boolean;
   /** merkezi sunucu */
   home?: boolean;
+  /** sunucunun bildirdiği özellikler (v1.48: 'posts'); eski sunucularda boş */
+  feats?: string[];
 }
 
 export interface State {
@@ -352,7 +354,7 @@ export interface State {
   /** arkadaşlar: tüm kovanlardan birleşik liste */
   friends: Record<ID, FriendInfo & { host: string }>;
   /** Ana Sayfa'da açık sekme */
-  homeTab: 'home' | 'online' | 'all' | 'pending' | 'add';
+  homeTab: 'home' | 'online' | 'all' | 'pending' | 'add' | 'communities';
   /** gelen özel arama */
   ringing: { cid: ID; ch: ID; from: ID } | null;
 }
@@ -451,6 +453,8 @@ export function updateSettings(patch: Partial<Settings>) {
   set({ settings });
   persistSettings(settings);
   if (patch.theme) window.kovan.setTheme(patch.theme);
+  // v1.48: engel listesi sunucuya da gider (paylaşımlar iki yönlü gizlenir)
+  if (patch.blocked) conns.forEach((c) => c.send({ t: 'privacy', dms: settings.dmPrivacy, blocked: settings.blocked }));
 }
 
 function hello(): ClientFrame {
@@ -867,6 +871,7 @@ export function plainText(content: string, c?: Community) {
 }
 
 function onFrame(host: string, f: ServerFrame) {
+  if (f.t === 'post' || f.t === 'post.upd' || f.t === 'post.del') return void postHooks.onFrame?.(host, f);
   switch (f.t) {
     case 'ready': {
       set((s) => {
@@ -878,7 +883,7 @@ function onFrame(host: string, f: ServerFrame) {
           if (cid && s.commHost[cid] === host) delete voice[ch];
         }
         return {
-          conns: { ...s.conns, [host]: { ...(s.conns[host] || { host, local: false }), status: 'online', hubId: f.hubId, hubName: f.hubName } },
+          conns: { ...s.conns, [host]: { ...(s.conns[host] || { host, local: false }), status: 'online', hubId: f.hubId, hubName: f.hubName, feats: f.feats || [] } },
           presence: { ...s.presence, ...f.presence },
           lastIds: { ...s.lastIds, ...f.lastIds },
           voice: { ...voice, ...f.voice },
@@ -887,7 +892,7 @@ function onFrame(host: string, f: ServerFrame) {
       siteHooks.onFrame?.(f);
       actHooks.onReady?.(host, f);
       // özel mesaj gizliliği her bağlantıda bildirilir (eski sunucular yok sayar)
-      conns.get(host)?.send({ t: 'privacy', dms: S().settings.dmPrivacy });
+      conns.get(host)?.send({ t: 'privacy', dms: S().settings.dmPrivacy, blocked: S().settings.blocked });
       // bu sunucudan gelen eski toplulukları temizle
       const dms = f.dms || [];
       const ids = new Set([...f.communities.map((c) => c.id), ...dms.map((d) => dmCid(d.peer.id))]);
@@ -1137,6 +1142,8 @@ function callWatch(c: Community, ch: ID, before: VoiceMember[], now: VoiceMember
 export const botHooks = new Set<(f: Extract<ServerFrame, { t: 'bots' }>) => void>();
 export const spaceHooks: { onFrame?: (host: string, f: ServerFrame) => void } = {};
 export const siteHooks: { onFrame?: (f: ServerFrame) => void } = {};
+/** v1.48 paylaşım akışı (lib/paylasim.ts doldurur) */
+export const postHooks: { onFrame?: (host: string, f: ServerFrame) => void } = {};
 /** v1.27 oyun içi kaplama: bildirime düşen her mesaj (lib/overlay.ts) */
 export const overlayHooks: { onNotify?: (m: Message, c: Community | undefined, author: string, body: string, mentioned: boolean) => void } = {};
 /** anlık etkinlik (lib/activity.ts) */

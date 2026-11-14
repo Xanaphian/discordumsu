@@ -18,6 +18,7 @@ const RULES: Rule[] = [
   [/kişisini at$|^at$/, LogOut],
   [/engeli kaldır/, UserCheck],
   [/^engelle/, UserX],
+  [/^şikâyet|^şikayet/, Flag],
   [/kimliğini kopyala|kimliği kopyala/, Copy],
   [/bağlantı.*kopyala|bağlantısını kopyala/, Link],
   [/etiket olarak kopyala/, Hash],
