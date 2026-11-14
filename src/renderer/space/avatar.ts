@@ -1,16 +1,12 @@
-// Kovan avatarı: yuvarlak gövde, kafa, kollar, ayaklar, şapka, isim etiketi, konuşma halkası ve balonlar.
+// 3D oda avatarı: iskeletli karakter modeli (KayKit, CC0) + şapka, isim etiketi, konuşma halkası ve balonlar.
+// Yürüme, koşma, oturma, zıplama hazır animasyonlardan; tepkiler (el sallama, alkış, selam...) kemikler üzerinde kodla üretilir.
 import * as THREE from 'three';
-import type { AvatarLook } from '../../shared/protocol';
+import type { AvatarLook, AvatarModel } from '../../shared/protocol';
+import { createCharacter, type CharInstance } from './assets';
+import { modelFor } from '../lib/avatarModel';
 import { roundRect, textCanvas } from './world';
 
 const G = {
-  body: new THREE.CapsuleGeometry(0.36, 0.42, 4, 14),
-  belly: new THREE.SphereGeometry(0.3, 14, 10),
-  head: new THREE.SphereGeometry(0.33, 18, 12),
-  eye: new THREE.SphereGeometry(0.05, 8, 6),
-  cheek: new THREE.CircleGeometry(0.055, 10),
-  arm: new THREE.CapsuleGeometry(0.085, 0.3, 3, 8),
-  foot: new THREE.SphereGeometry(0.13, 10, 8),
   shadow: new THREE.CircleGeometry(0.5, 20),
   ring: new THREE.RingGeometry(0.55, 0.68, 32),
   stalk: new THREE.CylinderGeometry(0.018, 0.018, 0.34, 5),
@@ -33,9 +29,8 @@ const lam = (c: string) => {
   return m;
 };
 const black = new THREE.MeshBasicMaterial({ color: '#1b1410' });
-const blush = new THREE.MeshBasicMaterial({ color: '#ff8fa3', transparent: true, opacity: 0.7 });
 const shadowMat = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.22, depthWrite: false });
-const ringMat = new THREE.MeshBasicMaterial({ color: '#3ddc84', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+const ringMat = new THREE.MeshBasicMaterial({ color: '#f0d48a', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
 const haloMat = new THREE.MeshBasicMaterial({ color: '#ffe680' });
 
 function shade(hex: string, k: number) {
@@ -220,27 +215,55 @@ interface Particle {
   vx: number;
 }
 
+/** model birimi -> dünya: karakterler yaklaşık 1,65 m boyunda dursun */
+const S = 0.75;
+/** baş kemiğinden baş merkezine (model birimi) ve şapka ölçeği (şapkalar 0,33 yarıçaplı başa göre çizildi) */
+const HEAD_C = 0.44;
+const HAT_K = 1.58;
+/** otururken: hazır oturma pozu kalçayı 0,4 geri, 0,47 yükseğe koyar */
+const SIT_Y = 0.47 * S;
+const SIT_Z = 0.4 * S;
+/** başlığıyla birlikte karakterin tepe yüksekliği (dünya birimi) */
+const TOP: Record<AvatarModel, [own: number, bare: number]> = {
+  knight: [2.44 * S, 2.29 * S],
+  barbarian: [2.37 * S, 2.16 * S],
+  mage: [2.98 * S, 2.18 * S],
+  rogue: [2.16 * S, 2.16 * S],
+  hooded: [2.23 * S, 2.23 * S],
+};
+const HAT_TOP: Record<AvatarLook['hat'], number> = { none: 0, antenna: 0, crown: 0.2, cap: 0.05, wizard: 0.75, halo: 0.25, headphones: 0.05 };
+const FADE = 0.18;
+const qP = new THREE.Quaternion(), qM = new THREE.Quaternion(), qD = new THREE.Quaternion(), qT = new THREE.Quaternion();
+const v0 = new THREE.Vector3(), v1 = new THREE.Vector3();
+
 export class Avatar {
   root = new THREE.Group();
-  private bodyPivot = new THREE.Group();
-  private body: THREE.Mesh;
-  private belly: THREE.Mesh;
-  private head = new THREE.Group();
-  private armL = new THREE.Group();
-  private armR = new THREE.Group();
-  private footL: THREE.Mesh;
-  private footR: THREE.Mesh;
+  private pivot = new THREE.Group();
+  private holder = new THREE.Group();
+  private char: CharInstance | null = null;
+  private mixer: THREE.AnimationMixer | null = null;
+  private actions: Record<string, THREE.AnimationAction> = {};
+  private cur = '';
+  private hatAnchor = new THREE.Group();
   private hat: THREE.Group | null = null;
   private ring: THREE.Mesh;
   private label: THREE.Sprite;
   private bubble: THREE.Sprite | null = null;
   private bubbleT = 0;
   private particles: Particle[] = [];
-  private phase = 0;
   private emoteName: string | null = null;
   private emoteT = 0;
   private jumpT = -1;
   private lastA = 0;
+  private sitK = 0;
+  private gen = 0;
+  private dead = false;
+  /** bu karede elle değiştirilen kemiklerin animasyondan gelen özgün dönüşleri (karıştırıcı sabit değerleri yeniden yazmaz) */
+  private touched = new Map<THREE.Object3D, THREE.Quaternion>();
+  private spare: THREE.Quaternion[] = [];
+  private model: AvatarModel;
+  /** karakter modeli yüklenip kurulunca çözülür */
+  ready: Promise<void> = Promise.resolve();
   look: AvatarLook;
   name: string;
   // görüntülenen durum (yumuşatılmış)
@@ -251,46 +274,14 @@ export class Avatar {
   a = 0;
   speaking = false;
 
-  constructor(look: AvatarLook, name: string, isMe: boolean) {
+  /** seed: karakter seçilmemişse kişiye göre sabit karakter için (kullanıcı kimliği) */
+  constructor(look: AvatarLook, name: string, isMe: boolean, private seed = name) {
     this.look = look;
     this.name = name;
-    this.body = new THREE.Mesh(G.body, lam(look.color));
-    this.body.position.y = 0.62;
-    this.belly = new THREE.Mesh(G.belly, lam('#fff3dc'));
-    this.belly.position.set(0, 0.56, 0.14);
-    this.belly.scale.set(0.95, 1.05, 0.7);
-    this.bodyPivot.add(this.body, this.belly);
-    // kafa
-    const skull = new THREE.Mesh(G.head, lam('#ffe7c2'));
-    this.head.add(skull);
-    for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(G.eye, black);
-      eye.position.set(s * 0.115, 0.04, 0.3);
-      eye.scale.set(1, 1.35, 0.6);
-      const ch = new THREE.Mesh(G.cheek, blush);
-      ch.position.set(s * 0.2, -0.07, 0.275);
-      ch.rotation.y = s * 0.55;
-      this.head.add(eye, ch);
-    }
-    this.head.position.y = 1.32;
-    this.bodyPivot.add(this.head);
-    // kollar (omuzdan döner)
-    for (const [arm, s] of [[this.armL, -1], [this.armR, 1]] as const) {
-      const m = new THREE.Mesh(G.arm, lam(look.color));
-      m.position.y = -0.2;
-      arm.add(m);
-      arm.position.set(s * 0.43, 0.88, 0);
-      arm.rotation.z = s * 0.18;
-      this.bodyPivot.add(arm);
-    }
-    this.footL = new THREE.Mesh(G.foot, lam(shade(look.color, -0.2)));
-    this.footR = new THREE.Mesh(G.foot, lam(shade(look.color, -0.2)));
-    this.footL.position.set(-0.17, 0.09, 0.04);
-    this.footR.position.set(0.17, 0.09, 0.04);
-    this.footL.scale.set(1, 0.7, 1.3);
-    this.footR.scale.set(1, 0.7, 1.3);
-    this.bodyPivot.add(this.footL, this.footR);
-    this.root.add(this.bodyPivot);
+    this.model = modelFor(look.model, seed);
+    this.holder.scale.setScalar(S);
+    this.pivot.add(this.holder);
+    this.root.add(this.pivot);
     const shadow = new THREE.Mesh(G.shadow, shadowMat);
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = 0.02;
@@ -307,23 +298,103 @@ export class Avatar {
     this.label.renderOrder = 10;
     this.label.visible = !isMe;
     this.root.add(this.label);
-    this.setHat(look.hat);
+    this.build();
+  }
+
+  /** karakter modelini (yeniden) kur; dosya ilk kez isteniyorsa yüklenmesi beklenir */
+  private build() {
+    const gen = ++this.gen;
+    const model = this.model;
+    this.ready = createCharacter(model, this.look.color)
+      .then((ch) => {
+        if (this.dead || gen !== this.gen) return;
+        if (this.char) this.holder.remove(this.char.root);
+        this.mixer?.stopAllAction();
+        this.touched.clear();
+        this.char = ch;
+        // şapka bağlantısı: baş kemiğine bağlı ama karakter uzayında dik duran, baş merkezindeki nokta
+        ch.root.updateMatrixWorld(true);
+        const head = ch.bones.head;
+        if (head) {
+          const inv = new THREE.Matrix4().copy(ch.root.matrixWorld).invert().multiply(head.matrixWorld); // baş, model uzayında
+          const want = new THREE.Matrix4().makeTranslation(0, inv.elements[13] + HEAD_C, 0);
+          this.hatAnchor.matrix.copy(inv.invert().multiply(want));
+          this.hatAnchor.matrix.decompose(this.hatAnchor.position, this.hatAnchor.quaternion, this.hatAnchor.scale);
+          head.add(this.hatAnchor);
+        }
+        this.holder.add(ch.root);
+        this.mixer = new THREE.AnimationMixer(ch.root);
+        this.actions = {};
+        const add = (key: string, clip: string, speed = 1) => {
+          const c = ch.clips.get(clip);
+          if (!c) return;
+          const a = this.mixer!.clipAction(c);
+          a.timeScale = speed;
+          this.actions[key] = a;
+        };
+        add('idle', 'Idle');
+        add('walk', 'Walking_A', 1.55);
+        add('run', 'Running_A', 1.45);
+        add('sit', 'Sit_Chair_Idle');
+        add('jump', 'Jump_Idle');
+        this.cur = '';
+        // herkes aynı anda nefes almasın
+        if (this.actions.idle) this.actions.idle.time = Math.random();
+        this.setHat(this.look.hat);
+      })
+      .catch((e) => console.warn('3D karakter yüklenemedi', e));
+  }
+
+  private play(name: string) {
+    if (name === this.cur) return;
+    const next = this.actions[name];
+    if (!next) return;
+    const prev = this.actions[this.cur];
+    next.reset();
+    next.enabled = true;
+    next.setEffectiveWeight(1);
+    if (name === 'idle') next.time = Math.random();
+    next.play();
+    if (prev) prev.crossFadeTo(next, FADE, false);
+    this.cur = name;
   }
 
   private setHat(hat: AvatarLook['hat']) {
-    if (this.hat) this.head.remove(this.hat);
-    this.hat = buildHat(hat, this.look.color);
-    this.hat.position.y = 0.3;
-    this.head.add(this.hat);
+    if (this.hat) this.hatAnchor.remove(this.hat);
+    this.hat = null;
+    const own = hat === 'antenna';
+    if (this.char?.headgear) this.char.headgear.visible = own;
+    if (!own && hat !== 'none') {
+      this.hat = buildHat(hat, this.look.color);
+      this.hat.scale.setScalar(HAT_K);
+      this.hat.position.y = 0.3 * HAT_K;
+      this.hatAnchor.add(this.hat);
+    }
+  }
+
+  get modelId() {
+    return this.model;
+  }
+
+  /** isim etiketinin duracağı yükseklik */
+  private get top() {
+    const t = TOP[this.model];
+    const own = this.look.hat === 'antenna';
+    return (own ? t[0] : t[1] + HAT_TOP[this.look.hat] * HAT_K * S) + 0.34;
   }
 
   setLook(look: AvatarLook) {
     const old = this.look;
     this.look = look;
+    const model = modelFor(look.model, this.seed);
+    if (model !== this.model) {
+      this.model = model;
+      if (old.color !== look.color) this.setName(this.name, true);
+      this.build();
+      return;
+    }
     if (old.color !== look.color) {
-      this.body.material = lam(look.color);
-      for (const arm of [this.armL, this.armR]) (arm.children[0] as THREE.Mesh).material = lam(look.color);
-      this.footL.material = this.footR.material = lam(shade(look.color, -0.2));
+      this.char?.setColor(look.color);
       this.setName(this.name, true);
     }
     if (old.hat !== look.hat || old.color !== look.color) this.setHat(look.hat);
@@ -379,6 +450,42 @@ export class Avatar {
     if (this.emoteName !== 'jump') this.emoteName = null;
   }
 
+  private keep(bone: THREE.Object3D) {
+    if (!this.touched.has(bone)) this.touched.set(bone, (this.spare.pop() || new THREE.Quaternion()).copy(bone.quaternion));
+  }
+
+  /** Kemiği, karakter uzayındaki (x: karakterin solu, y: yukarı, z: ileri) yöne çevirir; w: karışım */
+  private aim(bone: THREE.Object3D | undefined, child: THREE.Object3D | undefined, dx: number, dy: number, dz: number, w: number) {
+    if (!bone || !child || !bone.parent || w <= 0) return;
+    this.keep(bone);
+    this.holder.getWorldQuaternion(qM);
+    bone.parent.getWorldQuaternion(qP).invert();
+    v1.set(dx, dy, dz).normalize().applyQuaternion(qM).applyQuaternion(qP);
+    v0.copy(child.position).normalize().applyQuaternion(bone.quaternion);
+    qD.setFromUnitVectors(v0, v1);
+    qT.copy(qD).multiply(bone.quaternion);
+    bone.quaternion.slerp(qT, Math.min(1, w));
+  }
+
+  /** Kemiği karakter uzayındaki bir eksen çevresinde döndürür */
+  private turn(bone: THREE.Object3D | undefined, ax: number, ay: number, az: number, angle: number) {
+    if (!bone || !bone.parent || !angle) return;
+    this.keep(bone);
+    this.holder.getWorldQuaternion(qM);
+    bone.parent.getWorldQuaternion(qP).invert();
+    v1.set(ax, ay, az).applyQuaternion(qM).applyQuaternion(qP);
+    bone.quaternion.premultiply(qD.setFromAxisAngle(v1, angle));
+  }
+
+  /** kol: s = +1 sol, -1 sağ; üst kol ve ön kol yönleri karakter uzayında (x dışa doğru verilir) */
+  private arm(s: 1 | -1, ux: number, uy: number, uz: number, fx: number, fy: number, fz: number, w: number) {
+    const b = this.char?.bones;
+    if (!b) return;
+    const k = s > 0 ? 'l' : 'r';
+    this.aim(b['upperarm' + k], b['lowerarm' + k], s * ux, uy, uz, w);
+    this.aim(b['lowerarm' + k], b['wrist' + k], s * fx, fy, fz, w);
+  }
+
   /** a: 0 bekle, 1 yürü, 2 koş, 3 otur, 4 zıpla (havada) */
   animate(dt: number, t: number, groundY: number, jumpY: number | null) {
     const a = this.a;
@@ -394,111 +501,98 @@ export class Avatar {
     }
     this.y += (y - this.y) * Math.min(1, dt * (jumpY !== null || this.jumpT >= 0 ? 60 : 14));
     this.root.position.set(this.x, this.y, this.z);
+    this.root.rotation.y = this.ry;
 
-    const moving = a === 1 || a === 2;
-    const speed = a === 2 ? 15 : 10;
-    if (moving) this.phase += dt * speed;
-    else this.phase *= Math.pow(0.001, dt);
-    const sw = Math.sin(this.phase);
-    const amp = moving ? (a === 2 ? 0.95 : 0.6) : 0;
-    let bob = moving ? Math.abs(Math.cos(this.phase)) * (a === 2 ? 0.1 : 0.06) : Math.sin(t * 2.2 + this.x) * 0.012;
-    let armL = sw * amp, armR = -sw * amp, armLz = -0.18, armRz = 0.18;
-    let tilt = moving ? (a === 2 ? 0.16 : 0.06) : 0;
-    let roll = 0;
-    let spin = 0;
-    let headTilt = 0;
-    let footLz = 0.04 + sw * amp * 0.22, footRz = 0.04 - sw * amp * 0.22;
-    let footY = 0.09;
-    let sitDrop = 0;
-
-    if (a === 3) {
-      sitDrop = -0.32;
-      footLz = footRz = 0.38;
-      footY = 0.22;
-      armL = armR = -0.35;
-      bob = Math.sin(t * 2) * 0.01;
-      tilt = -0.06;
+    // hazır animasyon: duruma göre geçiş
+    const air = a === 4 || this.jumpT >= 0;
+    this.play(a === 3 ? 'sit' : air ? 'jump' : a === 2 ? 'run' : a === 1 ? 'walk' : 'idle');
+    this.sitK += ((a === 3 ? 1 : 0) - this.sitK) * Math.min(1, dt * 12);
+    this.holder.position.set(0, -SIT_Y * this.sitK, SIT_Z * this.sitK);
+    for (const [b, q] of this.touched) {
+      b.quaternion.copy(q);
+      this.spare.push(q);
     }
+    this.touched.clear();
+    this.mixer?.update(dt);
+
+    // tepkiler: gövde hareketi (pivot) + kemik üstü kol/gövde pozu
+    let bob = 0, roll = 0, spin = 0;
     if (this.emoteName) {
       this.emoteT += dt;
       const et = this.emoteT;
+      const b = this.char?.bones || {};
+      const env = (dur: number) => Math.max(0, Math.min(1, et / 0.15, (dur - et) / 0.2));
+      let dur = 0;
       switch (this.emoteName) {
-        case 'wave':
-          armRz = 2.5 + Math.sin(et * 12) * 0.35;
-          armR = 0;
-          headTilt = Math.sin(et * 6) * 0.1;
-          if (et > 2.2) this.emoteName = null;
+        case 'wave': {
+          const w = env((dur = 2.2));
+          this.arm(-1, 0.8, 0.45, 0.2, 0.3 + Math.sin(et * 11) * 0.45, 1, 0.15, w);
+          this.turn(b.head, 0, 0, 1, Math.sin(et * 5.5) * 0.08 * w);
           break;
-        case 'dance':
-          roll = Math.sin(et * 8) * 0.18;
-          bob = Math.abs(Math.sin(et * 8)) * 0.14;
-          armLz = -2.2 + Math.sin(et * 8) * 0.5;
-          armRz = 2.2 + Math.sin(et * 8 + Math.PI) * 0.5;
-          armL = armR = 0;
-          footLz = 0.04 + Math.sin(et * 8) * 0.12;
-          footRz = 0.04 - Math.sin(et * 8) * 0.12;
-          spin = Math.sin(et * 2) * 0.6;
-          if (et > 4.5) this.emoteName = null;
+        }
+        case 'dance': {
+          const w = env((dur = 4.5));
+          const ph = et * 8;
+          roll = Math.sin(ph) * 0.14 * w;
+          bob = Math.abs(Math.sin(ph)) * 0.12 * w;
+          spin = Math.sin(et * 2) * 0.6 * w;
+          this.arm(1, 0.75, 0.55 + Math.sin(ph) * 0.45, 0.25, 0.25, 1, 0.3, w);
+          this.arm(-1, 0.75, 0.55 - Math.sin(ph) * 0.45, 0.25, 0.25, 1, 0.3, w);
+          this.turn(b.spine, 0, 1, 0, Math.sin(ph * 0.5) * 0.25 * w);
           break;
-        case 'clap':
-          armL = armR = -1.35;
-          armLz = -0.2 - Math.abs(Math.sin(et * 14)) * -0.45 - 0.35;
-          armRz = -armLz;
-          if (et > 2) this.emoteName = null;
+        }
+        case 'clap': {
+          const w = env((dur = 2));
+          const open = Math.abs(Math.sin(et * 13)) * 0.3;
+          for (const s of [1, -1] as const) this.arm(s, 0.5, -0.45, 0.75, -0.6 + open, 0.3, 0.75, w);
           break;
-        case 'spin':
+        }
+        case 'spin': {
+          const w = env((dur = 1.1));
           spin = Math.min(1, et / 0.9) * Math.PI * 2;
-          armLz = -1.3;
-          armRz = 1.3;
-          if (et > 1.1) this.emoteName = null;
+          for (const s of [1, -1] as const) this.arm(s, 1, 0.15, 0, 1, 0.2, 0, w);
           break;
-        case 'heart':
-        case 'laugh':
-          bob += Math.abs(Math.sin(et * 10)) * 0.05;
-          headTilt = Math.sin(et * 10) * 0.12;
-          if (this.emoteName === 'heart') (armL = -0.4), (armR = -0.4), (armLz = -0.6), (armRz = 0.6);
-          if (et > 1.8) this.emoteName = null;
+        }
+        case 'heart': {
+          const w = env((dur = 1.8));
+          bob = Math.abs(Math.sin(et * 10)) * 0.04 * w;
+          for (const s of [1, -1] as const) this.arm(s, 0.75, 0.7, 0.15, -0.8, 0.55, 0.1, w);
+          this.turn(b.head, 0, 0, 1, Math.sin(et * 6) * 0.1 * w);
           break;
-        case 'point':
-          // sağ kol ileri, baş hafif yana: "şuraya bak"
-          armR = -1.55;
-          armRz = 0.05;
-          armL = 0.1;
-          headTilt = 0.08;
-          if (et > 2.6) this.emoteName = null;
+        }
+        case 'laugh': {
+          const w = env((dur = 1.8));
+          bob = Math.abs(Math.sin(et * 12)) * 0.05 * w;
+          this.turn(b.spine, 1, 0, 0, -0.16 * w);
+          this.turn(b.head, 1, 0, 0, (-0.18 + Math.sin(et * 12) * 0.08) * w);
+          for (const s of [1, -1] as const) this.arm(s, 0.55, -0.6, 0.55, -0.65, 0.05, 0.75, w);
           break;
+        }
+        case 'point': {
+          // sağ kol ileri: "şuraya bak"
+          const w = env((dur = 2.6));
+          this.arm(-1, 0.22, 0.02, 1, 0.08, 0.06, 1, w);
+          this.turn(b.head, 0, 0, 1, -0.08 * w);
+          break;
+        }
         case 'bow': {
-          const k = et < 0.4 ? et / 0.4 : et > 1.4 ? Math.max(0, 1 - (et - 1.4) / 0.4) : 1;
-          tilt = 0.55 * k;
-          armL = armR = 0.25 * k;
-          if (et > 1.8) this.emoteName = null;
+          const w = env((dur = 1.8));
+          const k = (et < 0.4 ? et / 0.4 : et > 1.4 ? Math.max(0, 1 - (et - 1.4) / 0.4) : 1) * w;
+          this.turn(b.spine, 1, 0, 0, 0.3 * k);
+          this.turn(b.chest, 1, 0, 0, 0.22 * k);
+          this.arm(-1, 0.3, -0.6, 0.6, -0.85, 0.15, 0.5, k);
           break;
         }
         case 'jump':
-          armLz = -2.4;
-          armRz = 2.4;
-          if (et > 0.65) this.emoteName = null;
+          dur = 0.65;
           break;
         default:
-          this.emoteName = null;
+          dur = 0;
       }
+      if (et > dur) this.emoteName = null;
     }
-    if (a === 4 || this.jumpT >= 0) {
-      armLz = -2;
-      armRz = 2;
-      armL = armR = 0;
-      footLz = 0.15;
-      footRz = -0.05;
-    }
-
-    this.bodyPivot.position.y = bob + sitDrop;
-    this.bodyPivot.rotation.set(tilt, spin, roll);
-    this.root.rotation.y = this.ry;
-    this.armL.rotation.set(armL, 0, armLz);
-    this.armR.rotation.set(armR, 0, armRz);
-    this.head.rotation.set(0, 0, headTilt);
-    this.footL.position.set(-0.17, footY + (moving ? Math.max(0, sw) * 0.06 : 0), footLz);
-    this.footR.position.set(0.17, footY + (moving ? Math.max(0, -sw) * 0.06 : 0), footRz);
+    this.pivot.position.y = bob;
+    this.pivot.rotation.set(0, spin, roll);
     if (this.hat) for (const c of this.hat.children) if (c.userData.float) c.position.y = 0.2 + Math.sin(t * 3) * 0.04;
 
     // konuşma halkası nabız gibi atar
@@ -507,11 +601,12 @@ export class Avatar {
       const s = 1 + Math.sin(t * 12) * 0.06;
       this.ring.scale.set(s, s, 1);
     }
-    this.label.position.y = 2.2 + sitDrop;
+    const top = this.top - (SIT_Y - 0.08) * this.sitK;
+    this.label.position.y = top;
     // balon 7 sn kalır, son saniyede söner
     if (this.bubble) {
       this.bubbleT += dt;
-      this.bubble.position.y = 2.95 + sitDrop + Math.min(0.15, this.bubbleT * 0.6);
+      this.bubble.position.y = top + 0.75 + Math.min(0.15, this.bubbleT * 0.6);
       const m = this.bubble.material as THREE.SpriteMaterial;
       m.opacity = this.bubbleT > 6 ? Math.max(0, 7 - this.bubbleT) : Math.min(1, this.bubbleT * 6);
       if (this.bubbleT > 7) {
@@ -526,7 +621,7 @@ export class Avatar {
       p.t += dt;
       p.sprite.visible = p.t > 0;
       if (p.t <= 0) continue;
-      p.sprite.position.y = 1.8 + p.t * 1.2;
+      p.sprite.position.y = top - 0.4 + p.t * 1.2;
       p.sprite.position.x += p.vx * dt;
       (p.sprite.material as THREE.SpriteMaterial).opacity = Math.max(0, 1 - p.t / 1.6);
       if (p.t > 1.6) {
@@ -538,6 +633,8 @@ export class Avatar {
   }
 
   dispose() {
+    this.dead = true;
+    this.mixer?.stopAllAction();
     const m = this.label.material as THREE.SpriteMaterial;
     m.map?.dispose();
     m.dispose();

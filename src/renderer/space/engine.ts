@@ -154,7 +154,7 @@ export class SpaceEngine {
     const you = useSpace.getState().you;
     for (const [sid, a] of live.avatars) {
       if (this.avatars.has(sid)) continue;
-      const av = new Avatar(a.look, this.opts.nameOf(a.userId), sid === you);
+      const av = new Avatar(a.look, this.opts.nameOf(a.userId), sid === you, a.userId);
       av.x = a.x;
       av.z = a.z;
       av.ry = a.ry;
@@ -605,6 +605,8 @@ export class SpaceEngine {
         this.camTarget.z + Math.cos(this.yaw) * cp * d,
       );
     }
+    // duvara ya da engele sıkışan kamera yükselir: kendi karakterin ekranı kapatmasın
+    if (d < this.dist) this.camera.position.y += Math.min(0.9, (this.dist - d) * 0.2);
     if (this.camera.position.y < 0.4) this.camera.position.y = 0.4;
     const lim = this.world.camLimit;
     if (lim) {

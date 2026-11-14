@@ -57,7 +57,7 @@ let lineId = 0;
 
 export function myLook(): AvatarLook {
   const st = useStore.getState();
-  return { color: st.settings.avatarColor || st.me.color || '#f5a524', hat: st.settings.avatarHat || 'antenna' };
+  return { color: st.settings.avatarColor || st.me.color || '#f5a524', hat: st.settings.avatarHat || 'antenna', ...(st.settings.avatarModel ? { model: st.settings.avatarModel } : {}) };
 }
 
 spaceHooks.onFrame = (h, f: ServerFrame) => {

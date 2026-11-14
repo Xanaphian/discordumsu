@@ -171,9 +171,15 @@ export function sameSite(url: string, home: string): boolean {
 }
 
 // ---- 3D oda ----
+export type AvatarModel = 'knight' | 'barbarian' | 'mage' | 'rogue' | 'hooded';
+export const AVATAR_MODELS: AvatarModel[] = ['knight', 'barbarian', 'mage', 'rogue', 'hooded'];
 export interface AvatarLook {
+  /** kıyafet rengi */
   color: string;
+  /** 'antenna' (eski varsayılan) v1.52'den beri "karakterin kendi başlığı" demek */
   hat: 'none' | 'antenna' | 'crown' | 'cap' | 'wizard' | 'halo' | 'headphones';
+  /** karakter (v1.52); yoksa kişiye göre sabit bir karakter seçilir */
+  model?: AvatarModel;
 }
 export interface SpaceAvatar {
   sid: ID;
