@@ -422,36 +422,87 @@ const cx2 = (...a: (string | false | undefined | null)[]) => a.filter(Boolean).j
 
 /* ------------------------------------------------------------------ */
 
-const dims = new Map<string, { w: number; h: number }>();
+type Dim = { w: number; h: number; c: string };
+const dims = new Map<string, Dim>();
+
+/** Resmin ortalama rengi (kenar dolgusu için), küçük bir tuvalden */
+function avgColor(img: HTMLImageElement) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = 8;
+    const g = c.getContext('2d', { willReadFrequently: true })!;
+    g.drawImage(img, 0, 0, 8, 8);
+    const d = g.getImageData(0, 0, 8, 8).data;
+    let r = 0, gg = 0, b = 0;
+    for (let i = 0; i < d.length; i += 4) (r += d[i]), (gg += d[i + 1]), (b += d[i + 2]);
+    const n = d.length / 4;
+    return `rgb(${Math.round(r / n)}, ${Math.round(gg / n)}, ${Math.round(b / n)})`;
+  } catch {
+    return 'transparent';
+  }
+}
 
 /**
- * Afişi her yerde aynı gösterir ve alanı her zaman baştan sona doldurur.
- * Seçilen kısım (afişin asıl oranındaki görünüm) kutunun yüksekliğini doldurur ve ortalanır;
- * kutu daha genişse resmin gerçek devamı görünür, resim yetmezse hafifçe büyütülür (bulanık dolgu yok).
+ * Afişi her yerde aynı gösterir: seçilen kısmın dikey aralığı her zaman kutunun yüksekliğini
+ * tam doldurur (yukarı/aşağı kayma ya da fazladan yakınlaşma yok). Kutu daha genişse resmin
+ * gerçek devamı görünür; resim de yetmezse seçilen kısım olduğu gibi durur (ortada ya da sağda),
+ * kalan yer resmin kendi renginde yumuşak bir geçişle dolar. Kutu daha darsa yalnız yanlar kırpılır.
  */
-export function BannerPic({ image, framing, aspect, className, style }: { image: string; framing?: Framing; aspect: number; className?: string; style?: React.CSSProperties }) {
+export function BannerPic({
+  image,
+  framing,
+  aspect,
+  className,
+  style,
+  align,
+}: {
+  image: string;
+  framing?: Framing;
+  aspect: number;
+  className?: string;
+  style?: React.CSSProperties;
+  align?: 'end';
+}) {
   const [dim, setDim] = useState(() => dims.get(image));
   useEffect(() => setDim(dims.get(image)), [image]);
+  const box = useRef<HTMLSpanElement>(null);
+  const [narrow, setNarrow] = useState(false);
   let vars: React.CSSProperties | undefined;
+  let need = 0; // görünen resmin en/boy oranı (yükseklik dolunca)
   if (dim) {
     const { rx, ry } = coverRatio(dim.w, dim.h, aspect);
     const z = Math.max(1, (framing?.zoom ?? 100) / 100);
+    const hf = ry / z;
+    need = dim.w / dim.h / hf;
     vars = {
       ['--r' as any]: dim.w / dim.h,
-      ['--hf' as any]: ry / z,
+      ['--hf' as any]: hf,
       ['--cx' as any]: centerFromT(framing?.x ?? 50, rx, z),
       ['--cy' as any]: centerFromT(framing?.y ?? 50, ry, z),
+      ['--al' as any]: align === 'end' ? 1 : 0.5,
+      background: dim.c,
     };
   }
+  // kutu resimden genişse kenarlar yumuşak geçişle biter
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el || !need) return;
+    const check = () => setNarrow(el.clientHeight > 0 && el.clientWidth / el.clientHeight > need + 0.02);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [need]);
   return (
-    <span className={cx2('bpic', className)} style={{ ...style, ...vars }} aria-hidden>
+    <span ref={box} className={cx2('bpic', narrow && 'short', align === 'end' && 'bpic-end', className)} style={{ ...style, ...vars }} aria-hidden>
       <img
         className={cx2('bpic-img', !dim && 'pending')}
         src={image}
         alt=""
         draggable={false}
         onLoad={(e) => {
-          const d = { w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight };
+          const im = e.currentTarget;
+          const d = { w: im.naturalWidth, h: im.naturalHeight, c: avgColor(im) };
           if (!d.w || !d.h) return;
           if (dims.size > 300) dims.clear();
           dims.set(image, d);

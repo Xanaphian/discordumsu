@@ -98,7 +98,7 @@ const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chI
               openMenu(e, memberMenu(c, meId, m.userId, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
             }}
           >
-            {img && <BannerPic className="vc-card-img" image={img} framing={b} aspect={330 / (b?.h || BANNER_H.def)} />}
+            {img && <BannerPic className="vc-card-img" image={img} framing={b} aspect={330 / (b?.h || BANNER_H.def)} align="end" />}
             <span className="vc-card-shade" aria-hidden />
             <Avatar user={u ? { ...u, profile: prof } : undefined} size={compact ? 26 : 34} speaking={talk} />
             <span className="vc-name">{displayName(c, m.userId, users)}</span>
@@ -591,7 +591,7 @@ export function UserPanel() {
   };
   return (
     <div className="user-panel">
-      <Banner user={me} profile={me.extra} className="up-banner" />
+      <Banner user={me} profile={me.extra} className="up-banner" align="end" />
       <button className="up-me" onClick={statusMenu}>
         <Avatar user={me} size={34} status={me.status === 'invisible' ? 'offline' : me.status} />
         <div className="up-text">

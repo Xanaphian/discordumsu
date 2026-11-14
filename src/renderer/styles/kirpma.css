@@ -220,12 +220,27 @@
   max-width: none;
   max-height: none;
   object-fit: fill;
-  /* seçilen kısmın yüksekliği kutuyu doldurur; resim kutudan darsa genişliğe göre büyür */
-  --dw: max(calc(100cqh * var(--r) / var(--hf)), 100cqw);
+  /* seçilen kısmın dikey aralığı kutunun yüksekliğini tam doldurur; asla fazladan büyütülmez */
+  --dw: calc(100cqh * var(--r) / var(--hf));
   width: var(--dw);
   height: calc(var(--dw) / var(--r));
-  left: clamp(calc(100cqw - var(--dw)), calc(50cqw - var(--cx) * var(--dw)), 0px);
+  /* resim kutudan genişse seçilen merkez ortalanır (kenarlarda sınırlanır);
+     darsa ortada (--al .5) ya da sağda (--al 1) durur */
+  left: clamp(
+    min(calc(100cqw - var(--dw)), calc((100cqw - var(--dw)) * var(--al, 0.5))),
+    calc(50cqw - var(--cx) * var(--dw)),
+    max(0px, calc((100cqw - var(--dw)) * var(--al, 0.5)))
+  );
   top: clamp(calc(100cqh - var(--dw) / var(--r)), calc(50cqh - var(--cy) * var(--dw) / var(--r)), 0px);
+}
+/* resim kutudan dar: kenarları kutunun kendi rengine (resmin ortalama rengi) yumuşakça geçer */
+.bpic.short > .bpic-img {
+  -webkit-mask: linear-gradient(90deg, transparent, #000 56px, #000 calc(100% - 56px), transparent);
+  mask: linear-gradient(90deg, transparent, #000 56px, #000 calc(100% - 56px), transparent);
+}
+.bpic.short.bpic-end > .bpic-img {
+  -webkit-mask: linear-gradient(90deg, transparent, #000 64px);
+  mask: linear-gradient(90deg, transparent, #000 64px);
 }
 .bpic > .bpic-img.pending {
   left: 0;
@@ -336,13 +351,12 @@
 }
 
 /* v1.43.3 tam profilde afiş biraz daha yüksek: seçilen kısım daha az kırpılır */
-/* tam profilde afiş, profil kartındaki afişle aynı oranda (çok geniş pencerede en çok 260 px yükseklik) */
+/* tam profilde afiş, profil kartındaki afişle birebir aynı oranda: seçilen kısım aynen görünür */
 .pcard.xp2 .xp-banner {
   height: auto;
   width: 100%;
   aspect-ratio: 330 / var(--bhn, 108);
-  min-height: 160px;
-  max-height: 260px;
+  max-height: none;
 }
 
 /* v1.43.3 topluluk başlığı: afiş alanı tam kaplar, altta açık tema renginde soluklaşmaz;
