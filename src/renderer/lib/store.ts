@@ -1273,13 +1273,13 @@ export async function loadHistory(ch: ID, before?: ID) {
       }
       return { chans: { ...s.chans, [ch]: { items, more: r.more, loaded: true, loading: false, prepended } } };
     });
+    retried.delete(ch);
   } catch {
     set((s) => ({ chans: { ...s.chans, [ch]: { ...s.chans[ch], loading: false } } }));
-    // ilk sayfa gelmediyse ve kanal hâlâ ekrandaysa kısa süre sonra bir kez daha dene (bağlantı kopuksa 'ready' gelince yüklenir)
+    // ilk sayfa gelmediyse ve kanal hâlâ ekrandaysa kısa süre sonra bir kez daha dene (bağlantı kopuksa 'ready' gelince yeniden yüklenir)
     if (!before && !retried.has(ch)) {
-      retried.add(ch);
+      retried.add(ch); // kanal başına tek ek deneme: kalıcı bir hata (ör. yetki yok) sonsuz döngüye girmesin
       setTimeout(() => {
-        retried.delete(ch);
         const st = S();
         const shown = st.current !== 'home' ? st.chanByComm[st.current] : undefined;
         if (shown === ch && !st.chans[ch]?.loaded && connFor(ch)?.status === 'online') loadHistory(ch);

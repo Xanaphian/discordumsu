@@ -1481,6 +1481,12 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const [pins, setPins] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
   const [q, setQ] = useState('');
+  // başka kanala geçince arama yazısı ve açık pencereler (sabitlenenler, kaydedilenler) önceki kanaldan kalmasın
+  useEffect(() => {
+    setPins(false);
+    setSavedOpen(false);
+    setQ('');
+  }, [ch.id]);
   if (c.dm) return <DmHeader c={c} ch={ch} pins={pins} setPins={setPins} />;
   return (
     <div className="chat-header">
@@ -1574,7 +1580,7 @@ export function ChatView({ c, ch }: { c: Community; ch: Channel }) {
         window.dispatchEvent(new CustomEvent('kovan:files', { detail: [...e.dataTransfer.files] }));
       }}
     >
-      <ChatHeader key={ch.id} c={c} ch={ch} />
+      <ChatHeader c={c} ch={ch} />
       {c.dm && <DmCall c={c} ch={ch} />}
       <MessageList c={c} ch={ch} />
       <Composer key={ch.id} c={c} ch={ch} />

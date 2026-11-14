@@ -37,8 +37,22 @@ export class HataSiniri extends React.Component<Props, { failed: boolean; key?: 
     } catch {
       /* kurtarma adımı da hata verirse yoksay */
     }
-    // sessiz bölümler (pencere, kart) kapandıktan sonra bir sonraki açılışta yeniden çalışabilsin
-    if (this.props.silent) setTimeout(() => this.setState({ failed: false }), 0);
+    // Sessiz bölümler (pencere, kart) kapandıktan sonra bir sonraki açılışta yeniden çalışabilsin.
+    // Hata kalıcıysa boşuna dönüp durmasın: ilk denemeden sonra 3 saniyede bir denenir.
+    if (this.props.silent) {
+      const now = Date.now();
+      const again = now - this.lastFail < 5000;
+      this.lastFail = now;
+      clearTimeout(this.retry);
+      this.retry = setTimeout(() => this.setState({ failed: false }), again ? 3000 : 0);
+    }
+  }
+
+  private lastFail = 0;
+  private retry: ReturnType<typeof setTimeout> | undefined;
+
+  componentWillUnmount() {
+    clearTimeout(this.retry);
   }
 
   render() {
