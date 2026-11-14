@@ -37,7 +37,9 @@ export interface MdCtx {
 
 type Rule = { re: RegExp; render: (m: RegExpExecArray, ctx: MdCtx, key: number) => ReactNode };
 
-const URL_RE = /^https?:\/\/[^\s<]+[^\s<.,:;"')\]!?*_~|]/;
+// Dengeli ayraçlar adresin parçasıdır: https://tr.wikipedia.org/wiki/Ankara_(il) sondaki ")" ile birlikte bağlantı olur
+const URL_BODY = String.raw`https?:\/\/(?:\([^\s<()]*\)|[^\s<()])*(?:\([^\s<()]*\)|[^\s<.,:;"'()\]!?*_~|>])`;
+const URL_RE = new RegExp('^' + URL_BODY);
 
 function Spoiler({ children }: { children: ReactNode }) {
   const [clicked, setOpen] = useState(false);
@@ -126,6 +128,7 @@ const inlineRules: Rule[] = [
 ];
 
 const SPECIAL = /[\\`*_~|[h<@]/;
+const WORD_CH = /[\p{L}\p{N}]/u;
 
 export function inline(src: string, ctx: MdCtx): ReactNode[] {
   const out: ReactNode[] = [];
@@ -149,6 +152,13 @@ export function inline(src: string, ctx: MdCtx): ReactNode[] {
     if (rest[0] === 'h' && !rest.startsWith('http')) {
       buf += 'h';
       i++;
+      continue;
+    }
+    // Kelime ortasındaki alt çizgi biçim değildir: snake_case, xX_ad_Xx gibi yazılar eğik/altı çizili olmasın
+    if (rest[0] === '_' && i > 0 && WORD_CH.test(src[i - 1])) {
+      const run = /^_+/.exec(rest)![0];
+      buf += run;
+      i += run.length;
       continue;
     }
     for (const r of inlineRules) {
@@ -228,7 +238,7 @@ export function renderMarkdown(src: string, ctx: MdCtx): ReactNode[] {
     const lines = t.split('\n');
     let para: string[] = [];
     let quote: string[] = [];
-    let list: { ordered: boolean; items: string[] } | null = null;
+    let list: { ordered: boolean; start: number; items: string[] } | null = null;
     const flushPara = () => {
       while (para.length && !para[0].trim()) para.shift();
       while (para.length && !para[para.length - 1].trim()) para.pop();
@@ -248,7 +258,7 @@ export function renderMarkdown(src: string, ctx: MdCtx): ReactNode[] {
     const flushList = () => {
       if (list) {
         const items = list.items.map((it, i) => <li key={i}>{inline(it, ctx)}</li>);
-        out.push(list.ordered ? <ol key={key++} className="md-list">{items}</ol> : <ul key={key++} className="md-list">{items}</ul>);
+        out.push(list.ordered ? <ol key={key++} className="md-list" start={list.start}>{items}</ol> : <ul key={key++} className="md-list">{items}</ul>);
         list = null;
       }
     };
@@ -278,7 +288,7 @@ export function renderMarkdown(src: string, ctx: MdCtx): ReactNode[] {
         flushPara();
         const ordered = /\d/.test(m[1]);
         if (list && list.ordered !== ordered) flushList();
-        list ||= { ordered, items: [] };
+        list ||= { ordered, start: ordered ? parseInt(m[1], 10) || 1 : 1, items: [] }; // "3. ..." 1'den değil 3'ten başlar
         list.items.push(m[2]);
         continue;
       }
@@ -293,6 +303,6 @@ export function renderMarkdown(src: string, ctx: MdCtx): ReactNode[] {
 }
 
 export function firstUrl(s: string): string | null {
-  const m = /https?:\/\/[^\s<>]+[^\s<.,:;"')\]!?*_~|>]/.exec(s.replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, ''));
+  const m = new RegExp(URL_BODY).exec(s.replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, ''));
   return m ? m[0] : null;
 }

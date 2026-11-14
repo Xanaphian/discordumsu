@@ -1,5 +1,5 @@
 // Kanal ve kategori ayarları (tam ekran)
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Hash, Volume2, Megaphone, Folder, Globe } from 'lucide-react';
 import { worldOf, WORLDS } from '../lib/space';
 import type { Room3d } from '../../shared/protocol';
@@ -68,7 +68,20 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
     if (!ch) close();
   }, [ch]);
   // sunucudan gelen değişiklikle taslağı tazele (kaydettikten sonra)
-  useEffect(() => setOw(ch?.overwrites || []), [ch?.overwrites]); // eslint-disable-line
+  // İçeriğe göre karşılaştır: her topluluk güncellemesinde (biri katıldı, rol değişti) nesne yenilenir,
+  // eskiden bu yüzden kaydedilmemiş izin taslağı kendiliğinden siliniyordu.
+  const owKey = JSON.stringify(ch?.overwrites || []);
+  useEffect(() => setOw(ch?.overwrites || []), [owKey]); // eslint-disable-line
+  // Sunucu adı ve adresi düzeltir ("Genel Sohbet" → "genel-sohbet"); kaydettikten sonra taslağı sunucudakiyle
+  // eşitle, yoksa "kaydedilmemiş değişiklik" çubuğu hiç kapanmaz.
+  const justSaved = useRef(false);
+  useEffect(() => {
+    if (!justSaved.current || !ch) return;
+    justSaved.current = false;
+    setName(ch.name);
+    setTopic(ch.topic || '');
+    setUrl(ch.url || DEFAULT_SITE_URL);
+  }, [ch]); // eslint-disable-line
   if (!c || !ch) return null;
   const voice = isVoiceLike(ch.type);
   const site = ch.type === 'site';
@@ -94,6 +107,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
     if (!name.trim()) return toast('Kanal adı boş olamaz.', 'err');
     if (!urlOk) return toast('Geçerli bir http(s) adresi yaz.', 'err');
     cmd(cid, { t: 'chan.update', cid, id: chId, name, topic, slowmode: slow, userLimit: limit, type: type !== ch.type ? type : undefined, categoryId: cat, ...(site ? { url: cleanSiteUrl(url)! } : {}), ...(banner !== ch.banner ? { banner: banner ?? null } : {}), ...(voice && world !== worldOf(ch) ? { room3d: world } : {}) });
+    justSaved.current = true;
     toast('Kanal kaydedildi', 'ok');
     if (banner !== ch.banner)
       setTimeout(() => {
@@ -255,7 +269,8 @@ export function CategorySettings({ cid, catId, tab: initial }: { cid: string; ca
   useEffect(() => {
     if (!cat) close();
   }, [cat]);
-  useEffect(() => setOw(cat?.overwrites || []), [cat?.overwrites]); // eslint-disable-line
+  const catOwKey = JSON.stringify(cat?.overwrites || []);
+  useEffect(() => setOw(cat?.overwrites || []), [catOwKey]); // eslint-disable-line
   if (!c || !cat) return null;
   const canPerms = can(c, me, Perm.MANAGE_ROLES);
   const chans = c.channels.filter((x) => x.categoryId === catId);

@@ -662,7 +662,9 @@ const DEFAULT_AUTOMOD: AutoMod = { words: [], blockLinks: false, maxMentions: 0,
 function ModerationTab({ c }: { c: Community }) {
   const am = c.automod || DEFAULT_AUTOMOD;
   const [words, setWords] = useState(am.words.join(', '));
-  useEffect(() => setWords((c.automod || DEFAULT_AUTOMOD).words.join(', ')), [c.automod]);
+  // içerik değişmedikçe yazılan taslak silinmesin (başka bir ayar değişince kutu eski haline dönüyordu)
+  const wordsKey = am.words.join(', ');
+  useEffect(() => setWords(wordsKey), [wordsKey]);
   const save = (patch: Partial<AutoMod>) => cmd(c.id, { t: 'comm.update', cid: c.id, automod: { ...am, ...patch } });
   const parsed = words
     .split(/[,\n]/)

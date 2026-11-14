@@ -213,6 +213,7 @@ const ChannelRow = memo(function ChannelRow({
           e.dataTransfer.effectAllowed = 'move';
           onDragStart(ch.id);
         }}
+        onDragEnd={() => setOver(false)}
         onDragOver={(e) => {
           if (!manage) return;
           e.preventDefault();
@@ -283,6 +284,12 @@ export function ChannelSidebar({ c }: { c: Community }) {
   const commMuted = useStore((s) => s.settings.mutedIds.includes(c.id));
   const devMode = useStore((s) => s.settings.devMode);
   const [drag, setDrag] = useState<string | null>(null);
+  // yarıda bırakılan sürükleme akılda kalmasın (sonraki ilgisiz bırakma o kanalı taşıyordu)
+  useEffect(() => {
+    const end = () => setDrag(null);
+    document.addEventListener('dragend', end);
+    return () => document.removeEventListener('dragend', end);
+  }, []);
 
   const groups = useMemo(() => {
     const cats = [...c.categories].sort((a, b) => a.position - b.position);
@@ -295,10 +302,15 @@ export function ChannelSidebar({ c }: { c: Community }) {
 
   const dropOn = (target: Channel | null, categoryId: string | null) => {
     if (!drag) return;
-    const list = c.channels.filter((x) => x.categoryId === (target ? target.categoryId : categoryId) && x.id !== drag).sort((a, b) => a.position - b.position);
-    const index = target ? list.findIndex((x) => x.id === target.id) : list.length;
-    cmd(c.id, { t: 'chan.move', cid: c.id, id: drag, categoryId: target ? target.categoryId : categoryId, index: Math.max(0, index) });
     setDrag(null);
+    if (target?.id === drag) return; // kendi üstüne bırakıldı: yerinde kalsın (eskiden kategorinin başına fırlıyordu)
+    const catId = target ? target.categoryId : categoryId;
+    const sibs = c.channels.filter((x) => x.categoryId === catId).sort((a, b) => a.position - b.position);
+    const from = sibs.findIndex((x) => x.id === drag);
+    const list = sibs.filter((x) => x.id !== drag);
+    let index = target ? list.findIndex((x) => x.id === target.id) : list.length;
+    if (target && from !== -1 && from <= index) index++; // aşağı sürüklerken bırakılan kanalın altına yerleş
+    cmd(c.id, { t: 'chan.move', cid: c.id, id: drag, categoryId: catId, index: Math.max(0, index) });
   };
 
   const headerMenu = (e: React.MouseEvent) => {

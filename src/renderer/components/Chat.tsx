@@ -16,7 +16,7 @@ import { useLater, toggleSaved, isSaved } from '../lib/later';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
   openModal, confirmDialog, retryMessage, discardMessage, markRead, uploadFile, hostHttp, toast, updateSettings, request, jumpToMessage,
-  selectChannel, jumpToPresent, plainText, toggleMuted, addFriend, acceptFriend, readBeforeOpen,
+  selectChannel, jumpToPresent, plainText, copyableText, toggleMuted, addFriend, acceptFriend, readBeforeOpen,
 } from '../lib/store';
 import { activeCustom } from '../../shared/profile';
 import { DmCall } from './Media';
@@ -392,7 +392,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
       ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
       { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
       ...(canManage ? [{ label: m.pinned ? 'Sabitlemeyi kaldır' : 'Mesajı sabitle', onClick: () => pinMessage(m.channelId, m.id, !m.pinned) }] : []),
-      { label: 'Metni kopyala', onClick: () => copyText(plainText(m.content, c)) },
+      { label: 'Metni kopyala', onClick: () => copyText(copyableText(m.content, c)) },
       { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
       ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
     ]);
@@ -658,18 +658,46 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const ref = useRef<VirtuosoHandle>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [flash, setFlash] = useState<string | null>(null);
+  const flashT = useRef(0);
+  // kanal açıldığındaki son mesaj: "YENİ" çizgisi yalnız sen yokken gelenlerin üstüne konur, bakarken gelenlere değil
+  const lastAtOpen = useMemo(() => useStore.getState().lastIds[ch.id] || '', [ch.id]);
   // kanal açıldığındaki okunma noktası ("YENİ" çizgisi için)
   const readAtOpen = useMemo(() => readBeforeOpen[ch.id] ?? (useStore.getState().read[ch.id] || ''), [ch.id]); // eslint-disable-line
   const items = st?.items || [];
   const firstNewId = useMemo(() => {
     if (!readAtOpen) return null;
-    const m = items.find((x) => x.id > readAtOpen && x.authorId !== me && !x.pending && !x.id.startsWith('~'));
+    const m = items.find((x) => x.id > readAtOpen && x.id <= lastAtOpen && x.authorId !== me && !x.pending && !x.id.startsWith('~'));
     return m?.id || null;
-  }, [items, readAtOpen, me]);
+  }, [items, readAtOpen, lastAtOpen, me]);
 
   useEffect(() => {
     if (atBottom && focused && !st?.detached) markRead(ch.id);
   }, [atBottom, focused, items.length, ch.id, st?.detached]);
+
+  // En alttayken yeni mesaj gelince liste son mesaja kayar ama alttaki boşluğu hesaba katmaz;
+  // son mesaj yazma kutusuna yapışıp kırpılıyordu. Gerçek dibe kadar in.
+  const scroller = useRef<HTMLElement | null>(null);
+  const bottomRef = useRef(true);
+  bottomRef.current = atBottom;
+  const tailId = items.length ? items[items.length - 1].nonce || items[items.length - 1].id : '';
+  const [behind, setBehind] = useState(false); // yukarıdayken yeni mesaj geldi mi
+  useEffect(() => {
+    if (!tailId) return;
+    if (!bottomRef.current) {
+      setBehind(true);
+      return;
+    }
+    const toEnd = () => {
+      const el = scroller.current;
+      if (el && el.scrollHeight - el.clientHeight - el.scrollTop < 200) el.scrollTop = el.scrollHeight;
+    };
+    const t1 = setTimeout(toEnd, 60);
+    const t2 = setTimeout(toEnd, 260);
+    return () => (clearTimeout(t1), clearTimeout(t2));
+  }, [tailId]);
+  useEffect(() => {
+    if (atBottom) setBehind(false);
+  }, [atBottom, ch.id]);
 
   useEffect(() => {
     if (!jumpTo || jumpTo.ch !== ch.id) return;
@@ -677,10 +705,12 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
     if (idx < 0) return;
     requestAnimationFrame(() => ref.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'auto' }));
     setFlash(jumpTo.id);
-    const t = setTimeout(() => setFlash(null), 1800);
+    // Zamanlayıcı etkinin temizliğinde iptal edilmez: jumpTo sıfırlanınca etki yeniden çalışıp vurguyu sonsuza dek bırakıyordu
+    clearTimeout(flashT.current);
+    flashT.current = window.setTimeout(() => setFlash(null), 1800);
     useStore.setState({ jumpTo: null });
-    return () => clearTimeout(t);
   }, [jumpTo, items, ch.id]);
+  useEffect(() => () => clearTimeout(flashT.current), []);
 
   const headCtx = useMemo<ListCtx>(() => ({ c, ch, loading: !!st?.loading, more: !!st?.more }), [c, ch, st?.loading, st?.more]);
 
@@ -713,6 +743,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
       <Virtuoso
         key={ch.id + ':' + (st.epoch || 0)}
         ref={ref}
+        scrollerRef={(el) => (scroller.current = el as HTMLElement | null)}
         className="scroll-thin msg-scroller"
         data={items}
         firstItemIndex={BASE - st.prepended}
@@ -752,7 +783,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
             else ref.current?.scrollToIndex({ index: items.length - 1, align: 'end', behavior: 'smooth' });
           }}
         >
-          {detachedOrBehind ? 'Eski mesajları görüntülüyorsun' : 'Yeni mesajlar'} <span>Şimdiye dön</span> <ArrowDown size={14} />
+          {detachedOrBehind || !behind ? 'Eski mesajları görüntülüyorsun' : 'Yeni mesajlar var'} <span>Şimdiye dön</span> <ArrowDown size={14} />
         </button>
       )}
     </div>
