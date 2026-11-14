@@ -17,7 +17,8 @@ import { isToolChannel } from '../../shared/protocol';
 import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
 import { focusProfileSection } from './profile/ProfileEditor';
-import { activeCustom } from '../../shared/profile';
+import { activeCustom, type ProfileExtra } from '../../shared/profile';
+import { bannerBackground, imgFrameStyle } from './profile/look';
 import { useActsOf } from '../lib/activity';
 import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
@@ -58,24 +59,50 @@ function roomSub(ch: Channel, occupants: number, viewers: number) {
   return viewers ? `${where} · ${viewers} kişi geziyor` : `${where} · birlikte gez`;
 }
 
+/** Ses odasındaki kişiler: oda satırı genişliğinde, arkasında kendi afişi, üstünde profil resmi (v1.37) */
+const VC_SHOW = 8; // kalabalık odada ilk bu kadar kart, gerisi "+N kişi daha"
 const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chId: string }) {
   const members = useStore((s) => s.voice[chId]);
   const users = useStore((s) => s.users);
+  const meId = useStore((s) => s.me.id);
+  const meExtra = useStore((s) => (s.me as { extra?: ProfileExtra }).extra);
   const speaking = useVoice((s) => s.speaking);
+  const [all, setAll] = useState(false);
   if (!members?.length) return null;
+  const compact = members.length > 6; // 7+ kişide kartlar incelir
+  const shown = all ? members : members.slice(0, VC_SHOW);
   return (
-    <div className="vc-members">
-      {members.map((m) => (
-        <div key={m.sessionId} className="vc-member" onClick={(e) => useStore.setState({ popout: { uid: m.userId, cid: c.id, x: e.clientX, y: e.clientY } })}>
-          <Avatar user={users[m.userId]} size={22} speaking={!!speaking[m.userId] && !m.muted} />
-          <span className="vc-name">{displayName(c, m.userId, users)}</span>
-          <span className="vc-flags">
-            {m.cam ? <Video size={13} className="cam" /> : null}
-            {m.screen ? <span className="live-badge">CANLI</span> : null}
-            {m.deaf ? <HeadphoneOff size={13} /> : m.muted ? <MicOff size={13} /> : null}
-          </span>
-        </div>
-      ))}
+    <div className={cx('vc-members vc-cards', compact && 'compact')}>
+      {shown.map((m) => {
+        const u = users[m.userId];
+        const prof: ProfileExtra | undefined = u?.profile ?? (m.userId === meId ? meExtra : undefined);
+        const b = prof?.banner;
+        const img = b?.kind === 'image' && b.image ? b.image : undefined;
+        const talk = !!speaking[m.userId] && !m.muted;
+        return (
+          <div
+            key={m.sessionId}
+            className={cx('vc-member vc-card', talk && 'talking', !img && 'no-img', !b && 'no-banner')}
+            style={{ ['--uc' as any]: u?.color || '#c8aa6e', background: img || !b ? undefined : bannerBackground(b, u?.color || '#c8aa6e') }}
+            onClick={(e) => useStore.setState({ popout: { uid: m.userId, cid: c.id, x: e.clientX, y: e.clientY } })}
+          >
+            {img && <img className="vc-card-img" src={img} alt="" draggable={false} style={imgFrameStyle(b)} />}
+            <span className="vc-card-shade" aria-hidden />
+            <Avatar user={u ? { ...u, profile: prof } : undefined} size={compact ? 26 : 34} speaking={talk} />
+            <span className="vc-name">{displayName(c, m.userId, users)}</span>
+            <span className="vc-flags">
+              {m.cam ? <Video size={13} className="cam" /> : null}
+              {m.screen ? <span className="live-badge">CANLI</span> : null}
+              {m.deaf ? <HeadphoneOff size={13} className="off" /> : m.muted ? <MicOff size={13} className="off" /> : null}
+            </span>
+          </div>
+        );
+      })}
+      {members.length > VC_SHOW && (
+        <button className="vc-more" onClick={() => setAll(!all)}>
+          {all ? 'Daha az göster' : `+${members.length - VC_SHOW} kişi daha`}
+        </button>
+      )}
     </div>
   );
 });

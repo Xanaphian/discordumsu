@@ -158,3 +158,116 @@
     width: 276px;
   }
 }
+
+/* v1.37 ses odasındaki kişiler: oda satırı genişliğinde, kendi afişi arkada, profil resmi üstte */
+.vc-members.vc-cards,
+.ch-row.room + .vc-members.vc-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 6px;
+  padding: 0;
+  border: 0;
+}
+.vc-member.vc-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: #fff;
+  background-color: var(--bg-elev);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 8%, transparent);
+  transition: box-shadow 0.15s, filter 0.15s;
+}
+.vc-cards.compact .vc-member.vc-card {
+  height: 38px;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 9px;
+}
+.vc-card-img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+/* adın okunaklı kalması için soldan koyulaşan perde */
+.vc-card-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(6, 10, 22, 0.78) 0%, rgba(6, 10, 22, 0.5) 55%, rgba(6, 10, 22, 0.22) 100%);
+  pointer-events: none;
+}
+.vc-card.no-img .vc-card-shade {
+  background: linear-gradient(90deg, rgba(6, 10, 22, 0.45), rgba(6, 10, 22, 0.12));
+}
+.vc-member.vc-card:hover {
+  background-color: var(--bg-elev);
+  filter: brightness(1.12);
+}
+.vc-card .avatar {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
+}
+.vc-card .vc-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.vc-cards.compact .vc-card .vc-name {
+  font-size: 13px;
+}
+.vc-card .vc-flags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.vc-card .vc-flags:not(:empty) {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(6, 10, 22, 0.6);
+  color: #fff;
+}
+.vc-card .vc-flags .off {
+  color: var(--red, #f2555a);
+}
+/* konuşurken kartın kenarı yeşil yanar */
+.vc-member.vc-card.talking {
+  box-shadow:
+    inset 0 0 0 2px var(--green, #3ecf8e),
+    0 0 12px -4px var(--green, #3ecf8e);
+}
+.vc-more {
+  align-self: flex-start;
+  margin: 0 0 0 4px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vc-more:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+/* afişi olmayan: kendi renginden hafif bir şerit, liste rengârenk olmasın */
+.vc-member.vc-card.no-banner {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--uc) 38%, var(--bg-elev)) 0%, color-mix(in srgb, var(--uc) 10%, var(--bg-elev)) 70%);
+}
+.vc-card.no-banner .vc-card-shade {
+  background: none;
+}
