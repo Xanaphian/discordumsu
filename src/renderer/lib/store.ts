@@ -268,6 +268,8 @@ export interface MenuItem {
   onEmoji?: (e: string) => void;
   /** üzerine gelince sağda açılan alt menü */
   sub?: MenuItem[];
+  /** menünün başında kişi başlığı (avatar + ad) */
+  person?: { uid: string; cid?: string };
 }
 
 export interface Toast {

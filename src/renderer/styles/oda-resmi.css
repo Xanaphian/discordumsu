@@ -4,18 +4,18 @@
 /* odalar (ses, site) çerçeveli bir kutu: başta oda satırı, altında içindekiler.
    Böylece odalar sesteki kişi kartlarıyla karışmaz. */
 .room-box {
-  margin: 4px 0;
+  margin: 5px 0;
   padding: 3px;
   border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border: 2px solid color-mix(in srgb, var(--text) 22%, transparent);
   background: color-mix(in srgb, var(--text) 3%, transparent);
   transition: border-color 0.12s;
 }
 .room-box:hover {
-  border-color: color-mix(in srgb, var(--text) 24%, transparent);
+  border-color: color-mix(in srgb, var(--text) 32%, transparent);
 }
 .room-box.on {
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .room-box > .ch-row.room {
   margin: 0;
@@ -293,17 +293,48 @@
 .vc-card.no-banner .vc-card-shade {
   background: none;
 }
-/* kutunun başlığı olan oda satırıyla içindekiler arasında ince ayraç */
+/* kutunun başlığı olan oda satırı ile içindekiler arasında belirgin ayraç (v1.41) */
 .room-box > .ch-row.room:not(:last-child) {
-  margin-bottom: 3px;
+  margin-bottom: 0;
 }
-.room-box > .ch-row.room:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: -4px;
-  height: 1px;
-  background: color-mix(in srgb, var(--text) 12%, transparent);
-  pointer-events: none;
+.room-box > .vc-members.vc-cards,
+.room-box > .ch-row.room + .vc-members.vc-cards {
+  margin: 4px 0 0;
+  padding-top: 5px;
+  border-top: 2px solid color-mix(in srgb, var(--text) 20%, transparent);
+}
+.room-box.on > .vc-members.vc-cards {
+  border-top-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* v1.41 alttaki kendi panelin: afiş net (ses kartı gibi), yazılar ve düğmeler afişin üstünde okunaklı */
+html .user-panel,
+[data-style='destan'] .user-panel {
+  border-radius: 12px !important;
+  border: 1px solid color-mix(in srgb, #fff 10%, transparent);
+  background: var(--bg-elev);
+}
+html .user-panel .up-banner {
+  opacity: 1;
+  filter: none;
+}
+html .user-panel::after {
+  background: linear-gradient(90deg, rgba(6, 10, 22, 0.72) 0%, rgba(6, 10, 22, 0.45) 55%, rgba(6, 10, 22, 0.3) 100%);
+}
+.user-panel .up-name {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.user-panel .up-status,
+.user-panel .up-status .act-line {
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.user-panel > .tip-wrap .icon-btn,
+.user-panel .icon-btn {
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}
+.user-panel .icon-btn:hover {
+  background: rgba(6, 10, 22, 0.45);
 }

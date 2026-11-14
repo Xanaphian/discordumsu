@@ -24,6 +24,7 @@ import './styles/farklar.css';
 import './styles/root-ozellikleri.css';
 import './styles/tam-profil.css';
 import './styles/oda-resmi.css';
+import './styles/sag-tik.css';
 import './styles/oda-3d.css';
 import './styles/gurultu.css';
 import './styles/ana-sayfa.css';

@@ -24,6 +24,8 @@ import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName, countOnline } from '../lib/util';
 import { openPopout } from './AyriPencere';
+import { memberMenu } from './Moderation';
+import { insertMention } from './Members';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
 
 /** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi */
@@ -85,6 +87,13 @@ const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chI
             className={cx('vc-member vc-card', talk && 'talking', !img && 'no-img', !b && 'no-banner')}
             style={{ ['--uc' as any]: u?.color || '#c8aa6e', background: img || !b ? undefined : bannerBackground(b, u?.color || '#c8aa6e') }}
             onClick={(e) => useStore.setState({ popout: { uid: m.userId, cid: c.id, x: e.clientX, y: e.clientY } })}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // üye listesindeki kişi menüsünün aynısı: Profil, Bahset, Mesaj, ses düzeyi…
+              const name = displayName(c, m.userId, users);
+              openMenu(e, memberMenu(c, meId, m.userId, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
+            }}
           >
             {img && <img className="vc-card-img" src={img} alt="" draggable={false} style={imgFrameStyle(b)} />}
             <span className="vc-card-shade" aria-hidden />
