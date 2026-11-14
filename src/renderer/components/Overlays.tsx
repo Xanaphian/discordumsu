@@ -51,10 +51,27 @@ export function ContextMenu() {
   const pos = useFit(ref, menu?.x || 0, menu?.y || 0, [menu]);
   if (!menu) return null;
   return (
-    <div ref={ref} className="ctx-menu" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }} onContextMenu={(e) => e.preventDefault()}>
-      <MenuItems items={menu.items} close={close} />
-    </div>
+    <MenuGuard key={menu.x + ':' + menu.y} onError={close}>
+      <div ref={ref} className="ctx-menu" style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }} onContextMenu={(e) => e.preventDefault()}>
+        <MenuItems items={menu.items} close={close} />
+      </div>
+    </MenuGuard>
   );
+}
+
+/** Menüde bir çizim hatası bütün uygulamayı boş ekrana düşürmesin: menü kapanır, uygulama çalışmaya devam eder */
+class MenuGuard extends React.Component<{ onError: () => void; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(err: unknown) {
+    console.error('Sağ tık menüsü çizilemedi', err);
+    this.props.onError();
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
 }
 
 function MenuItems({ items, close }: { items: MenuItem[]; close: () => void }) {
@@ -107,10 +124,11 @@ function MenuItems({ items, close }: { items: MenuItem[]; close: () => void }) {
 
 /** Menünün başındaki kişi: avatar, görünen ad, kullanıcı adı */
 function MenuPerson({ uid, cid }: { uid: string; cid?: string }) {
+  // Seçiciler her seferinde yeni nesne döndürmesin (yoksa sonsuz yeniden çizim olur): ham veriyi al, nesneyi burada kur.
   const me = useStore((s) => s.me);
-  const user = useStore((s) => (uid === s.me.id ? meAsUser(s.me) : s.users[uid] || (cid ? s.communities[cid]?.users[uid] : undefined)));
-  const c = useStore((s) => (cid ? s.communities[cid] : undefined));
   const users = useStore((s) => s.users);
+  const c = useStore((s) => (cid ? s.communities[cid] : undefined));
+  const user = useMemo(() => (uid === me.id ? meAsUser(me) : users[uid] || c?.users[uid]), [uid, me, users, c]);
   const name = c ? displayName(c, uid, users) : user?.name || '';
   return (
     <div className="ctx-person">
