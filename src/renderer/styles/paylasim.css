@@ -663,3 +663,37 @@
   padding-top: 10px;
   padding-bottom: 10px;
 }
+
+/* v1.49: tepedeki karşılama kartı kalktı; akış en üstten başlar */
+.ah .ah-grid {
+  margin-top: 0;
+}
+/* her paylaşım kendi kartında, aralarında boşluk: yanıt gibi görünmesin */
+.ps-list {
+  gap: 14px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.ps-list .ps-post {
+  padding: 18px 20px 12px;
+  border-radius: var(--ah-r);
+  background: var(--ah-card);
+  border: 1px solid var(--ah-line);
+  border-top-color: var(--ah-line-top);
+}
+.ps-list .ps-post:last-of-type {
+  border-bottom: 1px solid var(--ah-line);
+}
+.ps-list .ps-more {
+  border: 1px solid var(--ah-line);
+  border-radius: var(--ah-r);
+  background: var(--ah-card);
+}
+.ps-list .ps-empty,
+.ps-list .ps-loading {
+  border-radius: var(--ah-r);
+  background: var(--ah-card);
+  border: 1px solid var(--ah-line);
+}

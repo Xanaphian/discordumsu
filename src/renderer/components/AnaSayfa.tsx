@@ -220,40 +220,6 @@ export function HomeStart() {
         )}
       </div>
       <div className="ah-in">
-        <header className="ah-hero compact">
-          <div className="ah-hero-main">
-            <button className="ah-me" onClick={() => openModal({ type: 'profile', uid: me.id })} title="Profilini aç">
-              <Avatar user={{ name: me.name, color: me.color, avatar: me.avatar, extra: me.extra }} size={60} status={me.status} />
-            </button>
-            <div className="ah-hello">
-              <span className="ah-date">{now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-              <h1>
-                {greeting(now)}, <em>{me.name}</em>
-              </h1>
-              <p>{summary}</p>
-            </div>
-          </div>
-          <div className="ah-stats">
-            <Stat n={onlineFriends.length} label="çevrimiçi arkadaş" on={() => setHomeTab('online')} tone="ok" />
-            <Stat n={rooms.reduce((n, r) => n + r.members.length, 0)} label="kişi seste" tone="voice" on={() => document.getElementById('ah-rooms')?.scrollIntoView({ behavior: 'smooth' })} />
-            <Stat n={waiting.length} label="okunmamış sohbet" on={() => document.getElementById('ah-wait')?.scrollIntoView({ behavior: 'smooth' })} />
-            <Stat n={mentionTotal} label="bahsetme" tone={mentionTotal ? 'alert' : undefined} on={() => document.getElementById('ah-wait')?.scrollIntoView({ behavior: 'smooth' })} />
-          </div>
-          <div className="ah-actions">
-            <button className="ah-act primary" onClick={() => openModal({ type: 'createCommunity' })}>
-              <Plus size={18} /> <span>Topluluk oluştur</span>
-            </button>
-            <button className="ah-act" onClick={() => openModal({ type: 'join' })}>
-              <LogIn size={17} /> <span>Davetle katıl</span>
-            </button>
-            <button className="ah-act" onClick={() => setHomeTab('add')}>
-              <UserPlus size={17} /> <span>Arkadaş ekle</span>
-            </button>
-            <button className="ah-act" onClick={() => selectCommunity('explore')}>
-              <Compass size={17} /> <span>Keşfet</span>
-            </button>
-          </div>
-        </header>
 
         <div className="ah-grid">
           <div className="ah-main">
