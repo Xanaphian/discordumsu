@@ -18,7 +18,9 @@ function useFit(ref: React.RefObject<HTMLElement | null>, x: number, y: number, 
     const el = ref.current;
     if (!el) return;
     const fit = () => {
-      const r = el.getBoundingClientRect();
+      // Açılış canlandırması öğeyi küçültüp büyütür; getBoundingClientRect o anki küçük boyu verir ve menü alttan taşar.
+      // offsetWidth/offsetHeight canlandırmadan etkilenmez.
+      const r = { width: el.offsetWidth, height: el.offsetHeight };
       const pad = 8;
       let left = x, top = y;
       if (left + r.width > window.innerWidth - pad) left = Math.max(pad, window.innerWidth - r.width - pad);

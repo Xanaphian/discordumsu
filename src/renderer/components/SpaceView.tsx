@@ -1,6 +1,7 @@
 // 3D görünüm (v1.31): ayrı bir kanal değil, ses odasının avatarlı görünümü.
 // Sese katılınca ses panelindeki 3D tuşuyla açılır, aynı tuşla normal görünüme dönülür.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   Box, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Moon, Sun, Shirt, Keyboard, MessageSquare, Users, Store, X, Check, Volume2,
   Video, VideoOff, MonitorUp, MonitorX, Hand, Music2, Sparkles, Heart, Laugh, RotateCw, ArrowUpFromLine, Pointer, HandHeart, Footprints, Eye, Settings2, ChevronDown, ChevronUp, SendHorizontal, Tv,
@@ -419,7 +420,8 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
   const status = useSpace((s) => s.status);
   const count = useSpace((s) => Object.keys(s.roster).length);
   const inVoice = (useStore((s) => s.voice[ch.id]) || []).length;
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ muted: s.muted, deaf: s.deaf, noMic: s.noMic, cam: s.cam, screen: s.screen })));
+  const talking = useVoice((s) => !!s.speaking[me]);
   const world: Room3d = worldOf(ch);
   const canManage = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const chatRef = useRef<HTMLInputElement>(null);
@@ -736,7 +738,7 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
 
       <div className="sv-call">
         <Tooltip text={v.noMic ? 'Mikrofon yok' : v.muted ? 'Sesi aç' : 'Sustur'} side="top">
-          <button className={cx('sv-vbtn', (v.muted || v.noMic) && 'off', !v.muted && v.speaking[me] && 'talk')} onClick={toggleMute} aria-label="Mikrofon">
+          <button className={cx('sv-vbtn', (v.muted || v.noMic) && 'off', !v.muted && talking && 'talk')} onClick={toggleMute} aria-label="Mikrofon">
             {v.muted || v.noMic ? <MicOff size={19} /> : <Mic size={19} />}
           </button>
         </Tooltip>

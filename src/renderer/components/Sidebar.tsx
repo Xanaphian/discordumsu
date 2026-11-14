@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { NOISE_MODES, noiseModeOf } from '../lib/ses/gurultu';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
@@ -8,7 +9,7 @@ import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
   updateSettings, toggleMuted, toast, selectCommunity, setHomeTab, dmList, closeDm, pendingIn, hiddenDms, isDmHidden, realCommunities, togglePinDm,
 } from '../lib/store';
-import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
+import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen, voiceBlocked } from '../lib/voice';
 import { enterSpace, exitSpace, toggle3d, useSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
@@ -24,27 +25,15 @@ import { BANNER_H } from '../../shared/profile';
 import { useActsOf } from '../lib/activity';
 import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
-import { cx, copyText, displayName, countOnline } from '../lib/util';
+import { cx, copyText, displayName, countOnline, memberOf } from '../lib/util';
 import { openPopout } from './AyriPencere';
 import { memberMenu } from './Moderation';
 import { insertMention } from './Members';
 import { DeviceChevron, DeviceMenu, type DeviceKind } from './DeviceMenu';
-import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
-
-/** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi */
-export function voiceBlocked(c: Community, ch: Channel, me: string): string | null {
-  if (!canIn(c, me, ch, Perm.CONNECT)) return 'Bu kanala bağlanma yetkin yok.';
-  if (ch.userLimit && !canIn(c, me, ch, Perm.MANAGE_CHANNELS)) {
-    const n = new Set((useStore.getState().voice[ch.id] || []).map((m) => m.userId).filter((u) => u !== me)).size;
-    if (n >= ch.userLimit) return `Kanal dolu (${ch.userLimit} kişi sınırı).`;
-  }
-  return null;
-}
+import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status, type VoiceMember } from '../../shared/protocol';
 
 function tryJoinVoice(c: Community, ch: Channel) {
-  const why = voiceBlocked(c, ch, useStore.getState().me.id);
-  if (why) return void toast(why, 'err');
-  joinVoice(c.id, ch.id);
+  joinVoice(c.id, ch.id); // yetki ve kişi sınırı denetimi joinVoice içinde
 }
 
 function siteHost(url?: string) {
@@ -68,53 +57,57 @@ function roomSub(ch: Channel, occupants: number, viewers: number) {
 const VC_SHOW = 8; // kalabalık odada ilk bu kadar kart, gerisi "+N kişi daha"
 const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chId: string }) {
   const members = useStore((s) => s.voice[chId]);
-  const users = useStore((s) => s.users);
-  const meId = useStore((s) => s.me.id);
-  const meExtra = useStore((s) => (s.me as { extra?: ProfileExtra }).extra);
-  const speaking = useVoice((s) => s.speaking);
   const [all, setAll] = useState(false);
   if (!members?.length) return null;
   const compact = members.length > 6; // 7+ kişide kartlar incelir
   const shown = all ? members : members.slice(0, VC_SHOW);
   return (
     <div className={cx('vc-members vc-cards', compact && 'compact')}>
-      {shown.map((m) => {
-        const u = users[m.userId];
-        const prof: ProfileExtra | undefined = u?.profile ?? (m.userId === meId ? meExtra : undefined);
-        const b = prof?.banner;
-        const img = b?.kind === 'image' && b.image ? b.image : undefined;
-        const talk = !!speaking[m.userId] && !m.muted;
-        return (
-          <div
-            key={m.sessionId}
-            className={cx('vc-member vc-card', talk && 'talking', !img && 'no-img', !b && 'no-banner')}
-            style={{ ['--uc' as any]: u?.color || '#c8aa6e', background: img || !b ? undefined : bannerBackground(b, u?.color || '#c8aa6e') }}
-            onClick={(e) => useStore.setState({ popout: { uid: m.userId, cid: c.id, x: e.clientX, y: e.clientY } })}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              // üye listesindeki kişi menüsünün aynısı: Profil, Bahset, Mesaj, ses düzeyi…
-              const name = displayName(c, m.userId, users);
-              openMenu(e, memberMenu(c, meId, m.userId, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
-            }}
-          >
-            {img && <BannerPic className="vc-card-img" image={img} framing={b} aspect={330 / (b?.h || BANNER_H.def)} align="end" />}
-            <span className="vc-card-shade" aria-hidden />
-            <Avatar user={u ? { ...u, profile: prof } : undefined} size={compact ? 26 : 34} speaking={talk} />
-            <span className="vc-name">{displayName(c, m.userId, users)}</span>
-            <span className="vc-flags">
-              {m.cam ? <Video size={13} className="cam" /> : null}
-              {m.screen ? <span className="live-badge">CANLI</span> : null}
-              {m.deaf ? <HeadphoneOff size={13} className="off" /> : m.muted ? <MicOff size={13} className="off" /> : null}
-            </span>
-          </div>
-        );
-      })}
+      {shown.map((m) => (
+        <VoiceCard key={m.sessionId} c={c} m={m} compact={compact} />
+      ))}
       {members.length > VC_SHOW && (
         <button className="vc-more" onClick={() => setAll(!all)}>
           {all ? 'Daha az göster' : `+${members.length - VC_SHOW} kişi daha`}
         </button>
       )}
+    </div>
+  );
+});
+
+/** Oda listesindeki ses kartı. Her kart yalnız kendi kişisini ve kendi konuşma ışığını dinler:
+ *  biri konuşunca ya da bir profil değişince bütün kartlar yeniden çizilmez. */
+const VoiceCard = memo(function VoiceCard({ c, m, compact }: { c: Community; m: VoiceMember; compact: boolean }) {
+  const u = useStore((s) => s.users[m.userId]);
+  const meId = useStore((s) => s.me.id);
+  const meExtra = useStore((s) => (m.userId === s.me.id ? (s.me as { extra?: ProfileExtra }).extra : undefined));
+  const talk = useVoice((s) => !!s.speaking[m.userId]) && !m.muted;
+  const prof: ProfileExtra | undefined = u?.profile ?? meExtra;
+  const user = useMemo(() => (u ? { ...u, profile: prof } : undefined), [u, prof]);
+  const b = prof?.banner;
+  const img = b?.kind === 'image' && b.image ? b.image : undefined;
+  const name = memberOf(c, m.userId)?.nick || u?.name || c.users[m.userId]?.name || 'Bilinmeyen';
+  return (
+    <div
+      className={cx('vc-member vc-card', talk && 'talking', !img && 'no-img', !b && 'no-banner')}
+      style={{ ['--uc' as any]: u?.color || '#c8aa6e', background: img || !b ? undefined : bannerBackground(b, u?.color || '#c8aa6e') }}
+      onClick={(e) => useStore.setState({ popout: { uid: m.userId, cid: c.id, x: e.clientX, y: e.clientY } })}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // üye listesindeki kişi menüsünün aynısı: Profil, Bahset, Mesaj, ses düzeyi…
+        openMenu(e, memberMenu(c, meId, m.userId, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
+      }}
+    >
+      {img && <BannerPic className="vc-card-img" image={img} framing={b} aspect={330 / (b?.h || BANNER_H.def)} align="end" />}
+      <span className="vc-card-shade" aria-hidden />
+      <Avatar user={user} size={compact ? 26 : 34} speaking={talk} />
+      <span className="vc-name">{name}</span>
+      <span className="vc-flags">
+        {m.cam ? <Video size={13} className="cam" /> : null}
+        {m.screen ? <span className="live-badge">CANLI</span> : null}
+        {m.deaf ? <HeadphoneOff size={13} className="off" /> : m.muted ? <MicOff size={13} className="off" /> : null}
+      </span>
     </div>
   );
 });
@@ -503,7 +496,7 @@ function NoiseButton() {
 }
 
 export function VoicePanel() {
-  const v = useVoice();
+  const v = useVoice(useShallow((s) => ({ ch: s.ch, cid: s.cid, state: s.state, cam: s.cam, screen: s.screen })));
   const c = useStore((s) => (v.cid ? s.communities[v.cid] : undefined));
   const in3d = useSpace((s) => !!v.ch && s.ch === v.ch && s.status !== 'idle');
   const joining3d = useSpace((s) => s.status === 'joining');

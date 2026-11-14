@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App, PopoutRoot } from './App';
 import { IS_POPOUT } from './lib/popout';
+import { HataSiniri } from './components/HataSiniri';
 import './lib/yayinci';
 import { boot } from './lib/store';
 import './lib/activity';
@@ -33,6 +34,7 @@ import './styles/yazi-tipi.css';
 import './styles/kirpma.css';
 import './styles/ses-duzeni.css';
 import './styles/okunaklilik.css';
+import './styles/ust-cubuk.css';
 import './styles/paylasim.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
@@ -46,6 +48,8 @@ const fontsReady = Promise.race([
 ]).catch(() => {});
 
 fontsReady.then(() => {
-  createRoot(document.getElementById('root')!).render(IS_POPOUT ? <PopoutRoot /> : <App />);
+  createRoot(document.getElementById('root')!).render(
+    <HataSiniri name="uygulama" full>{IS_POPOUT ? <PopoutRoot /> : <App />}</HataSiniri>,
+  );
   return booting;
 });

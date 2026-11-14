@@ -109,6 +109,10 @@ hub
     process.exit(1);
   });
 
+// Tek bir isteğin beklenmedik hatası bütün sunucuyu (ve bağlı herkesi) düşürmesin: kaydet, çalışmaya devam et.
+process.on('uncaughtException', (e) => console.error('Beklenmeyen hata (sunucu çalışmaya devam ediyor):', e));
+process.on('unhandledRejection', (e) => console.error('Yakalanmamış söz hatası:', e));
+
 const bye = () => {
   console.log('Kapanıyor, kayıtlar yazılıyor…');
   hub.stop();
