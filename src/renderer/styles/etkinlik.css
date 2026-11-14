@@ -873,7 +873,6 @@
 .popout.pc-pop .pcard {
   max-height: calc(100vh - 24px);
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 .act-head {
   text-transform: none;

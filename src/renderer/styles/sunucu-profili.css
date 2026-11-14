@@ -21,7 +21,6 @@
 .cp-modal .cp-card {
   max-height: calc(100vh - 110px);
   overflow-y: auto;
-  scrollbar-width: thin;
   border-color: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .cp-card .cp-banner {
@@ -209,7 +208,6 @@
 .cp-editor .pe-preview .cp-card {
   max-height: calc(100vh - 180px);
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 /* kenar çubuğu başlığında afiş */

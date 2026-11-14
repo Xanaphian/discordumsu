@@ -75,8 +75,8 @@ export function FullLayoutEditor({ extra, onChange }: { extra: ProfileExtra; onC
         <div className="tpa-styles">
           {(
             [
-              ['tiles', 'Büyük kartlar', 'Simge, başlık ve kısa bilgi'],
-              ['pills', 'Sade sekmeler', 'Tek satır, daha az yer'],
+              ['tiles', 'Ayrı düğmeler', 'Her biri kendi çerçevesinde'],
+              ['pills', 'Bitişik sekmeler', 'Tek şerit içinde, daha sade'],
             ] as const
           ).map(([v, t, sub]) => (
             <button key={v} className={cx('tpa-style', (l.btn || 'tiles') === v && 'on')} onClick={() => set({ btn: v === 'tiles' ? undefined : v })}>

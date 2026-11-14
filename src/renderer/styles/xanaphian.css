@@ -780,7 +780,7 @@ html[data-style] {
 }
 /* kaydırma çubuğu: ince, altın tonlu */
 [data-style='destan'] ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--orn) 26%, transparent);
+  background-color: color-mix(in srgb, var(--orn) 26%, transparent);
   border-radius: 0;
 }
 /* ayarlar, tema kartları ve küçük kutular da köşesiz */

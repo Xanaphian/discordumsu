@@ -200,7 +200,8 @@ export function ProfileFull({
   const isUid = /^[0-9a-z]{14}$/.test(uid);
 
   const live = acts[0];
-  const META: Record<FullTab, { icon: React.ReactNode; title: string; sub: string; n?: number; dot?: boolean }> = {
+  // düğmede kısa ad, ipucunda tam ad ve kısa bilgi
+  const META: Record<FullTab, { icon: React.ReactNode; title: string; full?: string; sub: string; n?: number; dot?: boolean }> = {
     activity: {
       icon: <ActivityIcon size={18} />,
       title: 'Etkinlik',
@@ -209,13 +210,15 @@ export function ProfileFull({
     },
     friends: {
       icon: <Users size={18} />,
-      title: isMe ? 'Arkadaşların' : 'Ortak arkadaşlar',
+      title: isMe ? 'Arkadaşların' : 'Arkadaşlar',
+      full: isMe ? undefined : 'Ortak arkadaşlar',
       sub: friendList ? (friendList.length ? `${friendList.length} kişi` : 'Henüz yok') : friendList === null ? 'Sunucu güncellenince' : 'Yükleniyor…',
       n: friendList?.length,
     },
     comms: {
       icon: <Home size={18} />,
-      title: isMe ? 'Toplulukların' : 'Ortak topluluklar',
+      title: isMe ? 'Toplulukların' : 'Topluluklar',
+      full: isMe ? undefined : 'Ortak topluluklar',
       sub: comms.length ? `${comms.length} topluluk` : 'Henüz yok',
       n: comms.length,
     },
@@ -249,6 +252,8 @@ export function ProfileFull({
       </div>
       <CardFx effect={p?.effect} />
 
+      {/* bütün sayfa tek parça kayar: fare pencerenin neresindeyse tekerlek çalışır */}
+      <div className="xp-scroll">
       <header className="xp-hero">
         <Banner user={user} profile={p} className="xp-banner">
           {editing && (
@@ -295,6 +300,7 @@ export function ProfileFull({
           </div>
           <CustomStatusBubble profile={p} />
         </div>
+        <div className="xp-right">
         <div className="xp-actions pc-actions">
           {editing ? null : isMe ? (
             <>
@@ -325,11 +331,44 @@ export function ProfileFull({
             </>
           )}
         </div>
+        <nav className="xp-nav" role="tablist" style={{ ['--n' as any]: tabs.length }}>
+          {tabs.map((k) => {
+            const m = META[k];
+            return (
+              <button key={k} role="tab" aria-selected={tab === k} className={cx('xp-tile', 't-' + k, tab === k && 'on')} title={`${m.full || m.title} · ${m.sub}`} onClick={() => setTab(k)}>
+                <span className="xp-tile-ic">
+                  {m.icon}
+                  {m.dot && <i className="xp-live" />}
+                </span>
+                <span className="xp-tile-t">
+                  <b>
+                    {m.title}
+                    {!!m.n && <em>{m.n}</em>}
+                  </b>
+                  <small>{m.sub}</small>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+        </div>
       </div>
 
       <div className="xp-body">
         {/* ---------------- sol: künye ---------------- */}
         <aside className="xp-side">
+          {!!p?.accounts?.length ? (
+            <section className="xp-card">
+              <Label count={p.accounts.length}>Bağlı hesaplar</Label>
+              <AccountList profile={p} liveSvcs={liveSvcs} chips />
+            </section>
+          ) : (
+            isMe && (
+              <button className="xp-card xp-add" onClick={() => (focusProfileSection('accounts'), onClose?.(), openModal({ type: 'settings', tab: 'profile' }))}>
+                <Link2 size={16} /> Hesap bağla <em>Steam, Riot, Spotify…</em>
+              </button>
+            )
+          )}
           {(isUid || member || friend?.state === 'ok' || p?.tz !== undefined || p?.birthday) && (
             <section className="xp-card">
               <Label>Künye</Label>
@@ -363,18 +402,6 @@ export function ProfileFull({
               </div>
             </section>
           )}
-          {!!p?.accounts?.length ? (
-            <section className="xp-card">
-              <Label count={p.accounts.length}>Bağlı hesaplar</Label>
-              <AccountList profile={p} liveSvcs={liveSvcs} chips />
-            </section>
-          ) : (
-            isMe && (
-              <button className="xp-card xp-add" onClick={() => (focusProfileSection('accounts'), onClose?.(), openModal({ type: 'settings', tab: 'profile' }))}>
-                <Link2 size={16} /> Hesap bağla <em>Steam, Riot, Spotify…</em>
-              </button>
-            )
-          )}
           {!isMe && !bot && (
             <section className="xp-card xp-note-card">
               <PrivateNote uid={uid} />
@@ -384,27 +411,6 @@ export function ProfileFull({
 
         {/* ---------------- sağ: düğmeler + içerik ---------------- */}
         <main className="xp-main">
-          <nav className="xp-nav" role="tablist" style={{ ['--n' as any]: tabs.length }}>
-            {tabs.map((k) => {
-              const m = META[k];
-              return (
-                <button key={k} role="tab" aria-selected={tab === k} className={cx('xp-tile', 't-' + k, tab === k && 'on')} onClick={() => setTab(k)}>
-                  <span className="xp-tile-ic">
-                    {m.icon}
-                    {m.dot && <i className="xp-live" />}
-                  </span>
-                  <span className="xp-tile-t">
-                    <b>
-                      {m.title}
-                      {m.n !== undefined && <em>{m.n}</em>}
-                    </b>
-                    <small>{m.sub}</small>
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-
           <div className="xp-pane">
             {tab === 'activity' && (
               <>
@@ -496,6 +502,7 @@ export function ProfileFull({
               </>
             )}
 
+            {tab === 'friends' && !isMe && !!friendList?.length && <Label count={friendList.length}>Ortak arkadaşlar</Label>}
             {tab === 'friends' &&
               (friendList ? (
                 friendList.length ? (
@@ -515,6 +522,7 @@ export function ProfileFull({
                 />
               ))}
 
+            {tab === 'comms' && !isMe && comms.length > 0 && <Label count={comms.length}>Ortak topluluklar</Label>}
             {tab === 'comms' &&
               (comms.length ? (
                 <div className="xp-people">
@@ -542,6 +550,7 @@ export function ProfileFull({
               ))}
           </div>
         </main>
+      </div>
       </div>
     </div>
   );

@@ -68,7 +68,6 @@
 .popout.pc-pop {
   max-height: calc(100vh - 16px);
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 /* Dar site odası sohbetinde yazı kutusunun ipucu üç satıra bölünmesin */

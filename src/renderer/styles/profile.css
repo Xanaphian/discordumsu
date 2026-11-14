@@ -518,7 +518,6 @@
 .pcard-full {
   max-height: calc(100vh - 110px);
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 .pcard-full .pc-head {
   margin-top: -66px;
