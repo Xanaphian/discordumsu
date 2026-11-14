@@ -19,6 +19,8 @@ export interface EngineOpts {
   onPrompt: (p: Prompt) => void;
   onBooth: (i: number) => void;
   onStage: (on: boolean) => void;
+  /** takip edilen kişi değişince (null: takip bitti) */
+  onFollow?: (sid: ID | null) => void;
 }
 
 const WALK = 4.2;
@@ -34,6 +36,8 @@ export const EMOTES: { e: string; label: string; key: string; icon: string }[] =
   { e: 'laugh', label: 'Gül', key: '5', icon: '😂' },
   { e: 'spin', label: 'Dön', key: '6', icon: '🌀' },
   { e: 'jump', label: 'Zıpla', key: '7', icon: '⤴️' },
+  { e: 'point', label: 'İşaret et', key: '8', icon: '👉' },
+  { e: 'bow', label: 'Selam', key: '9', icon: '🙇' },
 ];
 
 export class SpaceEngine {
@@ -66,6 +70,13 @@ export class SpaceEngine {
   /** birinci şahıs bakış (V) */
   firstPerson = false;
   private occT = 0;
+  /** takip edilen avatar ya da yürünen oturak */
+  private followSid: ID | null = null;
+  private goSeat = -1;
+  private seatBest = Infinity;
+  private seatT = 0;
+  private down = { x: 0, y: 0, t: 0 };
+  private ray = new THREE.Raycaster();
   /** Sohbet kutusu açıkken klavye hareketi durur */
   typing = false;
 
@@ -228,6 +239,7 @@ export class SpaceEngine {
       e.preventDefault();
       if (k === 'Space' && !e.repeat) this.jump();
       this.keys.add(k);
+      if (k !== 'ShiftLeft' && k !== 'ShiftRight') this.stopAuto();
       if (this.me.sit >= 0 && k !== 'ShiftLeft' && k !== 'ShiftRight') this.standUp();
       return;
     }
@@ -235,6 +247,11 @@ export class SpaceEngine {
     if (k === 'KeyE') {
       e.preventDefault();
       this.interact();
+      return;
+    }
+    if (k === 'KeyF') {
+      e.preventDefault();
+      this.follow(this.followSid ? null : this.nearestOther());
       return;
     }
     const em = EMOTES.find((x) => x.key === e.key);
@@ -247,6 +264,7 @@ export class SpaceEngine {
   private onBlur = () => this.keys.clear();
   private onPtrDown = (e: PointerEvent) => {
     this.dragging = true;
+    this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
     this.lastPtr = { x: e.clientX, y: e.clientY };
     this.renderer.domElement.focus();
     (document.activeElement as HTMLElement | null)?.blur?.();
@@ -258,7 +276,81 @@ export class SpaceEngine {
     this.yaw -= dx * 0.006;
     this.pitch = Math.max(0.05, Math.min(1.35, this.pitch + dy * 0.004));
   };
-  private onPtrUp = () => (this.dragging = false);
+  private onPtrUp = (e: PointerEvent) => {
+    const was = this.dragging;
+    this.dragging = false;
+    // sürüklemeden kısa tık: oturağa tıklandıysa oraya yürüyüp otur
+    if (was && e.button === 0 && Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) < 6 && performance.now() - this.down.t < 400) this.clickAt(e.clientX, e.clientY);
+  };
+
+  private clickAt(cx: number, cy: number) {
+    if (!this.meReady) return;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    this.ray.setFromCamera(ndc, this.camera);
+    const occ = this.occupiedSeats();
+    let best = -1, bd = 0.75;
+    this.world.seats.forEach((s, i) => {
+      if (occ.has(i) || i === this.me.sit) return;
+      // ışının oturak, sırtlık ve oturak işareti yüksekliğindeki noktası
+      const o = this.ray.ray.origin, d = this.ray.ray.direction;
+      if (Math.abs(d.y) < 1e-4) return;
+      for (const h of [s.y, s.y + 0.6, s.y + 0.95]) {
+        const t = (h - o.y) / d.y;
+        if (t <= 0) continue;
+        const dist = Math.hypot(o.x + d.x * t - s.x, o.z + d.z * t - s.z);
+        if (dist < bd) (bd = dist), (best = i);
+      }
+    });
+    if (best < 0) return;
+    this.followSid = null;
+    this.opts.onFollow?.(null);
+    if (this.me.sit >= 0) this.standUp();
+    this.goSeat = best;
+    this.seatBest = Infinity;
+    this.seatT = performance.now();
+  }
+
+  private occupiedSeats() {
+    const occ = new Set<number>();
+    const you = useSpace.getState().you;
+    for (const [sid, av] of this.avatars) {
+      if (sid === you || av.a !== 3) continue;
+      this.world.seats.forEach((s, i) => Math.hypot(s.x - av.x, s.z - av.z) < 0.3 && occ.add(i));
+    }
+    return occ;
+  }
+
+  nearestOther(): ID | null {
+    const you = useSpace.getState().you;
+    let best: ID | null = null, bd = Infinity;
+    for (const [sid, av] of this.avatars) {
+      if (sid === you) continue;
+      const d = Math.hypot(av.x - this.me.x, av.z - this.me.z);
+      if (d < bd) (bd = d), (best = sid);
+    }
+    return best;
+  }
+
+  /** birini takip et (null: bırak) */
+  follow(sid: ID | null) {
+    this.goSeat = -1;
+    this.followSid = sid && this.avatars.has(sid) && sid !== useSpace.getState().you ? sid : null;
+    if (this.followSid && this.me.sit >= 0) this.standUp();
+    this.opts.onFollow?.(this.followSid);
+  }
+
+  get following() {
+    return this.followSid;
+  }
+
+  private stopAuto() {
+    this.goSeat = -1;
+    if (this.followSid) {
+      this.followSid = null;
+      this.opts.onFollow?.(null);
+    }
+  }
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
     this.dist = Math.max(3, Math.min(20, this.dist * (1 + Math.sign(e.deltaY) * 0.1)));
@@ -307,6 +399,10 @@ export class SpaceEngine {
   private sitNearest() {
     const i = this.nearestSeat();
     if (i < 0) return;
+    this.sitAt(i);
+  }
+
+  private sitAt(i: number) {
     const s = this.world.seats[i];
     Object.assign(this.me, { sit: i, x: s.x, z: s.z, ry: s.ry, vy: 0, air: false });
     const you = useSpace.getState().you;
@@ -374,8 +470,39 @@ export class SpaceEngine {
       if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) ix += 1;
       if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) ix -= 1;
     }
-    const run = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+    let run = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
     let moving = false;
+    // kendiliğinden yürüme: takip ya da tıklanan oturak
+    if (!ix && !iz && me.sit < 0 && (this.followSid || this.goSeat >= 0)) {
+      let tx = 0, tz = 0, stop = 0;
+      if (this.followSid) {
+        const t = this.avatars.get(this.followSid);
+        if (!t) this.stopAuto();
+        else (tx = t.x), (tz = t.z), (stop = 1.7);
+      } else {
+        const st = this.world.seats[this.goSeat];
+        (tx = st.x), (tz = st.z), (stop = 0.9);
+      }
+      const dx = tx - me.x, dz = tz - me.z, d = Math.hypot(dx, dz);
+      // koltuğun arkası gibi bir engele takılırsa (mesafe 0,6 sn azalmazsa) yakınsa yine otur, uzaksa vazgeç
+      const now = performance.now();
+      if (this.goSeat >= 0 && d < this.seatBest - 0.02) (this.seatBest = d), (this.seatT = now);
+      const stuck = this.goSeat >= 0 && now - this.seatT > 600;
+      if (this.goSeat >= 0 && (d < stop || stuck)) {
+        const i = this.goSeat;
+        this.goSeat = -1;
+        if (d < 3 && !this.occupiedSeats().has(i)) this.sitAt(i);
+      } else if ((this.followSid || this.goSeat >= 0) && d > stop) {
+        run = d > 6;
+        const sp = Math.min(d - stop, (run ? RUN : WALK) * dt);
+        me.x += (dx / d) * sp;
+        me.z += (dz / d) * sp;
+        let diff = Math.atan2(dx, dz) - me.ry;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        me.ry += diff * Math.min(1, dt * 10);
+        moving = sp > 0.0005;
+      }
+    }
     if ((ix || iz) && me.sit < 0) {
       const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
       // kamera yönüne göre: ileri = (-sin yaw, -cos yaw), sağ = (cos yaw, -sin yaw)

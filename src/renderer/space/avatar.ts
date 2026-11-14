@@ -459,6 +459,21 @@ export class Avatar {
           if (this.emoteName === 'heart') (armL = -0.4), (armR = -0.4), (armLz = -0.6), (armRz = 0.6);
           if (et > 1.8) this.emoteName = null;
           break;
+        case 'point':
+          // sağ kol ileri, baş hafif yana: "şuraya bak"
+          armR = -1.55;
+          armRz = 0.05;
+          armL = 0.1;
+          headTilt = 0.08;
+          if (et > 2.6) this.emoteName = null;
+          break;
+        case 'bow': {
+          const k = et < 0.4 ? et / 0.4 : et > 1.4 ? Math.max(0, 1 - (et - 1.4) / 0.4) : 1;
+          tilt = 0.55 * k;
+          armL = armR = 0.25 * k;
+          if (et > 1.8) this.emoteName = null;
+          break;
+        }
         case 'jump':
           armLz = -2.4;
           armRz = 2.4;

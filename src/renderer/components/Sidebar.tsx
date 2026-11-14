@@ -1,7 +1,8 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { NOISE_MODES, noiseModeOf } from '../lib/ses/gurultu';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin,
+  Signal, AudioWaveform, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
@@ -397,6 +398,72 @@ export function ChannelSidebar({ c }: { c: Community }) {
   );
 }
 
+/** Ses panelinde gürültü engelleme düğmesi: basınca modlar açılır, seçim ayarlarda saklanır */
+function NoiseButton() {
+  const mode = useStore((s) => noiseModeOf(s.settings));
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('mousedown', off);
+    window.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('mousedown', off);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  const cur = NOISE_MODES.find((m) => m.id === mode)!;
+  return (
+    <div className="ns-wrap" ref={ref}>
+      <Tooltip text={`Gürültü engelleme: ${cur.label}`} side="top">
+        <button className={cx('icon-btn ns-btn', mode !== 'kapali' && 'on', `m-${mode}`, open && 'open')} onClick={() => setOpen(!open)} aria-label="Gürültü engelleme" aria-expanded={open}>
+          <AudioWaveform size={18} />
+          {mode !== 'kapali' && <i className="ns-dot" />}
+        </button>
+      </Tooltip>
+      {open && (
+        <div className="ns-pop" role="menu">
+          <div className="ns-head">
+            <AudioWaveform size={16} />
+            <b>Gürültü engelleme</b>
+          </div>
+          {NOISE_MODES.map((m) => (
+            <button
+              key={m.id}
+              role="menuitemradio"
+              aria-checked={m.id === mode}
+              className={cx('ns-opt', m.id === mode && 'on')}
+              onClick={() => updateSettings({ noiseMode: m.id, noiseSuppression: m.id !== 'kapali' })}
+            >
+              <i className="ns-radio" />
+              <span>
+                <b>{m.label}</b>
+                <small>{m.sub}</small>
+              </span>
+              <span className={cx('ns-bars', `b-${m.id}`)} aria-hidden>
+                <i />
+                <i />
+                <i />
+              </span>
+            </button>
+          ))}
+          <button
+            className="ns-more"
+            onClick={() => {
+              setOpen(false);
+              openModal({ type: 'settings', tab: 'voice' });
+            }}
+          >
+            Ses ayarları ve mikrofon denemesi
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function VoicePanel() {
   const v = useVoice();
   const c = useStore((s) => (v.cid ? s.communities[v.cid] : undefined));
@@ -414,6 +481,7 @@ export function VoicePanel() {
           </div>
           <div className="vp-where">{c.dm ? `@${useStore.getState().users[c.dm]?.name || c.name} ile arama` : `${ch?.name} / ${c.name}`}</div>
         </div>
+        <NoiseButton />
         <Tooltip text="Bağlantıyı kes" side="top">
           <button className="icon-btn danger" onClick={() => leaveVoice()} aria-label="Bağlantıyı kes">
             <PhoneOff size={18} />
