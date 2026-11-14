@@ -10,9 +10,11 @@
 //   KOVAN_UPLOAD_MB_HOUR kişi başı saatlik yükleme sınırı, MB (varsayılan 1024)
 //   KOVAN_UPLOAD_PER_10MIN kişi başı 10 dakikada en çok dosya (varsayılan 60)
 //   KOVAN_MIN_FREE_MB diskte bu kadar boş yer kalmazsa yükleme durur (varsayılan 1024)
+//   KOVAN_IMPORT_MB topluluk taşıma paketinin en büyük boyutu, MB (varsayılan 64)
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { Hub } from '../src/main/hub';
+import { fetchPublic } from './guvenli-getir';
 
 const env = process.env;
 const port = Number(env.KOVAN_PORT) || 47900;
@@ -25,6 +27,7 @@ const turnUrls = list(env.KOVAN_TURN_URLS);
 const hub = new Hub(dataDir, {
   server: true,
   maxOwned: Number(env.KOVAN_MAX_OWNED) || 20,
+  importMaxMb: Number(env.KOVAN_IMPORT_MB) > 0 ? Number(env.KOVAN_IMPORT_MB) : undefined,
   ek: {
     admins: list(env.KOVAN_ADMINS),
     turn: turnUrls.length && env.KOVAN_TURN_SECRET ? { urls: turnUrls, secret: env.KOVAN_TURN_SECRET } : undefined,
@@ -50,22 +53,8 @@ if (env.KOVAN_SECRET && env.KOVAN_SECRET.length >= 16) {
   };
 }
 
-// Site odaları için başlık + simge (Electron yok; düz fetch)
-async function fetchLimited(url: string, accept: string, max: number) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 8000);
-  try {
-    const r = await fetch(url, { headers: { accept, 'user-agent': 'Mozilla/5.0 KovanSunucu' }, signal: ctl.signal, redirect: 'follow' });
-    if (!r.ok) return null;
-    const len = Number(r.headers.get('content-length') || 0);
-    if (len > max) return null;
-    const buf = Buffer.from(await r.arrayBuffer());
-    if (buf.length > max) return null;
-    return { buf, type: r.headers.get('content-type') || '', url: r.url };
-  } finally {
-    clearTimeout(t);
-  }
-}
+// Site odaları için başlık + simge. Adres kullanıcıdan geldiği için yalnız genel internet adreslerine istek atılır (guvenli-getir.ts).
+const fetchLimited = fetchPublic;
 const attr = (tag: string, name: string) => tag.match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']*)["']`, 'i'))?.[1];
 const decode = (s: string) =>
   s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));

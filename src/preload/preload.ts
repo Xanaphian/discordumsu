@@ -12,6 +12,8 @@ const api = {
   info: () => ipcRenderer.invoke('app:info'),
   getConfig: () => ipcRenderer.invoke('cfg:get'),
   setConfig: (patch: unknown) => ipcRenderer.invoke('cfg:set', patch),
+  /** Bu sunucuya gönderilecek gizli anahtar (asıl anahtar yalnız resmî sunucuya gider; diğerleri kendine özel türetilmiş anahtar alır) */
+  hostSecret: (host: string) => ipcRenderer.sendSync('cfg:host-secret', host) as string,
   pendingInvite: () => ipcRenderer.invoke('app:pending-invite') as Promise<string | null>,
   /** Bilgisayardaki topluluğu merkezi sunucuya taşır */
   migrate: (cid: string, server: string) => ipcRenderer.invoke('hub:migrate', cid, server) as Promise<{ ok: boolean; error?: string; files?: number; failed?: number }>,

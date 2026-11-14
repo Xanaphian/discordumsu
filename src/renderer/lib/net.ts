@@ -20,7 +20,7 @@ export class HostConn {
 
   constructor(
     public host: string, // "ip:port" ya da "https://alan/yol"
-    private hello: () => ClientFrame,
+    private hello: (host: string) => ClientFrame,
     private onFrame: (host: string, f: ServerFrame) => void,
     private onStatus: (host: string, s: ConnStatus, err?: string) => void,
   ) {
@@ -43,7 +43,7 @@ export class HostConn {
     this.ws = ws;
     ws.onopen = () => {
       this.backoff = 800;
-      ws.send(JSON.stringify(this.hello()));
+      ws.send(JSON.stringify(this.hello(this.host)));
       if (this.pingTimer) clearInterval(this.pingTimer);
       this.pingTimer = setInterval(() => this.send({ t: 'ping' }), 25000);
     };
