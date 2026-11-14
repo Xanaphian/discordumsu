@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent, webFrame } from 'electron';
-type SpotifyStatusT = { clientId: string; defaultClientId: boolean; connected: boolean; user?: string; error?: string; redirect: string };
+type SpotifyStatusT = { clientId: string; defaultClientId: boolean; connected: boolean; canPlay?: boolean; user?: string; error?: string; redirect: string };
 import type { LinkMeta as LinkMetaT } from '../main/ekstralar';
 
 function on<T>(channel: string, cb: (v: T) => void) {
@@ -59,6 +59,9 @@ const api = {
     status: () => ipcRenderer.invoke('spotify:status') as Promise<SpotifyStatusT>,
     connect: (clientId?: string) => ipcRenderer.invoke('spotify:connect', clientId) as Promise<SpotifyStatusT>,
     disconnect: () => ipcRenderer.invoke('spotify:disconnect') as Promise<SpotifyStatusT>,
+    /** Beraber dinle: şarkıyı kendi hesabında çal */
+    play: (q: { url?: string; title: string; artist?: string; pos?: number }) =>
+      ipcRenderer.invoke('spotify:play', q) as Promise<{ ok: boolean; device?: string; code?: string; error?: string }>,
   },
   game: {
     lolState: () => ipcRenderer.invoke('game:lol-state') as Promise<{ running: boolean; me?: string; lobby: boolean; lobbyId?: string; phase?: string; info?: { queueId?: number; mode: string; size: number; roles: boolean; members: { n: string; r?: string; r2?: string; lead?: boolean }[] } }>,

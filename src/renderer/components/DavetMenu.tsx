@@ -53,7 +53,7 @@ export function InviteMenuItems({ c, ch }: { c: Community; ch: Channel }) {
             <b>
               {t.label} {t.word} {media} dinlemeye davet et
             </b>
-            <small>Katılan, sen şarkı değiştirdikçe seninle dinler</small>
+            <small>Katılan, ne dinlediğini canlı görür</small>
           </span>
         </button>
       )}

@@ -336,7 +336,7 @@ export const LiveActivityCard = memo(function LiveActivityCard({ a, compact, uid
         </div>
       )}
       {a.kind === 'listening' && a.details && !compact && (a.src === 'spotify' || a.src === 'music') && <MusicButtons a={a} uid={uid} />}
-      {open && !compact && (
+      {open && !compact && a.kind !== 'listening' && (
         <button className={cx('btn sm act-btn', a.kind === 'streaming' ? 'primary' : 'ghost')} onClick={open}>
           {a.kind === 'streaming' ? (
             <>

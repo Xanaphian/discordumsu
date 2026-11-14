@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { Hub } from './hub';
 import { hasGame, launchGame } from './oyunAc';
 import { initActivity, configureActivity, getActivity, runningApps, stopActivity, type ActivityConfig } from './activity';
-import { spotifyConnect, spotifyDisconnect, spotifyStatus } from './spotify';
+import { spotifyConnect, spotifyDisconnect, spotifyStatus, spotifyPlay } from './spotify';
 import { Updater } from './updater';
 import { lolState, lolInvite, lolAccept, steamJoin } from './gamejoin';
 import { initEkstralar, blockNotify, isPopout } from './ekstralar';
@@ -675,6 +675,9 @@ function registerIpc() {
   ipcMain.handle('spotify:status', () => spotifyStatus());
   ipcMain.handle('spotify:connect', (_e, id?: string) => spotifyConnect(typeof id === 'string' ? id.slice(0, 64) : undefined));
   ipcMain.handle('spotify:disconnect', () => spotifyDisconnect());
+  ipcMain.handle('spotify:play', (_e, q: { url?: string; title?: string; artist?: string; pos?: number }) =>
+    spotifyPlay({ url: typeof q?.url === 'string' ? q.url.slice(0, 200) : undefined, title: String(q?.title || '').slice(0, 200), artist: typeof q?.artist === 'string' ? q.artist.slice(0, 200) : undefined, pos: Number(q?.pos) || 0 }),
+  );
   ipcMain.handle('game:lol-state', () => lolState());
   ipcMain.handle('game:lol-invite', (_e, riotId: string) => lolInvite(String(riotId).slice(0, 48)));
   ipcMain.handle('game:lol-accept', (_e, from: string) => lolAccept(String(from).slice(0, 48)));
