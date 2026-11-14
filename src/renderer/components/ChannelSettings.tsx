@@ -6,6 +6,7 @@ import { Shell, Row, close } from './Settings';
 import { OverwriteEditor } from './Permissions';
 import { Toggle } from './Common';
 import { cx } from '../lib/util';
+import { ChannelPicField } from './OdaResmi';
 import { canIn, can, isVoiceLike, hasFreeName, cleanSiteUrl, DEFAULT_SITE_URL, Perm, type Overwrite } from '../../shared/protocol';
 import { isToolChannel } from '../../shared/protocol';
 import { TOOL_INFO } from './Tools';
@@ -59,6 +60,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
   const [cat, setCat] = useState<string | null>(ch?.categoryId ?? null);
   const [ow, setOw] = useState<Overwrite[]>(ch?.overwrites || []);
   const [url, setUrl] = useState(ch?.url || DEFAULT_SITE_URL);
+  const [image, setImage] = useState<string | undefined>(ch?.image);
   useEffect(() => {
     if (!ch) close();
   }, [ch]);
@@ -72,7 +74,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
   const canManage = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const canPerms = canIn(c, me, ch, Perm.MANAGE_ROLES);
   const dirtyOverview =
-    name !== ch.name || topic !== (ch.topic || '') || (site && url !== (ch.url || DEFAULT_SITE_URL)) || slow !== (ch.slowmode || 0) || limit !== (ch.userLimit || 0) || type !== ch.type || cat !== (ch.categoryId ?? null);
+    name !== ch.name || topic !== (ch.topic || '') || (site && url !== (ch.url || DEFAULT_SITE_URL)) || slow !== (ch.slowmode || 0) || limit !== (ch.userLimit || 0) || type !== ch.type || cat !== (ch.categoryId ?? null) || image !== ch.image;
   const dirtyPerms = !sameOw(ow, ch.overwrites);
   const resetOverview = () => {
     setName(ch.name);
@@ -82,12 +84,18 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
     setType(ch.type);
     setCat(ch.categoryId ?? null);
     setUrl(ch.url || DEFAULT_SITE_URL);
+    setImage(ch.image);
   };
   const saveOverview = () => {
     if (!name.trim()) return toast('Kanal adı boş olamaz.', 'err');
     if (!urlOk) return toast('Geçerli bir http(s) adresi yaz.', 'err');
-    cmd(cid, { t: 'chan.update', cid, id: chId, name, topic, slowmode: slow, userLimit: limit, type: type !== ch.type ? type : undefined, categoryId: cat, ...(site ? { url: cleanSiteUrl(url)! } : {}) });
+    cmd(cid, { t: 'chan.update', cid, id: chId, name, topic, slowmode: slow, userLimit: limit, type: type !== ch.type ? type : undefined, categoryId: cat, ...(site ? { url: cleanSiteUrl(url)! } : {}), ...(image !== ch.image ? { image: image ?? null } : {}) });
     toast('Kanal kaydedildi', 'ok');
+    if (image !== ch.image)
+      setTimeout(() => {
+        const now = useStore.getState().communities[cid]?.channels.find((x) => x.id === chId);
+        if (now && now.image !== image) toast('Sunucu oda resimlerini henüz tanımıyor; sunucu güncellenince resim kaydedilebilir.', 'err');
+      }, 2500);
   };
   const savePerms = () => {
     cmd(cid, { t: 'chan.update', cid, id: chId, overwrites: ow });
@@ -117,6 +125,7 @@ export function ChannelSettings({ cid, chId, tab: initial }: { cid: string; chId
           <h1 className="h-icon">
             <Icon size={22} /> Kanal ayarları
           </h1>
+          <ChannelPicField type={ch.type} icon={ch.icon} image={image} onChange={setImage} disabled={!canManage} />
           <label className="field">
             <span>Kanal adı</span>
             <input value={name} maxLength={48} disabled={!canManage} onChange={(e) => setName(e.target.value)} />

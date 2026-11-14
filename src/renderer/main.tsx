@@ -23,6 +23,7 @@ import './styles/medya.css';
 import './styles/farklar.css';
 import './styles/root-ozellikleri.css';
 import './styles/tam-profil.css';
+import './styles/oda-resmi.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
 const booting = boot().catch((e) => console.error('Açılış hatası', e));

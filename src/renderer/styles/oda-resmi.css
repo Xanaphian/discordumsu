@@ -1,0 +1,150 @@
+/* v1.29 oda resmi: simgenin yerine küçük kare resim, sağ altta tür işareti */
+.ch-pic {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-block;
+  border-radius: 10px;
+}
+.ch-pic > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
+}
+.ch-pic-type {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border-radius: 6px;
+  color: var(--text-2);
+  background: var(--bg-elev);
+  box-shadow: 0 0 0 2px var(--bg-side, var(--bg-2, var(--bg)));
+  line-height: 0;
+}
+.ch-pic-type svg,
+.ch-pic-type img {
+  display: block;
+}
+.ch-pic-type .ch-site-icon {
+  border-radius: 3px;
+}
+
+/* resimli satırlar oda satırları gibi biraz daha yüksek */
+.ch-row.has-pic {
+  min-height: 44px;
+  height: auto;
+  margin: 2px 0;
+  padding: 5px 8px;
+  gap: 10px;
+  border: 1px solid transparent;
+}
+.ch-row.has-pic:not(.room) .ch-text .ch-name {
+  font-weight: 600;
+}
+.ch-row.has-pic:not(.room) .ch-sub {
+  font-weight: 500;
+}
+.ch-row.has-pic .ch-text {
+  min-width: 0;
+}
+.ch-row.has-pic:hover .ch-pic-type,
+.ch-row.has-pic.active .ch-pic-type,
+.ch-row.has-pic.in-voice .ch-pic-type {
+  color: var(--accent);
+}
+.ch-row.has-pic.muted .ch-pic {
+  opacity: 0.5;
+}
+.ch-row.has-pic.unread .ch-name {
+  color: var(--text);
+}
+
+/* sohbet başlığı */
+.chat-header > .ch-pic {
+  margin-right: 10px;
+  border-radius: 8px;
+}
+.chat-header > .ch-pic .ch-pic-type {
+  box-shadow: 0 0 0 2px var(--bg-chat, var(--bg));
+}
+
+/* ayarlar / oluşturma alanı */
+.oda-resmi {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.oda-resmi-kutu {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+}
+.oda-resmi-kutu:disabled {
+  cursor: default;
+}
+.oda-resmi-kutu .ch-pic {
+  border-radius: 12px;
+}
+.oda-resmi-kutu .ch-pic-type {
+  box-shadow: 0 0 0 2px var(--bg-modal, var(--bg-elev));
+  padding: 3px;
+}
+.oda-resmi-bos {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--text-3);
+  background: var(--bg-elev);
+  border: 1px dashed color-mix(in srgb, var(--text) 22%, transparent);
+  transition: color 0.12s, border-color 0.12s;
+}
+.oda-resmi-kutu:not(:disabled):hover .oda-resmi-bos {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.oda-resmi-bos .ch-site-icon {
+  width: 24px;
+  height: 24px;
+}
+.oda-resmi-yan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.oda-resmi-dugmeler {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.oda-resmi-field .field-hint {
+  margin: 0;
+}
+
+/* kanalın başlangıcındaki büyük simge */
+.ch-start-icon.has-pic {
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+.ch-start-icon.has-pic > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.oda-resmi-field { margin-bottom: 8px; }

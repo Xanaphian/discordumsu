@@ -12,7 +12,7 @@ import {
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
   hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
-  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN,
+  DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN, cleanChannelImage,
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
@@ -1698,11 +1698,16 @@ export class Hub {
           if (src.slowmode) ch.slowmode = src.slowmode;
           if (src.userLimit) ch.userLimit = src.userLimit;
           if (src.overwrites?.length) ch.overwrites = src.overwrites.map((o) => ({ ...o }));
+          if (src.image) ch.image = src.image;
         } else if (f.private) {
           ch.overwrites = [
             { id: c.id, type: 'role', allow: 0, deny: Perm.VIEW_CHANNEL },
             { id: uid, type: 'member', allow: Perm.VIEW_CHANNEL, deny: 0 },
           ];
+        }
+        if (!src && f.image !== undefined) {
+          const img = cleanChannelImage(f.image);
+          if (img) ch.image = img;
         }
         if (type === 'site') {
           ch.url = cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL;
@@ -1758,6 +1763,14 @@ export class Hub {
             delete ch.icon;
             delete ch.metaAt;
             setTimeout(() => this.refreshSiteMeta(c.id, ch.id, true), 0);
+          }
+        }
+        if (f.image !== undefined) {
+          const img = f.image === null ? undefined : cleanChannelImage(f.image);
+          if (f.image === null || img) {
+            if (img !== ch.image) changed.push(img ? 'resim' : 'resim kaldırıldı');
+            if (img) ch.image = img;
+            else delete ch.image;
           }
         }
         if (f.categoryId !== undefined) ch.categoryId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
