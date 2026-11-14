@@ -4,7 +4,7 @@ import { ThemeQuick } from './Appearance';
 import { cx } from '../lib/util';
 import { useStore, toast, openModal } from '../lib/store';
 import { StreamerBadge } from './YayinciModu';
-import { Logo, Tooltip, CommunityIcon } from './Common';
+import { Tooltip, CommunityIcon } from './Common';
 import { fmtSize } from '../lib/util';
 
 export function UpdateButton() {
@@ -96,9 +96,6 @@ export function TitleBar() {
   const [themes, setThemes] = React.useState(false);
   return (
     <header className="titlebar">
-      <div className="tb-brand">
-        <Logo size={26} />
-      </div>
       <TitleCommunity />
       <div className="tb-drag" />
       <div className="tb-actions">
