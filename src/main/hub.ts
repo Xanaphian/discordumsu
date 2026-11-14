@@ -21,6 +21,7 @@ import { PostStore } from './paylasim';
 import { FEAT_POSTS } from '../shared/paylasim';
 import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, TAG_CHANGES_PER_DAY, formatCode, tagKey, parseTag, customCodeError, nameError } from '../shared/etiket';
 import { Ekler, type EkOptions } from './ekler';
+import { cleanAttachments, cleanImportedCommunity, cleanImportedMessage, SAFE_ID, USER_ID } from './ithal';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
 const MAX_CONTENT = 4000;
@@ -28,6 +29,12 @@ const MAX_UPLOAD = 25 * 1024 * 1024;
 const HISTORY_PAGE = 60;
 
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+/** Sabit süreli karşılaştırma (gizli anahtar özeti, davet anahtarı) */
+const safeEq = (a: string, b: string) => {
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+};
+const own = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 const clampStr = (s: unknown, max: number) => (typeof s === 'string' ? s.slice(0, max) : '');
 const cleanName = (s: unknown, max = 32) => clampStr(s, 200).replace(/[\u0000-\u001f]/g, '').trim().slice(0, max);
 const channelSlug = (s: unknown) =>
@@ -203,6 +210,8 @@ export interface HubOptions {
   maxOwned?: number;
   /** v1.50 ekler: yöneticiler, TURN, yükleme kotası */
   ek?: EkOptions;
+  /** Sunucu kipinde taşıma paketinin en büyük boyutu, MB (varsayılan 64) */
+  importMaxMb?: number;
 }
 
 interface Session {
@@ -218,6 +227,11 @@ interface Session {
   lastMove: number;
   bucket: number;
   bucketTs: number;
+  /** ses sinyali (WebRTC) için ayrı, daha geniş hız sınırı */
+  sig: number;
+  sigTs: number;
+  /** bağlantının gerçek adresi (önünde nginx varken X-Forwarded-For'dan) */
+  ip: string;
   lastSend: Record<ID, number>;
 }
 
@@ -276,11 +290,19 @@ export class Hub {
 
   readonly serverMode: boolean;
   private maxOwned: number;
+  private importMax: number;
+  /** aynı anda tek taşıma (paket bellekte tutulur; üst üste gelirse sunucu belleği dolar) */
+  private importing = false;
+  /** taşıma hız sınırı: kullanıcı -> son bir saatteki denemeler */
+  private importTries = new Map<ID, number[]>();
+  /** yeni hesap hız sınırı: adres -> son bir saatte açılan hesap anları */
+  private newAccounts = new Map<string, number[]>();
 
   constructor(baseDir: string, opts: HubOptions = {}) {
     this.dir = path.join(baseDir, 'hub');
     this.serverMode = !!opts.server;
     this.maxOwned = opts.maxOwned ?? 20;
+    this.importMax = Math.max(1, opts.importMaxMb ?? 64) * 1024 * 1024;
     this.ekOpts = opts.ek || {};
     if (this.serverMode) this.ownerName = 'Kovan';
     this.bots = new BotManager(this.botHost());
@@ -308,6 +330,8 @@ export class Hub {
       this.data = { hubId: makeId(), users: {}, communities: [] };
       fs.writeFileSync(hf, JSON.stringify(this.data));
     }
+    // kullanıcı tablosu kalıtsız nesne: "constructor" gibi bir kimlik yerleşik bir özelliğe denk gelmesin
+    this.data.users = Object.assign(Object.create(null), this.data.users || {});
     for (const cid of this.data.communities) {
       try {
         const c: StoredCommunity = JSON.parse(fs.readFileSync(path.join(this.dir, 'communities', cid + '.json'), 'utf8'));
@@ -507,7 +531,7 @@ export class Hub {
     this.server.on('upgrade', (req, socket, head) => {
       if (!req.url?.startsWith('/ws')) return socket.destroy();
       if (this.serverMode && this.tooManyConnections(req)) return socket.destroy();
-      this.wss!.handleUpgrade(req, socket, head, (ws) => this.attach(ws as unknown as Sock, req.socket.remoteAddress || ''));
+      this.wss!.handleUpgrade(req, socket, head, (ws) => this.attach(ws as unknown as Sock, req.socket.remoteAddress || '', this.clientIp(req)));
     });
     const tryListen = (port: number) =>
       new Promise<number>((resolve, reject) => {
@@ -632,6 +656,8 @@ export class Hub {
           'content-length': st.size,
           'cache-control': 'public, max-age=31536000, immutable',
           'x-content-type-options': 'nosniff',
+          // dosya doğrudan açılırsa içindeki hiçbir şey çalışmasın
+          'content-security-policy': "default-src 'none'; sandbox",
           ...(safeInline ? {} : { 'content-disposition': 'attachment' }),
         });
         fs.createReadStream(file).pipe(res);
@@ -641,15 +667,35 @@ export class Hub {
     if (req.method === 'POST' && this.serverMode && (url.pathname === '/import' || url.pathname === '/import/file')) {
       const uid = String(req.headers['x-kovan-user'] || '');
       if (!this.checkUser(uid, String(req.headers['x-kovan-secret'] || ''))) return void res.writeHead(401).end();
-      const limit = url.pathname === '/import' ? 200 * 1024 * 1024 : MAX_UPLOAD;
-      if (Number(req.headers['content-length'] || 0) > limit) return void res.writeHead(413).end();
-      if (url.pathname === '/import/file') {
+      const isFile = url.pathname === '/import/file';
+      const limit = isFile ? MAX_UPLOAD : this.importMax;
+      const len = Number(req.headers['content-length'] || 0);
+      if (!len) return void res.writeHead(411).end();
+      if (len > limit) return void res.writeHead(413).end();
+      const jsonErr = (code: number, error: string) => void res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify({ error }));
+      if (isFile) {
         const c = this.comms.get(url.searchParams.get('cid') || '');
         const id = url.searchParams.get('id') || '';
         if (!c || c.ownerId !== uid || !/^[a-z0-9]{6,40}$/.test(id)) return void res.writeHead(403).end();
         const file = path.join(this.dir, 'files', id);
         if (fs.existsSync(file)) return void res.writeHead(200).end('{}');
+        // taşınan dosyalar da kişi başı yükleme sınırına sayılır (disk bu yoldan doldurulamasın)
+        const why = this.ek.uploadBlocked(uid, len, true);
+        if (why) return jsonErr(429, why);
+        this.ek.uploadCount(uid, len, true);
+      } else {
+        // paket bellekte işlenir: aynı anda tek taşıma, kişi başı saatte en çok 6 deneme
+        const now = Date.now();
+        const tries = (this.importTries.get(uid) || []).filter((t) => now - t < 3600_000);
+        if (tries.length >= 6) return jsonErr(429, 'Kısa sürede çok fazla taşıma denedin. Bir saat sonra yeniden dene.');
+        if (this.importing) return jsonErr(429, 'Sunucu şu an başka bir taşımayla meşgul. Biraz sonra yeniden dene.');
+        tries.push(now);
+        this.importTries.set(uid, tries);
+        this.importing = true;
       }
+      const done = () => {
+        if (!isFile) this.importing = false;
+      };
       const chunks: Buffer[] = [];
       let size = 0;
       req.on('data', (d: Buffer) => {
@@ -659,33 +705,41 @@ export class Hub {
           req.destroy();
         } else chunks.push(d);
       });
+      req.on('close', done);
+      req.on('error', done);
       req.on('end', () => {
-        if (size > limit) return;
+        if (size > limit) return done();
         const body = Buffer.concat(chunks);
-        if (url.pathname === '/import/file') {
+        chunks.length = 0;
+        if (isFile) {
           const id = url.searchParams.get('id')!;
           const file = path.join(this.dir, 'files', id);
+          const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
           fs.writeFileSync(file, body);
-          fs.writeFileSync(file + '.mime', clampStr(req.headers['content-type'] || 'application/octet-stream', 100));
+          fs.writeFileSync(file + '.mime', /^[\w.+-]{1,60}\/[\w.+-]{1,60}$/.test(mime) ? mime : 'application/octet-stream');
           return void res.writeHead(200, { 'content-type': 'application/json' }).end('{}');
         }
-        const lines = body.toString('utf8').split('\n');
-        let head: CommunityExport;
         try {
-          head = JSON.parse(lines.shift() || '');
-        } catch {
-          return void res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Paket okunamadı.' }));
+          const lines = body.toString('utf8').split('\n');
+          let head: CommunityExport;
+          try {
+            head = JSON.parse(lines.shift() || '');
+          } catch {
+            return jsonErr(400, 'Paket okunamadı.');
+          }
+          const r = this.importCommunity(uid, head, lines);
+          if (typeof r === 'string') return jsonErr(409, r);
+          res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, inviteCode: r.inviteCode }));
+        } finally {
+          done();
         }
-        const err = this.importCommunity(uid, head, lines);
-        res.writeHead(err ? 409 : 200, { 'content-type': 'application/json' }).end(JSON.stringify(err ? { error: err } : { ok: true, inviteCode: this.comms.get(head.comm.id)?.inviteCode }));
       });
       return;
     }
     if (req.method === 'POST' && url.pathname === '/upload') {
       const uid = String(req.headers['x-kovan-user'] || '');
       const secret = String(req.headers['x-kovan-secret'] || '');
-      const u = this.data.users[uid];
-      if (!u || u.secretHash !== sha(secret)) return void res.writeHead(401).end();
+      if (!this.checkUser(uid, secret)) return void res.writeHead(401).end();
       const len = Number(req.headers['content-length'] || 0);
       if (!len || len > MAX_UPLOAD) return void res.writeHead(413).end();
       if (this.serverMode) {
@@ -708,7 +762,8 @@ export class Hub {
       });
       req.pipe(out);
       out.on('finish', () => {
-        const mime = clampStr(req.headers['content-type'] || 'application/octet-stream', 100);
+        const rawMime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+        const mime = /^[\w.+-]{1,60}\/[\w.+-]{1,60}$/.test(rawMime) ? rawMime : 'application/octet-stream';
         fs.writeFileSync(file + '.mime', mime);
         let rawName = String(req.headers['x-kovan-name'] || 'dosya');
         try {
@@ -733,11 +788,16 @@ export class Hub {
 
   /** v1.50: aynı adresten dakikada 120'den çok yeni bağlantı gelirse reddedilir (bağlantı yağmuruna karşı).
    *  Önünde nginx varken gerçek adres X-Forwarded-For'dan okunur; o başlık yoksa (adres bilinmiyorsa) sınır uygulanmaz. */
-  private tooManyConnections(req: http.IncomingMessage) {
+  /** Bağlananın gerçek adresi: önünde nginx varken (bağlantı bu makineden geliyorsa) X-Forwarded-For'un son halkası */
+  private clientIp(req: http.IncomingMessage): string {
     const peer = req.socket.remoteAddress || '';
     const local = peer === '127.0.0.1' || peer === '::1' || peer === '::ffff:127.0.0.1';
     const fwd = String(req.headers['x-forwarded-for'] || '').split(',').pop()?.trim();
-    const ip = local ? fwd : peer;
+    return (local ? fwd : peer) || '';
+  }
+
+  private tooManyConnections(req: http.IncomingMessage) {
+    const ip = this.clientIp(req);
     if (!ip) return false;
     const now = Date.now();
     const list = (this.connRate.get(ip) || []).filter((t) => now - t < 60_000);
@@ -749,7 +809,7 @@ export class Hub {
 
   // ---------- WebSocket ----------
   /** Yeni bir WebSocket bağlantısını hub'a bağlar */
-  attach(ws: Sock, ip: string) {
+  attach(ws: Sock, ip: string, realIp = ip) {
     const s: Session = {
       sid: makeId(),
       ws,
@@ -763,26 +823,39 @@ export class Hub {
       lastMove: 0,
       bucket: 40,
       bucketTs: Date.now(),
+      sig: 600,
+      sigTs: Date.now(),
+      ip: realIp,
       lastSend: {},
     };
     this.sessions.add(s);
+    // kimliğini bildirmeyen bağlantı açık tutulmaz
+    const authTimer = setTimeout(() => {
+      if (!s.userId) ws.close(4000, 'auth-timeout');
+    }, 20_000);
     ws.on('pong', () => (s.alive = true));
     ws.on('message', (raw) => {
       s.alive = true;
       let f: ClientFrame;
+      const text = raw.toString();
       try {
-        f = JSON.parse(raw.toString());
+        f = JSON.parse(text);
       } catch {
         return;
       }
-      // "null", sayı ya da türü olmayan çerçeve: işlenmez (yoksa dinleyici hata atıp bağlantıyı kilitliyordu)
-      if (!f || typeof f !== 'object' || typeof (f as { t?: unknown }).t !== 'string') return;
+      if (!f || typeof f !== 'object' || typeof f.t !== 'string') return;
       const now = Date.now();
-      if (f.t === 'sp.move') {
+      if (f.t === 'vc.signal') {
+        // ses sinyali: genel sınıra takılmaz ama sınırsız da değil (karşı tarafı dev çerçevelerle boğmasın)
+        s.sig = Math.min(600, s.sig + ((now - s.sigTs) / 1000) * 150);
+        s.sigTs = now;
+        if (s.sig < 1 || text.length > 256 * 1024) return;
+        s.sig -= 1;
+      } else if (f.t === 'sp.move') {
         // 3D oda hareketi: en fazla ~25/sn
         if (now - s.lastMove < 35) return;
         s.lastMove = now;
-      } else if (f.t !== 'vc.signal' && f.t !== 'ping') {
+      } else if (f.t !== 'ping') {
         // basit hız sınırı: 40 çerçeve / 5 sn
         s.bucket = Math.min(40, s.bucket + ((now - s.bucketTs) / 5000) * 40);
         s.bucketTs = now;
@@ -792,10 +865,15 @@ export class Hub {
       try {
         this.handle(s, f);
       } catch (e) {
-        this.send(s, { t: 'err', msg: 'Sunucu hatası: ' + (e as Error).message, rid: (f as any).rid });
+        // sunucu kipinde iç hata ayrıntısı istemciye gönderilmez
+        if (this.serverMode) console.error('Çerçeve işlenemedi:', f.t, (e as Error)?.message);
+        this.send(s, { t: 'err', msg: this.serverMode ? 'Sunucu hatası.' : 'Sunucu hatası: ' + (e as Error).message, rid: (f as any).rid });
       }
     });
-    ws.on('close', () => this.onClose(s));
+    ws.on('close', () => {
+      clearTimeout(authTimer);
+      this.onClose(s);
+    });
     ws.on('error', () => {});
   }
 
@@ -1455,11 +1533,11 @@ export class Hub {
         if (Date.now() - (s.lastSend[ch] || 0) < 80) return this.send(s, { t: 'err', msg: 'Biraz yavaş yaz.', nonce: f.nonce }), true;
         s.lastSend[ch] = Date.now();
         const content = clampStr(f.content, MAX_CONTENT).trim();
-        const atts = Array.isArray(f.attachments) ? f.attachments.slice(0, 10).filter((a) => a && typeof a.url === 'string' && a.url.startsWith('/f/')) : [];
+        const atts = cleanAttachments(f.attachments);
         if (!content && !atts.length) return true;
         const m: Message = { id: makeId(), channelId: ch, authorId: uid, content, ts: Date.now() };
         if (f.replyTo && L.byId.has(f.replyTo)) m.replyTo = f.replyTo;
-        if (atts.length) m.attachments = atts.map((a) => ({ id: clampStr(a.id, 20), name: clampStr(a.name, 120), size: Number(a.size) || 0, mime: clampStr(a.mime, 100), url: clampStr(a.url, 300), w: a.w, h: a.h }));
+        if (atts.length) m.attachments = atts;
         L.add(m);
         this.dmTouch(ch, m.id);
         this.dmBroadcast(ch, { t: 'msg', m }, s);
@@ -1558,7 +1636,8 @@ export class Hub {
         const code = typeof f.code === 'string' ? f.code.toLowerCase() : '';
         const c = code ? [...this.comms.values()].find((x) => x.inviteCode === code) : f.cid ? this.comms.get(f.cid) : undefined;
         if (this.bots.isBot(uid)) return this.send(s, { t: 'err', msg: 'Botlar davetle katılamaz.', rid: f.rid });
-        if (!c || (!code && c.inviteKey !== f.key && !c.listing)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
+        const keyOk = !!c && typeof f.key === 'string' && !!c.inviteKey && safeEq(c.inviteKey, f.key);
+        if (!c || (!code && !keyOk && !c.listing)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           if (c.bans?.some((b) => b.userId === uid)) return this.send(s, { t: 'err', msg: 'Bu topluluktan yasaklandın.', rid: f.rid });
           if (c.invitesPaused) return this.send(s, { t: 'err', msg: 'Bu topluluk şu an yeni üye kabul etmiyor.', rid: f.rid });
@@ -1597,7 +1676,7 @@ export class Hub {
           return this.send(s, { t: 'err', msg, nonce: f.nonce });
         }
         let content = clampStr(f.content, MAX_CONTENT).trim();
-        const atts = Array.isArray(f.attachments) ? f.attachments.slice(0, 10).filter((a) => a && typeof a.url === 'string' && a.url.startsWith('/f/')) : [];
+        const atts = cleanAttachments(f.attachments);
         if (!content && !atts.length) return;
         if (atts.length && !(cp & Perm.ATTACH_FILES)) return this.send(s, { t: 'err', msg: 'Bu kanalda dosya gönderme yetkin yok.', nonce: f.nonce });
         if (!(cp & Perm.MANAGE_MESSAGES)) {
@@ -1613,7 +1692,7 @@ export class Hub {
         s.lastSend[f.ch] = Date.now();
         const m: Message = { id: makeId(), channelId: f.ch, authorId: uid, content, ts: Date.now() };
         if (f.replyTo && this.log(f.ch).byId.has(f.replyTo)) m.replyTo = f.replyTo;
-        if (atts.length) m.attachments = atts.map((a) => ({ id: clampStr(a.id, 20), name: clampStr(a.name, 120), size: Number(a.size) || 0, mime: clampStr(a.mime, 100), url: clampStr(a.url, 300), w: a.w, h: a.h }));
+        if (atts.length) m.attachments = atts;
         this.log(f.ch).add(m);
         this.broadcastChan(r.c, r.channel, { t: 'msg', m }, s);
         this.send(s, { t: 'msg', m, nonce: f.nonce });
@@ -2275,7 +2354,7 @@ export class Hub {
       }
       case 'member.ban': {
         const c = this.commFor(s, f.cid, Perm.BAN);
-        if (!c || f.userId === BOT_ID) return;
+        if (!c || f.userId === BOT_ID || typeof f.userId !== 'string' || !USER_ID.test(f.userId)) return;
         if (c.members.some((m) => m.userId === f.userId) ? !outranks(c, uid, f.userId) : f.userId === c.ownerId || f.userId === uid)
           return this.send(s, { t: 'err', msg: 'Senden yüksek ya da eşit roldeki birini yasaklayamazsın.' });
         const name = this.userName(c, f.userId);
@@ -2666,10 +2745,24 @@ export class Hub {
     const id = clampStr(f.user?.id, 40);
     const secret = clampStr(f.secret, 200);
     if (!id || id === BOT_ID || secret.length < 16) return this.send(s, { t: 'err', msg: 'Geçersiz kimlik.' });
-    const existing = this.data.users[id];
-    if (existing && existing.secretHash && existing.secretHash !== sha(secret)) {
+    const existing = own(this.data.users, id) ? this.data.users[id] : undefined;
+    // yeni hesap: kimlik yalnız harf, rakam ve tireden oluşabilir (dosya adı, özel mesaj kanalı adı ve nesne anahtarı olarak kullanılır)
+    if (!existing && !USER_ID.test(id)) return this.send(s, { t: 'err', msg: 'Geçersiz kimlik.' });
+    if (existing && existing.secretHash && !safeEq(existing.secretHash, sha(secret))) {
       this.send(s, { t: 'err', msg: 'Kimlik doğrulanamadı.' });
       return void s.ws.close(4001, 'auth');
+    }
+    if (!existing && this.serverMode && s.ip) {
+      // aynı adresten saatte en çok 30 yeni hesap (sunucu sahte hesaplarla doldurulamasın)
+      const now = Date.now();
+      const list = (this.newAccounts.get(s.ip) || []).filter((t) => now - t < 3600_000);
+      if (list.length >= 30) {
+        this.send(s, { t: 'err', msg: 'Bu ağdan kısa sürede çok fazla yeni hesap açıldı. Biraz sonra yeniden dene.' });
+        return void s.ws.close(4002, 'rate');
+      }
+      list.push(now);
+      this.newAccounts.set(s.ip, list);
+      if (this.newAccounts.size > 20_000) for (const [k, v] of this.newAccounts) if (now - v[v.length - 1] > 3600_000) this.newAccounts.delete(k);
     }
     // bot hesapları (belirteçle bağlanan bot programları) profillerini değiştiremez
     const pub = existing?.pub.bot ? existing.pub : this.sanitizeUser(f.user, id);
@@ -2959,43 +3052,60 @@ export class Hub {
 
   /** Sunucu: kimliği doğrular */
   checkUser(uid: string, secret: string): boolean {
-    const u = this.data.users[uid];
-    return !!u && !!u.secretHash && u.secretHash === sha(secret);
+    const u = own(this.data.users, uid) ? this.data.users[uid] : undefined;
+    return !!u && !!u.secretHash && safeEq(u.secretHash, sha(secret));
   }
 
-  /** Sunucu: taşınan topluluğu içeri alır. Hata metni ya da null döner. */
-  importCommunity(uid: ID, head: CommunityExport, lines: string[]): string | null {
+  /** Sunucu: taşınan topluluğu içeri alır. Hata metni ya da içeri alınan topluluk döner.
+   *  Paket başka bir bilgisayardan geldiği için baştan kurulur (ithal.ts): kimlikler doğrulanır, bilinmeyen alanlar atılır. */
+  importCommunity(uid: ID, head: CommunityExport, lines: string[]): string | StoredCommunity {
     if (!this.serverMode) return 'Bu kovan taşıma kabul etmiyor.';
-    const c = head?.comm;
-    if (!c || typeof c.id !== 'string' || !/^[a-z0-9]{6,40}$/i.test(c.id)) return 'Paket bozuk.';
-    if (c.ownerId !== uid) return 'Yalnızca topluluğun sahibi taşıyabilir.';
+    const cleaned = cleanImportedCommunity(head?.comm, uid);
+    if (typeof cleaned === 'string') return cleaned;
+    const c: StoredCommunity = cleaned;
     if (this.comms.has(c.id)) return 'Bu topluluk zaten sunucuda.';
-    if (!Array.isArray(c.channels) || !Array.isArray(c.members) || !Array.isArray(c.roles)) return 'Paket bozuk.';
-    if (c.channels.some((ch) => this.chanToComm.has(ch.id))) return 'Kanal kimlikleri çakışıyor.';
+    const msgDir = path.join(this.dir, 'messages');
+    // kanal kimliği başka bir topluluğun kanalıyla ya da var olan bir mesaj dosyasıyla çakışamaz
+    if (c.channels.some((ch) => this.chanToComm.has(ch.id) || fs.existsSync(path.join(msgDir, ch.id + '.ndjson')))) return 'Kanal kimlikleri çakışıyor.';
     const owned = [...this.comms.values()].filter((x) => x.ownerId === uid).length;
     if (owned >= this.maxOwned) return `En fazla ${this.maxOwned} topluluk kurabilirsin.`;
     // kullanıcılar: sunucuda olmayanlar sahipsiz eklenir; ilk bağlandıklarında kendi gizli anahtarlarıyla sahiplenirler
+    const memberIds = new Set(c.members.map((m) => m.userId));
     const known = new Set<ID>();
-    for (const u of Array.isArray(head.users) ? head.users : []) {
-      if (!u || typeof u.id !== 'string' || u.id === BOT_ID || u.bot) continue;
+    let added = 0;
+    for (const u of Array.isArray(head.users) ? head.users.slice(0, 20_000) : []) {
+      if (!u || typeof u.id !== 'string' || !USER_ID.test(u.id) || u.id === BOT_ID || u.bot || !memberIds.has(u.id)) continue;
       known.add(u.id);
-      if (!this.data.users[u.id]) {
+      if (!own(this.data.users, u.id) && added < 2000) {
         const pub = this.sanitizeUser(u, u.id);
         this.assignTag(u.id, pub);
         this.data.users[u.id] = { pub, secretHash: '' };
+        added++;
       }
     }
-    c.members = c.members.filter((m) => m && (m.userId === BOT_ID || known.has(m.userId) || this.data.users[m.userId]));
+    // sunucuda zaten hesabı olan biri, taşıyanla bir bağı (arkadaşlık ya da ortak topluluk) yoksa habersizce üye yapılmaz
+    c.members = c.members.filter((m) => {
+      if (m.userId === uid || m.userId === BOT_ID) return true;
+      const u = own(this.data.users, m.userId) ? this.data.users[m.userId] : undefined;
+      if (!u || u.pub.bot || this.bots.isBot(m.userId)) return false;
+      if (!u.secretHash) return known.has(m.userId); // henüz sahiplenilmemiş (taşımayla gelen) hesap
+      return !!this.data.friends?.[dmChannelId(uid, m.userId)]?.ok || this.shareCommunity(uid, m.userId);
+    });
     if (!c.members.some((m) => m.userId === uid)) c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
+    const kept = new Set(c.members.map((m) => m.userId));
+    for (const x of [...c.channels, ...c.categories]) if (x.overwrites) x.overwrites = x.overwrites.filter((o) => o.type === 'role' || kept.has(o.id));
+    if (!c.inviteKey) c.inviteKey = crypto.randomBytes(9).toString('base64url');
     if (!c.inviteCode || [...this.comms.values()].some((x) => x.inviteCode === c.inviteCode)) c.inviteCode = this.newInviteCode();
     // mesajlar: kanal başına tek seferde yazılır
-    const chans = new Set(c.channels.map((ch) => ch.id));
+    const chans = new Set(c.channels.filter((ch) => !isVoiceLike(ch.type)).map((ch) => ch.id));
     const per = new Map<ID, string[]>();
     for (const line of lines) {
       if (!line) continue;
       try {
-        const { ch, m } = JSON.parse(line);
-        if (!chans.has(ch) || !m || typeof m.id !== 'string' || m.channelId !== ch) continue;
+        const { ch, m: raw } = JSON.parse(line);
+        if (typeof ch !== 'string' || !chans.has(ch)) continue;
+        const m = cleanImportedMessage(raw, ch);
+        if (!m) continue;
         let a = per.get(ch);
         if (!a) per.set(ch, (a = []));
         a.push(JSON.stringify({ o: 'm', m }));
@@ -3003,7 +3113,7 @@ export class Hub {
         /* bozuk satır */
       }
     }
-    for (const [ch, list] of per) fs.writeFileSync(path.join(this.dir, 'messages', ch + '.ndjson'), list.join('\n') + '\n');
+    for (const [ch, list] of per) if (SAFE_ID.test(ch)) fs.writeFileSync(path.join(msgDir, ch + '.ndjson'), list.join('\n') + '\n');
     for (const ch of c.channels) this.logs.delete(ch.id);
     this.comms.set(c.id, c);
     for (const ch of c.channels) this.chanToComm.set(ch.id, c.id);
@@ -3013,7 +3123,7 @@ export class Hub {
     this.pushComm(c);
     for (const m of c.members) if (this.userSessions.has(m.userId)) this.broadcastPresence(m.userId);
     for (const ch of c.channels) if (ch.type === 'site') this.refreshSiteMeta(c.id, ch.id);
-    return null;
+    return c;
   }
 
   hasCommunities() {
