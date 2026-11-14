@@ -19,6 +19,7 @@ import { BotManager, type BotHost } from './bots';
 import { sanitizeStickers } from '../shared/stickers';
 import { PostStore } from './paylasim';
 import { FEAT_POSTS } from '../shared/paylasim';
+import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, TAG_CHANGES_PER_DAY, formatCode, tagKey, parseTag, customCodeError, nameError } from '../shared/etiket';
 import { Ekler, type EkOptions } from './ekler';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
@@ -149,6 +150,8 @@ interface StoredUser {
   secretHash: string;
   /** bu sunucuyu ilk kullandığı an (katılma korumasındaki hesap yaşı); 1 = sürüm 1.27'den önce gelmiş eski hesap */
   since?: number;
+  /** v1.50 kendi seçtiği etiket kodunu değiştirdiği anlar (sıklık sınırı için) */
+  tagChanges?: number[];
 }
 
 interface HubData {
@@ -159,7 +162,7 @@ interface HubData {
   dms?: Record<ID, ID | ''>;
   /** arkadaşlıklar: 'd_<a>_<b>' -> kim istedi, kabul edildi mi */
   friends?: Record<ID, { from: ID; ok: boolean; ts: number }>;
-  /** arkadaş kodları: kod -> kullanıcı */
+  /** eski arkadaş kodları (v1.50'de kaldırıldı; yüklenirken silinir) */
   friendCodes?: Record<string, ID>;
   /** merkezi sunucuya taşınan topluluklar: topluluk -> sunucu adresi */
   moved?: Record<ID, string>;
@@ -243,6 +246,10 @@ export class Hub {
   /** kullanıcıların anlık etkinlikleri (oyun, müzik, yayın); bellekte tutulur */
   private acts = new Map<ID, LiveActivity[]>();
   private voiceRooms = new Map<ID, Map<ID, VoiceMember>>();
+  /** v1.50 etiket dizini: tagKey(ad, kod) -> kullanıcı (bellekte; users'tan kurulur) */
+  private tagIndex = new Map<string, ID>();
+  /** etiketle arama sınırı: kullanıcı -> son denemelerin anları */
+  private tagTries = new Map<ID, number[]>();
   private spaceRooms = new Map<ID, Map<ID, { s: Session; av: SpaceAvatar }>>();
   private booths = new Map<ID, Booth[]>();
   private webRooms = new Map<ID, Map<ID, WebViewer>>();
@@ -466,6 +473,7 @@ export class Hub {
   init() {
     this.load();
     this.bots.load();
+    this.migrateTags();
     this.heartbeat = setInterval(() => {
       for (const s of this.sessions) {
         if (!s.alive) {
@@ -1077,7 +1085,8 @@ export class Hub {
       friends: this.friendsFor(uid),
       acts,
       v: PROTOCOL_VERSION,
-      feats: [FEAT_POSTS, ...this.ek.feats(uid)],
+      feats: [FEAT_POSTS, FEAT_TAGS, ...this.ek.feats(uid)],
+      tag: this.data.users[uid]?.pub.tag,
     });
   }
 
@@ -1176,14 +1185,14 @@ export class Hub {
   }
 
   /** a, b'ye arkadaşlık isteği gönderir; karşı taraf zaten istemişse arkadaş olurlar */
-  private friendRequest(a: ID, b: ID, direct = false): string | null {
+  private friendRequest(a: ID, b: ID, direct = false, byTag = false): string | null {
     if (a === b) return 'Kendine arkadaşlık isteği gönderemezsin.';
     if (!this.data.users[b] || b === BOT_ID || this.bots.isBot(b) || this.bots.isBot(a)) return 'Bu kişi bulunamadı.';
     const key = dmChannelId(a, b);
     this.data.friends ||= {};
     const r = this.data.friends[key];
     if (r?.ok) return null;
-    if (!direct && !r && !this.shareCommunity(a, b)) return 'Arkadaş eklemek için ortak bir topluluğunuz olmalı ya da onun arkadaş kodunu kullanmalısın.';
+    if (!direct && !byTag && !r && !this.shareCommunity(a, b)) return 'Ortak bir topluluğunuz yok. Arkadaşlık isteğini onun etiketiyle (ad#kod) gönder.';
     if (direct || (r && r.from === b)) this.data.friends[key] = { from: r?.from || a, ok: true, ts: Date.now() };
     else this.data.friends[key] = { from: a, ok: false, ts: Date.now() };
     this.saveHub();
@@ -1191,18 +1200,116 @@ export class Hub {
     return null;
   }
 
-  private friendCodeOf(uid: ID, reset = false): string {
-    this.data.friendCodes ||= {};
-    const codes = this.data.friendCodes;
-    let code = Object.keys(codes).find((k) => codes[k] === uid);
-    if (code && reset) delete codes[code], (code = undefined);
-    if (!code) {
-      do code = makeShortCode((n) => crypto.randomBytes(n));
-      while (codes[code] || [...this.comms.values()].some((c) => c.inviteCode === code));
-      codes[code] = uid;
-      this.saveHub();
+  // ---------- v1.50 etiketler (ad#kod) ----------
+  private tagEligible(id: ID, u: StoredUser | undefined) {
+    return !!u && id !== BOT_ID && !u.pub.bot && !this.bots.isBot(id);
+  }
+
+  /**
+   * Kullanıcıya etiket kodu atar. Önceki kod yeni adla boştaysa korunur; değilse rastgele boş bir kod seçilir.
+   * Dizini günceller; pub.tag'i yazar. Kaydetmeyi çağıran yapar.
+   */
+  private assignTag(uid: ID, pub: UserPublic, prev?: string): void {
+    // eski dizin kaydını bırak
+    for (const [k, v] of this.tagIndex) if (v === uid) this.tagIndex.delete(k);
+    const free = (code: string) => {
+      const o = this.tagIndex.get(tagKey(pub.name, code));
+      return !o || o === uid;
+    };
+    let code = prev && TAG_CODE_RE.test(prev) && !/^0+$/.test(prev) && free(prev) ? prev : '';
+    for (let i = 0; !code && i < 60; i++) {
+      const n = TAG_CODE_MIN + (crypto.randomBytes(2).readUInt16BE(0) % (TAG_CODE_MAX - TAG_CODE_MIN + 1));
+      if (free(formatCode(n))) code = formatCode(n);
     }
-    return code;
+    // aynı adla 9999 kişiye yaklaşıldıysa sırayla boş olanı ara
+    for (let n = TAG_CODE_MIN; !code && n <= TAG_CODE_MAX; n++) if (free(formatCode(n))) code = formatCode(n);
+    if (!code) {
+      delete pub.tag;
+      return;
+    }
+    pub.tag = code;
+    this.tagIndex.set(tagKey(pub.name, code), uid);
+  }
+
+  /** Yüklemede: dizini kur, kodu olmayan (eski) hesaplara kod ata, eski arkadaş kodlarını sil */
+  private migrateTags() {
+    let dirty = false;
+    this.tagIndex.clear();
+    const users = Object.entries(this.data.users);
+    // önce mevcut kodlar (çakışan varsa sonradan gelen yeniden atanır)
+    const later: [ID, StoredUser][] = [];
+    for (const [id, u] of users) {
+      if (!this.tagEligible(id, u)) {
+        if (u.pub.tag) (delete u.pub.tag, (dirty = true));
+        continue;
+      }
+      const k = u.pub.tag && TAG_CODE_RE.test(u.pub.tag) ? tagKey(u.pub.name, u.pub.tag) : '';
+      if (k && !this.tagIndex.has(k)) this.tagIndex.set(k, id);
+      else later.push([id, u]);
+    }
+    // eski hesaplar: sunucuyu ilk kullanana göre sırayla
+    later.sort((a, b) => (a[1].since || 0) - (b[1].since || 0) || (a[0] < b[0] ? -1 : 1));
+    for (const [id, u] of later) {
+      this.assignTag(id, u.pub, undefined);
+      dirty = true;
+    }
+    if (this.data.friendCodes) {
+      delete this.data.friendCodes;
+      dirty = true;
+    }
+    if (dirty) this.saveHub();
+  }
+
+  /** Kişinin kendi kodunu seçmesi. Başarıda yeni kod, hatada mesaj döner. */
+  private setCustomTag(uid: ID, raw: unknown): { tag: string } | string {
+    const u = this.data.users[uid];
+    if (!this.tagEligible(uid, u)) return 'Bu hesabın etiketi değiştirilemez.';
+    const code = clampStr(raw, 20).trim().normalize('NFC');
+    const bad = customCodeError(code);
+    if (bad) return bad;
+    if (u.pub.tag === code) return { tag: code };
+    const owner = this.findByTag(u.pub.name, code);
+    // aynı kodu yalnızca harf büyüklüğünü değiştirerek yeniden yazmak serbest
+    if (owner && owner !== uid) return `${u.pub.name}#${code} başka birinde. Başka bir kod dene.`;
+    const now = Date.now();
+    const recent = (u.tagChanges || []).filter((t) => now - t < 24 * 3600_000);
+    if (!owner && recent.length >= TAG_CHANGES_PER_DAY) return `Kodunu 24 saatte en çok ${TAG_CHANGES_PER_DAY} kez değiştirebilirsin. Biraz sonra tekrar dene.`;
+    for (const [k, v] of this.tagIndex) if (v === uid) this.tagIndex.delete(k);
+    u.pub = { ...u.pub, tag: code };
+    this.tagIndex.set(tagKey(u.pub.name, code), uid);
+    if (!owner) u.tagChanges = [...recent, now];
+    this.saveHub();
+    const data = JSON.stringify({ t: 'user', u: u.pub } satisfies ServerFrame);
+    const sent = new Set<Session>();
+    for (const c of this.userComms(uid)) for (const x of this.memberSessions(c)) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
+    for (const p of [uid, ...this.contactsOf(uid)]) for (const x of this.userSessions.get(p) || []) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
+    return { tag: code };
+  }
+
+  /** "ad#kod" -> kullanıcı */
+  private findByTag(name: string, code: string): ID | undefined {
+    return this.tagIndex.get(tagKey(name, code));
+  }
+
+  /** Etiketle arkadaşlık isteği. Kaba kuvvetle hesap taramayı önlemek için 10 dakikada en çok 30 deneme. */
+  private friendByTag(uid: ID, raw: unknown): { err: string } | { uid: ID; state: 'ok' | 'out' } {
+    const p = parseTag(clampStr(raw, 80));
+    if (!p.ok) return { err: p.error };
+    const now = Date.now();
+    const tries = (this.tagTries.get(uid) || []).filter((t) => now - t < 10 * 60_000);
+    if (tries.length >= 30) return { err: 'Çok fazla deneme yaptın. Birkaç dakika sonra tekrar dene.' };
+    tries.push(now);
+    this.tagTries.set(uid, tries);
+    const target = this.findByTag(p.name, p.code);
+    if (!target || (this.posts.blockedEither(uid, target) && !this.data.friends?.[dmChannelId(uid, target)]?.ok))
+      return { err: `${p.name}#${p.code} etiketli kimse bulunamadı. Büyük/küçük harf önemli değil; adı ve # sonrasındaki kodu kontrol et.` };
+    if (target === uid) return { err: 'Bu senin kendi etiketin. Arkadaşına gönder, o seni eklesin.' };
+    const r = this.data.friends?.[dmChannelId(uid, target)];
+    if (r?.ok) return { err: `${this.data.users[target].pub.name} zaten arkadaşın.` };
+    if (r && r.from === uid) return { err: 'Bu kişiye zaten istek gönderdin, yanıt bekleniyor.' };
+    const err = this.friendRequest(uid, target, false, true);
+    if (err) return { err };
+    return { uid: target, state: this.data.friends?.[dmChannelId(uid, target)]?.ok ? 'ok' : 'out' };
   }
 
   private handleFriend(s: Session, uid: ID, f: ClientFrame): boolean {
@@ -1234,8 +1341,21 @@ export class Hub {
         return true;
       }
       case 'friend.code':
-        this.send(s, { t: 'ok', rid: f.rid, data: this.friendCodeOf(uid, !!f.reset) });
+        // v1.50: arkadaş kodları kalktı; eski istemciye anlaşılır bir cevap
+        this.send(s, { t: 'err', rid: f.rid, msg: "Arkadaş kodları kalktı. Xanaphian'ı güncelle; artık herkesin ad#kod biçiminde bir etiketi var." });
         return true;
+      case 'tag.set': {
+        const r = this.setCustomTag(uid, f.code);
+        if (typeof r === 'string') this.send(s, { t: 'err', msg: r, rid: f.rid });
+        else this.send(s, { t: 'ok', rid: f.rid, data: r.tag });
+        return true;
+      }
+      case 'friend.tag': {
+        const r = this.friendByTag(uid, f.tag);
+        if ('err' in r) this.send(s, { t: 'err', msg: r.err, rid: f.rid });
+        else this.send(s, { t: 'ok', rid: f.rid, data: r });
+        return true;
+      }
       case 'friend.mutual': {
         // iki kişinin de onaylı arkadaşı olanlar
         const other = String(f.uid || '');
@@ -1433,15 +1553,6 @@ export class Hub {
         const code = typeof f.code === 'string' ? f.code.toLowerCase() : '';
         const c = code ? [...this.comms.values()].find((x) => x.inviteCode === code) : f.cid ? this.comms.get(f.cid) : undefined;
         if (this.bots.isBot(uid)) return this.send(s, { t: 'err', msg: 'Botlar davetle katılamaz.', rid: f.rid });
-        const friendOf = !c && code ? this.data.friendCodes?.[code] : undefined;
-        if (friendOf) {
-          // arkadaş kodu: kodun sahibiyle doğrudan arkadaş olunur
-          if (friendOf === uid) return this.send(s, { t: 'err', msg: 'Bu senin kendi arkadaş kodun. Arkadaşına gönder, o yapıştırsın.', rid: f.rid });
-          const err = this.friendRequest(uid, friendOf, true);
-          if (err) return this.send(s, { t: 'err', msg: err, rid: f.rid });
-          if (f.rid) this.send(s, { t: 'ok', rid: f.rid, data: '@' + friendOf });
-          return;
-        }
         if (!c || (!code && c.inviteKey !== f.key && !c.listing)) return this.send(s, { t: 'err', msg: 'Davet geçersiz ya da süresi dolmuş.', rid: f.rid });
         if (!c.members.some((m) => m.userId === uid)) {
           if (c.bans?.some((b) => b.userId === uid)) return this.send(s, { t: 'err', msg: 'Bu topluluktan yasaklandın.', rid: f.rid });
@@ -1632,7 +1743,12 @@ export class Hub {
       case 'profile': {
         const u = this.data.users[uid];
         if (u.pub.bot) return;
+        const prevTag = u.pub.tag;
+        const prevName = u.pub.name;
         u.pub = this.sanitizeUser(f.user, uid);
+        // ad değişirken kurallar (en az 2 karakter, # yok); eski hesapların mevcut adı bozulmaz
+        if (u.pub.name !== prevName && nameError(u.pub.name)) u.pub.name = prevName;
+        if (!this.bots.isBot(uid)) this.assignTag(uid, u.pub, prevTag);
         this.saveHub();
         const data = JSON.stringify({ t: 'user', u: u.pub } satisfies ServerFrame);
         const sent = new Set<Session>();
@@ -2552,8 +2668,9 @@ export class Hub {
     }
     // bot hesapları (belirteçle bağlanan bot programları) profillerini değiştiremez
     const pub = existing?.pub.bot ? existing.pub : this.sanitizeUser(f.user, id);
+    if (!pub.bot && !this.bots.isBot(id)) this.assignTag(id, pub, existing?.pub.tag);
     const changed = !existing || JSON.stringify(existing.pub) !== JSON.stringify(pub);
-    this.data.users[id] = { pub, secretHash: sha(secret), since: existing ? existing.since || 1 : Date.now() };
+    this.data.users[id] = { ...existing, pub, secretHash: sha(secret), since: existing ? existing.since || 1 : Date.now() };
     if (changed || !existing?.since) this.saveHub();
     s.userId = id;
     s.status = ['online', 'idle', 'dnd', 'invisible'].includes(f.status) ? f.status : 'online';
@@ -2739,6 +2856,7 @@ export class Hub {
       },
       deleteUser: (uid) => {
         delete this.data.users[uid];
+        for (const [k, v] of this.tagIndex) if (v === uid) this.tagIndex.delete(k);
         for (const x of this.userSessions.get(uid) || []) x.ws.close(4001, 'auth');
         this.saveHub();
       },
@@ -2856,7 +2974,11 @@ export class Hub {
     for (const u of Array.isArray(head.users) ? head.users : []) {
       if (!u || typeof u.id !== 'string' || u.id === BOT_ID || u.bot) continue;
       known.add(u.id);
-      if (!this.data.users[u.id]) this.data.users[u.id] = { pub: this.sanitizeUser(u, u.id), secretHash: '' };
+      if (!this.data.users[u.id]) {
+        const pub = this.sanitizeUser(u, u.id);
+        this.assignTag(u.id, pub);
+        this.data.users[u.id] = { pub, secretHash: '' };
+      }
     }
     c.members = c.members.filter((m) => m && (m.userId === BOT_ID || known.has(m.userId) || this.data.users[m.userId]));
     if (!c.members.some((m) => m.userId === uid)) c.members.push({ userId: uid, roles: [], joinedAt: Date.now() });
