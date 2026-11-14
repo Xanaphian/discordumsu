@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Gamepad2, Headphones, Volume2, Check, X, Play, Music2 } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { useVoice } from '../lib/voice';
-import { useActsOf, useActs, openInSpotify, stopAlong } from '../lib/activity';
+import { useActsOf, useActs, stopAlong } from '../lib/activity';
 import { JOIN_KEY, type PlayCard, type ListenCard } from '../lib/cards';
 import { inviteClosed, joinPlay, joinListen, leaveInvite, closeInvite } from '../lib/davet';
 import { Avatar } from './Common';
@@ -190,9 +190,6 @@ export function ListenInviteView({ m, card, c, me }: { m: Message; card: ListenC
         ) : (
           <>
             <Joined ids={joined} c={c} label="Henüz katılan yok." />
-            <button className="btn ghost sm" onClick={() => openInSpotify({ kind: 'listening', name: card.p, details: card.t, state: card.a })} style={{ marginLeft: 'auto' }}>
-              Spotify'da aç
-            </button>
             <button className="btn primary sm" onClick={() => joinListen(m)}>
               <Headphones size={14} /> Beraber dinle
             </button>

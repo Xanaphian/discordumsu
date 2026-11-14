@@ -267,7 +267,7 @@ function SpotifyAccount() {
   if (!cur.connected && !open && !busy)
     return (
       <button className="act-more-link" onClick={() => setOpen(true)}>
-        Telefondan ya da başka bir uygulamadan dinlediklerin görünmüyor mu? Spotify hesabından okumayı aç
+        Spotify hesabını bağla: telefondan dinlediklerin de görünür, "Beraber dinle" şarkıyı senin Spotify'ında da çalar
       </button>
     );
   const needId = !cur.defaultClientId;
@@ -290,8 +290,8 @@ function SpotifyAccount() {
           <b>Spotify hesabından oku</b>
           <span>
             {cur.connected
-              ? `Bağlı${cur.user ? ': ' + cur.user : ''}. Hangi uygulamadan dinlersen dinle (Retrofy, telefon, web) çalan şarkı kapağıyla görünür.${from === 'account' ? ' Şu anki şarkı hesaptan okunuyor.' : ''}`
-              : 'Spotify uygulaması dışında (Retrofy, telefon, web çalar) dinlediklerin de görünsün diye çalan şarkıyı doğrudan hesabından okur.'}
+              ? `Bağlı${cur.user ? ': ' + cur.user : ''}. Hangi uygulamadan dinlersen dinle (Retrofy, telefon, web) çalan şarkı kapağıyla görünür.${from === 'account' ? ' Şu anki şarkı hesaptan okunuyor.' : ''}${cur.canPlay ? ' Beraber dinlerken şarkı senin Spotify\'ında da çalar (Premium).' : ''}`
+              : 'Dinlediklerin her yerden (Retrofy, telefon, web) görünür; "Beraber dinle"de şarkı senin Spotify\'ında da çalar (Premium gerekir).'}
           </span>
         </div>
         {cur.connected ? (
@@ -319,6 +319,14 @@ function SpotifyAccount() {
             . Gizli anahtar (Client secret) gerekmez, hiçbir yere yazma.
           </p>
         </div>
+      )}
+      {cur.connected && !cur.canPlay && (
+        <p className="act-diag warn">
+          Beraber dinlerken şarkının senin Spotify'ında da çalması için yeni bir izin gerekiyor.{' '}
+          <button className="link-btn" onClick={connect} disabled={busy}>
+            Yeniden bağlan
+          </button>
+        </p>
       )}
       {cur.error && <p className="act-diag warn">{cur.error}</p>}
     </div>
