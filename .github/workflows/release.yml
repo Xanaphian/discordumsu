@@ -12,7 +12,12 @@ permissions:
   contents: write
 
 jobs:
+  # Önce otomatik sınama: uygulama açılmıyorsa ya da bir ekran çöküyorsa sürüm yayınlanmaz
+  sinama:
+    uses: ./.github/workflows/sinama.yml
+
   windows:
+    needs: sinama
     runs-on: windows-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
