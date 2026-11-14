@@ -169,10 +169,13 @@ function usePeople(c: Community, people: Person[]): P[] {
   );
 }
 
+// Sol tık profil kartı açmaz (Enes, v1.47.1): kişi menüsü ve profil yalnız sağ tıkla.
+// Yayın açan kişinin balonuna/şeridine sol tıklamak yayını büyük izleme görünümünde açar.
 function handlers(c: Community, p: P) {
-  if (p.demo) return {};
+  const live = p.scr ? { onClick: () => watchStream(p.scr!.key) } : {};
+  if (p.demo) return live;
   return {
-    onClick: (e: React.MouseEvent) => useStore.setState({ popout: { uid: p.uid, cid: c.id, x: e.clientX, y: e.clientY } }),
+    ...live,
     onContextMenu: (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
