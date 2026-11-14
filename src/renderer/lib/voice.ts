@@ -1,5 +1,6 @@
 // Sesli kanallar: WebRTC eşler arası (mesh) ses, kamera ve ekran paylaşımı.
 // Sinyalleşme kovan sunucusu üzerinden; "perfect negotiation" ile istediğin an görüntü ekleyip çıkarılabilir.
+import { buildNoiseChain, noiseModeOf, browserNS, type NoiseChain, type NoiseMode } from './ses/gurultu';
 import { create } from 'zustand';
 import type { ID, VoiceMember } from '../../shared/protocol';
 import { useStore, voiceHooks, cmd, toast } from './store';
@@ -100,6 +101,8 @@ let lastMembers = new Set<ID>();
 // ---- mikrofon hattı: ham mikrofon → giriş kazancı → kapı (VAD / bas-konuş) → gönderilen iz
 let rawMic: MediaStream | null = null;
 let micSrc: MediaStreamAudioSourceNode | null = null;
+let noise: NoiseChain | null = null;
+let noiseNow: NoiseMode | null = null;
 let inGain: GainNode | null = null;
 let gate: GainNode | null = null;
 let micAnalyser: AnalyserNode | null = null;
@@ -563,7 +566,7 @@ async function openMic() {
     audio: {
       deviceId: s.micId && s.micId !== 'default' ? { exact: s.micId } : undefined,
       echoCancellation: s.echoCancellation,
-      noiseSuppression: s.noiseSuppression,
+      noiseSuppression: browserNS(noiseModeOf(s)),
       autoGainControl: s.autoGainControl,
       channelCount: 1,
       sampleRate: 48000,
@@ -586,14 +589,36 @@ async function openMic() {
   rawMic?.getTracks().forEach((t) => t.stop());
   rawMic = raw;
   micSrc = ctx.createMediaStreamSource(raw);
-  micSrc.connect(inGain);
+  await attachNoise(ctx);
   inGain.gain.value = s.inputVolume / 100;
   raw.getAudioTracks()[0].onended = () => {
     if (V().ch) toast('Mikrofon bağlantısı kesildi.', 'err');
   };
 }
 
+/** Gürültü engelleme zincirini (yeniden) kur: ham mikrofon → zincir → giriş kazancı */
+let noiseSeq = 0;
+async function attachNoise(ctx: AudioContext) {
+  const mode = noiseModeOf(ST());
+  const seq = ++noiseSeq;
+  const chain = await buildNoiseChain(ctx, mode);
+  if (seq !== noiseSeq || !micSrc || !inGain) return chain.dispose();
+  try {
+    micSrc.disconnect();
+  } catch {
+    /* kopuk */
+  }
+  noise?.dispose();
+  noise = chain;
+  noiseNow = mode;
+  micSrc.connect(chain.input);
+  chain.output.connect(inGain);
+}
+
 function closeMic() {
+  noise?.dispose();
+  noise = null;
+  noiseNow = null;
   micSrc?.disconnect();
   rawMic?.getTracks().forEach((t) => t.stop());
   try {
@@ -816,7 +841,9 @@ useStore.subscribe((s, prev) => {
   const a = s.settings, b = prev.settings;
   if (a.outputVolume !== b.outputVolume || a.speakerId !== b.speakerId || a.userVolumes !== b.userVolumes) applyOutput();
   if (a.inputVolume !== b.inputVolume && inGain && actx) inGain.gain.setTargetAtTime(a.inputVolume / 100, actx.currentTime, 0.02);
-  if (a.micId !== b.micId || a.noiseSuppression !== b.noiseSuppression || a.echoCancellation !== b.echoCancellation || a.autoGainControl !== b.autoGainControl) restartMic();
+  const na = noiseModeOf(a), nb = noiseModeOf(b);
+  if (a.micId !== b.micId || browserNS(na) !== browserNS(nb) || a.echoCancellation !== b.echoCancellation || a.autoGainControl !== b.autoGainControl) restartMic();
+  else if (na !== nb && micSrc && actx) attachNoise(actx);
   if (a.voiceBitrate !== b.voiceBitrate) for (const p of peers.values()) tunePeer(p);
 });
 

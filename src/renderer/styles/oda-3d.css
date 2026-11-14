@@ -553,3 +553,27 @@
 .voice-panel .vp-btn.vp-3d.busy svg {
   animation: sv-spin3d 1s linear infinite;
 }
+
+/* v1.35 takip */
+.sv-follow {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--sv-edge);
+  background: transparent;
+  color: var(--sv-gold);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sv-follow:hover,
+.sv-follow.on {
+  background: color-mix(in srgb, var(--sv-gold) 18%, transparent);
+}
+.sv-room .sv-following {
+  border-color: rgba(10, 200, 185, 0.5);
+}
+.sv-room .sv-following svg {
+  color: var(--sv-turq);
+}

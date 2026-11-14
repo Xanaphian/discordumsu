@@ -2140,7 +2140,7 @@ export class Hub {
       }
       case 'sp.emote': {
         const room = s.space && this.spaceRooms.get(s.space);
-        if (!room || !['wave', 'dance', 'jump', 'clap', 'heart', 'laugh', 'spin'].includes(f.e)) return;
+        if (!room || !['wave', 'dance', 'jump', 'clap', 'heart', 'laugh', 'spin', 'point', 'bow'].includes(f.e)) return;
         const data = JSON.stringify({ t: 'sp.emote', sid: s.sid, e: f.e } satisfies ServerFrame);
         for (const o of room.values()) this.sendRaw(o.s, data);
         return;

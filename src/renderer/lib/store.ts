@@ -1,3 +1,4 @@
+import type { NoiseMode } from './ses/gurultu';
 import { create } from 'zustand';
 import {
   type AvatarLook,
@@ -45,6 +46,8 @@ export interface Settings {
   micId: string;
   speakerId: string;
   noiseSuppression: boolean;
+  /** v1.35 gürültü engelleme modu (yoksa noiseSuppression'dan türetilir) */
+  noiseMode?: NoiseMode;
   enterToSend: boolean;
   showLinkPreviews: boolean;
   avatarHat: AvatarLook['hat'];

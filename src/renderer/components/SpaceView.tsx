@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Moon, Sun, Shirt, Keyboard, MessageSquare, Users, Store, X, Check, Volume2,
-  Video, VideoOff, MonitorUp, MonitorX, Hand, Music2, Sparkles, Heart, Laugh, RotateCw, ArrowUpFromLine, Eye, Settings2, ChevronDown, ChevronUp, SendHorizontal, Tv,
+  Video, VideoOff, MonitorUp, MonitorX, Hand, Music2, Sparkles, Heart, Laugh, RotateCw, ArrowUpFromLine, Pointer, HandHeart, Footprints, Eye, Settings2, ChevronDown, ChevronUp, SendHorizontal, Tv,
 } from 'lucide-react';
 import { useStore, updateSettings, openModal, cmd } from '../lib/store';
 import { useVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
@@ -232,11 +232,12 @@ function BoothEditor({ i, onClose }: { i: number; onClose: () => void }) {
   );
 }
 
-function People({ c, ch }: { c: Community; ch: Channel }) {
+function People({ c, ch, following, onFollow }: { c: Community; ch: Channel; following: ID | null; onFollow: (sid: ID | null) => void }) {
   const roster = useSpace((s) => s.roster);
   const users = useStore((s) => s.users);
   const speaking = useVoice((s) => s.speaking);
   const voice = useStore((s) => s.voice[ch.id]) || [];
+  const you = useSpace((s) => s.you);
   const list = Object.values(roster);
   const in3d = new Set(list.map((r) => r.userId));
   const flat = voice.filter((m) => !in3d.has(m.userId));
@@ -251,6 +252,11 @@ function People({ c, ch }: { c: Community; ch: Channel }) {
           <div key={r.sid} className={cx('sv-person', speaking[r.userId] && 'speaking')}>
             <Avatar user={users[r.userId]} size={24} />
             <span>{displayName(c, r.userId, users)}</span>
+            {r.sid !== you && (
+              <button className={cx('sv-follow', following === r.sid && 'on')} onClick={() => onFollow(following === r.sid ? null : r.sid)}>
+                {following === r.sid ? 'Bırak' : 'Takip et'}
+              </button>
+            )}
             <i style={{ background: r.look.color }} />
           </div>
         ))}
@@ -280,6 +286,8 @@ const ACTIONS: { e: string; key: string; label: string; Icon: typeof Hand }[] = 
   { e: 'laugh', key: '5', label: 'Gül', Icon: Laugh },
   { e: 'spin', key: '6', label: 'Dön', Icon: RotateCw },
   { e: 'jump', key: '7', label: 'Zıpla', Icon: ArrowUpFromLine },
+  { e: 'point', key: '8', label: 'İşaret et', Icon: Pointer },
+  { e: 'bow', key: '9', label: 'Selam', Icon: HandHeart },
 ];
 const QUICK = ['😂', '😮', '😍', '👍', '🔥', '🎉', '❤️', '👏'];
 
@@ -402,6 +410,8 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
   const [firstPerson, setFirstPerson] = useState(false);
   const [barOpen, setBarOpen] = useState(true);
   const [typing, setTyping] = useState(false);
+  const [following, setFollowing] = useState<ID | null>(null);
+  const roster = useSpace((s) => s.roster);
   const night = useStore((s) => s.settings.spaceNight);
   const quality = useStore((s) => s.settings.spaceQuality);
   const me = useStore((s) => s.me.id);
@@ -442,6 +452,7 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
             onPrompt: setPrompt,
             onBooth: (i) => setBoothOpen(i),
             onStage: setOnStage,
+            onFollow: setFollowing,
           });
           setEngine(eng);
           setFirstPerson(false);
@@ -628,8 +639,12 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
             <dd>Kamerayı çevir · yakınlaştır</dd>
             <dt>E</dt>
             <dd>Otur / kalk{world === 'meydan' ? ', stand kirala' : ''}</dd>
-            <dt>1 – 7</dt>
-            <dd>Hareketler</dd>
+            <dt>1 – 9</dt>
+            <dd>Hareketler (8 işaret et, 9 selam)</dd>
+            <dt>F</dt>
+            <dd>En yakındakini takip et; Kişiler'den birini seçip de takip edebilirsin</dd>
+            <dt>Oturağa tıkla</dt>
+            <dd>Oraya yürüyüp oturursun</dd>
             <dt>Enter</dt>
             <dd>Yaz (başının üstünde balon çıkar)</dd>
             <dt>O · V · P</dt>
@@ -642,13 +657,19 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
           <p>Ses yakınlığa göre ayarlanır: yaklaştıkça yükselir, ~24 metrede kaybolur. 3D'ye geçmeyenleri her zamanki gibi duyarsın.</p>
         </div>
       )}
-      {panel === 'people' && <People c={c} ch={ch} />}
+      {panel === 'people' && <People c={c} ch={ch} following={following} onFollow={(sid) => engine?.follow(sid)} />}
+      {following && roster[following] && (
+        <div className="sv-prompt sv-following">
+          <Footprints size={15} /> {displayName(c, roster[following].userId, users)} kişisini takip ediyorsun
+          <span className="sv-prompt-sub">Bırakmak için yürü ya da F</span>
+        </div>
+      )}
 
       {onStage && <div className="sv-stage-badge">🎤 Sahnedesin, herkes seni duyuyor</div>}
-      {prompt && booth === null && (
+      {prompt && booth === null && !following && (
         <div className="sv-prompt">
           <kbd>E</kbd> {prompt.label}
-          <span className="sv-prompt-sub">Kalkmak için yürü ya da yine E</span>
+          <span className="sv-prompt-sub">{prompt.kind === 'stand' ? 'Kalkmak için yürü ya da yine E' : 'Boş oturağa tıklayarak da oturabilirsin'}</span>
         </div>
       )}
       {booth !== null && (
@@ -676,6 +697,11 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
               <kbd>O</kbd>
               <Shirt size={18} />
               <span>Kıyafet</span>
+            </button>
+            <button className={cx('sv-act', following && 'on')} onClick={() => engine?.follow(following ? null : engine.nearestOther())} title="Takip (F): en yakındakinin peşinden yürü">
+              <kbd>F</kbd>
+              <Footprints size={18} />
+              <span>Takip</span>
             </button>
             <button className={cx('sv-act', firstPerson && 'on')} onClick={toggleView}>
               <kbd>V</kbd>

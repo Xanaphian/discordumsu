@@ -1,0 +1,160 @@
+/* v1.35 gürültü engelleme düğmesi ve mod seçici (ses panelinde) */
+.ns-wrap {
+  position: relative;
+  flex: none;
+}
+.ns-btn {
+  position: relative;
+}
+.ns-btn.on {
+  color: var(--arc, var(--green));
+}
+.ns-btn.open {
+  background: var(--bg-active);
+}
+.ns-dot {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--arc, var(--green));
+  box-shadow: 0 0 0 2px var(--bg-elev);
+}
+.ns-btn.m-standart .ns-dot {
+  opacity: 0.55;
+}
+.ns-btn.m-maksimum .ns-dot {
+  background: var(--orn, var(--accent));
+}
+.ns-pop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: -200px;
+  width: 300px;
+  z-index: 60;
+  padding: 8px;
+  background: var(--bg-float);
+  border: 1px solid color-mix(in srgb, var(--orn, var(--accent)) 30%, transparent);
+  box-shadow: var(--shadow);
+  border-radius: 10px;
+  animation: ns-in 0.14s var(--ease, ease-out);
+}
+[data-style='destan'] .ns-pop {
+  border-radius: 0;
+}
+@keyframes ns-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.ns-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 8px;
+  color: var(--text);
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.ns-head b {
+  font-weight: 700;
+}
+.ns-opt {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.ns-opt:hover {
+  background: var(--bg-hover);
+}
+.ns-opt.on {
+  background: var(--bg-active);
+  border-color: color-mix(in srgb, var(--orn, var(--accent)) 40%, transparent);
+  color: var(--text);
+}
+.ns-opt span:not(.ns-bars) {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ns-opt b {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.ns-opt small {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--text-3);
+}
+.ns-radio {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 2px solid var(--text-4);
+}
+.ns-opt.on .ns-radio {
+  border-color: var(--orn, var(--accent));
+  background: radial-gradient(circle, var(--orn, var(--accent)) 0 3px, transparent 4px);
+}
+/* güç göstergesi: 0-3 çubuk */
+.ns-bars {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+  margin-top: 2px;
+}
+.ns-bars i {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--line-2);
+}
+.ns-bars i:nth-child(1) {
+  height: 5px;
+}
+.ns-bars i:nth-child(2) {
+  height: 9px;
+}
+.ns-bars i:nth-child(3) {
+  height: 13px;
+}
+.ns-bars.b-standart i:nth-child(1),
+.ns-bars.b-guclu i:nth-child(-n + 2),
+.ns-bars.b-maksimum i {
+  background: var(--arc, var(--green));
+}
+.ns-more {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--orn, var(--accent));
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.ns-more:hover {
+  text-decoration: underline;
+}
