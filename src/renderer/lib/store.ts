@@ -8,6 +8,7 @@ import {
 } from '../../shared/protocol';
 import { IS_POPOUT } from './popout';
 import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
+import { FEAT_TAGS, parseTag } from '../../shared/etiket';
 import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
@@ -24,6 +25,8 @@ export interface Profile {
   bio?: string;
   extra?: ProfileExtra;
   status: Status;
+  /** v1.50 etiket kodu (ad#1234); merkezi sunucu atar, yalnız bellekte tutulur */
+  tag?: string;
 }
 
 export interface Settings {
@@ -424,7 +427,7 @@ export function hostHttp(cid: ID): string {
 
 /** Herkesin bağlandığı merkezi sunucu */
 export const DEFAULT_SERVER = 'https://45-87-173-18.sslip.io/kovan';
-/** Davet ve arkadaş kodlarının ön eki: "xanaphian/s3gas25" */
+/** Davet kodlarının ön eki: "xanaphian/s3gas25" */
 export const INVITE_PREFIX = 'xanaphian';
 const HOME_PREFIXES = new Set([INVITE_PREFIX, 'kovan']);
 
@@ -713,7 +716,7 @@ export async function addFriend(uid: ID) {
   if (f?.state === 'in') return acceptFriend(uid);
   if (f) return;
   const host = sharedHost(uid);
-  if (!host) return toast('Bu kişiyle şu an açık ortak bir topluluğun yok. Onun arkadaş kodunu kullanabilirsin.', 'err');
+  if (!host) return toast('Bu kişiyle şu an açık ortak bir topluluğun yok. Arkadaş ekle sekmesinde onun etiketini (ad#1234) yazabilirsin.', 'err');
   try {
     await conns.get(host)!.request({ t: 'friend.req', to: uid });
     toast(`${S().users[uid]?.name || 'Kişi'} adlı kişiye arkadaşlık isteği gönderildi.`, 'ok');
@@ -732,14 +735,27 @@ export function removeFriend(uid: ID) {
   if (f) conns.get(f.host)?.send({ t: 'friend.remove', to: uid });
 }
 
-/** Kendi kovanındaki arkadaş kodun: "adres/kod" biçiminde */
-export async function myFriendCode(reset = false): Promise<string> {
+/** Merkezi sunucu etiketleri (ad#1234) destekliyor mu? Bağlı değilken null */
+export function tagsSupported(st: State = S()): boolean | null {
+  const c = st.conns[homeHost()];
+  if (!c || c.status !== 'online') return null;
+  return !!c.feats?.includes(FEAT_TAGS);
+}
+
+/** v1.50 etiketle arkadaşlık isteği. Başarıda sonucu döner, hatada anlaşılır mesajla fırlatır. */
+export async function addFriendByTag(raw: string): Promise<{ uid: ID; name: string; state: 'ok' | 'out' }> {
+  const p = parseTag(raw);
+  if (!p.ok) throw new Error(p.error);
   const home = homeHost();
   const conn = conns.get(home);
   if (!conn) throw new Error('Sunucuya bağlanılmadı.');
   await waitOnline(home);
-  const r = await conn.request<{ data: string }>({ t: 'friend.code', reset, rid: '' });
-  return `${INVITE_PREFIX}/${r.data}`;
+  if (tagsSupported() === false) throw new Error('Sunucu henüz etiketle arkadaş eklemeyi desteklemiyor. Sunucu güncellenince bu kutu çalışacak; şimdilik ortak topluluğundaki birini aşağıdan ekleyebilirsin.');
+  const r = await conn.request<{ data: { uid: ID; state: 'ok' | 'out' } }>({ t: 'friend.tag', tag: `${p.name}#${p.code}`, rid: '' }, 8000).catch((e) => {
+    throw new Error(e?.message === 'Zaman aşımı' ? 'Sunucu yanıt vermedi. Biraz sonra yeniden dene.' : e?.message || 'İstek gönderilemedi.');
+  });
+  const u = S().users[r.data.uid] || S().friends[r.data.uid]?.user;
+  return { ...r.data, name: u?.name || p.name };
 }
 
 /** Ortak arkadaşlar: sunucu eskiyse (friend.mutual bilmiyorsa) null döner */
@@ -887,6 +903,8 @@ function onFrame(host: string, f: ServerFrame) {
           presence: { ...s.presence, ...f.presence },
           lastIds: { ...s.lastIds, ...f.lastIds },
           voice: { ...voice, ...f.voice },
+          // etiket yalnız merkezi sunucudan alınır (eski sunucu göndermez)
+          ...(host === homeHost() ? { me: { ...s.me, tag: f.tag } } : {}),
         };
       });
       siteHooks.onFrame?.(f);
@@ -1050,7 +1068,8 @@ function onFrame(host: string, f: ServerFrame) {
       set((s) => {
         const communities = { ...s.communities };
         for (const c of Object.values(communities)) if (c.users[f.u.id]) communities[c.id] = { ...c, users: { ...c.users, [f.u.id]: f.u } };
-        return { users: { ...s.users, [f.u.id]: f.u }, communities };
+        const me = f.u.id === s.me.id && host === homeHost() ? { me: { ...s.me, tag: f.u.tag } } : {};
+        return { users: { ...s.users, [f.u.id]: f.u }, communities, ...me };
       });
       return;
     case 'vc': {
@@ -1460,7 +1479,7 @@ export async function updateProfile(p: Partial<Pick<Profile, 'name' | 'color' | 
 
 /** Kendi profilimizi herkese görünen kullanıcı biçimine çevirir. */
 export function meAsUser(me: Profile = S().me): UserPublic {
-  return { id: me.id, name: me.name, color: me.color, avatar: me.avatar || undefined, bio: me.bio || undefined, profile: me.extra };
+  return { id: me.id, name: me.name, color: me.color, avatar: me.avatar || undefined, bio: me.bio || undefined, profile: me.extra, tag: me.tag };
 }
 
 // ---------------------------------------------------------------------------
@@ -1572,13 +1591,6 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
       if (h === homeHost() && !prefix?.includes('.')) throw new Error(e?.message === 'Zaman aşımı' ? 'Sunucu yanıt vermedi.' : 'Bu davet kodu geçersiz ya da süresi dolmuş.');
       throw e;
     });
-    if (r.data.startsWith('@')) {
-      // arkadaş kodu: arkadaş eklendi, sohbeti aç
-      const uid = r.data.slice(1);
-      toast(`${S().users[uid]?.name || 'Kişi'} artık arkadaşın.`, 'ok');
-      openDm(uid);
-      return r.data;
-    }
     selectCommunity(r.data);
     return r.data;
   };

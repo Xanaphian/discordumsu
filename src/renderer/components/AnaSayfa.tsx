@@ -543,7 +543,7 @@ function FriendsPanel() {
             <span />
           </div>
           <b>{total ? 'Şu an kimse çevrimiçi değil' : 'Henüz arkadaşın yok'}</b>
-          <span>{total ? 'Arkadaşların gelince ne yaptıkları burada görünür.' : 'Topluluklarındaki birini ekle ya da arkadaş kodunu paylaş.'}</span>
+          <span>{total ? 'Arkadaşların gelince ne yaptıkları burada görünür.' : 'Arkadaşının etiketini (ad#1234) yaz ya da kendi etiketini paylaş.'}</span>
           {!total && (
             <button className="btn primary sm" onClick={() => setHomeTab('add')}>
               <UserPlus size={14} /> Arkadaş ekle
@@ -603,7 +603,7 @@ function GettingStarted({ hasComm, hasFriend }: { hasComm: boolean; hasFriend: b
     { done: !!me.avatar, icon: <ImageIcon size={18} />, t: 'Profil resmi ekle', d: 'Arkadaşların seni hemen tanısın.', go: () => openModal({ type: 'settings', tab: 'profile' }) },
     { done: !!(me.extra?.banner || me.bio), icon: <Sparkles size={18} />, t: 'Profilini süsle', d: 'Afiş, renkler ve hakkında yazısı.', go: () => openModal({ type: 'settings', tab: 'profile' }) },
     { done: hasComm, icon: <Plus size={18} />, t: 'Bir topluluğa gir', d: 'Kendin kur, davetle katıl ya da Keşfet.', go: () => openModal({ type: 'createCommunity' }) },
-    { done: hasFriend, icon: <UserPlus size={18} />, t: 'Bir arkadaş ekle', d: 'Kodunu paylaş, özelden yazışın.', go: () => setHomeTab('add') },
+    { done: hasFriend, icon: <UserPlus size={18} />, t: 'Bir arkadaş ekle', d: 'Etiketini (ad#1234) paylaş, özelden yazışın.', go: () => setHomeTab('add') },
   ];
   const n = steps.filter((s) => s.done).length;
   if (hidden || n === steps.length) return null;

@@ -1,3 +1,4 @@
+import { TagChip } from '../Etiket';
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
   Gamepad2, Headphones, Tv, Briefcase, BookOpen, Clock, Cake, Globe, Crown, Pencil, Copy, Maximize2, AtSign, Sparkles, Bot,
@@ -400,7 +401,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
           </NameText>
           {(user?.bot || uid === 'kovan-asistan') && <span className="tag-bot pc-bot">{uid === 'kovan-asistan' ? 'ASİSTAN' : 'BOT'}</span>}
           <div className="pc-sub">
-            {shownName !== user?.name && user?.name && <span>{user.name}</span>}
+            {shownName !== user?.name && user?.name && !user.tag && <span>{user.name}</span>}
             {p?.pronouns && (
               <span className="pc-pron">
                 <AtSign size={11} />
@@ -409,6 +410,11 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
             )}
             {status && <span className={cx('pc-status', status)}>{STATUS_LABEL[status]}</span>}
           </div>
+          {user?.tag && (
+            <div className="pc-tagline">
+              <TagChip user={user} isMe={isMe} />
+            </div>
+          )}
         </div>
         {notice}
         {full ? (

@@ -1,6 +1,7 @@
 // Tam profil (v1.31): geniş afişli düzen. Üstte afiş + kimlik şeridi, solda künye kartları,
 // sağda büyük düğmeler (Etkinlik, Ortak arkadaşlar, Ortak topluluklar, Hakkında) ve içerik.
 // Kişi düğmelerin sırasını, hangilerinin görüneceğini ve açılış düğmesini kendisi seçer.
+import { TagChip } from '../Etiket';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Clock, Cake, Pencil, Copy, MessageCircle, X, CalendarDays, HeartHandshake, DoorOpen, Volume2, MonitorUp, LogIn, Users,
@@ -287,7 +288,7 @@ export function ProfileFull({
             )}
           </div>
           <div className="xp-handle">
-            {user?.name && <span>@{user.name}</span>}
+            {user?.tag ? <TagChip user={user} isMe={isMe} /> : user?.name && <span>@{user.name}</span>}
             {p?.pronouns && <span>{p.pronouns}</span>}
             {status && <span className={cx('xp-status', status)}>{STATUS_LABEL[status]}</span>}
             {bot && <span className="tag-bot">{uid === 'kovan-asistan' ? 'ASİSTAN' : 'BOT'}</span>}
@@ -504,7 +505,7 @@ export function ProfileFull({
                     ))}
                   </div>
                 ) : (
-                  <Empty icon={<Users size={22} />} title={isMe ? 'Henüz arkadaşın yok' : 'Ortak arkadaşınız yok'} text={isMe ? 'Bir profilden arkadaşlık isteği gönderebilir ya da arkadaş kodunu paylaşabilirsin.' : undefined} />
+                  <Empty icon={<Users size={22} />} title={isMe ? 'Henüz arkadaşın yok' : 'Ortak arkadaşınız yok'} text={isMe ? 'Arkadaş ekle sekmesinde birinin etiketini (ad#1234) yazabilir ya da kendi etiketini paylaşabilirsin.' : undefined} />
                 )
               ) : (
                 <Empty

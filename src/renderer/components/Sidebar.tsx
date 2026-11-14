@@ -569,7 +569,7 @@ export function UserPanel() {
   const toggleDev = (kind: DeviceKind, r: DOMRect) => setDevMenu((m) => (m?.kind === kind ? null : { kind, r }));
   const statusMenu = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openMenu({ clientX: r.left, clientY: r.top - 8 - 10 * 34 - 70 }, [
+    openMenu({ clientX: r.left, clientY: r.top - 8 - (me.tag ? 11 : 10) * 34 - 70 }, [
       ...STATUSES.map((st) => ({ label: STATUS_MENU[st] || STATUS_LABEL[st], icon: 'status-' + st, checked: me.status === st, onClick: () => setStatus(st) })),
       { sep: true },
       { label: activeCustom(me.extra) ? 'Özel durumu değiştir' : 'Özel durum ayarla', onClick: () => openModal({ type: 'customStatus' }) },
@@ -579,6 +579,7 @@ export function UserPanel() {
       { label: 'Profilimi görüntüle', onClick: () => openModal({ type: 'profile', uid: me.id }) },
       { label: 'Profili düzenle', onClick: () => openModal({ type: 'settings', tab: 'profile' }) },
       { label: 'Afiş ve arka plan', onClick: () => (focusProfileSection('banner'), openModal({ type: 'settings', tab: 'profile' })) },
+      ...(me.tag ? [{ label: `Etiketini kopyala (${me.name}#${me.tag})`, onClick: () => (copyText(`${me.name}#${me.tag}`), toast('Etiketin kopyalandı', 'ok')) }] : []),
       { label: 'Kimliğini kopyala', onClick: () => copyText(me.id) },
     ]);
   };
