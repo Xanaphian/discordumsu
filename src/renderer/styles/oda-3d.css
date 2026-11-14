@@ -1,0 +1,555 @@
+/* v1.31 — ses odasının 3D görünümü. Sahnenin üstündeki her şey koyu cam: tema açık olsa da 3D'nin üstünde okunur.
+   Vurgu: Xanaphian altını (--orn) ve turkuaz (--arc). */
+.sv-room {
+  --sv-glass: rgba(8, 13, 28, 0.78);
+  --sv-glass-2: rgba(14, 22, 44, 0.9);
+  --sv-edge: rgba(200, 170, 110, 0.28);
+  --sv-ink: #f0e6d2;
+  --sv-dim: #a9b6cc;
+  --sv-gold: #c8aa6e;
+  --sv-turq: #0ac8b9;
+  color: var(--sv-ink);
+}
+.sv-room .sv-loading {
+  background: #070b18;
+  color: var(--sv-ink);
+}
+.sv-room .sv-actions,
+.sv-room .sv-dock,
+.sv-room .sv-call,
+.sv-room .sv-cams,
+.sv-room .sv-onair {
+  position: absolute;
+  z-index: 3;
+}
+
+/* üst: oda adı solda, oda teması sağda */
+.sv-room .sv-top {
+  left: 12px;
+  right: 12px;
+  align-items: flex-start;
+}
+.sv-room .sv-top .grow {
+  flex: 1;
+}
+.sv-room .sv-pill {
+  background: var(--sv-glass);
+  border: 1px solid var(--sv-edge);
+  border-radius: 10px;
+  color: var(--sv-ink);
+}
+.sv-room .sv-pill b {
+  font-weight: 700;
+}
+.sv-room .sv-link {
+  color: var(--sv-gold);
+}
+.sv-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px 10px;
+  border-radius: 10px;
+  background: var(--sv-glass);
+  border: 1px solid var(--sv-edge);
+  backdrop-filter: blur(8px);
+}
+.sv-theme label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sv-dim);
+  font-weight: 700;
+}
+.sv-theme-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.sv-theme select {
+  min-width: 150px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sv-edge);
+  background: var(--sv-glass-2);
+  color: var(--sv-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sv-theme select:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+.sv-room .sv-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--sv-edge);
+  background: var(--sv-glass-2);
+  color: var(--sv-ink);
+}
+.sv-room .sv-icon:hover {
+  border-color: var(--sv-gold);
+}
+
+/* mini harita: sol üst, adın altında; köşeli */
+.sv-room .sv-minimap {
+  top: 58px;
+  left: 12px;
+  right: auto;
+  width: 132px;
+  height: 132px;
+  border-radius: 10px;
+  background: var(--sv-glass);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--sv-edge);
+}
+.sv-room.w-meydan .sv-minimap {
+  border-radius: 50%;
+}
+
+/* kameralar ve yayın etiketi */
+.sv-cams {
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+.sv-cam {
+  position: relative;
+  width: 150px;
+  aspect-ratio: 16 / 10;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--sv-edge);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.sv-cam video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sv-cam span {
+  position: absolute;
+  left: 6px;
+  bottom: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+}
+.sv-onair {
+  top: 104px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--sv-glass);
+  border: 1px solid rgba(10, 200, 185, 0.45);
+  color: #8ff3ea;
+}
+
+/* paneller */
+.sv-room .sv-panel {
+  background: var(--sv-glass-2);
+  border: 1px solid var(--sv-edge);
+  border-radius: 12px;
+  color: var(--sv-ink);
+  box-shadow: 0 18px 50px rgba(2, 6, 18, 0.6);
+}
+.sv-room .sv-look-panel,
+.sv-room .sv-help,
+.sv-room .sv-people {
+  top: auto;
+  bottom: 152px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: sv-pop 0.18s var(--ease);
+}
+.sv-room .sv-people {
+  max-height: 46%;
+}
+.sv-room .sv-help dt {
+  color: var(--sv-gold);
+}
+.sv-room .sv-label {
+  color: var(--sv-dim);
+  margin-top: 10px;
+}
+.sv-room .sv-chip {
+  border-radius: 8px;
+}
+.sv-room .sv-chip.on {
+  background: color-mix(in srgb, var(--sv-gold) 22%, transparent);
+  border-color: var(--sv-gold);
+  color: var(--sv-ink);
+}
+.sv-room .sv-panel .btn {
+  margin-top: 10px;
+}
+.sv-room kbd {
+  background: rgba(240, 230, 210, 0.08);
+  border-color: rgba(240, 230, 210, 0.18);
+  color: var(--sv-ink);
+}
+
+/* "E Otur" ipucu */
+.sv-room .sv-prompt {
+  bottom: 158px;
+  background: var(--sv-glass);
+  border: 1px solid var(--sv-edge);
+  border-radius: 10px;
+  color: var(--sv-ink);
+}
+.sv-room .sv-prompt kbd {
+  background: var(--sv-gold) !important;
+  color: #0a1226;
+}
+.sv-prompt-sub {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--sv-dim);
+}
+
+/* hareket çubuğu */
+.sv-actions {
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 12px;
+  background: var(--sv-glass);
+  border: 1px solid var(--sv-edge);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sv-act {
+  position: relative;
+  min-width: 58px;
+  padding: 7px 6px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--sv-ink);
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.12s, border-color 0.12s;
+}
+.sv-act span {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sv-act kbd {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 9px !important;
+  padding: 0 4px !important;
+  line-height: 14px;
+  border-bottom-width: 1px !important;
+  opacity: 0.8;
+}
+.sv-act:hover {
+  background: rgba(240, 230, 210, 0.07);
+}
+.sv-act.on {
+  background: color-mix(in srgb, var(--sv-gold) 16%, transparent);
+  border-color: color-mix(in srgb, var(--sv-gold) 55%, transparent);
+}
+.sv-act:active svg {
+  transform: scale(0.9);
+}
+.sv-act-sep {
+  width: 1px;
+  margin: 6px 4px;
+  background: var(--sv-edge);
+}
+.sv-act-fold {
+  min-width: 30px;
+  justify-content: center;
+}
+.sv-actions.closed .sv-act-fold {
+  flex-direction: row;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+/* sağ altta sohbet: son konuşmalar, hızlı tepkiler, yazı */
+.sv-dock {
+  right: 12px;
+  bottom: 14px;
+  width: min(320px, 32%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sv-room .sv-dock .sv-log {
+  position: static;
+  width: auto;
+  pointer-events: none;
+}
+.sv-room .sv-log-line {
+  background: var(--sv-glass);
+  border: 1px solid rgba(240, 230, 210, 0.06);
+  color: var(--sv-ink);
+}
+.sv-dock-box {
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--sv-glass);
+  border: 1px solid var(--sv-edge);
+  backdrop-filter: blur(10px);
+}
+.sv-quick {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px 5px;
+}
+.sv-q {
+  width: 30px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 17px;
+  cursor: pointer;
+  transition: transform 0.12s, background 0.12s;
+}
+.sv-q:hover {
+  background: rgba(240, 230, 210, 0.08);
+  transform: translateY(-2px) scale(1.1);
+}
+.sv-say {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 2px 2px 10px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(240, 230, 210, 0.08);
+}
+.sv-say:focus-within {
+  border-color: var(--sv-gold);
+}
+.sv-say input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--sv-ink);
+  font: inherit;
+  font-size: 13px;
+  height: 32px;
+}
+.sv-say input::placeholder {
+  color: var(--sv-dim);
+}
+.sv-send {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: none;
+  background: var(--sv-gold);
+  color: #0a1226;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.sv-send:disabled {
+  background: rgba(240, 230, 210, 0.1);
+  color: var(--sv-dim);
+  cursor: default;
+}
+
+/* en altta çağrı düğmeleri */
+.sv-call {
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--sv-glass);
+  border: 1px solid var(--sv-edge);
+  backdrop-filter: blur(10px);
+}
+.sv-room .sv-vbtn {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(240, 230, 210, 0.07);
+  color: var(--sv-ink);
+}
+.sv-room .sv-vbtn:hover {
+  background: rgba(240, 230, 210, 0.15);
+}
+.sv-room .sv-vbtn.on {
+  background: color-mix(in srgb, var(--sv-gold) 25%, transparent);
+}
+.sv-room .sv-vbtn.live {
+  background: rgba(10, 200, 185, 0.25);
+  color: #8ff3ea;
+}
+.sv-room .sv-vbtn.on3d {
+  background: var(--sv-turq);
+  color: #04221f;
+  box-shadow: 0 0 16px rgba(10, 200, 185, 0.45);
+}
+.sv-room .sv-vbtn.leave {
+  background: #c0392b;
+  color: #fff;
+  width: 54px;
+}
+.sv-room .sv-vbtn.leave:hover {
+  background: #d9473a;
+}
+
+/* ses paneli ve ses görünümündeki 3D tuşu */
+.voice-panel .vp-3d.on {
+  color: #04221f !important;
+  background: var(--arc, #0ac8b9) !important;
+  box-shadow: 0 0 12px rgba(10, 200, 185, 0.4);
+}
+.voice-panel .vp-3d.busy svg {
+  animation: sv-spin3d 1s linear infinite;
+}
+@keyframes sv-spin3d {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.seg-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* dar alanda: alt çubuklar sohbet kutusunun solundaki alana ortalanır, yazılar gizlenir */
+.space-view {
+  container-type: inline-size;
+}
+@container (max-width: 1240px) {
+  .sv-actions,
+  .sv-call,
+  .sv-room .sv-prompt,
+  .sv-room .sv-look-panel,
+  .sv-room .sv-help,
+  .sv-room .sv-people {
+    left: calc((100% - 330px) / 2);
+  }
+  .sv-actions {
+    max-width: calc(100% - 360px);
+  }
+  .sv-act span {
+    display: none;
+  }
+  .sv-act {
+    min-width: 40px;
+    padding: 12px 6px 8px;
+  }
+  .sv-actions.closed .sv-act-fold span {
+    display: inline;
+  }
+  .sv-dock {
+    width: 300px;
+  }
+}
+@container (max-width: 760px) {
+  .sv-dock {
+    display: none;
+  }
+  .sv-actions,
+  .sv-call,
+  .sv-room .sv-prompt,
+  .sv-room .sv-look-panel,
+  .sv-room .sv-help,
+  .sv-room .sv-people {
+    left: 50%;
+  }
+  .sv-actions {
+    max-width: calc(100% - 24px);
+  }
+  .sv-room .sv-minimap {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+/* ses paneli iki sıra: üstte durum + oda + kes, altta eşit düğmeler (kamera, ekran, 3D) */
+.voice-panel.vp2 {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.vp2 .vp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.vp-btns {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 6px;
+}
+.vp-btns > * {
+  min-width: 0;
+}
+.vp-btn {
+  width: 100%;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.vp-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--line-2);
+  color: var(--text);
+}
+.vp-btn.on {
+  color: var(--text);
+  border-color: var(--orn, var(--accent));
+}
+.vp-btn.live {
+  color: var(--arc, var(--green));
+  border-color: color-mix(in srgb, var(--arc, var(--green)) 60%, transparent);
+}
+.voice-panel .vp-btn.vp-3d.on {
+  color: #04221f;
+  background: var(--arc, #0ac8b9);
+  border-color: transparent;
+  box-shadow: 0 0 12px rgba(10, 200, 185, 0.35);
+}
+.voice-panel .vp-btn.vp-3d.busy svg {
+  animation: sv-spin3d 1s linear infinite;
+}

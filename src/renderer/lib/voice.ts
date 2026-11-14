@@ -64,6 +64,8 @@ interface RemoteAudio {
   gain: GainNode;
   panner?: PannerNode;
   analyser?: AnalyserNode;
+  routed?: boolean;
+  routedSpatial?: boolean;
   kind: 'mic' | 'screen';
 }
 
@@ -354,14 +356,34 @@ function attachAudio(p: Peer, stream: MediaStream, kind: 'mic' | 'screen') {
     src.connect(an);
     a.analyser = an;
   }
-  if (kind === 'mic' && spatialMode) {
-    const panner = new PannerNode(ctx, { panningModel: 'HRTF', distanceModel: 'linear', refDistance: 1.6, maxDistance: 24, rolloffFactor: 1, positionY: 1.5 });
-    src.connect(gain).connect(panner).connect(master!);
-    a.panner = panner;
-    const pos = lastPos.get(p.sid);
-    if (pos) placeSource(a, pos.x, pos.z, pos.stage);
-  } else src.connect(gain).connect(master!);
+  src.connect(gain);
   p.audio.set(stream.id, a);
+  route(p.sid, a);
+}
+
+/** Mikrofon sesini 3D'deyse (konuşanın avatarı da sahnedeyse) konumsal, değilse düz çal */
+function route(sid: ID, a: RemoteAudio) {
+  if (!actx || !master) return;
+  const pos = a.kind === 'mic' && spatialMode ? lastPos.get(sid) : undefined;
+  const want = !!pos;
+  if (want === !!a.routedSpatial && a.routed) return;
+  try {
+    a.gain.disconnect();
+    a.panner?.disconnect();
+  } catch {
+    /* zaten kopuk */
+  }
+  if (want) {
+    if (!a.panner) a.panner = new PannerNode(actx, { panningModel: 'HRTF', distanceModel: 'linear', refDistance: 1.6, maxDistance: 24, rolloffFactor: 1, positionY: 1.5 });
+    a.gain.connect(a.panner).connect(master);
+    placeSource(a, pos!.x, pos!.z, pos!.stage);
+  } else a.gain.connect(master);
+  a.routed = true;
+  a.routedSpatial = want;
+}
+
+function rerouteAll(only?: ID) {
+  for (const p of peers.values()) if (!only || p.sid === only) for (const a of p.audio.values()) route(p.sid, a);
 }
 
 function detachAudio(a: RemoteAudio) {
@@ -451,13 +473,22 @@ export function spatialSource(sid: ID, x: number, z: number, stage: boolean) {
   const prev = lastPos.get(sid);
   if (prev && prev.x === x && prev.z === z && prev.stage === stage && !stage) return;
   lastPos.set(sid, { x, z, stage });
+  if (!prev) rerouteAll(sid);
   const p = peers.get(sid);
   if (p) for (const a of p.audio.values()) if (a.kind === 'mic') placeSource(a, x, z, stage);
 }
 
 export function setSpatialMode(on: boolean) {
+  if (spatialMode === on) return;
   spatialMode = on;
   if (!on) lastPos.clear();
+  rerouteAll();
+}
+
+/** avatarı 3D'den çıkan kişi yeniden düz duyulsun */
+export function spatialForget(sid: ID) {
+  if (!lastPos.delete(sid)) return;
+  rerouteAll(sid);
 }
 
 // ---------------------------------------------------------------- sinyal
@@ -601,7 +632,7 @@ export async function joinVoice(cid: ID, ch: ID) {
   if (!host) return;
   const muted = st.settings.joinMuted || V().muted;
   setV({ ch, cid, state: 'connecting', speaking: {}, media: {}, muted });
-  spatialMode = st.communities[cid]?.channels.find((x) => x.id === ch)?.type === 'space';
+  spatialMode = false;
   mySid = null;
   lastMembers = new Set();
   noiseFloor = 0.004;
@@ -673,7 +704,7 @@ function pushState() {
 
 // ---------------------------------------------------------------- kamera
 export async function startCamera() {
-  if (!V().ch || V().cam || spatialMode) return;
+  if (!V().ch || V().cam) return;
   const s = ST();
   try {
     const cam = await navigator.mediaDevices.getUserMedia({
@@ -723,7 +754,7 @@ export function screenLabelOf(res: number, fps: number) {
 }
 
 export async function startScreen(o: ScreenOpts) {
-  if (!V().ch || spatialMode) return;
+  if (!V().ch) return;
   if (V().screen) stopScreen(true);
   try {
     await window.kovan.capture.select({ id: o.sourceId, audio: o.audio });

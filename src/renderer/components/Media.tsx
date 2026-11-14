@@ -1,7 +1,8 @@
 // Ses odası: kamera ve ekran paylaşımı görüntüleri, yayın seçici.
+import { toggle3d } from '../lib/space';
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Video, VideoOff, MonitorUp, MonitorX, Maximize2, Minimize2, Expand, Settings2,
+  Box, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Video, VideoOff, MonitorUp, MonitorX, Maximize2, Minimize2, Expand, Settings2,
   RefreshCw, Monitor, AppWindow, LoaderCircle, Volume1, VolumeX, Phone,
 } from 'lucide-react';
 import { useStore, openModal, updateSettings, dismissCall, selectCommunity } from '../lib/store';
@@ -216,6 +217,13 @@ export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embe
                 {v.screen ? <MonitorX size={22} /> : <MonitorUp size={22} />}
               </button>
             </Tooltip>
+            {!c.dm && (
+              <Tooltip text="3D oda" side="top">
+                <button className="vv-btn vv-3d" onClick={() => toggle3d()} aria-label="3D oda">
+                  <Box size={21} />
+                </button>
+              </Tooltip>
+            )}
             <Tooltip text="Ses ve görüntü ayarları" side="top">
               <button className="vv-btn" onClick={() => openModal({ type: 'settings', tab: 'voice' })} aria-label="Ayarlar">
                 <Settings2 size={21} />

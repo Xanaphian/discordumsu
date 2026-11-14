@@ -8,7 +8,7 @@ import {
   updateSettings, toggleMuted, toast, selectCommunity, setHomeTab, dmList, closeDm, pendingIn, hiddenDms, isDmHidden, realCommunities, togglePinDm,
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen } from '../lib/voice';
-import { enterSpace, exitSpace } from '../lib/space';
+import { enterSpace, exitSpace, toggle3d, useSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
 import { ChannelGlyph, ChannelPic } from './OdaResmi';
@@ -51,8 +51,7 @@ function siteHost(url?: string) {
 
 /** Oda satırının altındaki kısa açıklama */
 function roomSub(ch: Channel, occupants: number, viewers: number) {
-  if (ch.type === 'voice') return occupants ? `${occupants} kişi sohbette` : 'Sesli oda · boş';
-  if (ch.type === 'space') return occupants ? `${occupants} kişi dünyada` : '3D dünya · keşfet';
+  if (isVoiceLike(ch.type)) return occupants ? `${occupants} kişi sohbette` : 'Sesli oda · boş';
   const host = siteHost(ch.url);
   const where = host && host !== ch.name ? host : ch.siteTitle && ch.siteTitle !== ch.name ? ch.siteTitle : 'Site odası';
   return viewers ? `${where} · ${viewers} kişi geziyor` : `${where} · birlikte gez`;
@@ -108,10 +107,10 @@ const ChannelRow = memo(function ChannelRow({
   const room = ch.type === 'voice' || ch.type === 'space' || ch.type === 'site';
   const occupants = useStore((s) => (isVoiceLike(ch.type) ? s.voice[ch.id]?.length || 0 : 0));
   const viewers = useSite((s) => (ch.type === 'site' ? new Set((s.viewers[ch.id] || []).map((v) => v.userId)).size : 0));
-  const live = useVoice((v) => ch.type === 'voice' && (useStore.getState().voice[ch.id] || []).some((m) => v.speaking[m.userId] && !m.muted));
+  const live = useVoice((v) => isVoiceLike(ch.type) && (useStore.getState().voice[ch.id] || []).some((m) => v.speaking[m.userId] && !m.muted));
   const sub = room ? roomSub(ch, occupants, viewers) : ch.image && ch.topic ? ch.topic.replace(/\s+/g, ' ').slice(0, 80) : '';
   const click = () => {
-    if (ch.type === 'voice' && !inVoice) tryJoinVoice(c, ch);
+    if (isVoiceLike(ch.type) && !inVoice) tryJoinVoice(c, ch);
     selectChannel(c.id, ch.id);
   };
   const menu = (e: React.MouseEvent) =>
@@ -120,17 +119,21 @@ const ChannelRow = memo(function ChannelRow({
       ...(ch.type === 'text' || ch.type === 'announce' ? [{ label: 'Ayrı pencerede aç', onClick: () => openPopout(c, ch) }] : []),
       ...(isVoiceLike(ch.type)
         ? [
-            inVoice
-              ? { label: ch.type === 'space' ? 'Odadan çık' : 'Bağlantıyı kes', onClick: () => (ch.type === 'space' ? exitSpace() : leaveVoice()) }
-              : {
-                  label: ch.type === 'space' ? 'Odaya gir' : 'Katıl',
-                  onClick: () => {
-                    if (ch.type === 'space') {
+            inVoice ? { label: 'Bağlantıyı kes', onClick: () => leaveVoice() } : { label: 'Katıl', onClick: () => tryJoinVoice(c, ch) },
+            ...(c.dm
+              ? []
+              : [
+                  {
+                    label: useSpace.getState().ch === ch.id ? '3D görünümü kapat' : '3D görünümde katıl',
+                    onClick: () => {
+                      if (useSpace.getState().ch === ch.id) return exitSpace();
+                      const why = voiceBlocked(c, ch, useStore.getState().me.id);
+                      if (why) return void toast(why, 'err');
                       selectChannel(c.id, ch.id);
                       enterSpace(c.id, ch.id);
-                    } else tryJoinVoice(c, ch);
+                    },
                   },
-                },
+                ]),
           ]
         : []),
       ...(!isVoiceLike(ch.type)
@@ -205,14 +208,13 @@ const ChannelRow = memo(function ChannelRow({
         ) : (
           <span className="ch-name">{ch.name}</span>
         )}
-        {ch.type === 'voice' && occupants > 0 && (
+        {isVoiceLike(ch.type) && occupants > 0 && (
           <span className="room-eq" aria-hidden>
             <i />
             <i />
             <i />
           </span>
         )}
-        {ch.type === 'space' && <span className="room-tag">3D</span>}
         {ch.type === 'site' && <span className="room-tag">WEB</span>}
         {ch.overwrites?.some((o) => o.id === c.id && o.deny & Perm.VIEW_CHANNEL) && <Lock size={12} className="ch-lock" aria-label="Özel kanal" />}
         {isVoiceLike(ch.type) && ch.userLimit ? <span className="ch-limit">{(useStore.getState().voice[ch.id] || []).length}/{ch.userLimit}</span> : null}
@@ -398,35 +400,55 @@ export function ChannelSidebar({ c }: { c: Community }) {
 export function VoicePanel() {
   const v = useVoice();
   const c = useStore((s) => (v.cid ? s.communities[v.cid] : undefined));
+  const in3d = useSpace((s) => !!v.ch && s.ch === v.ch && s.status !== 'idle');
+  const joining3d = useSpace((s) => s.status === 'joining');
   if (!v.ch || !c) return null;
   const ch = c.channels.find((x) => x.id === v.ch);
+  const media = isVoiceLike(ch?.type || 'text') || !!c.dm;
   return (
-    <div className="voice-panel">
-      <div className="vp-info" onClick={() => selectChannel(c.id, v.ch!)}>
-        <div className={cx('vp-state', v.state)}>
-          <Signal size={15} /> {v.state === 'connected' ? 'Ses bağlı' : 'Bağlanıyor…'}
+    <div className="voice-panel vp2">
+      <div className="vp-head">
+        <div className="vp-info" onClick={() => selectChannel(c.id, v.ch!)}>
+          <div className={cx('vp-state', v.state)}>
+            <Signal size={15} /> {v.state === 'connected' ? (in3d ? '3D odadasın' : 'Ses bağlı') : 'Bağlanıyor…'}
+          </div>
+          <div className="vp-where">{c.dm ? `@${useStore.getState().users[c.dm]?.name || c.name} ile arama` : `${ch?.name} / ${c.name}`}</div>
         </div>
-        <div className="vp-where">{c.dm ? `@${useStore.getState().users[c.dm]?.name || c.name} ile arama` : `${ch?.name} / ${c.name}`}</div>
+        <Tooltip text="Bağlantıyı kes" side="top">
+          <button className="icon-btn danger" onClick={() => leaveVoice()} aria-label="Bağlantıyı kes">
+            <PhoneOff size={18} />
+          </button>
+        </Tooltip>
       </div>
-      {(ch?.type === 'voice' || !!c.dm) && (
-        <>
+      {media && (
+        <div className="vp-btns">
           <Tooltip text={v.cam ? 'Kamerayı kapat' : 'Kamerayı aç'} side="top">
-            <button className={cx('icon-btn', v.cam && 'on')} onClick={toggleCamera} aria-label="Kamera">
-              {v.cam ? <Video size={18} /> : <VideoOff size={18} />}
+            <button className={cx('vp-btn', v.cam && 'on')} onClick={toggleCamera} aria-label="Kamera">
+              {v.cam ? <Video size={17} /> : <VideoOff size={17} />}
             </button>
           </Tooltip>
           <Tooltip text={v.screen ? 'Yayını durdur' : 'Ekran paylaş'} side="top">
-            <button className={cx('icon-btn', v.screen && 'live')} onClick={() => (v.screen ? stopScreen() : openModal({ type: 'screenShare' }))} aria-label="Ekran paylaş">
-              {v.screen ? <MonitorX size={18} /> : <MonitorUp size={18} />}
+            <button className={cx('vp-btn', v.screen && 'live')} onClick={() => (v.screen ? stopScreen() : openModal({ type: 'screenShare' }))} aria-label="Ekran paylaş">
+              {v.screen ? <MonitorX size={17} /> : <MonitorUp size={17} />}
             </button>
           </Tooltip>
-        </>
+          {!c.dm && ch && (
+            <Tooltip text={in3d ? '3D görünümü kapat' : '3D oda'} side="top">
+              <button
+                className={cx('vp-btn vp-3d', in3d && 'on', joining3d && 'busy')}
+                onClick={() => {
+                  if (!in3d) selectChannel(c.id, ch.id);
+                  toggle3d();
+                }}
+                aria-label="3D oda"
+                aria-pressed={in3d}
+              >
+                <Box size={17} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
       )}
-      <Tooltip text="Bağlantıyı kes" side="top">
-        <button className="icon-btn danger" onClick={() => leaveVoice()} aria-label="Bağlantıyı kes">
-          <PhoneOff size={18} />
-        </button>
-      </Tooltip>
     </div>
   );
 }

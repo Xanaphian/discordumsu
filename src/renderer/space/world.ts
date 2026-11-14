@@ -1,4 +1,4 @@
-// "Kovan Meydanı" haritası: altıgen petek zeminli meydan, sahne, standlar, kamp ateşi, gölet, ağaçlar.
+// "Meydan" dünyası: taş döşemeli açık meydan, sahne, standlar, kamp ateşi, gölet, ağaçlar.
 import * as THREE from 'three';
 
 export interface Collider {
@@ -33,6 +33,21 @@ export interface World {
   bounds: number;
   stage: { x: number; z: number; r: number };
   height(x: number, z: number): number;
+  /** kapalı dünyalar: dikdörtgen sınır (yoksa `bounds` yarıçaplı daire) */
+  clamp?(p: { x: number; z: number }): void;
+  /** giriş noktası (yoksa sunucunun verdiği) */
+  spawn?(): { x: number; z: number; ry: number };
+  /** kameranın çıkamayacağı kutu (duvarlar) */
+  camLimit?: { minX: number; maxX: number; minZ: number; maxZ: number; maxY: number };
+  /** gökyüzü, sis ve genel ışık (yoksa açık hava değerleri) */
+  light?(night: boolean): { bg: string; fog: [number, number]; hemi: [string, string, number]; sun: [string, number] };
+  /** duvardaki ekrana yayın ver (null: boş ekran) */
+  setScreen?(v: HTMLVideoElement | null, label?: string): void;
+  /** mini harita */
+  drawMap?(g: CanvasRenderingContext2D, P: (x: number, z: number) => [number, number], k: number): void;
+  mapScale?: number;
+  /** dolu oturaklar (işaretler, masa tabelaları) */
+  seatOccupancy?(occ: Set<number>, me: { x: number; z: number } | null): void;
   setNight(night: boolean): void;
   update(t: number, dt: number): void;
   dispose(): void;
@@ -112,7 +127,7 @@ function stripeTexture(color: string) {
   return t;
 }
 
-export function buildWorld(quality: 'low' | 'high'): World {
+export function buildMeydan(quality: 'low' | 'high'): World {
   const group = new THREE.Group();
   const colliders: Collider[] = [];
   const seats: Seat[] = [];
@@ -150,7 +165,8 @@ export function buildWorld(quality: 'low' | 'high'): World {
       if (Math.hypot(x, z) < PLAZA) tiles.push([x, z]);
     }
   const tileMesh = new THREE.InstancedMesh(tileGeo, lambert('#ffffff'), tiles.length);
-  const shades = ['#e9b44c', '#f0c262', '#dfa63e', '#f3cd78', '#e6ac45'].map((c) => new THREE.Color(c));
+  // taş döşeme (v1.31: bal sarısı petek yerine sade, sıcak gri taş)
+  const shades = ['#b7ae9c', '#c2baa8', '#aaa190', '#beb5a2', '#b2a996'].map((c) => new THREE.Color(c));
   tiles.forEach(([x, z], i) => {
     m4.compose(p3.set(x, 0.07, z), q.setFromEuler(e.set(0, Math.PI / 6, 0)), s3.set(1, 1, 1));
     tileMesh.setMatrixAt(i, m4);
@@ -182,34 +198,23 @@ export function buildWorld(quality: 'low' | 'high'): World {
   {
     const g = boardCanvas.getContext('2d')!;
     const grd = g.createLinearGradient(0, 0, 0, 384);
-    grd.addColorStop(0, '#2a1b0e');
-    grd.addColorStop(1, '#120b05');
+    grd.addColorStop(0, '#15223f');
+    grd.addColorStop(1, '#0a1226');
     g.fillStyle = grd;
     g.fillRect(0, 0, 1024, 384);
-    // petek deseni
-    g.strokeStyle = 'rgba(245,165,36,0.25)';
-    g.lineWidth = 3;
-    for (let y = 0; y < 8; y++)
-      for (let x = 0; x < 22; x++) {
-        const cx = x * 52 + (y % 2) * 26, cy = y * 45 + 10;
-        g.beginPath();
-        for (let k = 0; k < 6; k++) {
-          const a = (Math.PI / 3) * k + Math.PI / 6;
-          g.lineTo(cx + Math.cos(a) * 28, cy + Math.sin(a) * 28);
-        }
-        g.closePath();
-        g.stroke();
-      }
-    g.fillStyle = '#f5a524';
-    g.font = '900 120px Inter, "Segoe UI", sans-serif';
+    g.strokeStyle = 'rgba(200,170,110,0.55)';
+    g.lineWidth = 4;
+    g.strokeRect(18, 18, 988, 348);
+    g.fillStyle = '#f0e6d2';
+    g.font = '400 118px Marcellus, serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.shadowColor = '#f5a524';
-    g.shadowBlur = 30;
-    g.fillText('KOVAN SAHNESİ', 512, 170);
+    g.shadowColor = 'rgba(10,200,185,.6)';
+    g.shadowBlur = 24;
+    g.fillText('SAHNE', 512, 165);
     g.shadowBlur = 0;
-    g.font = '600 40px Inter, "Segoe UI", sans-serif';
-    g.fillStyle = '#ffe2a8';
+    g.font = '600 40px "Source Sans 3", "Segoe UI", sans-serif';
+    g.fillStyle = '#c8aa6e';
     g.fillText('Sahnedekini herkes duyar', 512, 290);
   }
   const boardTex = track(new THREE.CanvasTexture(boardCanvas));

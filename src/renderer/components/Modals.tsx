@@ -230,9 +230,8 @@ function InviteModal({ cid }: { cid: string }) {
 
 const TYPES: { t: ChannelType; label: string; sub: string; icon: React.ReactNode }[] = [
   { t: 'text', label: 'Metin', sub: 'Mesaj, görsel, emoji ve dosya gönder', icon: <Hash size={22} /> },
-  { t: 'voice', label: 'Ses', sub: 'Sesli sohbet için birlikte takıl', icon: <Volume2 size={22} /> },
+  { t: 'voice', label: 'Ses', sub: 'Sesli sohbet için birlikte takıl; ses panelindeki 3D tuşuyla avatarlı odaya geç', icon: <Volume2 size={22} /> },
   { t: 'announce', label: 'Duyuru', sub: 'Sadece yöneticilerin yazabildiği kanal', icon: <Megaphone size={22} /> },
-  { t: 'space', label: '3D Oda', sub: 'Avatarlarla dolaşılan, yakınlık sesli meydan', icon: <Box size={22} /> },
   { t: 'site', label: 'Site Odası', sub: 'Bir siteyi (ör. xanaphian.com) birlikte gez, yanında sohbet et', icon: <Globe size={22} /> },
 ];
 /** v1.28 topluluk araçları */
@@ -433,7 +432,7 @@ function QuickSwitcher() {
       }
       all.push({ key: c.id, label: c.name, sub: 'Topluluk', kind: 'comm', cid: c.id, unread: false });
       for (const ch of c.channels)
-        all.push({ key: ch.id, label: ch.name, sub: c.name, kind: ch.type === 'voice' ? 'voice' : ch.type === 'space' ? 'space' : ch.type === 'site' ? 'site' : 'ch', cid: c.id, ch: ch.id, unread: !!lastIds[ch.id] && lastIds[ch.id] > (read[ch.id] || ''), tool: isToolChannel(ch.type) ? ch.type : undefined });
+        all.push({ key: ch.id, label: ch.name, sub: c.name, kind: ch.type === 'voice' || ch.type === 'space' ? 'voice' : ch.type === 'site' ? 'site' : 'ch', cid: c.id, ch: ch.id, unread: !!lastIds[ch.id] && lastIds[ch.id] > (read[ch.id] || ''), tool: isToolChannel(ch.type) ? ch.type : undefined });
     }
     const n = q.toLocaleLowerCase('tr').replace(/^[#@*!]/, '');
     const f = n ? all.filter((x) => x.label.toLocaleLowerCase('tr').includes(n)) : all.filter((x) => x.unread).concat(all.filter((x) => !x.unread && x.kind === 'ch'));

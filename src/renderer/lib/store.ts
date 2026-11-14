@@ -569,7 +569,8 @@ function upsertCommunity(host: string, c: Community, lastIds?: Record<ID, ID>) {
     if (settings !== s.settings) persistSettings(settings);
     let chanByComm = s.chanByComm;
     const curCh = chanByComm[c.id];
-    if (!curCh || !c.channels.some((x) => x.id === curCh && !isVoiceLike(x.type))) {
+    // seçili kanal hâlâ varsa kal (ses odası da olsa: topluluk güncellenince ses/3D görünümünden atılmasın)
+    if (!curCh || !c.channels.some((x) => x.id === curCh)) {
       const first = sortedChannels(c).find((x) => !isVoiceLike(x.type));
       chanByComm = { ...chanByComm, [c.id]: first?.id || '' };
     }

@@ -9,7 +9,7 @@ import os from 'node:os';
 import { WebSocketServer } from 'ws';
 import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
-  Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook,
+  Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook, cleanRoom3d,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
   hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode,
   DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN, cleanChannelImage,
@@ -171,7 +171,7 @@ export interface CommunityExport {
   files: { id: string; mime: string; size: number }[];
 }
 
-type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number; m112?: number };
+type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number; m112?: number; m131?: number };
 
 const MAX_TIMEOUT_MIN = 28 * 24 * 60;
 const LINK_RE = /(https?:\/\/|www\.)\S+/i;
@@ -312,6 +312,13 @@ export class Hub {
       if (owner && c.name === `${owner} Kovanı`) c.name = `${owner} Topluluğu`;
       this.saveComm(c.id);
     }
+    // v1.31: 3D oda ayrı tür değil; eski 3D odalar kendi dünyasıyla (meydan) ses odası olur, adı/izinleri/resmi aynı kalır
+    if (!c.m131) {
+      c.m131 = 1;
+      c.m11 = 1; // karşılama meydanı yeniden eklenmesin
+      for (const ch of c.channels) if (ch.type === 'space') (ch.type = 'voice'), (ch.room3d = 'meydan');
+      this.saveComm(c.id);
+    }
     // v1.4: ayrıntılı yetkiler. Eskiden herkesin yapabildiği temel işler @herkes rolüne yazılır.
     if ((c.pv || 0) < 2) {
       c.pv = 2;
@@ -323,11 +330,11 @@ export class Hub {
 
   /** v1.1: karşılama lobilerine 3D oda ekle */
   private migrate11(c: StoredCommunity) {
-    if (!c.members.some((m) => m.userId === BOT_ID) || c.channels.some((x) => x.type === 'space') || c.m11) return;
+    if (!c.members.some((m) => m.userId === BOT_ID) || c.channels.some((x) => x.type === 'space' || x.room3d) || c.m11) return;
     c.m11 = 1;
     const cat: Category = { id: makeId(), name: '3D Odalar', position: c.categories.length };
     c.categories.push(cat);
-    const ch: Channel = { id: makeId(), name: 'Meydan', type: 'space', categoryId: cat.id, position: 0, topic: 'Avatarınla dolaş, yakındakilerle sesli konuş' };
+    const ch: Channel = { id: makeId(), name: 'Meydan', type: 'voice', room3d: 'meydan', categoryId: cat.id, position: 0, topic: 'Ses panelindeki 3D tuşuyla avatarınla dolaş' };
     c.channels.push(ch);
     this.chanToComm.set(ch.id, c.id);
     const welcome = c.channels.find((x) => x.type === 'announce');
@@ -741,7 +748,7 @@ export class Hub {
   }
 
   private snapshot(c: StoredCommunity, uid?: ID, users = this.commUsers(c)): Community {
-    const { bans: _b, audit: _a, m11: _m, m112: _m2, ...rest } = c;
+    const { bans: _b, audit: _a, m11: _m, m112: _m2, m131: _m3, ...rest } = c;
     const out: Community = { ...rest, users };
     if (uid) {
       out.channels = c.channels.filter((ch) => this.canView(c, uid, ch));
@@ -1682,12 +1689,13 @@ export class Hub {
         if (!c || c.channels.length >= 200) return;
         const src = f.clone ? c.channels.find((x) => x.id === f.clone) : undefined;
         const want = src ? src.type : f.type;
-        const type: ChannelType = isVoiceLike(want) || want === 'announce' || want === 'site' || isToolChannel(want) ? want : 'text';
+        // eski istemciler hâlâ "3D oda" isteyebilir: meydan dünyalı ses odası olur
+        const type: ChannelType = want === 'space' ? 'voice' : isVoiceLike(want) || want === 'announce' || want === 'site' || isToolChannel(want) ? want : 'text';
         const catId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
         const ch: Channel = {
           id: makeId(),
           name: hasFreeName(type)
-            ? cleanName(f.name, 48) || (type === 'space' ? '3D Oda' : type === 'site' ? siteHost(cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL) || 'Site' : isToolChannel(type) ? TOOL_NAMES[type] : 'Ses')
+            ? cleanName(f.name, 48) || (want === 'space' ? 'Meydan' : type === 'site' ? siteHost(cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL) || 'Site' : isToolChannel(type) ? TOOL_NAMES[type] : 'Ses')
             : channelSlug(f.name),
           type,
           categoryId: catId,
@@ -1699,6 +1707,7 @@ export class Hub {
           if (src.userLimit) ch.userLimit = src.userLimit;
           if (src.overwrites?.length) ch.overwrites = src.overwrites.map((o) => ({ ...o }));
           if (src.image) ch.image = src.image;
+          if (src.room3d) ch.room3d = src.room3d;
         } else if (f.private) {
           ch.overwrites = [
             { id: c.id, type: 'role', allow: 0, deny: Perm.VIEW_CHANNEL },
@@ -1709,6 +1718,7 @@ export class Hub {
           const img = cleanChannelImage(f.image);
           if (img) ch.image = img;
         }
+        if (want === 'space') ch.room3d = 'meydan';
         if (type === 'site') {
           ch.url = cleanSiteUrl(src ? src.url : f.url) || DEFAULT_SITE_URL;
           if (src?.url === ch.url && src.icon) (ch.icon = src.icon), (ch.siteTitle = src.siteTitle), (ch.metaAt = src.metaAt);
@@ -1771,6 +1781,14 @@ export class Hub {
             if (img !== ch.image) changed.push(img ? 'resim' : 'resim kaldırıldı');
             if (img) ch.image = img;
             else delete ch.image;
+          }
+        }
+        if (f.room3d !== undefined && isVoiceLike(ch.type)) {
+          const w = cleanRoom3d(f.room3d);
+          if (w && w !== (ch.room3d || 'salon')) {
+            changed.push(`3D dünya: ${w === 'meydan' ? 'Meydan' : 'Salon'}`);
+            if (w === 'salon') delete ch.room3d;
+            else ch.room3d = w;
           }
         }
         if (f.categoryId !== undefined) ch.categoryId = f.categoryId && c.categories.some((x) => x.id === f.categoryId) ? f.categoryId : null;
@@ -2070,8 +2088,8 @@ export class Hub {
       }
       case 'sp.join': {
         const r = this.commOfChannel(s, f.ch);
-        if (!r || r.channel.type !== 'space') return;
-        const deny = this.voiceDenied(r.c, r.channel, uid, s.space === f.ch);
+        if (!r || !isVoiceLike(r.channel.type)) return this.send(s, { t: 'err', msg: '3D görünüm bu odada açılamadı.' });
+        const deny = this.voiceDenied(r.c, r.channel, uid, s.space === f.ch || s.voice?.ch === f.ch);
         if (deny) return this.send(s, { t: 'err', msg: deny });
         if (s.space) this.leaveSpace(s);
         s.space = f.ch;
@@ -2372,6 +2390,7 @@ export class Hub {
     if (!s.voice) return;
     const ch = s.voice.ch;
     s.voice = null;
+    if (s.space === ch) this.leaveSpace(s); // sesten çıkan 3D görünümden de çıkar
     const room = this.voiceRooms.get(ch);
     if (!room) return;
     room.delete(s.sid);
@@ -2514,8 +2533,7 @@ export class Hub {
       const voice = cat('Ses Kanalları');
       chan('Lobi', 'voice', voice);
       chan('Oyun', 'voice', voice);
-      const space = cat('3D Odalar');
-      chan('Meydan', 'space', space, 'Avatarınla dolaş, yakındakilerle sesli konuş');
+      chan('Meydan', 'voice', voice, 'Ses panelindeki 3D tuşuyla avatarınla dolaş').room3d = 'meydan';
       const sites = cat('Site Odaları');
       chan('xanaphian.com', 'site', sites, 'Siteyi birlikte gez, yanında sohbet et').url = DEFAULT_SITE_URL;
     } else {
