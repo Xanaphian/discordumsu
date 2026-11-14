@@ -500,7 +500,7 @@ function CommCard({ c }: { c: Community }) {
   return (
     <button className={cx('ah-comm', u?.unread && 'unread')} onClick={() => selectCommunity(c.id)} style={{ ['--cc' as any]: c.color }}>
       {c.profile?.banner ? (
-        <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} className="ah-comm-ban" />
+        <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} refW={560} className="ah-comm-ban" />
       ) : (
         <span className="ah-comm-ban" style={{ background: `linear-gradient(135deg, ${c.color}, color-mix(in srgb, ${c.color} 25%, #000))` }} />
       )}

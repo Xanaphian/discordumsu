@@ -11,6 +11,7 @@ import { BotsTab } from './Bots';
 import { CommunityProfileEditor } from './CommunityProfile';
 import { StickersTab } from './CikartmaAyarlari';
 import { JoinGuardTab, ListingTab } from './ToplulukAraclari';
+import { cropImage, ICON_CROP } from './Kirpma';
 
 const ROLE_ICONS = ['⭐', '🛡️', '🔨', '👑', '🏆', '💎', '🔥', '🎮', '🎨', '🎵', '🌙', '🤖', '🌱', '⚡', '🦀', '❤️'];
 
@@ -642,7 +643,12 @@ function OverviewTab({ c }: { c: Community }) {
           <CommunityIcon c={c} size={96} />
           <span className="iu-hover">Değiştir</span>
         </button>
-        <input ref={file} hidden type="file" accept="image/*" onChange={async (e) => e.target.files?.[0] && cmd(cid, { t: 'comm.update', cid, icon: await resizeImage(e.target.files[0], 160) })} />
+        <input ref={file} hidden type="file" accept="image/*" onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          const r = f && (await cropImage(f, ICON_CROP));
+          if (r) cmd(cid, { t: 'comm.update', cid, icon: r.image });
+        }} />
         <div className="overview-form">
           <label className="field">
             <span>Topluluk adı</span>
