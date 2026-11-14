@@ -3,13 +3,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { NOISE_MODES, noiseModeOf } from '../lib/ses/gurultu';
 import {
   ChevronDown, ChevronRight, Hash, Volume2, Megaphone, Box, Plus, Settings, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, UserPlus,
-  Signal, AudioWaveform, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin, LayoutGrid, MessagesSquare,
+  Signal, AudioWaveform, WifiOff, Bell, Lock, Video, VideoOff, MonitorUp, MonitorX, Globe, Users, X, Home, Pin, LayoutGrid, MessagesSquare, Sparkles,
 } from 'lucide-react';
 import {
   useStore, selectChannel, openModal, openMenu, markRead, markCommunityRead, cmd, confirmDialog, leaveCommunity, deleteCommunity, setStatus,
   updateSettings, toggleMuted, toast, selectCommunity, setHomeTab, dmList, closeDm, pendingIn, hiddenDms, isDmHidden, realCommunities, togglePinDm,
 } from '../lib/store';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, stopScreen, voiceBlocked } from '../lib/voice';
+import { yeniKayitVar } from '../lib/yenilikler';
 import { enterSpace, exitSpace, toggle3d, useSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
@@ -721,7 +722,7 @@ function HomeSidebar() {
             <span className="ch-icon"><MessagesSquare size={18} /></span>
             <span className="ch-name">Sosyal</span>
           </button>
-          <button className={cx('ch-row', onHome && homeTab !== 'home' && homeTab !== 'communities' && 'active')} onClick={() => setHomeTab(requests ? 'pending' : 'online')}>
+          <button className={cx('ch-row', onHome && homeTab !== 'home' && homeTab !== 'communities' && homeTab !== 'news' && 'active')} onClick={() => setHomeTab(requests ? 'pending' : 'online')}>
             <span className="ch-icon"><Users size={18} /></span>
             <span className="ch-name">Arkadaşlar</span>
             {requests > 0 && <span className="badge">{requests}</span>}
@@ -729,6 +730,11 @@ function HomeSidebar() {
           <button className={cx('ch-row', onHome && homeTab === 'communities' && 'active')} onClick={() => setHomeTab('communities')}>
             <span className="ch-icon"><LayoutGrid size={18} /></span>
             <span className="ch-name">Topluluklar</span>
+          </button>
+          <button className={cx('ch-row', onHome && homeTab === 'news' && 'active')} onClick={() => setHomeTab('news')}>
+            <span className="ch-icon"><Sparkles size={18} /></span>
+            <span className="ch-name">Son eklenenler</span>
+            {!(onHome && homeTab === 'news') && yeniKayitVar() && <span className="se-side-dot" title="Yeni sürüm notu" />}
           </button>
         </div>
         <div className="cat-row static">
