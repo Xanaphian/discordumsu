@@ -1758,3 +1758,117 @@
 .modal.lfg-dialog.g-pubg .modal-head h2 {
   font-family: inherit;
 }
+
+/* ---- v1.37: LoL lobisi istemciden okunur (rol adın altında) ---- */
+.bn-ini {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #1e2d3d, #091428);
+  color: #f0e6d2;
+  font-family: 'Marcellus', serif;
+  font-size: 20px;
+}
+.lfg-banners.lobby .bn {
+  padding-bottom: 34px;
+}
+.lfg-banners.lobby div.bn {
+  cursor: default;
+}
+.bn-pos {
+  margin-top: -2px;
+  padding: 2px 9px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--g-b, var(--accent)) 60%, transparent);
+  background: color-mix(in srgb, var(--g-b, var(--accent)) 14%, rgba(0, 0, 0, 0.4));
+  color: color-mix(in srgb, var(--g-b, var(--accent)) 70%, #fff);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  line-height: 1.5;
+}
+.bn-pos.none {
+  border-color: transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+}
+.bn.wait .bn-frame {
+  opacity: 0.75;
+}
+.bn.wait .bn-role {
+  color: #0ac8b9;
+}
+.lfg-lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lfg-lm {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 10px;
+  border: 1px solid #463714;
+  background: linear-gradient(90deg, rgba(200, 170, 110, 0.1), rgba(1, 10, 19, 0.45));
+}
+.lfg-lm .bn-ini {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  box-shadow: 0 0 0 1px #c8aa6e, 0 0 0 3px #010a13, 0 0 0 4px #785a28;
+}
+.lfg-lm.empty {
+  border-style: dashed;
+  border-color: rgba(10, 200, 185, 0.35);
+  background: rgba(1, 10, 19, 0.35);
+}
+.lfg-lm.empty .bn-ini {
+  color: #0ac8b9;
+  background: #010a13;
+  box-shadow: inset 0 0 0 1px rgba(10, 200, 185, 0.55);
+}
+.lfg-lm-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.lfg-lm-name b {
+  font-family: 'Marcellus', serif;
+  font-weight: 400;
+  font-size: 14.5px;
+  color: #f0e6d2;
+  letter-spacing: 0.3px;
+}
+.lfg-lm-name small {
+  font-size: 11.5px;
+  color: #a09b8c;
+}
+.lfg-lm.empty .lfg-lm-name b {
+  color: #a09b8c;
+}
+.lfg-lead {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #010a13;
+  background: #c8aa6e;
+  padding: 1px 6px;
+}
+.bn-pos2 {
+  margin-top: -5px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.5);
+}

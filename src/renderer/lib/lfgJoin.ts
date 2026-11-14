@@ -2,7 +2,7 @@
 // diğer oyunlarda oyun içi adı kopyalama. Oyun hesapları profildeki "Bağlı hesaplar"dan okunur.
 import type { ID, UserPublic } from '../../shared/protocol';
 import { useStore, toast, editMessage } from './store';
-import { parseCard, lfgSlots, lfgClosed, encodeCard, type LfgCard } from './cards';
+import { parseCard, lfgSlots, lfgClosed, encodeCard, type LfgCard, type LobbyInfo } from './cards';
 import { useActs } from './activity';
 import { lfgGameOf } from './lfgGames';
 
@@ -32,7 +32,7 @@ export function accountFor(uid: ID, gk?: string): string | undefined {
 
 const api = () => (window as any).kovan?.game as
   | {
-      lolState: () => Promise<{ running: boolean; me?: string; lobby: boolean; lobbyId?: string; phase?: string }>;
+      lolState: () => Promise<{ running: boolean; me?: string; lobby: boolean; lobbyId?: string; phase?: string; info?: LobbyInfo }>;
       lolInvite: (r: string) => Promise<{ ok: boolean; error?: string }>;
       lolAccept: (r: string) => Promise<{ ok: boolean; error?: string }>;
       steamJoin: (id: string) => Promise<boolean>;
@@ -92,6 +92,13 @@ async function invite(uid: ID) {
 const PLAYING = new Set(['Matchmaking', 'ReadyCheck', 'ChampSelect', 'GameStart', 'InProgress', 'Reconnect', 'WaitingForStats', 'PreEndOfGame', 'EndOfGame']);
 const miss = new Map<ID, number>();
 
+/** Lobi bilgisinden LoL ilanı: kip, kişi sınırı ve üyeler istemciden gelir */
+export function lobbyCard(base: Partial<LfgCard>, info: LobbyInfo): LfgCard {
+  const card: LfgCard = { ...base, k: 'lfg', g: 'League of Legends', gk: 'lol', m: info.mode, s: Array.from({ length: info.size }, () => ''), lm: info.members };
+  delete card.own;
+  return card;
+}
+
 async function watchLobbies() {
   const s = useStore.getState();
   const me = s.me.id;
@@ -116,6 +123,11 @@ async function watchLobbies() {
       if (lol === undefined) lol = (await api()?.lolState().catch(() => null)) ?? null;
       if (!lol) continue; // istemciyle konuşulamıyor: karar verme
       ok = (lol.lobby && (!x.card.lb || lol.lobbyId === x.card.lb)) || PLAYING.has(lol.phase || '');
+      // lobi aynıysa ilandaki kişileri, rolleri ve kipi istemciyle eşitle
+      if (ok && lol.lobby && lol.info && x.card.lm && (!x.card.lb || lol.lobbyId === x.card.lb)) {
+        const next = lobbyCard(x.card, lol.info);
+        if (JSON.stringify([next.m, next.s.length, next.lm]) !== JSON.stringify([x.card.m, x.card.s.length, x.card.lm])) editMessage(x.ch, x.m.id, encodeCard(next));
+      }
     } else ok = !!gk && live === gk;
     if (ok) {
       miss.delete(x.m.id);
