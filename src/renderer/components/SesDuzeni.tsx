@@ -1,5 +1,5 @@
 // Ses odası ana görünümü için deneme düzenleri (seçim turu): 1 Sahne, 2 Lobi dizilişi, 3 Yuvarlak masa, 4 Kadro listesi, 5 Mozaik.
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { MicOff, HeadphoneOff, Volume1, VolumeX } from 'lucide-react';
 import { useStore, openMenu } from '../lib/store';
@@ -12,7 +12,7 @@ import { bannerBackground } from './profile/look';
 import type { ProfileExtra } from '../../shared/profile';
 import type { Channel, Community, ID, VoiceMember } from '../../shared/protocol';
 
-export const DESIGNS = ['', 'Sahne', 'Lobi dizilişi', 'Yuvarlak masa', 'Kadro listesi', 'Mozaik'] as const;
+export const DESIGNS = ['', 'Sahne', 'Lobi dizilişi', 'Yuvarlak masa', 'Kadro listesi', 'Mozaik', 'Podyum', 'Vitrin', 'Ekolayzır', 'Pano', 'Yörünge', 'Akordeon', 'Baloncuklar', 'Madalyon kemeri', 'Konuşma akışı', 'Yalın'] as const;
 
 const read = () => {
   try {
@@ -312,5 +312,388 @@ export function DesignStage({ c, ch, n, people }: { c: Community; ch: Channel; n
   if (n === 2) return <Lobi c={c} ps={ps} />;
   if (n === 3) return <Masa c={c} ch={ch} ps={ps} />;
   if (n === 4) return <Kadro c={c} ch={ch} ps={ps} />;
-  return <Mozaik c={c} ps={ps} />;
+  if (n === 5) return <Mozaik c={c} ps={ps} />;
+  if (n === 6) return <Podyum c={c} ps={ps} />;
+  if (n === 7) return <Vitrin c={c} ps={ps} />;
+  if (n === 8) return <Ekolayzir c={c} ps={ps} />;
+  if (n === 9) return <Pano c={c} ps={ps} />;
+  if (n === 10) return <Yorunge c={c} ps={ps} />;
+  if (n === 11) return <Akordeon c={c} ps={ps} />;
+  if (n === 12) return <Baloncuk c={c} ps={ps} />;
+  if (n === 13) return <Madalyon c={c} ps={ps} />;
+  if (n === 14) return <Akis c={c} ps={ps} />;
+  return <Yalin c={c} ps={ps} />;
+}
+
+/** Son konuşan (yoksa ilk kişi): Sahne, Vitrin, Yörünge, Yalın kullanır */
+function useHero(ps: P[]) {
+  const last = useRef<ID | null>(null);
+  const talker = ps.find((p) => p.talk);
+  if (talker) last.current = talker.uid;
+  return ps.find((p) => p.uid === last.current) || ps[0];
+}
+
+// ---------------------------------------------------------------- 6: Podyum
+function Podyum({ c, ps }: { c: Community; ps: P[] }) {
+  const on = ps.filter((p) => !p.m.muted && !p.m.deaf);
+  const off = ps.filter((p) => p.m.muted || p.m.deaf);
+  return (
+    <div className="sd sd-podyum">
+      <div className="sd-pod-label">
+        Mikrofonu açık <i>{on.length}</i>
+      </div>
+      <div className="sd-pod-stage">
+        {on.map((p) => (
+          <div key={p.key} className={cx('sd-pod-card', p.talk && 'talk')} {...handlers(c, p)}>
+            <Back p={p} />
+            <span className="sd-shade" />
+            <Avatar user={p.user} size={92} speaking={p.talk} />
+            <b>{p.name}</b>
+            <span className="sd-sub">
+              {p.talk && <Bars on />} {stateText(p)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="sd-pod-floor" />
+      <div className="sd-pod-label">
+        Dinleyenler <i>{off.length}</i>
+      </div>
+      <div className="sd-pod-crowd">
+        {off.map((p) => (
+          <div key={p.key} className="sd-pod-seat" {...handlers(c, p)}>
+            <span className="sd-seat-av">
+              <Avatar user={p.user} size={64} />
+              <Flags p={p} />
+            </span>
+            <span>{p.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 7: Vitrin
+function Vitrin({ c, ps }: { c: Community; ps: P[] }) {
+  const hero = useHero(ps);
+  const rest = ps.filter((p) => p !== hero);
+  // kahraman ortada, diğerleri sırayla sağa ve sola
+  const order: [P, number][] = [[hero, 0]];
+  rest.forEach((p, i) => order.push([p, i % 2 === 0 ? Math.floor(i / 2) + 1 : -(Math.floor(i / 2) + 1)]));
+  return (
+    <div className="sd sd-vitrin">
+      {order.map(([p, d]) => (
+        <div
+          key={p.key}
+          className={cx('sd-vit', d === 0 && 'front', p.talk && 'talk')}
+          style={{
+            transform: `translate(-50%, -50%) translateX(${d * 210}px) rotateY(${-Math.sign(d) * 32}deg) scale(${1 - Math.abs(d) * 0.13})`,
+            zIndex: 10 - Math.abs(d),
+            opacity: 1 - Math.abs(d) * 0.12,
+          }}
+          {...handlers(c, p)}
+        >
+          <Back p={p} />
+          <span className="sd-shade" />
+          <div className="sd-vit-foot">
+            <Avatar user={p.user} size={d === 0 ? 96 : 64} speaking={p.talk} />
+            <b>{p.name}</b>
+            <span className="sd-sub">
+              {p.talk && <Bars on />}
+              {stateText(p)}
+            </span>
+          </div>
+        </div>
+      ))}
+      <div className="sd-vit-floor" />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 8: Ekolayzır
+function Ekolayzir({ c, ps }: { c: Community; ps: P[] }) {
+  return (
+    <div className="sd sd-eq">
+      {ps.map((p) => {
+        const lvl = p.talk ? 88 : p.m.deaf ? 14 : p.m.muted ? 22 : 46;
+        return (
+          <div key={p.key} className={cx('sd-eq-col', p.talk && 'talk')} {...handlers(c, p)}>
+            <div className="sd-eq-track">
+              <div className="sd-eq-bar" style={{ height: `${lvl}%` }}>
+                <Back p={p} />
+                <span className="sd-eq-cap" />
+              </div>
+            </div>
+            <Avatar user={p.user} size={58} speaking={p.talk} />
+            <b>{p.name}</b>
+            <span className="sd-sub">
+              {p.m.deaf ? <HeadphoneOff size={13} /> : p.m.muted ? <MicOff size={13} /> : null}
+              {stateText(p)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 9: Pano
+const PANO = [
+  { x: 22, y: 30, r: -5 },
+  { x: 50, y: 26, r: 3 },
+  { x: 78, y: 32, r: -2 },
+  { x: 35, y: 72, r: 4 },
+  { x: 65, y: 70, r: -4 },
+  { x: 86, y: 74, r: 2 },
+];
+function Pano({ c, ps }: { c: Community; ps: P[] }) {
+  return (
+    <div className="sd sd-pano">
+      {ps.map((p, i) => {
+        const at = PANO[i % PANO.length];
+        return (
+          <div
+            key={p.key}
+            className={cx('sd-photo', p.talk && 'talk')}
+            style={{ left: `${at.x}%`, top: `${at.y}%`, transform: `translate(-50%, -50%) rotate(${p.talk ? 0 : at.r}deg)`, zIndex: p.talk ? 5 : 1 }}
+            {...handlers(c, p)}
+          >
+            <span className="sd-tape" />
+            <span className="sd-photo-pic">
+              <Back p={p} />
+              <span className="sd-photo-av">
+                <Avatar user={p.user} size={70} speaking={p.talk} />
+              </span>
+            </span>
+            <span className="sd-photo-cap">
+              <b>{p.name}</b>
+              <Flags p={p} />
+              {p.talk && <Bars on />}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 10: Yörünge
+function Yorunge({ c, ps }: { c: Community; ps: P[] }) {
+  const hero = useHero(ps);
+  const rest = ps.filter((p) => p !== hero);
+  return (
+    <div className="sd sd-orbit">
+      <span className="sd-ring r1" />
+      <span className="sd-ring r2" />
+      <div className={cx('sd-sun', hero.talk && 'talk')} {...handlers(c, hero)}>
+        <span className="sd-disc big">
+          <Back p={hero} />
+          <span className="sd-shade" />
+          <Avatar user={hero.user} size={118} speaking={hero.talk} />
+        </span>
+        <b>{hero.name}</b>
+        <span className="sd-sub">
+          {hero.talk && <Bars on />}
+          {stateText(hero)}
+        </span>
+      </div>
+      {rest.map((p, i) => {
+        const a = -Math.PI / 2 + Math.PI / 4 + (i / rest.length) * Math.PI * 2;
+        return (
+          <div key={p.key} className="sd-planet" style={{ left: `calc(50% + ${Math.cos(a) * 330}px)`, top: `calc(50% + ${Math.sin(a) * 230}px)` }} {...handlers(c, p)}>
+            <span className="sd-disc">
+              <Back p={p} />
+              <span className="sd-shade" />
+              <Avatar user={p.user} size={58} />
+              <Flags p={p} />
+            </span>
+            <span className="sd-planet-name">{p.name}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 11: Akordeon
+function Akordeon({ c, ps }: { c: Community; ps: P[] }) {
+  return (
+    <div className="sd sd-akordeon">
+      {ps.map((p) => (
+        <div key={p.key} className={cx('sd-fold', p.talk && 'talk open')} {...handlers(c, p)}>
+          <Back p={p} />
+          <span className="sd-shade" />
+          <div className="sd-fold-foot">
+            <Avatar user={p.user} size={p.talk ? 96 : 56} speaking={p.talk} />
+            <b>{p.name}</b>
+            <span className="sd-sub">
+              {p.talk && <Bars on />}
+              {p.m.deaf ? <HeadphoneOff size={13} /> : p.m.muted ? <MicOff size={13} /> : null}
+              {stateText(p)}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 12: Baloncuklar
+const BUB = [
+  { x: 50, y: 46 },
+  { x: 24, y: 34 },
+  { x: 77, y: 30 },
+  { x: 30, y: 76 },
+  { x: 72, y: 74 },
+  { x: 88, y: 56 },
+];
+function Baloncuk({ c, ps }: { c: Community; ps: P[] }) {
+  // konuşan ortadaki en büyük balona geçer
+  const sorted = [...ps].sort((a, b) => Number(b.talk) - Number(a.talk));
+  return (
+    <div className="sd sd-bubbles">
+      {sorted.map((p, i) => {
+        const size = p.talk ? 250 : p.m.muted || p.m.deaf ? 130 : 170;
+        const at = BUB[i % BUB.length];
+        return (
+          <div
+            key={p.key}
+            className={cx('sd-bub', p.talk && 'talk')}
+            style={{ left: `${at.x}%`, top: `${at.y}%`, ['--s' as any]: `${size}px`, animationDelay: `${-i * 1.7}s` }}
+            {...handlers(c, p)}
+          >
+            <span className="sd-bub-ball">
+              <Back p={p} />
+              <span className="sd-shade" />
+              <Avatar user={p.user} size={Math.round(size * 0.42)} speaking={p.talk} />
+              <Flags p={p} />
+            </span>
+            <span className="sd-bub-name">{p.name}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 13: Madalyon kemeri
+function Madalyon({ c, ps }: { c: Community; ps: P[] }) {
+  const n = ps.length;
+  return (
+    <div className="sd sd-madalyon">
+      {ps.map((p, i) => {
+        const t = n === 1 ? 0 : (i / (n - 1)) * 2 - 1; // -1..1
+        return (
+          <div key={p.key} className={cx('sd-med', p.talk && 'talk')} style={{ transform: `translateY(${(t * t * 90 - 30).toFixed(0)}px)` }} {...handlers(c, p)}>
+            <span className="sd-med-disc">
+              <Back p={p} />
+              <span className="sd-shade" />
+            </span>
+            <span className="sd-med-av">
+              <Avatar user={p.user} size={74} speaking={p.talk} />
+            </span>
+            <b>{p.name}</b>
+            <span className="sd-sub">
+              {p.talk && <Bars on />}
+              {p.m.deaf ? <HeadphoneOff size={13} /> : p.m.muted ? <MicOff size={13} /> : null}
+              {stateText(p)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 14: Konuşma akışı
+const SPAN = 90_000; // son 90 saniye
+const useTalkHist = create<{ h: Record<ID, [number, number | null][]> }>(() => ({ h: {} }));
+(window as any).__seedTalk = (h: Record<ID, [number, number | null][]>) => {
+  const now = Date.now();
+  const out: Record<ID, [number, number | null][]> = {};
+  for (const k in h) out[k] = h[k].map(([a, b]) => [now - a * 1000, b == null ? null : now - b * 1000]);
+  useTalkHist.setState({ h: out });
+};
+function Akis({ c, ps }: { c: Community; ps: P[] }) {
+  const hist = useTalkHist((s) => s.h);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, []);
+  // canlı kayıt: konuşma başlayınca aralık aç, bitince kapat
+  useEffect(() => {
+    const h = { ...useTalkHist.getState().h };
+    let changed = false;
+    for (const p of ps) {
+      const l = [...(h[p.uid] || [])];
+      const open = l.length && l[l.length - 1][1] == null;
+      if (p.talk && !open) (l.push([Date.now(), null]), (changed = true));
+      if (!p.talk && open) ((l[l.length - 1] = [l[l.length - 1][0], Date.now()]), (changed = true));
+      h[p.uid] = l.filter(([, b]) => b == null || Date.now() - b < SPAN);
+    }
+    if (changed) useTalkHist.setState({ h });
+  }, [ps]);
+  const x = (t: number) => Math.max(0, Math.min(100, 100 - ((now - t) / SPAN) * 100));
+  return (
+    <div className="sd sd-akis">
+      <div className="sd-akis-axis">
+        <span />
+        <div>
+          <i>90 sn önce</i>
+          <i>60 sn</i>
+          <i>30 sn</i>
+          <i>şimdi</i>
+        </div>
+      </div>
+      {ps.map((p) => {
+        const total = (hist[p.uid] || []).reduce((s, [a, b]) => s + Math.max(0, (b ?? now) - Math.max(a, now - SPAN)), 0);
+        return (
+          <div key={p.key} className={cx('sd-akis-row', p.talk && 'talk')} {...handlers(c, p)}>
+            <div className="sd-akis-who">
+              <Avatar user={p.user} size={46} speaking={p.talk} />
+              <div>
+                <b>{p.name}</b>
+                <span className="sd-sub">
+                  {p.m.deaf ? <HeadphoneOff size={12} /> : p.m.muted ? <MicOff size={12} /> : null}
+                  {Math.round(total / 1000)} sn konuştu
+                </span>
+              </div>
+            </div>
+            <div className="sd-akis-lane">
+              <span className="sd-akis-art">
+                <Back p={p} />
+              </span>
+              {(hist[p.uid] || []).map(([a, b], i) => (
+                <span key={i} className={cx('sd-seg', b == null && 'live')} style={{ left: `${x(a)}%`, width: `${Math.max(0.6, x(b ?? now) - x(a))}%` }} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 15: Yalın
+function Yalin({ c, ps }: { c: Community; ps: P[] }) {
+  const hero = useHero(ps);
+  return (
+    <div className="sd sd-yalin">
+      <span className="sd-yalin-bg">
+        <Back p={hero} />
+      </span>
+      <div className="sd-yalin-list">
+        {ps.map((p) => (
+          <div key={p.key} className={cx('sd-yl', p.talk && 'talk', (p.m.muted || p.m.deaf) && 'dim')} {...handlers(c, p)}>
+            <Avatar user={p.user} size={44} speaking={p.talk} />
+            <b>{p.name}</b>
+            {p.talk && <Bars on />}
+            {p.m.deaf ? <HeadphoneOff size={18} className="sd-yl-off" /> : p.m.muted ? <MicOff size={18} className="sd-yl-off" /> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
