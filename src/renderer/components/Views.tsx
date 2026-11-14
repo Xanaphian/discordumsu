@@ -1,3 +1,4 @@
+import { nameError } from '../../shared/etiket';
 import React, { useState } from 'react';
 import { Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Plus, LogIn, Users, Zap, Globe, Keyboard, ArrowRight } from 'lucide-react';
 import { useStore, openModal, selectCommunity, finishOnboarding, realCommunities, setHomeTab } from '../lib/store';
@@ -23,7 +24,7 @@ export function Onboarding() {
   const [avatar, setAvatar] = useState<string | undefined>();
   const [step, setStep] = useState(0);
   const file = React.useRef<HTMLInputElement>(null);
-  const done = () => name.trim() && finishOnboarding({ name: name.trim(), color, avatar });
+  const done = () => !nameError(name) && finishOnboarding({ name: name.trim(), color, avatar });
   return (
     <div className="onboarding">
       <div className="ob-bg" aria-hidden>
@@ -62,8 +63,9 @@ export function Onboarding() {
               if (r) setAvatar(r.image);
             }} />
             <label className="field">
-              <span>Görünen ad</span>
+              <span>Kullanıcı adı</span>
               <input autoFocus maxLength={32} value={name} placeholder="ör. Enes" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && done()} />
+              <small className="name-tag-hint">{name.trim() && nameError(name) ? nameError(name) : 'Sonuna bir kod eklenir ve etiketin olur, ör. ' + (name.trim() || 'Enes') + '#4821. Kodu sonra Ayarlar\'dan değiştirebilirsin.'}</small>
             </label>
             <div className="field">
               <span>Renk</span>
@@ -73,7 +75,7 @@ export function Onboarding() {
                 ))}
               </div>
             </div>
-            <button className="btn primary lg" disabled={!name.trim()} onClick={done}>
+            <button className="btn primary lg" disabled={!!nameError(name)} onClick={done}>
               Xanaphian'a gir
             </button>
           </>

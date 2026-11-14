@@ -505,7 +505,7 @@ export function ProfileFull({
                     ))}
                   </div>
                 ) : (
-                  <Empty icon={<Users size={22} />} title={isMe ? 'Henüz arkadaşın yok' : 'Ortak arkadaşınız yok'} text={isMe ? 'Arkadaş ekle sekmesinde birinin etiketini (ad#1234) yazabilir ya da kendi etiketini paylaşabilirsin.' : undefined} />
+                  <Empty icon={<Users size={22} />} title={isMe ? 'Henüz arkadaşın yok' : 'Ortak arkadaşınız yok'} text={isMe ? 'Arkadaş ekle sekmesinde birinin etiketini (ad#kod) yazabilir ya da kendi etiketini paylaşabilirsin.' : undefined} />
                 )
               ) : (
                 <Empty

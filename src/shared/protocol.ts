@@ -18,7 +18,7 @@ export interface UserPublic {
   bio?: string;
   profile?: ProfileExtra; // gelişmiş profil (afiş, durum, bağlantılar…)
   bot?: boolean; // bot hesabı (yalnızca sunucu atar)
-  /** v1.50 etiket kodu: "ad#1234" etiketindeki 4 haneli kod (yalnızca sunucu atar; bkz. shared/etiket.ts) */
+  /** v1.50 etiket kodu: "ad#kod" etiketindeki kod (1–5 harf/rakam) (yalnızca sunucu atar; bkz. shared/etiket.ts) */
   tag?: string;
 }
 
@@ -422,8 +422,10 @@ export type ClientFrame =
   | { t: 'friend.remove'; to: ID }
   /** eski arkadaş kodu (v1.50'de kaldırıldı; sunucu açıklayıcı hata döner) */
   | { t: 'friend.code'; reset?: boolean; rid: string }
-  /** v1.50 etiketle arkadaş ekleme: "ad#1234"; cevap: ok.data = { uid, state } */
+  /** v1.50 etiketle arkadaş ekleme: "ad#kod"; cevap: ok.data = { uid, state } */
   | { t: 'friend.tag'; tag: string; rid: string }
+  /** v1.50 kendi etiket kodunu seç (2–5 harf/rakam); cevap: ok.data = yeni kod */
+  | { t: 'tag.set'; code: string; rid: string }
   /** ortak arkadaşlar (tam profil); cevap: ok.data = UserPublic[] */
   | { t: 'friend.mutual'; uid: ID; rid: string }
   /** özel mesaj gizliliği (her bağlantıda gönderilir); blocked: v1.48 engellenenler (paylaşımlarda iki yönlü gizlenir) */

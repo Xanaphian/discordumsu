@@ -19,7 +19,7 @@ import { BotManager, type BotHost } from './bots';
 import { sanitizeStickers } from '../shared/stickers';
 import { PostStore } from './paylasim';
 import { FEAT_POSTS } from '../shared/paylasim';
-import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, formatCode, tagKey, parseTag } from '../shared/etiket';
+import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, TAG_CHANGES_PER_DAY, formatCode, tagKey, parseTag, customCodeError, nameError } from '../shared/etiket';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
 const MAX_CONTENT = 4000;
@@ -149,6 +149,8 @@ interface StoredUser {
   secretHash: string;
   /** bu sunucuyu ilk kullandığı an (katılma korumasındaki hesap yaşı); 1 = sürüm 1.27'den önce gelmiş eski hesap */
   since?: number;
+  /** v1.50 kendi seçtiği etiket kodunu değiştirdiği anlar (sıklık sınırı için) */
+  tagChanges?: number[];
 }
 
 interface HubData {
@@ -1153,7 +1155,7 @@ export class Hub {
     this.data.friends ||= {};
     const r = this.data.friends[key];
     if (r?.ok) return null;
-    if (!direct && !byTag && !r && !this.shareCommunity(a, b)) return 'Ortak bir topluluğunuz yok. Arkadaşlık isteğini onun etiketiyle (ad#1234) gönder.';
+    if (!direct && !byTag && !r && !this.shareCommunity(a, b)) return 'Ortak bir topluluğunuz yok. Arkadaşlık isteğini onun etiketiyle (ad#kod) gönder.';
     if (direct || (r && r.from === b)) this.data.friends[key] = { from: r?.from || a, ok: true, ts: Date.now() };
     else this.data.friends[key] = { from: a, ok: false, ts: Date.now() };
     this.saveHub();
@@ -1161,7 +1163,7 @@ export class Hub {
     return null;
   }
 
-  // ---------- v1.50 etiketler (ad#1234) ----------
+  // ---------- v1.50 etiketler (ad#kod) ----------
   private tagEligible(id: ID, u: StoredUser | undefined) {
     return !!u && id !== BOT_ID && !u.pub.bot && !this.bots.isBot(id);
   }
@@ -1177,7 +1179,7 @@ export class Hub {
       const o = this.tagIndex.get(tagKey(pub.name, code));
       return !o || o === uid;
     };
-    let code = prev && TAG_CODE_RE.test(prev) && prev !== '0000' && free(prev) ? prev : '';
+    let code = prev && TAG_CODE_RE.test(prev) && !/^0+$/.test(prev) && free(prev) ? prev : '';
     for (let i = 0; !code && i < 60; i++) {
       const n = TAG_CODE_MIN + (crypto.randomBytes(2).readUInt16BE(0) % (TAG_CODE_MAX - TAG_CODE_MIN + 1));
       if (free(formatCode(n))) code = formatCode(n);
@@ -1221,7 +1223,33 @@ export class Hub {
     if (dirty) this.saveHub();
   }
 
-  /** "ad#1234" -> kullanıcı */
+  /** Kişinin kendi kodunu seçmesi. Başarıda yeni kod, hatada mesaj döner. */
+  private setCustomTag(uid: ID, raw: unknown): { tag: string } | string {
+    const u = this.data.users[uid];
+    if (!this.tagEligible(uid, u)) return 'Bu hesabın etiketi değiştirilemez.';
+    const code = clampStr(raw, 20).trim().normalize('NFC');
+    const bad = customCodeError(code);
+    if (bad) return bad;
+    if (u.pub.tag === code) return { tag: code };
+    const owner = this.findByTag(u.pub.name, code);
+    // aynı kodu yalnızca harf büyüklüğünü değiştirerek yeniden yazmak serbest
+    if (owner && owner !== uid) return `${u.pub.name}#${code} başka birinde. Başka bir kod dene.`;
+    const now = Date.now();
+    const recent = (u.tagChanges || []).filter((t) => now - t < 24 * 3600_000);
+    if (!owner && recent.length >= TAG_CHANGES_PER_DAY) return `Kodunu 24 saatte en çok ${TAG_CHANGES_PER_DAY} kez değiştirebilirsin. Biraz sonra tekrar dene.`;
+    for (const [k, v] of this.tagIndex) if (v === uid) this.tagIndex.delete(k);
+    u.pub = { ...u.pub, tag: code };
+    this.tagIndex.set(tagKey(u.pub.name, code), uid);
+    if (!owner) u.tagChanges = [...recent, now];
+    this.saveHub();
+    const data = JSON.stringify({ t: 'user', u: u.pub } satisfies ServerFrame);
+    const sent = new Set<Session>();
+    for (const c of this.userComms(uid)) for (const x of this.memberSessions(c)) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
+    for (const p of [uid, ...this.contactsOf(uid)]) for (const x of this.userSessions.get(p) || []) if (!sent.has(x)) (sent.add(x), this.sendRaw(x, data));
+    return { tag: code };
+  }
+
+  /** "ad#kod" -> kullanıcı */
   private findByTag(name: string, code: string): ID | undefined {
     return this.tagIndex.get(tagKey(name, code));
   }
@@ -1237,7 +1265,7 @@ export class Hub {
     this.tagTries.set(uid, tries);
     const target = this.findByTag(p.name, p.code);
     if (!target || (this.posts.blockedEither(uid, target) && !this.data.friends?.[dmChannelId(uid, target)]?.ok))
-      return { err: `${p.name}#${p.code} etiketli kimse bulunamadı. Büyük/küçük harf önemli değil; adı ve 4 haneli kodu kontrol et.` };
+      return { err: `${p.name}#${p.code} etiketli kimse bulunamadı. Büyük/küçük harf önemli değil; adı ve # sonrasındaki kodu kontrol et.` };
     if (target === uid) return { err: 'Bu senin kendi etiketin. Arkadaşına gönder, o seni eklesin.' };
     const r = this.data.friends?.[dmChannelId(uid, target)];
     if (r?.ok) return { err: `${this.data.users[target].pub.name} zaten arkadaşın.` };
@@ -1277,8 +1305,14 @@ export class Hub {
       }
       case 'friend.code':
         // v1.50: arkadaş kodları kalktı; eski istemciye anlaşılır bir cevap
-        this.send(s, { t: 'err', rid: f.rid, msg: "Arkadaş kodları kalktı. Xanaphian'ı güncelle; artık herkesin ad#1234 biçiminde bir etiketi var." });
+        this.send(s, { t: 'err', rid: f.rid, msg: "Arkadaş kodları kalktı. Xanaphian'ı güncelle; artık herkesin ad#kod biçiminde bir etiketi var." });
         return true;
+      case 'tag.set': {
+        const r = this.setCustomTag(uid, f.code);
+        if (typeof r === 'string') this.send(s, { t: 'err', msg: r, rid: f.rid });
+        else this.send(s, { t: 'ok', rid: f.rid, data: r.tag });
+        return true;
+      }
       case 'friend.tag': {
         const r = this.friendByTag(uid, f.tag);
         if ('err' in r) this.send(s, { t: 'err', msg: r.err, rid: f.rid });
@@ -1662,7 +1696,10 @@ export class Hub {
         const u = this.data.users[uid];
         if (u.pub.bot) return;
         const prevTag = u.pub.tag;
+        const prevName = u.pub.name;
         u.pub = this.sanitizeUser(f.user, uid);
+        // ad değişirken kurallar (en az 2 karakter, # yok); eski hesapların mevcut adı bozulmaz
+        if (u.pub.name !== prevName && nameError(u.pub.name)) u.pub.name = prevName;
         if (!this.bots.isBot(uid)) this.assignTag(uid, u.pub, prevTag);
         this.saveHub();
         const data = JSON.stringify({ t: 'user', u: u.pub } satisfies ServerFrame);
@@ -2585,7 +2622,7 @@ export class Hub {
     const pub = existing?.pub.bot ? existing.pub : this.sanitizeUser(f.user, id);
     if (!pub.bot && !this.bots.isBot(id)) this.assignTag(id, pub, existing?.pub.tag);
     const changed = !existing || JSON.stringify(existing.pub) !== JSON.stringify(pub);
-    this.data.users[id] = { pub, secretHash: sha(secret), since: existing ? existing.since || 1 : Date.now() };
+    this.data.users[id] = { ...existing, pub, secretHash: sha(secret), since: existing ? existing.since || 1 : Date.now() };
     if (changed || !existing?.since) this.saveHub();
     s.userId = id;
     s.status = ['online', 'idle', 'dnd', 'invisible'].includes(f.status) ? f.status : 'online';

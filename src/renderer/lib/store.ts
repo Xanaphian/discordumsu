@@ -8,7 +8,7 @@ import {
 } from '../../shared/protocol';
 import { IS_POPOUT } from './popout';
 import { sanitizeProfile, type ProfileExtra } from '../../shared/profile';
-import { FEAT_TAGS, parseTag } from '../../shared/etiket';
+import { FEAT_TAGS, parseTag, customCodeError } from '../../shared/etiket';
 import { HostConn, probeHost, ConnStatus, httpBase } from './net';
 import { debounce } from './util';
 import { playSound } from './sound';
@@ -25,7 +25,7 @@ export interface Profile {
   bio?: string;
   extra?: ProfileExtra;
   status: Status;
-  /** v1.50 etiket kodu (ad#1234); merkezi sunucu atar, yalnız bellekte tutulur */
+  /** v1.50 etiket kodu (ad#kod); merkezi sunucu atar, yalnız bellekte tutulur */
   tag?: string;
 }
 
@@ -716,7 +716,7 @@ export async function addFriend(uid: ID) {
   if (f?.state === 'in') return acceptFriend(uid);
   if (f) return;
   const host = sharedHost(uid);
-  if (!host) return toast('Bu kişiyle şu an açık ortak bir topluluğun yok. Arkadaş ekle sekmesinde onun etiketini (ad#1234) yazabilirsin.', 'err');
+  if (!host) return toast('Bu kişiyle şu an açık ortak bir topluluğun yok. Arkadaş ekle sekmesinde onun etiketini (ad#kod) yazabilirsin.', 'err');
   try {
     await conns.get(host)!.request({ t: 'friend.req', to: uid });
     toast(`${S().users[uid]?.name || 'Kişi'} adlı kişiye arkadaşlık isteği gönderildi.`, 'ok');
@@ -735,7 +735,24 @@ export function removeFriend(uid: ID) {
   if (f) conns.get(f.host)?.send({ t: 'friend.remove', to: uid });
 }
 
-/** Merkezi sunucu etiketleri (ad#1234) destekliyor mu? Bağlı değilken null */
+/** v1.50 kendi etiket kodunu seç (2–5 harf/rakam). Yeni kodu döner, hatada anlaşılır mesajla fırlatır. */
+export async function setMyTagCode(raw: string): Promise<string> {
+  const code = raw.trim();
+  const bad = customCodeError(code);
+  if (bad) throw new Error(bad);
+  const home = homeHost();
+  const conn = conns.get(home);
+  if (!conn) throw new Error('Sunucuya bağlanılmadı.');
+  await waitOnline(home);
+  if (tagsSupported() === false) throw new Error('Sunucu henüz etiketleri desteklemiyor.');
+  const r = await conn.request<{ data: string }>({ t: 'tag.set', code, rid: '' }, 8000).catch((e) => {
+    throw new Error(e?.message === 'Zaman aşımı' ? 'Sunucu yanıt vermedi. Biraz sonra yeniden dene.' : e?.message || 'Kod değiştirilemedi.');
+  });
+  set((s) => ({ me: { ...s.me, tag: r.data } }));
+  return r.data;
+}
+
+/** Merkezi sunucu etiketleri (ad#kod) destekliyor mu? Bağlı değilken null */
 export function tagsSupported(st: State = S()): boolean | null {
   const c = st.conns[homeHost()];
   if (!c || c.status !== 'online') return null;

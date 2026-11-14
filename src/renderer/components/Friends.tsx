@@ -90,7 +90,7 @@ function FriendList({ tab }: { tab: Tab }) {
             <p>Şu an çevrimiçi arkadaşın yok.</p>
           ) : (
             <>
-              <p>Henüz arkadaşın yok. Arkadaşının etiketini (ad#1234) yazarak ya da topluluklarından birini seçerek ekleyebilirsin.</p>
+              <p>Henüz arkadaşın yok. Arkadaşının etiketini (ad#kod) yazarak ya da topluluklarından birini seçerek ekleyebilirsin.</p>
               <button className="btn primary" onClick={() => setHomeTab('add')}>
                 <UserPlus size={16} /> Arkadaş ekle
               </button>
@@ -185,7 +185,7 @@ function AddFriend() {
   return (
     <div className="fr-add">
       <h3>Arkadaş ekle</h3>
-      <p className="fr-lead">Arkadaşını etiketiyle ekleyebilirsin. Etiket, kişinin adı ve 4 haneli kodundan oluşur; profil kartında yazar.</p>
+      <p className="fr-lead">Arkadaşını etiketiyle ekleyebilirsin. Etiket, kişinin adı ve # sonrasındaki kodundan oluşur (ör. Yağmur#OVA); profil kartında yazar.</p>
 
       <TagAdd />
       <MyTagBox />
@@ -273,7 +273,7 @@ function TagAdd() {
       <div className="tag-add-row">
         <input
           className="tag-add-input"
-          placeholder="ad#1234"
+          placeholder="ad#kod"
           value={v}
           spellCheck={false}
           autoFocus
@@ -292,7 +292,7 @@ function TagAdd() {
           <span>{res.text}</span>
         </div>
       ) : (
-        <div className="tag-add-hint">Büyük/küçük harf ve Türkçe karakterler önemli değil: Şükrü#0042 ile sukru#0042 aynıdır.</div>
+        <div className="tag-add-hint">Büyük/küçük harf ve Türkçe karakterler önemli değil: Yağmur#OVA ile yagmur#ova aynı kişidir.</div>
       )}
     </div>
   );

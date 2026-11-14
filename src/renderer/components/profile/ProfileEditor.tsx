@@ -1,3 +1,4 @@
+import { nameError } from '../../../shared/etiket';
 import { NameTagHint, MyTagBox } from '../Etiket';
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Dices, RotateCcw, Upload, Trash2, Plus, X, Smile, ImagePlus, Crop, Link as LinkIcon } from 'lucide-react';
@@ -146,7 +147,7 @@ export function ProfileEditor() {
   const clean = (dr: Draft) => JSON.stringify({ ...dr, name: dr.name.trim(), bio: dr.bio.trim(), extra: sanitizeProfile(dr.extra) || {} });
   const dirty = clean(d) !== clean(initial);
   const save = async () => {
-    if (!d.name.trim()) return toast('Kullanıcı adı boş olamaz.', 'err');
+    if (d.name.trim() !== me.name && nameError(d.name)) return toast(nameError(d.name)!, 'err');
     await updateProfile({ name: d.name.trim(), bio: d.bio.trim(), color: d.color, avatar: d.avatar, extra: d.extra });
     toast('Profil kaydedildi', 'ok');
   };
