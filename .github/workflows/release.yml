@@ -11,6 +11,12 @@ on:
 permissions:
   contents: write
 
+# Arka arkaya iki birleştirme olursa yayınlar sırayla çalışsın: ikisi aynı sürümü aynı anda
+# silip yeniden yüklemesin (sonraki, sürüm zaten yayınlandıysa atlar)
+concurrency:
+  group: surum-yayinla
+  cancel-in-progress: false
+
 jobs:
   # Önce otomatik sınama: uygulama açılmıyorsa ya da bir ekran çöküyorsa sürüm yayınlanmaz
   sinama:
