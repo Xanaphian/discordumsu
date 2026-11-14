@@ -28,6 +28,7 @@ import { cx, copyText, displayName, countOnline } from '../lib/util';
 import { openPopout } from './AyriPencere';
 import { memberMenu } from './Moderation';
 import { insertMention } from './Members';
+import { DeviceChevron, DeviceMenu, type DeviceKind } from './DeviceMenu';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
 
 /** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi */
@@ -571,6 +572,8 @@ export function UserPanel() {
   const deaf = useVoice((s) => s.deaf);
   const myLive = useActsOf(me.id).length > 0;
   const actShare = useStore((s) => s.settings.actShare);
+  const [devMenu, setDevMenu] = useState<{ kind: DeviceKind; r: DOMRect } | null>(null);
+  const toggleDev = (kind: DeviceKind, r: DOMRect) => setDevMenu((m) => (m?.kind === kind ? null : { kind, r }));
   const statusMenu = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     openMenu({ clientX: r.left, clientY: r.top - 8 - 10 * 34 - 70 }, [
@@ -608,16 +611,23 @@ export function UserPanel() {
           </div>
         </div>
       </button>
-      <Tooltip text={muted ? 'Sesi aç' : 'Sustur'} side="top">
-        <button className={cx('icon-btn', muted && 'danger-on')} onClick={toggleMute} aria-label="Mikrofon">
-          {muted ? <MicOff size={18} /> : <Mic size={18} />}
-        </button>
-      </Tooltip>
-      <Tooltip text={deaf ? 'Sağırlaştırmayı kapat' : 'Sağırlaştır'} side="top">
-        <button className={cx('icon-btn', deaf && 'danger-on')} onClick={toggleDeaf} aria-label="Kulaklık">
-          {deaf ? <HeadphoneOff size={18} /> : <Headphones size={18} />}
-        </button>
-      </Tooltip>
+      <div className={cx('up-dev', devMenu?.kind === 'mic' && 'open')}>
+        <Tooltip text={muted ? 'Sesi aç' : 'Sustur'} side="top">
+          <button className={cx('icon-btn', muted && 'danger-on')} onClick={toggleMute} aria-label="Mikrofon">
+            {muted ? <MicOff size={18} /> : <Mic size={18} />}
+          </button>
+        </Tooltip>
+        <DeviceChevron kind="mic" open={devMenu?.kind === 'mic'} onToggle={(r) => toggleDev('mic', r)} />
+      </div>
+      <div className={cx('up-dev', devMenu?.kind === 'speaker' && 'open')}>
+        <Tooltip text={deaf ? 'Sağırlaştırmayı kapat' : 'Sağırlaştır'} side="top">
+          <button className={cx('icon-btn', deaf && 'danger-on')} onClick={toggleDeaf} aria-label="Kulaklık">
+            {deaf ? <HeadphoneOff size={18} /> : <Headphones size={18} />}
+          </button>
+        </Tooltip>
+        <DeviceChevron kind="speaker" open={devMenu?.kind === 'speaker'} onToggle={(r) => toggleDev('speaker', r)} />
+      </div>
+      {devMenu && <DeviceMenu kind={devMenu.kind} anchor={devMenu.r} onClose={() => setDevMenu(null)} />}
       <Tooltip text="Kullanıcı ayarları" side="top">
         <button className="icon-btn" onClick={() => openModal({ type: 'settings' })} aria-label="Ayarlar">
           <Settings size={18} />
