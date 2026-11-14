@@ -22,6 +22,7 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
   const items: MenuItem[] = [];
   const pop = () => useStore.setState({ popout: { uid, cid: c.id, x: opts.at?.x ?? 400, y: opts.at?.y ?? 200 } });
 
+  if (!opts.noProfile) items.push({ person: { uid, cid: c.id } });
   // 1) profil ve iletişim
   // sağ tıktaki Profil tam profili açar; sol tık küçük kartı açmaya devam eder
   if (!opts.noProfile) items.push({ label: 'Profil', onClick: () => (useStore.setState({ popout: null }), openModal({ type: 'profile', uid, cid: c.id })) });

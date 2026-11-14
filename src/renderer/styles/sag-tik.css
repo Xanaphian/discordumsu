@@ -1,0 +1,105 @@
+/* v1.41 sağ tık menüleri: sade, simgeli, başta kişi başlığı. Tüm temalarda aynı yapı. */
+html .ctx-menu,
+html [data-style] .ctx-menu,
+[data-style='destan'] .ctx-menu {
+  min-width: 224px;
+  max-width: 290px;
+  padding: 6px;
+  border-radius: 14px !important;
+  border: 1px solid color-mix(in srgb, var(--text) 13%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--text) 13%, transparent);
+  background: var(--x-pop, var(--bg-float));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 44px -14px rgba(0, 0, 0, 0.75), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+html .ctx-menu .ctx-item,
+[data-style='destan'] .ctx-menu .ctx-item {
+  min-height: 32px;
+  gap: 10px;
+  padding: 6px 10px 6px 8px;
+  border-radius: 8px !important;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-2);
+  transition: background 0.1s, color 0.1s;
+}
+.ctx-ic {
+  flex: 0 0 18px;
+  width: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  transition: color 0.1s;
+}
+.ctx-item .status-dot.inline {
+  margin: 0 4px 0 4px;
+}
+/* üzerine gelince dolgu yerine yumuşak vurgu */
+html .ctx-menu .ctx-item:hover:not(:disabled),
+html .ctx-menu .ctx-item.open {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+}
+html .ctx-menu .ctx-item:hover:not(:disabled) .ctx-ic,
+html .ctx-menu .ctx-item.open .ctx-ic {
+  color: var(--accent);
+}
+html .ctx-menu .ctx-item.danger {
+  color: var(--red);
+}
+html .ctx-menu .ctx-item.danger .ctx-ic {
+  color: color-mix(in srgb, var(--red) 80%, transparent);
+}
+html .ctx-menu .ctx-item.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+  color: var(--red);
+}
+html .ctx-menu .ctx-item.danger:hover:not(:disabled) .ctx-ic {
+  color: var(--red);
+}
+html .ctx-menu .ctx-item:disabled {
+  opacity: 0.45;
+}
+html .ctx-menu .ctx-sep {
+  height: 1px;
+  margin: 5px 8px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.ctx-arrow {
+  color: var(--text-3);
+}
+/* kişi başlığı */
+.ctx-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 5px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--accent) 3%, transparent));
+}
+.ctx-person-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.ctx-person-text b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctx-person-text span {
+  font-size: 12px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* hızlı tepki satırı */
+html .ctx-menu .ctx-emojis {
+  padding: 2px 2px 4px;
+}

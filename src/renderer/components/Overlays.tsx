@@ -8,6 +8,9 @@ import { cx, fmtDay, memberRoles } from '../lib/util';
 import { EMOJI_CATS, searchEmoji } from '../lib/emoji';
 import { can, canEditRole, isTimedOut, Perm } from '../../shared/protocol';
 import { memberMenu } from './Moderation';
+import { MenuIcon } from './MenuIcons';
+import { Avatar } from './Common';
+import { displayName } from '../lib/util';
 
 function useFit(ref: React.RefObject<HTMLElement | null>, x: number, y: number, deps: unknown[] = []) {
   const [pos, setPos] = useState({ left: x, top: y, ready: false });
@@ -59,7 +62,9 @@ function MenuItems({ items, close }: { items: MenuItem[]; close: () => void }) {
   return (
     <>
       {items.map((it: MenuItem, i) =>
-        it.sep ? (
+        it.person ? (
+          <MenuPerson key={i} uid={it.person.uid} cid={it.person.cid} />
+        ) : it.sep ? (
           <div key={i} className="ctx-sep" />
         ) : it.emojis ? (
           <div key={i} className="ctx-emojis">
@@ -72,6 +77,7 @@ function MenuItems({ items, close }: { items: MenuItem[]; close: () => void }) {
         ) : it.sub ? (
           <div key={i} className="ctx-sub-wrap" onMouseEnter={() => setOpen(i)} onMouseLeave={() => setOpen((o) => (o === i ? null : o))}>
             <button className={cx('ctx-item', open === i && 'open')} disabled={it.disabled || !it.sub.length} onClick={() => setOpen(i)}>
+              <MenuIcon label={it.label} />
               <span className="ctx-label">{it.label}</span>
               <ChevronRight size={14} className="ctx-arrow" />
             </button>
@@ -88,7 +94,7 @@ function MenuItems({ items, close }: { items: MenuItem[]; close: () => void }) {
               it.onClick?.();
             }}
           >
-            {it.icon && STATUS_ICON[it.icon] && <span className={cx('status-dot inline', STATUS_ICON[it.icon])} />}
+            {it.icon && STATUS_ICON[it.icon] ? <span className={cx('status-dot inline', STATUS_ICON[it.icon])} /> : <MenuIcon label={it.label} />}
             <span className="ctx-label">{it.label}</span>
             {it.hint && <span className="ctx-hint">{it.hint}</span>}
             {it.checked !== undefined && <span className={cx('ctx-check', it.checked && 'on')}>{it.checked && <Check size={12} />}</span>}
@@ -96,6 +102,24 @@ function MenuItems({ items, close }: { items: MenuItem[]; close: () => void }) {
         ),
       )}
     </>
+  );
+}
+
+/** Menünün başındaki kişi: avatar, görünen ad, kullanıcı adı */
+function MenuPerson({ uid, cid }: { uid: string; cid?: string }) {
+  const me = useStore((s) => s.me);
+  const user = useStore((s) => (uid === s.me.id ? meAsUser(s.me) : s.users[uid] || (cid ? s.communities[cid]?.users[uid] : undefined)));
+  const c = useStore((s) => (cid ? s.communities[cid] : undefined));
+  const users = useStore((s) => s.users);
+  const name = c ? displayName(c, uid, users) : user?.name || '';
+  return (
+    <div className="ctx-person">
+      <Avatar user={user} size={32} />
+      <div className="ctx-person-text">
+        <b>{name}</b>
+        {user?.name && user.name !== name ? <span>@{user.name}</span> : uid === me.id ? <span>sen</span> : null}
+      </div>
+    </div>
   );
 }
 
