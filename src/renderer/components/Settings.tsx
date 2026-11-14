@@ -251,6 +251,12 @@ function AppTab() {
           [`${modKey}+,`, 'Ayarlar'],
           ['↑ (boş kutuda)', 'Son mesajını düzenle'],
           ['Esc', 'Yanıtı / düzenlemeyi iptal et'],
+          ['Esc (kanalda)', 'Kanalı okundu olarak işaretle'],
+          [`${modKey}+B / ${modKey}+I`, 'Kalın / eğik yazı'],
+          ['/ (kutunun başında)', 'Komutlar: /shrug, /me, /spoiler…'],
+          ['← / → (resim açıkken)', 'Önceki / sonraki resim'],
+          ['+ / − / 0 (resim açıkken)', 'Yakınlaştır / uzaklaştır / sığdır'],
+          [`${modKey}+/`, 'Bu kısayol listesini aç'],
           ['Shift+Enter', 'Yeni satır'],
         ].map(([k, d]) => (
           <div key={k} className="sc-row">

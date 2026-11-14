@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { parseCard, isCardReaction } from '../lib/cards';
 import { mediaLabel } from '../lib/medya';
+import { drafts } from '../lib/taslak';
+import { komutOner, komutUygula } from '../lib/komutlar';
 import { CardView, LfgCreator, PollCreator, ScheduleDialog } from './Cards';
 import { CatchUp, summarize } from './CatchUp';
 import { SavedPopover, ScheduledStrip } from './Later';
@@ -35,7 +37,6 @@ import { insertMention } from './Members';
 
 const BASE = 1_000_000;
 const GROUP_MS = 7 * 60 * 1000;
-const drafts = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
 // Kullanıcı adlarının imzası: kullanıcı listesi her değiştiğinde değil, yalnız bir ad değiştiğinde yeni değer verir.
@@ -392,6 +393,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
       ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
       { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
       ...(canManage ? [{ label: m.pinned ? 'Sabitlemeyi kaldır' : 'Mesajı sabitle', onClick: () => pinMessage(m.channelId, m.id, !m.pinned) }] : []),
+      ...(!card && !m.pending && !m.failed ? [{ label: 'İlet…', onClick: () => openModal({ type: 'forward', cid: c.id, chId: m.channelId, id: m.id }) }] : []),
       { label: 'Metni kopyala', onClick: () => copyText(plainText(m.content, c)) },
       { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
       ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
@@ -761,7 +763,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
 
 // ---------------------------------------------------------------------------
 interface Suggest {
-  kind: 'user' | 'channel' | 'emoji';
+  kind: 'user' | 'channel' | 'emoji' | 'cmd';
   start: number;
   items: { key: string; label: string; sub?: string; insert: string; icon?: React.ReactNode }[];
 }
@@ -939,6 +941,12 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
 
   const computeSuggest = (text: string, caret: number) => {
     const before = text.slice(0, caret);
+    const cmds = komutOner(before);
+    if (cmds) {
+      setSug({ kind: 'cmd', start: 0, items: cmds.map((k) => ({ key: k.ad, label: '/' + k.ad, sub: k.aciklama, insert: `/${k.ad} `, icon: <span className="sug-at">/</span> })) });
+      setSel(0);
+      return;
+    }
     let m = /(^|\s)@([\p{L}\p{N}_.-]{0,32})$/u.exec(before);
     if (m) {
       const q = m[2].toLocaleLowerCase('tr');
@@ -1011,8 +1019,11 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   };
 
   const submit = async () => {
-    const text = value.trim();
+    let text = value.trim();
     if ((!text && !files.length) || uploading) return;
+    const cmd = komutUygula(text);
+    if (cmd === null) return toast('Komuttan sonra bir yazı ekle.', 'info');
+    if (cmd !== undefined) text = cmd;
     if (text.length > 4000) return toast('Mesaj en fazla 4000 karakter olabilir.', 'err');
     let atts: Attachment[] | undefined;
     if (files.length) {
@@ -1126,7 +1137,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
       <ScheduledStrip ch={ch.id} />
       {sug && (
         <div className="suggest">
-          <div className="suggest-title">{sug.kind === 'user' ? 'Üyeler' : sug.kind === 'channel' ? 'Kanallar' : 'Emoji'}</div>
+          <div className="suggest-title">{sug.kind === 'user' ? 'Üyeler' : sug.kind === 'channel' ? 'Kanallar' : sug.kind === 'cmd' ? 'Komutlar' : 'Emoji'}</div>
           {sug.items.map((it, i) => (
             <div key={it.key} className={cx('suggest-item', i === sel && 'sel')} onMouseEnter={() => setSel(i)} onMouseDown={(e) => (e.preventDefault(), applySuggest(i))}>
               {it.icon}
@@ -1316,9 +1327,22 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
             if (fl.length) {
               e.preventDefault();
               addFiles(fl);
+              return;
+            }
+            // sınırı aşan uzun yazı: mesaja sığmaz, metin dosyası olarak eklenir
+            const pasted = e.clipboardData.getData('text/plain');
+            if (pasted.length > 4000 && canAttach) {
+              e.preventDefault();
+              addFiles([new File([pasted], 'mesaj.txt', { type: 'text/plain' })]);
+              toast('Uzun yazı "mesaj.txt" dosyası olarak eklendi.', 'info');
             }
           }}
         />
+        {value.length > 3600 && (
+          <span className={cx('char-left', value.length > 4000 && 'over')} title="Bir mesaj en fazla 4000 karakter olabilir">
+            {4000 - value.length}
+          </span>
+        )}
         {uploading && <LoaderCircle size={18} className="spin composer-spin" />}
         {ch.slowmode ? (
           <Tooltip text={`Yavaş mod: ${ch.slowmode} sn`} side="top">
