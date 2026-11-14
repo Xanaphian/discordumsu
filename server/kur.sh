@@ -3,6 +3,10 @@
 # Kullanım (sunucuda root olarak):  curl -fsSL https://raw.githubusercontent.com/Xanaphian/discordumsu/main/server/kur.sh | bash
 # Yalnızca şunlara dokunur: /opt/kovan, 'kovan' kullanıcısı, kovan.service, /etc/nginx/snippets/kovan.conf
 # ve nginx site dosyasına tek bir 'include snippets/kovan.conf;' satırı (önce /root/yedek altına yedeklenir).
+# İsteğe bağlı ortam değişkenleri:
+#   KOVAN_REF=<commit>     hangi sürümün kurulacağı (varsayılan main)
+#   KOVAN_ADMINS=<kimlik>  hata bildirimlerini görebilecek kullanıcı kimliği (virgülle birden çok); .env'e yazılır
+#   KOVAN_TURN=1           ses aktarma sunucusunu (coturn) da kurar: aynı sürümdeki turn-kur.sh çalışır
 set -euo pipefail
 REF="${KOVAN_REF:-main}"
 BASE="https://raw.githubusercontent.com/Xanaphian/discordumsu/${REF}/server"
@@ -23,6 +27,22 @@ fi
 echo "== Kullanıcı ve klasör"
 id kovan >/dev/null 2>&1 || useradd --system --home-dir "$DIR" --shell /usr/sbin/nologin kovan
 mkdir -p "$DIR/data"
+
+# Güncellemeden önce yedek: yer varsa bütün veri, yoksa yüklenen dosyalar hariç (mesajlar, topluluklar, ayarlar)
+if [ -d "$DIR/data/hub" ]; then
+  mkdir -p /root/yedek
+  BK="/root/yedek/kovan-data-$(date +%Y%m%d-%H%M%S)"
+  USED=$(du -sm "$DIR/data" | awk '{print $1}')
+  FREE=$(df -m --output=avail /root/yedek | tail -1 | tr -d ' ')
+  if [ "$((USED * 3))" -lt "$FREE" ]; then
+    cp -a "$DIR/data" "$BK"
+    echo "veri yedeklendi: $BK (${USED} MB)"
+  else
+    mkdir -p "$BK"
+    tar -C "$DIR/data" --exclude='hub/files' -cf - . | tar -C "$BK" -xf -
+    echo "veri yedeklendi (yüklenen dosyalar hariç, yer az): $BK"
+  fi
+fi
 curl -fsSL "$BASE/paket/kovan-server.js" -o "$DIR/kovan-server.js.new"
 mv "$DIR/kovan-server.js.new" "$DIR/kovan-server.js"
 if [ ! -f "$DIR/.env" ]; then
@@ -33,6 +53,14 @@ if [ ! -f "$DIR/.env" ]; then
     echo "KOVAN_DATA=${DIR}/data"
     echo "KOVAN_SECRET=$(openssl rand -hex 32)"
   } > "$DIR/.env"
+fi
+# Hata bildirimlerini görebilecek kullanıcı (gizli değildir; verilmişse .env'e yazılır)
+if [ -n "${KOVAN_ADMINS:-}" ]; then
+  TMP=$(mktemp)
+  grep -v "^KOVAN_ADMINS=" "$DIR/.env" > "$TMP" || true
+  echo "KOVAN_ADMINS=${KOVAN_ADMINS}" >> "$TMP"
+  cat "$TMP" > "$DIR/.env"
+  rm -f "$TMP"
 fi
 chown -R kovan:kovan "$DIR"
 chmod 750 "$DIR"
@@ -108,4 +136,10 @@ sleep 1
 echo "== Dışarıdan deneme"
 curl -fsS "https://45-87-173-18.sslip.io/kovan/info" && echo
 systemctl --no-pager --lines=3 status kovan | head -12
+
+if [ "${KOVAN_TURN:-}" = "1" ]; then
+  curl -fsSL "$BASE/turn-kur.sh" -o /tmp/turn-kur.sh
+  bash /tmp/turn-kur.sh
+  rm -f /tmp/turn-kur.sh
+fi
 echo "Tamam."

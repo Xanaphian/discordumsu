@@ -15,6 +15,7 @@ import { mediaLabel } from './medya';
 import { cardSummary } from './cards';
 import { toolSummary } from './tools';
 import type { Blueprint } from '../../shared/topluluk';
+import { FEAT_DM_QUIET } from '../../shared/ekler';
 
 export interface Profile {
   id: ID;
@@ -97,6 +98,8 @@ export interface Settings {
   msgStyle: 'petek' | 'balon' | 'duz';
   layout: 'float' | 'flush';
   backdrop: boolean;
+  /** pil dostu mod (v1.50): güçlü ekran kartını zorlama, doku ve bulanıklığı kapat */
+  powerSaver: boolean;
   // etkinlik (v1.18)
   /** anlık etkinliğimi paylaş (ana anahtar) */
   actShare: boolean;
@@ -207,6 +210,7 @@ export const DEFAULT_SETTINGS: Settings = {
   msgStyle: 'petek',
   layout: 'float',
   backdrop: true,
+  powerSaver: false,
   actShare: true,
   actGames: true,
   actMusic: true,
@@ -306,6 +310,8 @@ export interface AppInfo {
   mcpBridge?: string;
   /** KOVAN_SERVER ortam değişkeniyle verilen sunucu (deneme için) */
   server?: string;
+  /** uygulama pil dostu modla mı başladı (ayar değişince yeniden başlatma gerekir) */
+  powerSaver?: boolean;
 }
 
 interface Conn {
@@ -760,9 +766,14 @@ export async function mutualFriends(uid: ID): Promise<UserPublic[] | null> {
 export const realCommunities = (communities: Record<ID, Community>) => Object.values(communities).filter((c) => !c.dm);
 
 /** Özel mesaj sohbetleri, en son yazışılan en üstte */
+/** v1.50: bu oturumda benim açtığım ya da bana gerçekten ulaşan (mesaj/arama) özel sohbetler.
+ *  Hiç mesaj atılmamış bir sohbet listede yalnız bunlardan biriyse görünür; böylece biri profilime bakıp
+ *  "Mesaj"a bastı diye listemde belirmez (eski sunucuda da çalışsın diye uygulama tarafında da süzülür). */
+const openedDms = new Set<ID>();
+
 export const dmList = (communities: Record<ID, Community>) =>
   Object.values(communities)
-    .filter((c) => c.dm)
+    .filter((c) => c.dm && (c.dmLast || openedDms.has(c.id)))
     .sort((a, b) => ((b.dmLast || '') > (a.dmLast || '') ? 1 : -1));
 
 /** Biriyle özel mesajlaşmayı açar (gerekirse ortak bir topluluğun kovanında oluşturur) */
@@ -770,6 +781,7 @@ export async function openDm(uid: ID) {
   const st = S();
   if (!uid || uid === st.me.id) return;
   const cid = dmCid(uid);
+  openedDms.add(cid);
   const hidden = hiddenDms();
   if (cid in hidden) {
     delete hidden[cid];
@@ -946,6 +958,8 @@ function onFrame(host: string, f: ServerFrame) {
       upsertCommunity(host, f.c, f.lastIds);
       return;
     case 'dm':
+      // yeni sunucu boş sohbeti karşı tarafa yalnız arama başlayınca bildirir: o zaman listede görünsün
+      if (S().conns[host]?.feats?.includes(FEAT_DM_QUIET)) openedDms.add(dmCid(f.dm.peer.id));
       upsertDm(host, f.dm);
       return;
     case 'friend': {
@@ -1438,8 +1452,15 @@ export async function uploadFile(cid: ID, file: File, w?: number, h?: number): P
   }
   const r = await fetch(`${base}/upload`, { method: 'POST', headers, body: file });
   if (r.status === 413) throw new Error('Dosya çok büyük (en fazla 25 MB).');
+  if (r.status === 429) throw new Error(await uploadLimitText(r));
   if (!r.ok) throw new Error('Yükleme başarısız (' + r.status + ')');
   return r.json();
+}
+
+/** Sunucu yükleme sınırına takılınca gönderdiği açıklama (v1.50) */
+export async function uploadLimitText(r: Response) {
+  const j = await r.json().catch(() => null);
+  return typeof j?.error === 'string' && j.error ? j.error : 'Çok fazla dosya yükledin. Biraz sonra yeniden dene.';
 }
 
 // ---------------------------------------------------------------------------

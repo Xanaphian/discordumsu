@@ -33,12 +33,15 @@ function useTheme() {
   const msgStyle = useStore((s) => s.settings.msgStyle);
   const layout = useStore((s) => s.settings.layout);
   const backdrop = useStore((s) => s.settings.backdrop);
+  const powerSaver = useStore((s) => s.settings.powerSaver);
   useEffect(() => {
     const r = document.documentElement;
     r.dataset.msgstyle = msgStyle || 'petek';
     r.dataset.layout = layout || 'float';
-    r.classList.toggle('backdrop', backdrop !== false);
-  }, [msgStyle, layout, backdrop]);
+    // pil dostu modda doku da kapanır (her karede yeniden boyanan katman)
+    r.classList.toggle('backdrop', backdrop !== false && !powerSaver);
+    r.classList.toggle('power-saver', !!powerSaver);
+  }, [msgStyle, layout, backdrop, powerSaver]);
   useEffect(() => {
     const r = document.documentElement;
     r.dataset.theme = theme;
