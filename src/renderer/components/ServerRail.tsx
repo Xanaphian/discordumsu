@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import { Plus, LogIn, WifiOff, Home, Compass } from 'lucide-react';
 import { useStore, selectCommunity, openModal, openMenu, markCommunityRead, updateSettings, leaveCommunity, deleteCommunity, confirmDialog, toggleMuted, dmList, closeDm, pendingIn, isDmHidden, hiddenDms } from '../lib/store';
 import { Avatar, CommunityIcon, Tooltip } from './Common';
@@ -150,6 +150,11 @@ export function ServerRail() {
   const conns = useStore((s) => s.conns);
   const { comm } = useUnread();
   const [drag, setDrag] = useState<string | null>(null);
+  useEffect(() => {
+    const end = () => setDrag(null); // yarıda bırakılan sürükleme akılda kalmasın
+    document.addEventListener('dragend', end);
+    return () => document.removeEventListener('dragend', end);
+  }, []);
   const friends = useStore((s) => s.friends);
   const list = useMemo(() => {
     const ids = order.filter((id) => communities[id] && !communities[id].dm);
@@ -165,11 +170,15 @@ export function ServerRail() {
   const homeOn = current === 'home' || !!communities[current]?.dm;
 
   const drop = (target: string) => {
-    if (!drag || drag === target) return;
-    const ids = list.map((c) => c.id).filter((x) => x !== drag);
-    ids.splice(ids.indexOf(target), 0, drag);
-    updateSettings({ railOrder: ids });
+    if (!drag) return;
     setDrag(null);
+    if (drag === target) return;
+    // Hedefin eski sırasına yerleş: aşağı sürükleyince hedefin altına, yukarı sürükleyince üstüne geçer
+    const all = list.map((c) => c.id);
+    const to = all.indexOf(target);
+    const ids = all.filter((x) => x !== drag);
+    ids.splice(to < 0 ? ids.length : to, 0, drag);
+    updateSettings({ railOrder: ids });
   };
 
   return (

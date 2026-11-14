@@ -825,8 +825,11 @@ function pushState() {
 }
 
 // ---------------------------------------------------------------- kamera
+let camStarting = false;
 export async function startCamera() {
-  if (!V().ch || V().cam) return;
+  // Çift tıklamada iki kamera akışı açılıyordu; biri hiç kapanmıyor, kamera ışığı yanık kalıyordu
+  if (!V().ch || V().cam || camStarting) return;
+  camStarting = true;
   const s = ST();
   try {
     const want = (deviceId?: string): MediaStreamConstraints => ({
@@ -847,7 +850,7 @@ export async function startCamera() {
       if (!picked || !deviceGone(e)) throw e;
       cam = await navigator.mediaDevices.getUserMedia(want());
     }
-    if (!V().ch) return cam.getTracks().forEach((t) => t.stop());
+    if (!V().ch || V().cam) return cam.getTracks().forEach((t) => t.stop());
     const vt = cam.getVideoTracks()[0];
     vt.contentHint = 'motion';
     vt.onended = () => stopCamera();
@@ -857,6 +860,8 @@ export async function startCamera() {
     if (s.sounds) playSound('unmute', 0.06);
   } catch (e) {
     toast((e as Error)?.name === 'NotFoundError' ? 'Kamera bulunamadı.' : 'Kameraya erişilemedi.', 'err');
+  } finally {
+    camStarting = false;
   }
 }
 

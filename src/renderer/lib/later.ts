@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import type { ID, Message } from '../../shared/protocol';
 import { useStore, sendMessage, connFor, toast, plainText } from './store';
 import { cardSummary } from './cards';
+import { IS_POPOUT } from './popout';
 
 export interface SavedMsg {
   cid: ID;
@@ -83,7 +84,7 @@ function tick() {
     const conn = connFor(x.ch);
     // bağlantı kurulmamışsa bir sonraki turda dene
     if (!conn || conn.status !== 'online') continue;
-    sendMessage(x.ch, x.content);
+    sendMessage(x.ch, x.content, undefined, null);
     sent.push(x.id);
   }
   if (sent.length) {
@@ -94,7 +95,7 @@ function tick() {
 
 let started = false;
 export function startLater() {
-  if (started) return;
+  if (started || IS_POPOUT) return; // ayrı pencere de zamanlayıcı çalıştırırsa mesaj iki kez gider
   started = true;
   setInterval(tick, 10_000);
   setTimeout(tick, 4000);

@@ -74,7 +74,7 @@ export function ScheduledStrip({ ch }: { ch: ID }) {
             className="link"
             onClick={() => {
               unschedule(x.id);
-              sendMessage(x.ch, x.content);
+              sendMessage(x.ch, x.content, undefined, null);
             }}
           >
             Şimdi gönder

@@ -928,6 +928,15 @@ export function plainText(content: string, c?: Community) {
     .replace(/[*_~`>#]/g, '');
 }
 
+/** "Metni kopyala" için: yazı olduğu gibi kalır (kod, bağlantı, alt çizgi bozulmaz), yalnız bahsetmeler ada çevrilir */
+export function copyableText(content: string, c?: Community): string {
+  const users = S().users;
+  return content
+    .replace(/<@&([\w-]+)>/g, (_, id) => '@' + (c?.roles.find((r) => r.id === id)?.name || 'rol'))
+    .replace(/<@([\w-]+)>/g, (_, id) => '@' + (users[id]?.name || c?.users[id]?.name || 'biri'))
+    .replace(/<#(\w+)>/g, (_, id) => '#' + (c?.channels.find((x) => x.id === id)?.name || 'kanal'));
+}
+
 function onFrame(host: string, f: ServerFrame) {
   if (f.t === 'post' || f.t === 'post.upd' || f.t === 'post.del') return void postHooks.onFrame?.(host, f);
   switch (f.t) {
@@ -1098,7 +1107,14 @@ function onFrame(host: string, f: ServerFrame) {
       set((s) => {
         const ch = s.chans[f.ch];
         if (!ch) return {};
-        return { chans: { ...s.chans, [f.ch]: { ...ch, items: ch.items.filter((x) => x.id !== f.id) } } };
+        const items = ch.items.filter((x) => x.id !== f.id);
+        const chans = { ...s.chans, [f.ch]: { ...ch, items } };
+        // Kanalın en yeni mesajı silindiyse "son mesaj" işareti de geri çekilir; yoksa kanal hep
+        // "eski mesajları görüntülüyorsun" der ve okunmamış gibi görünür.
+        if (s.lastIds[f.ch] !== f.id || !ch.loaded || ch.detached) return { chans };
+        const prev = items.findLast((x) => !x.pending && !x.id.startsWith('~'))?.id;
+        if (!prev && ch.more) return { chans };
+        return { chans, lastIds: prev ? { ...s.lastIds, [f.ch]: prev } : omit(s.lastIds, f.ch) };
       });
       return;
     case 'typing':
@@ -1341,7 +1357,13 @@ export async function loadHistory(ch: ID, before?: ID) {
         const pend = prev?.items.filter((x) => x.pending) || [];
         items = [...r.msgs, ...pend];
       }
-      return { chans: { ...s.chans, [ch]: { items, more: r.more, loaded: true, loading: false, prepended } } };
+      // epoch ve detached korunur: eski bir mesaja atladıktan sonra yukarı kaydırınca liste sona fırlıyordu
+      const chans = { ...s.chans, [ch]: { items, more: r.more, loaded: true, loading: false, prepended, epoch: prev?.epoch, detached: before ? prev?.detached : undefined } };
+      // En yeni sayfa geldi ve bildiğimiz "son mesaj" artık yok (biz yokken silinmiş): işareti geri çek
+      const known = s.lastIds[ch];
+      const tail = r.msgs[r.msgs.length - 1]?.id;
+      if (before || !known || (tail ? tail >= known : r.more)) return { chans };
+      return { chans, lastIds: tail ? { ...s.lastIds, [ch]: tail } : omit(s.lastIds, ch) };
     });
     retried.delete(ch);
   } catch {
@@ -1368,17 +1390,19 @@ async function refreshChannel(ch: ID) {
     set((s) => {
       const prev = s.chans[ch];
       if (!prev) return {};
-      const map = new Map(prev.items.filter((x) => !x.pending).map((x) => [x.id, x]));
+      // "Gönderilemedi" mesajları ('~' ile başlar) burada tutulur; eskiden yeniden bağlanınca sessizce siliniyor, yazı kayboluyordu
+      const failed = prev.items.filter((x) => !x.pending && x.id.startsWith('~'));
+      const map = new Map(prev.items.filter((x) => !x.pending && !x.id.startsWith('~')).map((x) => [x.id, x]));
       const first = r.msgs[0]?.id;
       // en son sayfayla örtüşmüyorsa listeyi sıfırla
       if (first && !map.has(first) && prev.items.length && prev.items[prev.items.length - 1].id > first) {
         for (const m of r.msgs) map.set(m.id, m);
       } else if (first && !map.has(first)) {
-        return { chans: { ...s.chans, [ch]: { items: r.msgs, more: r.more, loaded: true, loading: false, prepended: 0, epoch: (prev.epoch || 0) + 1 } } };
+        return { chans: { ...s.chans, [ch]: { items: [...r.msgs, ...failed], more: r.more, loaded: true, loading: false, prepended: 0, epoch: (prev.epoch || 0) + 1 } } };
       } else for (const m of r.msgs) map.set(m.id, m);
       // sayfadaki aralıkta olup artık olmayanları sil
       if (first) for (const id of [...map.keys()]) if (id >= first && !r.msgs.some((m) => m.id === id)) map.delete(id);
-      const items = [...map.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
+      const items = [...[...map.values()].sort((a, b) => (a.id < b.id ? -1 : 1)), ...failed];
       return { chans: { ...s.chans, [ch]: { ...prev, items } } };
     });
   } catch {
@@ -1388,15 +1412,18 @@ async function refreshChannel(ch: ID) {
 
 // ---------------------------------------------------------------------------
 // mesaj işlemleri
-export function sendMessage(ch: ID, content: string, attachments?: Attachment[]) {
+/** reply verilirse (null = yanıtsız) yazma kutusundaki "yanıtlanıyor" seçimine dokunulmaz: zamanlanmış mesaj ya da
+ *  "tekrar dene", o sırada yazılmakta olan yanıtın hedefini çalmasın. */
+export function sendMessage(ch: ID, content: string, attachments?: Attachment[], reply?: ID | null) {
   const conn = connFor(ch);
   const s = S();
-  const replyTo = s.replyTo[ch];
+  const replyTo = reply === undefined ? s.replyTo[ch] : reply || undefined;
   const nonce = makeId();
   const local: CMessage = { id: '~' + nonce, channelId: ch, authorId: s.me.id, content, ts: Date.now(), nonce, pending: true, replyTo, attachments };
   set((x) => {
-    const st = x.chans[ch] || { items: [], more: false, loaded: true, loading: false, prepended: 0 };
-    return { chans: { ...x.chans, [ch]: { ...st, items: [...st.items, local] } }, replyTo: { ...x.replyTo, [ch]: undefined } };
+    // Kanal bu oturumda hiç açılmadıysa "yüklendi" sayma; yoksa açılınca geçmişi gelmez, yalnız bu mesaj görünür
+    const st = x.chans[ch] || { items: [], more: true, loaded: false, loading: false, prepended: 0 };
+    return { chans: { ...x.chans, [ch]: { ...st, items: [...st.items, local] } }, replyTo: reply === undefined ? { ...x.replyTo, [ch]: undefined } : x.replyTo };
   });
   const ok = conn?.send({ t: 'send', ch, nonce, content, replyTo, attachments });
   if (!ok) {
@@ -1410,8 +1437,7 @@ export function retryMessage(m: CMessage) {
     const ch = s.chans[m.channelId];
     return { chans: { ...s.chans, [m.channelId]: { ...ch, items: ch.items.filter((x) => x !== m) } } };
   });
-  if (m.replyTo) set((s) => ({ replyTo: { ...s.replyTo, [m.channelId]: m.replyTo } }));
-  sendMessage(m.channelId, m.content, m.attachments);
+  sendMessage(m.channelId, m.content, m.attachments, m.replyTo ?? null);
 }
 
 export function discardMessage(m: CMessage) {
@@ -1784,6 +1810,12 @@ export function openModal(m: Modal | null) {
 
 export function confirmDialog(title: string, body: string, onConfirm: () => void, confirmText = 'Onayla', danger = true) {
   openModal({ type: 'confirm', title, body, onConfirm, confirmText, danger });
+}
+
+// Esc önce açık menüyü, kişi kartını, emoji seçiciyi ya da sürüklemeyi kapatır; pencere ikinci basışta kapanır
+export function escBusy(): boolean {
+  const st = S();
+  return !!(st.menu || st.popout || document.querySelector('.emoji-picker') || document.body.classList.contains('role-dragging'));
 }
 
 export function jumpToPresent(ch: ID) {

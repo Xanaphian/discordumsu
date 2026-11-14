@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleCheck, Mic } from 'lucide-react';
 import {
-  useStore, openModal, moveToServer, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT,
+  useStore, openModal, moveToServer, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT, escBusy,
 } from '../lib/store';
 import { VoiceTab } from './VoiceSettings';
 import { Avatar, CommunityIcon, Toggle, Logo, STATUS_LABEL } from './Common';
@@ -21,7 +21,7 @@ import { ShortcutSettings } from './Kisayollar';
 
 export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: string; label: string; group?: string; danger?: boolean }[]; tab: string; setTab: (t: string) => void; children: React.ReactNode; footer?: React.ReactNode }) {
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.modal-backdrop .confirm') && close();
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.modal-backdrop .confirm') && !escBusy() && close();
     document.addEventListener('keydown', k);
     return () => document.removeEventListener('keydown', k);
   }, []);

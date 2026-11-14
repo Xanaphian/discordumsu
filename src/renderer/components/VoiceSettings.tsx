@@ -70,6 +70,8 @@ function MicTest() {
   const [hear, setHear] = useState(false);
   const [lvl, setLvl] = useState(0);
   const hearRef = useRef<GainNode | null>(null);
+  const hearNow = useRef(hear);
+  hearNow.current = hear;
   useEffect(() => {
     if (hearRef.current) hearRef.current.gain.value = hear ? 1 : 0;
   }, [hear]);
@@ -105,7 +107,7 @@ function MicTest() {
         const an = ctx.createAnalyser();
         an.fftSize = 1024;
         const out = ctx.createGain();
-        out.gain.value = 0;
+        out.gain.value = hearNow.current ? 1 : 0; // deneme yeniden başlayınca "kendimi duy" seçimi korunur
         hearRef.current = out;
         chain.output.connect(g);
         g.connect(an);

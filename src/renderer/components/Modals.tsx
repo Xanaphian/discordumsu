@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Hash, Volume2, Megaphone, Box, Globe, Copy, Check, ImagePlus, LoaderCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
 import {
-  useStore, openModal, createCommunity, joinByInvite, makeInvite, updateSettings, inviteHostOptions, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
+  useStore, openModal, escBusy, createCommunity, joinByInvite, makeInvite, updateSettings, inviteHostOptions, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
 } from '../lib/store';
 import { CommunityIcon, Avatar } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtTime, displayName } from '../lib/util';
@@ -69,7 +69,7 @@ export function Modal({ children, onClose, className, wide }: { children: React.
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && !escBusy() && onClose();
     document.addEventListener('keydown', k);
     return () => document.removeEventListener('keydown', k);
   }, [onClose]);
@@ -104,8 +104,10 @@ function CreateCommunityModal() {
   const [busy, setBusy] = useState(false);
   const [fromTpl, setFromTpl] = useState(false);
   const file = useRef<HTMLInputElement>(null);
+  const sending = useRef(false);
   const submit = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || sending.current) return; // Enter basılı kalınca ya da çift tıklamada iki topluluk açılmasın
+    sending.current = true;
     setBusy(true);
     try {
       await createCommunity(name.trim(), color, icon);
@@ -113,6 +115,7 @@ function CreateCommunityModal() {
     } catch (e) {
       toast((e as Error).message, 'err');
     }
+    sending.current = false;
     setBusy(false);
   };
   if (fromTpl)
@@ -136,7 +139,7 @@ function CreateCommunityModal() {
           }} />
         <label className="field">
           <span>Topluluk adı</span>
-          <input autoFocus value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+          <input autoFocus value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.repeat && submit()} />
         </label>
         <div className="field">
           <span>Renk</span>
@@ -172,7 +175,10 @@ function JoinModal({ code: initial }: { code?: string }) {
   const [code, setCode] = useState(initial || '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const sending = useRef(false);
   const submit = async () => {
+    if (!code.trim() || sending.current) return;
+    sending.current = true;
     setErr('');
     setBusy(true);
     try {
@@ -182,6 +188,7 @@ function JoinModal({ code: initial }: { code?: string }) {
     } catch (e) {
       setErr((e as Error).message);
     }
+    sending.current = false;
     setBusy(false);
   };
   return (
@@ -190,7 +197,7 @@ function JoinModal({ code: initial }: { code?: string }) {
       <div className="modal-body">
         <label className="field">
           <span>Davet kodu</span>
-          <input autoFocus placeholder="ör. xanaphian/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} className={cx(err && 'invalid')} />
+          <input autoFocus placeholder="ör. xanaphian/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.repeat && submit()} className={cx(err && 'invalid')} />
         </label>
         {err && <div className="field-err">{err}</div>}
         <div className="hint-card">
@@ -299,11 +306,13 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
   const [cat, setCat] = useState<string | null>(categoryId);
   const [priv, setPriv] = useState(false);
   const [banner, setBanner] = useState<string | undefined>();
+  const sending = useRef(false);
   if (!c) return null;
   const urlOk = type !== 'site' || !!cleanSiteUrl(url);
   const tool = isToolChannel(type);
   const submit = async () => {
-    if ((!name.trim() && type !== 'site' && !tool) || !urlOk) return;
+    if ((!name.trim() && type !== 'site' && !tool) || !urlOk || sending.current) return;
+    sending.current = true; // Enter basılı kalınca ya da çift tıklamada aynı kanal iki kez açılmasın
     try {
       const r = await request<{ data: string }>(cid, { t: 'chan.create', cid, name, type, categoryId: cat, private: priv, ...(type === 'site' ? { url: cleanSiteUrl(url)! } : {}), ...(banner ? { banner } : {}) });
       close();
@@ -313,6 +322,7 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
     } catch (e) {
       toast((e as Error).message, 'err');
     }
+    sending.current = false;
   };
   return (
     <Modal onClose={close}>
@@ -350,13 +360,13 @@ function CreateChannelModal({ cid, categoryId, kind }: { cid: string; categoryId
           <span>Kanal adı</span>
           <div className="input-icon">
             {tool ? <ToolIcon type={type as 'ideas'} size={16} /> : type === 'voice' ? <Volume2 size={16} /> : type === 'space' ? <Box size={16} /> : type === 'site' ? <Globe size={16} /> : type === 'announce' ? <Megaphone size={16} /> : <Hash size={16} />}
-            <input autoFocus placeholder={tool ? `Boş bırakırsan "${TOOL_INFO[type as 'ideas'].label}"` : type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Meydan' : type === 'site' ? 'Boş bırakırsan sitenin adı kullanılır' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+            <input autoFocus placeholder={tool ? `Boş bırakırsan "${TOOL_INFO[type as 'ideas'].label}"` : type === 'voice' ? 'Sohbet odası' : type === 'space' ? 'Meydan' : type === 'site' ? 'Boş bırakırsan sitenin adı kullanılır' : 'yeni-kanal'} value={name} maxLength={48} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.repeat && submit()} />
           </div>
         </label>
         {type === 'site' && (
           <label className="field">
             <span>Sitenin adresi</span>
-            <input value={url} maxLength={500} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder="https://xanaphian.com/" />
+            <input value={url} maxLength={500} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.repeat && submit()} placeholder="https://xanaphian.com/" />
             <small className={cx('field-hint', !urlOk && 'err')}>{urlOk ? 'Oda bu adresle açılır; bu sitenin tüm sayfaları odanın içinde gezilebilir.' : 'Geçerli bir http(s) adresi yaz.'}</small>
           </label>
         )}
