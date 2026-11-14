@@ -8,11 +8,12 @@ import { cx, COLORS, displayName, resizeImage, modKey } from '../lib/util';
 import type { Channel, Community } from '../../shared/protocol';
 import { useUnread } from './ServerRail';
 import { HomeStart } from './AnaSayfa';
+import { CommunitiesView } from './ToplulukOneri';
 import { cropImage, AVATAR_CROP } from './Kirpma';
 
 export function HomeView() {
   const tab = useStore((s) => s.homeTab);
-  return tab === 'home' ? <HomeStart /> : <FriendsView />;
+  return tab === 'home' ? <HomeStart /> : tab === 'communities' ? <CommunitiesView /> : <FriendsView />;
 }
 
 export function Onboarding() {

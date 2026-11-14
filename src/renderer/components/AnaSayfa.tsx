@@ -22,6 +22,7 @@ import { activeCustom } from '../../shared/profile';
 import { idTime, isVoiceLike, type Community, type Channel, type ID, type Message, type UserPublic, type VoiceMember } from '../../shared/protocol';
 import { catLabel, type ExploreItem } from '../../shared/topluluk';
 import { cx, modKey } from '../lib/util';
+import { PostFeed } from './Paylasimlar';
 
 // ---------------------------------------------------------------------------
 // küçük yardımcılar
@@ -219,10 +220,10 @@ export function HomeStart() {
         )}
       </div>
       <div className="ah-in">
-        <header className="ah-hero">
+        <header className="ah-hero compact">
           <div className="ah-hero-main">
             <button className="ah-me" onClick={() => openModal({ type: 'profile', uid: me.id })} title="Profilini aç">
-              <Avatar user={{ name: me.name, color: me.color, avatar: me.avatar, extra: me.extra }} size={76} status={me.status} />
+              <Avatar user={{ name: me.name, color: me.color, avatar: me.avatar, extra: me.extra }} size={60} status={me.status} />
             </button>
             <div className="ah-hello">
               <span className="ah-date">{now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
@@ -256,84 +257,62 @@ export function HomeStart() {
 
         <div className="ah-grid">
           <div className="ah-main">
-            <GettingStarted hasComm={list.length > 0} hasFriend={friends.length > 0} />
-
-            {rooms.length > 0 && (
-              <Section id="ah-rooms" icon={<Volume2 size={16} />} title="Seste şimdi" count={rooms.length}>
-                <div className="ah-rooms">
-                  {rooms.slice(0, 6).map((r) => (
-                    <RoomCard key={r.ch.id} r={r} users={users} />
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {lfg.length > 0 && (
-              <Section icon={<Swords size={16} />} title="Açık takım ilanları" count={lfg.length}>
-                <div className="ah-list">
-                  {lfg.map((x) => (
-                    <LfgRow key={x.m.id} x={x} users={users} />
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {(list.length > 0 || waiting.length > 0) && (
-              <Section
-                id="ah-wait"
-                icon={<MessageCircle size={16} />}
-                title="Seni bekleyenler"
-                count={waiting.length || undefined}
-                extra={
-                  waiting.length > 1 ? (
-                    <button className="ah-link" onClick={() => waiting.forEach((w) => markRead(w.ch.id))}>
-                      <CheckCheck size={14} /> Hepsini okundu say
-                    </button>
-                  ) : null
-                }
-              >
-                {waiting.length ? (
-                  <div className="ah-list">
-                    {waiting.slice(0, 6).map((w) => (
-                      <WaitRow key={w.ch.id} w={w} users={users} />
-                    ))}
-                    {waiting.length > 6 && <div className="ah-more">ve {waiting.length - 6} sohbet daha</div>}
-                  </div>
-                ) : (
-                  <div className="ah-allread">
-                    <span className="ah-allread-ic">
-                      <Check size={18} />
-                    </span>
-                    <div>
-                      <b>Hepsini okudun</b>
-                      <span>Yeni bir mesaj ya da bahsetme gelince burada görünecek.</span>
-                    </div>
-                  </div>
-                )}
-              </Section>
-            )}
-
-            <Section icon={<Hash size={16} />} title="Toplulukların" count={list.length || undefined}>
-              <div className="ah-comms">
-                {list.map((c) => (
-                  <CommCard key={c.id} c={c} />
-                ))}
-                <button className="ah-comm add" onClick={() => openModal({ type: 'createCommunity' })}>
-                  <span className="ah-add-ic">
-                    <Plus size={22} />
-                  </span>
-                  <b>Topluluk oluştur</b>
-                  <span>ya da bir davetle katıl</span>
-                </button>
-              </div>
-            </Section>
-
-            {firstRun && <ExploreSuggest big />}
+            <PostFeed />
           </div>
 
           <aside className="ah-side">
+            <GettingStarted hasComm={list.length > 0} hasFriend={friends.length > 0} />
             <FriendsPanel />
-            {!firstRun && <ExploreSuggest />}
+
+            {rooms.length > 0 && (
+              <section className="ah-panel" id="ah-rooms">
+                <Section icon={<Volume2 size={16} />} title="Seste şimdi" count={rooms.length}>
+                  <div className="ah-rooms side">
+                    {rooms.slice(0, 3).map((r) => (
+                      <RoomCard key={r.ch.id} r={r} users={users} />
+                    ))}
+                  </div>
+                </Section>
+              </section>
+            )}
+
+            {lfg.length > 0 && (
+              <section className="ah-panel">
+                <Section icon={<Swords size={16} />} title="Açık takım ilanları" count={lfg.length}>
+                  <div className="ah-list flat">
+                    {lfg.map((x) => (
+                      <LfgRow key={x.m.id} x={x} users={users} />
+                    ))}
+                  </div>
+                </Section>
+              </section>
+            )}
+
+            {waiting.length > 0 && (
+              <section className="ah-panel" id="ah-wait">
+                <Section
+                  icon={<MessageCircle size={16} />}
+                  title="Seni bekleyenler"
+                  count={waiting.length}
+                  extra={
+                    waiting.length > 1 ? (
+                      <button className="ah-link" onClick={() => waiting.forEach((w) => markRead(w.ch.id))} title="Hepsini okundu say">
+                        <CheckCheck size={14} /> Okundu
+                      </button>
+                    ) : null
+                  }
+                >
+                  <div className="ah-list flat">
+                    {waiting.slice(0, 5).map((w) => (
+                      <WaitRow key={w.ch.id} w={w} users={users} />
+                    ))}
+                    {waiting.length > 5 && <div className="ah-more">ve {waiting.length - 5} sohbet daha</div>}
+                  </div>
+                </Section>
+              </section>
+            )}
+
+            <ExploreSuggest />
             <Tip />
           </aside>
         </div>
@@ -351,7 +330,7 @@ function Stat({ n, label, on, tone }: { n: number; label: string; on: () => void
   );
 }
 
-function Section({ id, icon, title, count, extra, children }: { id?: string; icon: React.ReactNode; title: string; count?: number; extra?: React.ReactNode; children: React.ReactNode }) {
+export function Section({ id, icon, title, count, extra, children }: { id?: string; icon: React.ReactNode; title: string; count?: number; extra?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="ah-sec" id={id}>
       <h3 className="ah-h">
@@ -489,7 +468,7 @@ function LfgRow({ x, users }: { x: OpenLfg; users: State['users'] }) {
   );
 }
 
-function CommCard({ c }: { c: Community }) {
+export function CommCard({ c }: { c: Community }) {
   const presence = useStore((s) => s.presence);
   const voice = useStore((s) => s.voice);
   const meId = useStore((s) => s.me.id);

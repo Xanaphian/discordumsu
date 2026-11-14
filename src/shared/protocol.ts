@@ -4,6 +4,7 @@ import type { BotClientFrame, BotServerFrame } from './bots';
 import type { Sticker } from './stickers';
 export type { Sticker } from './stickers';
 import type { JoinGuard, Listing, Blueprint } from './topluluk';
+import type { FeedScope, PostVis, PostView } from './paylasim';
 
 export type ID = string;
 
@@ -420,15 +421,25 @@ export type ClientFrame =
   | { t: 'friend.code'; reset?: boolean; rid: string }
   /** ortak arkadaşlar (tam profil); cevap: ok.data = UserPublic[] */
   | { t: 'friend.mutual'; uid: ID; rid: string }
-  /** özel mesaj gizliliği (her bağlantıda gönderilir) */
-  | { t: 'privacy'; dms: DmPrivacy }
+  /** özel mesaj gizliliği (her bağlantıda gönderilir); blocked: v1.48 engellenenler (paylaşımlarda iki yönlü gizlenir) */
+  | { t: 'privacy'; dms: DmPrivacy; blocked?: ID[] }
+  /** v1.48 Ana Sayfa paylaşımları; cevaplar ok.data ile döner */
+  | { t: 'post.feed'; scope: FeedScope; before?: ID; uid?: ID; rid: string }
+  | { t: 'post.thread'; id: ID; rid: string }
+  | { t: 'post.create'; text: string; vis: PostVis; image?: Attachment; re?: ID; rid: string }
+  | { t: 'post.del'; id: ID; rid?: string }
+  | { t: 'post.like'; id: ID; on: boolean }
+  | { t: 'post.report'; id: ID; reason: string; rid?: string }
   | { t: 'ping' }
   | BotClientFrame;
 
 // ---- Sunucu -> İstemci ----
 export type ServerFrame =
-  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; acts?: Record<ID, LiveActivity[]>; v: number }
+  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; acts?: Record<ID, LiveActivity[]>; v: number; feats?: string[] }
   | { t: 'dm'; dm: DmInfo }
+  | { t: 'post'; p: PostView }
+  | { t: 'post.upd'; id: ID; likes: number; replies: number; liked: boolean }
+  | { t: 'post.del'; id: ID }
   | { t: 'friend'; f: FriendInfo }
   | { t: 'friend.del'; uid: ID }
   | { t: 'msg'; m: Message; nonce?: string }

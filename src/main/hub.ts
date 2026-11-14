@@ -17,6 +17,8 @@ import {
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
 import { BotManager, type BotHost } from './bots';
 import { sanitizeStickers } from '../shared/stickers';
+import { PostStore } from './paylasim';
+import { FEAT_POSTS } from '../shared/paylasim';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
 const MAX_CONTENT = 4000;
@@ -251,6 +253,8 @@ export class Hub {
   /** Bot API anahtarlarını şifrelemek için (main.ts safeStorage ile ayarlar) */
   crypt: BotHost['crypt'] = null;
   readonly bots: BotManager;
+  /** v1.48 Ana Sayfa paylaşımları (load() içinde kurulur) */
+  private posts!: PostStore;
 
   readonly serverMode: boolean;
   private maxOwned: number;
@@ -286,6 +290,17 @@ export class Hub {
       }
     }
     this.ensureBot();
+    this.posts = new PostStore({
+      dir: this.dir,
+      user: (id) => this.data.users[id]?.pub,
+      isFriend: (a, b) => !!this.data.friends?.[dmChannelId(a, b)]?.ok,
+      isBot: (id) => id === BOT_ID || this.bots.isBot(id),
+      sessions: () => this.postSessions(),
+    });
+  }
+
+  private *postSessions() {
+    for (const s of this.sessions) if (s.userId) yield { uid: s.userId, send: (f: ServerFrame) => this.send(s, f) };
   }
 
   /** Hub içinde benzersiz 7 karakterlik kısa davet kodu */
@@ -989,6 +1004,7 @@ export class Hub {
       friends: this.friendsFor(uid),
       acts,
       v: PROTOCOL_VERSION,
+      feats: [FEAT_POSTS],
     });
   }
 
@@ -1164,6 +1180,7 @@ export class Hub {
         return true;
       }
       case 'privacy': {
+        if (f.blocked) this.posts.setBlocks(uid, f.blocked);
         const on = f.dms === 'friends';
         if (on === !!this.data.dmFriendsOnly?.[uid]) return true;
         this.data.dmFriendsOnly ||= {};
@@ -1324,6 +1341,7 @@ export class Hub {
     const uid = s.userId;
     if (f.t.startsWith('bot.')) return this.bots.handleFrame(uid, f as Extract<ClientFrame, { t: `bot.${string}` }>, (x) => this.send(s, x));
     if (this.handleFriend(s, uid, f) || this.handleDm(s, uid, f)) return;
+    if (this.posts.handle(uid, f, (x) => this.send(s, x))) return;
 
     switch (f.t) {
       case 'join': {
@@ -1645,6 +1663,16 @@ export class Hub {
           if (p?.tagline) it.tagline = p.tagline;
           if (p?.tags?.length) it.tags = p.tags;
           if (c.members.some((m) => m.userId === uid)) it.joined = true;
+          else {
+            const fr = c.members.filter((m) => m.userId !== uid && this.data.friends?.[dmChannelId(uid, m.userId)]?.ok);
+            if (fr.length) {
+              it.friendCount = fr.length;
+              it.friends = fr.slice(0, 3).map((m) => {
+                const p = this.data.users[m.userId]?.pub;
+                return { id: m.userId, name: p?.name || '?', color: p?.color || '#888888', ...(p?.avatar && p.avatar.length < 120_000 ? { avatar: p.avatar } : {}) };
+              });
+            }
+          }
           out.push(it);
         }
         out.sort((a, b) => b.online - a.online || b.members - a.members);
