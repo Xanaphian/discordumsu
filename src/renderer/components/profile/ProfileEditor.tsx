@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Dices, RotateCcw, Upload, Trash2, Plus, X, Smile, ImagePlus, Link as LinkIcon } from 'lucide-react';
+import { Dices, RotateCcw, Upload, Trash2, Plus, X, Smile, ImagePlus, Crop, Link as LinkIcon } from 'lucide-react';
+import { cropImage, recropImage, CropPreview, bannerCropOpts, BG_CROP, AVATAR_CROP } from '../Kirpma';
 import { useStore, updateProfile, toast, meAsUser } from '../../lib/store';
-import { Avatar, Toggle } from '../Common';
+import { Avatar, CustomColor, Toggle } from '../Common';
 import { EmojiPicker } from '../Overlays';
 import { cx, COLORS, resizeImage } from '../../lib/util';
 import {
@@ -41,158 +42,6 @@ function untilFrom(v: number | null): number | undefined {
     return d.getTime();
   }
   return Date.now() + v;
-}
-
-/** Görseli verilen en-boy oranına kırpıp küçültür (afiş için). */
-function resizeCover(file: File, w: number, h: number, max = BANNER_MAX, quality = 0.82): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const r = w / h;
-      let sw = img.width, sh = img.width / r;
-      if (sh > img.height) {
-        sh = img.height;
-        sw = img.height * r;
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d')!;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      let q = quality;
-      let out = canvas.toDataURL('image/webp', q);
-      while (out.length > max && q > 0.3) out = canvas.toDataURL('image/webp', (q -= 0.15));
-      resolve(out);
-    };
-    img.onerror = (e) => {
-      URL.revokeObjectURL(url);
-      reject(e);
-    };
-    img.src = url;
-  });
-}
-
-/** Hareketli GIF sığıyorsa olduğu gibi kalır (animasyon korunur), yoksa kırpılıp küçültülür. */
-export function readImage(file: File, w: number, h: number, max: number): Promise<string> {
-  if (file.type === 'image/gif' && Math.ceil(file.size / 3) * 4 + 30 <= max) {
-    return new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result));
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-  }
-  if (file.type === 'image/gif') toast('GIF çok büyük olduğu için hareketsiz resme çevrildi.', 'info');
-  return resizeFit(file, w, h, max);
-}
-
-/** Resmi kırpmadan verilen kutuya sığdırıp küçültür; hangi kısmın görüneceği sonra seçilir. */
-function resizeFit(file: File, w: number, h: number, max: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let scale = Math.min(1, w / img.width, h / img.height);
-      const draw = () => {
-        const c = document.createElement('canvas');
-        c.width = Math.max(1, Math.round(img.width * scale));
-        c.height = Math.max(1, Math.round(img.height * scale));
-        const g = c.getContext('2d')!;
-        g.imageSmoothingQuality = 'high';
-        g.drawImage(img, 0, 0, c.width, c.height);
-        let q = 0.85;
-        let out = c.toDataURL('image/webp', q);
-        while (out.length > max && q > 0.4) out = c.toDataURL('image/webp', (q -= 0.12));
-        return out;
-      };
-      let out = draw();
-      while (out.length > max && scale > 0.2) {
-        scale *= 0.8;
-        out = draw();
-      }
-      resolve(out);
-    };
-    img.onerror = (e) => {
-      URL.revokeObjectURL(url);
-      reject(e);
-    };
-    img.src = url;
-  });
-}
-
-type Framing = { x?: number; y?: number; zoom?: number };
-
-/** Resmi sürükleyerek konumlandırma, tekerlek ya da kaydırıcıyla yakınlaştırma */
-export function ImageFramer({ src, value, onChange, aspect, tall }: { src: string; value: Framing; onChange: (f: Framing) => void; aspect: number; tall?: boolean }) {
-  const box = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
-  const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
-  // resmin tamamının sığdığı yakınlık (cover'a göre)
-  const fitZoom = nat ? Math.max(20, Math.floor((Math.min(aspect / (nat.w / nat.h), (nat.w / nat.h) / aspect)) * 100)) : 100;
-  const minZoom = Math.min(100, fitZoom);
-  const x = value.x ?? 50, y = value.y ?? 50, zoom = value.zoom ?? 100;
-  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-  const onDown = (e: React.PointerEvent) => {
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { px: e.clientX, py: e.clientY, x, y };
-  };
-  const onMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    const el = box.current;
-    if (!d || !el) return;
-    const r = el.getBoundingClientRect();
-    const k = 100 / (zoom / 100);
-    onChange({ ...value, x: Math.round(clamp(d.x - ((e.clientX - d.px) / r.width) * k * 1.4, 0, 100)), y: Math.round(clamp(d.y - ((e.clientY - d.py) / r.height) * k * 1.4, 0, 100)) });
-  };
-  const onUp = () => (drag.current = null);
-  return (
-    <div className="pe-framer">
-      <div
-        ref={box}
-        className={cx('pe-frame', tall && 'tall')}
-        style={{ aspectRatio: String(aspect) }}
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerCancel={onUp}
-        onWheel={(e) => onChange({ ...value, zoom: clamp(Math.round(zoom - e.deltaY * 0.15), minZoom, 300) })}
-      >
-        <img src={src} alt="" draggable={false} style={imgFrameStyle(value)} onLoad={(e) => setNat({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
-        <span className="pe-frame-hint">Sürükleyerek konumla</span>
-      </div>
-      <div className="pe-frame-opts">
-        <label className="pe-slider">
-          <em>Yakınlaştır %{zoom}</em>
-          <input type="range" min={minZoom} max={300} value={zoom} onChange={(e) => onChange({ ...value, zoom: Number(e.target.value) })} />
-        </label>
-        <div className="pe-nudge">
-          {(
-            [
-              ['Sol', { x: 0 }],
-              ['Orta', { x: 50, y: 50 }],
-              ['Sağ', { x: 100 }],
-              ['Üst', { y: 0 }],
-              ['Alt', { y: 100 }],
-            ] as [string, Framing][]
-          ).map(([l, f]) => (
-            <button key={l} className="btn ghost sm" onClick={() => onChange({ ...value, ...f })}>
-              {l}
-            </button>
-          ))}
-          <button className="btn ghost sm" onClick={() => onChange({ ...value, x: 50, y: 50, zoom: fitZoom })} title="Resmin tamamını göster">
-            Tamamı
-          </button>
-          <button className="btn ghost sm" onClick={() => onChange({ ...value, x: 50, y: 50, zoom: 100 })} title="Alanı doldur">
-            Doldur
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 type TabId = 'basic' | 'media' | 'style' | 'more' | 'layout';
@@ -428,17 +277,23 @@ export function ProfileEditor() {
                 const f = e.target.files?.[0];
                 e.target.value = '';
                 if (!f) return;
-                try {
-                  setBanner({ kind: 'image', image: await readImage(f, 1100, 700, BANNER_MAX), x: undefined, y: undefined, zoom: undefined });
-                } catch {
-                  toast('Resim okunamadı.', 'err');
-                }
+                const r = await cropImage(f, bannerCropOpts(banner.h));
+                if (r) setBanner({ kind: 'image', ...r });
               }}
             />
             {banner.kind === 'image' && banner.image ? (
               <>
-                <ImageFramer src={banner.image} value={banner} onChange={(f) => setBanner(f)} aspect={330 / (banner.h || BANNER_H.def)} />
+                <CropPreview image={banner.image} framing={banner} aspect={330 / (banner.h || BANNER_H.def)} />
                 <div className="pe-inline">
+                  <button
+                    className="btn ghost sm"
+                    onClick={async () => {
+                      const r = await recropImage(banner.image!, bannerCropOpts(banner.h), banner);
+                      if (r) setBanner({ kind: 'image', ...r });
+                    }}
+                  >
+                    <Crop size={14} /> Yerleşimi düzenle
+                  </button>
                   <button className="btn ghost sm" onClick={() => bannerFile.current?.click()}>
                     <ImagePlus size={14} /> Başka resim seç
                   </button>
@@ -484,16 +339,24 @@ export function ProfileEditor() {
                 const f = e.target.files?.[0];
                 e.target.value = '';
                 if (!f) return;
-                try {
-                  setX({ bg: { dim: 45, blur: 0, ...x.bg, image: await readImage(f, 900, 1100, BG_MAX), x: undefined, y: undefined, zoom: undefined } });
-                } catch {
-                  toast('Resim okunamadı.', 'err');
-                }
+                const r = await cropImage(f, BG_CROP);
+                if (r) setX({ bg: { dim: 45, blur: 0, ...x.bg, ...r } });
               }}
             />
             {x.bg ? (
               <div className="pe-bg">
-                <ImageFramer src={x.bg.image} value={x.bg} onChange={(f) => setX({ bg: { ...x.bg!, ...f } })} aspect={330 / 470} tall />
+                <div className="pe-bg-prev">
+                  <CropPreview image={x.bg.image} framing={x.bg} aspect={330 / 470} />
+                  <button
+                    className="btn ghost sm"
+                    onClick={async () => {
+                      const r = await recropImage(x.bg!.image, BG_CROP, x.bg);
+                      if (r) setX({ bg: { ...x.bg!, ...r } });
+                    }}
+                  >
+                    <Crop size={14} /> Yerleşimi düzenle
+                  </button>
+                </div>
                 <div className="pe-bg-opts">
                   <label className="pe-slider">
                     <em>Karartma %{x.bg.dim ?? 45}</em>
@@ -520,7 +383,7 @@ export function ProfileEditor() {
                   <span>Resim seç</span>
                 </button>
                 <div className="pe-bg-opts">
-                  <span className="note">Herhangi bir resim seç; sonra sürükleyerek hangi kısmının görüneceğini, kaydırıcıyla yakınlığını ayarlarsın. Hareketli GIF de olur (en fazla ~160 KB).</span>
+                  <span className="note">Herhangi bir resim seç; açılan pencerede sürükleyerek, yakınlaştırarak ve döndürerek hangi kısmının görüneceğini seçersin. Hareketli GIF de olur (en fazla ~160 KB).</span>
                 </div>
               </div>
             )}
@@ -559,8 +422,8 @@ export function ProfileEditor() {
                   const f = e.target.files?.[0];
                   e.target.value = '';
                   if (!f) return;
-                  const av = await resizeImage(f, 160);
-                  setD((o) => ({ ...o, avatar: av }));
+                  const r = await cropImage(f, AVATAR_CROP);
+                  if (r) setD((o) => ({ ...o, avatar: r.image }));
                 }}
               />
             </div>
@@ -570,7 +433,7 @@ export function ProfileEditor() {
                 {COLORS.map((c) => (
                   <button key={c} className={cx('swatch', c === d.color && 'on')} style={{ background: c }} onClick={() => setD({ ...d, color: c })} aria-label={c} />
                 ))}
-                <input type="color" value={d.color} onChange={(e) => setD({ ...d, color: e.target.value })} className="color-input" />
+                <CustomColor value={d.color} presets={COLORS} onChange={(color) => setD({ ...d, color })} />
               </div>
             </div>
           </Section>

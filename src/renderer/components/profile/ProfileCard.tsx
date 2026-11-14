@@ -5,10 +5,11 @@ import {
 } from 'lucide-react';
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
 import { idTime } from '../../../shared/protocol';
-import { activeCustom, type ActivityKind, type CardEffect, type ProfileExtra } from '../../../shared/profile';
+import { BANNER_H, activeCustom, type ActivityKind, type CardEffect, type ProfileExtra } from '../../../shared/profile';
 import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
 import { useStore, openModal, toast, selectCommunity, openDm, addFriend, acceptFriend } from '../../lib/store';
 import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
+import { BannerPic } from '../Kirpma';
 import { ACTIVITY_LABEL, bannerBackground, bannerClass, cardTheme, imgFrameStyle, linkBrand, linkTitle, nameStyle } from './look';
 import { ActivityCards, AccountList, PrivateNote, RecentList, VoiceStatus } from './Activity';
 import { useActsOf } from '../../lib/activity';
@@ -75,7 +76,8 @@ export const CardFx = memo(function CardFx({ effect }: { effect?: CardEffect }) 
   );
 });
 
-export function Banner({ user, profile, className, children }: { user?: Pick<UserPublic, 'color'>; profile?: ProfileExtra; className?: string; children?: React.ReactNode }) {
+/** refW: afişin asıl genişliği (profil kartı 330, topluluk 560); seçilen kısım her yerde bu orana göre aynı görünür. */
+export function Banner({ user, profile, className, children, refW = 330 }: { user?: Pick<UserPublic, 'color'>; profile?: Pick<ProfileExtra, 'banner'>; className?: string; children?: React.ReactNode; refW?: number }) {
   const b = profile?.banner;
   return (
     <div
@@ -83,9 +85,10 @@ export function Banner({ user, profile, className, children }: { user?: Pick<Use
       style={{
         background: b?.kind === 'image' && b.image ? b.a : bannerBackground(b, user?.color || '#f5a524'),
         ['--bh' as any]: b?.h ? b.h + 'px' : undefined,
+        ['--bhn' as any]: b?.h || undefined,
       }}
     >
-      {b?.kind === 'image' && b.image && <img className="pc-img" src={b.image} alt="" draggable={false} style={imgFrameStyle(b)} />}
+      {b?.kind === 'image' && b.image && <BannerPic image={b.image} framing={b} aspect={refW / (b.h || BANNER_H.def)} />}
       {children}
     </div>
   );

@@ -5,6 +5,23 @@ import type { Message } from '../../shared/protocol';
 
 export const CARD_PREFIX = 'xn:';
 
+export interface LobbyMember {
+  /** Riot ID (Ad#Etiket) */
+  n: string;
+  /** koridor tercihleri: TOP JUNGLE MIDDLE BOTTOM UTILITY FILL */
+  r?: string;
+  r2?: string;
+  lead?: boolean;
+}
+export interface LobbyInfo {
+  queueId?: number;
+  mode: string;
+  size: number;
+  roles: boolean;
+  members: LobbyMember[];
+}
+export const LOL_POS: Record<string, string> = { TOP: 'Üst', JUNGLE: 'Orman', MIDDLE: 'Orta', BOTTOM: 'Alt', UTILITY: 'Destek', FILL: 'Fark etmez' };
+
 export interface LfgCard {
   k: 'lfg';
   /** oyun adı */
@@ -21,6 +38,8 @@ export interface LfgCard {
   own?: number;
   /** LoL: ilanın verildiği lobinin kimliği */
   lb?: string;
+  /** LoL: istemciden okunan lobi üyeleri (ilan sahibinin uygulaması lobi değiştikçe günceller) */
+  lm?: LobbyMember[];
   /** 1: lobi dağıldı (ilan sahibinin uygulaması işaretler), katılım kapanır */
   x?: 1;
   /** ne zaman (ms); yoksa "şimdi" */

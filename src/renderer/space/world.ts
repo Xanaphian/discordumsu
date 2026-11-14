@@ -98,17 +98,17 @@ export function drawBoothSign(b: BoothSpot, owner: string | null, text: string, 
   if (owner) {
     g.fillStyle = '#2b2116';
     let size = 64;
-    g.font = `800 ${size}px Inter, "Segoe UI", sans-serif`;
-    while (g.measureText(text).width > W - 60 && size > 26) g.font = `800 ${(size -= 4)}px Inter, "Segoe UI", sans-serif`;
+    g.font = `800 ${size}px Rubik, "Segoe UI", sans-serif`;
+    while (g.measureText(text).width > W - 60 && size > 26) g.font = `800 ${(size -= 4)}px Rubik, "Segoe UI", sans-serif`;
     g.fillText(text, W / 2, H / 2 - 18);
-    g.font = '600 30px Inter, "Segoe UI", sans-serif';
+    g.font = '600 30px Rubik, "Segoe UI", sans-serif';
     g.fillStyle = color;
     g.fillText('— ' + owner, W / 2, H - 46);
   } else {
     g.fillStyle = '#f5c35a';
-    g.font = '800 52px Inter, "Segoe UI", sans-serif';
+    g.font = '800 52px Rubik, "Segoe UI", sans-serif';
     g.fillText('BOŞ STAND', W / 2, H / 2 - 16);
-    g.font = '600 28px Inter, "Segoe UI", sans-serif';
+    g.font = '600 28px Rubik, "Segoe UI", sans-serif';
     g.fillStyle = '#d8c7a8';
     g.fillText('Yanına gel, E ile kirala', W / 2, H - 46);
   }
@@ -206,14 +206,14 @@ export function buildMeydan(quality: 'low' | 'high'): World {
     g.lineWidth = 4;
     g.strokeRect(18, 18, 988, 348);
     g.fillStyle = '#f0e6d2';
-    g.font = '400 118px Marcellus, serif';
+    g.font = '400 118px Rubik, sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.shadowColor = 'rgba(10,200,185,.6)';
     g.shadowBlur = 24;
     g.fillText('SAHNE', 512, 165);
     g.shadowBlur = 0;
-    g.font = '600 40px "Source Sans 3", "Segoe UI", sans-serif';
+    g.font = '600 40px Rubik, "Segoe UI", sans-serif';
     g.fillStyle = '#c8aa6e';
     g.fillText('Sahnedekini herkes duyar', 512, 290);
   }

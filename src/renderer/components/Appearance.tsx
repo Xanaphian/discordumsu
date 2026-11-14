@@ -1,6 +1,6 @@
 import React from 'react';
 import { useStore, updateSettings, openModal, type Settings } from '../lib/store';
-import { Toggle } from './Common';
+import { CustomColor, Toggle } from './Common';
 import { Check } from 'lucide-react';
 import { cx } from '../lib/util';
 
@@ -115,7 +115,7 @@ export function AppearanceTab() {
         {ACCENTS.map((c) => (
           <button key={c} className={cx('swatch', s.accent === c && 'on')} style={{ background: c }} onClick={() => updateSettings({ accent: c })} aria-label={c} />
         ))}
-        <input type="color" value={s.accent} onChange={(e) => updateSettings({ accent: e.target.value })} className="color-input" title="Özel renk" />
+        <CustomColor value={s.accent} presets={ACCENTS} onChange={(accent) => updateSettings({ accent })} />
       </div>
 
       <h3>Yerleşim</h3>

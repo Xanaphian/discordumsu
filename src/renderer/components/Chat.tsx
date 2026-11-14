@@ -28,7 +28,6 @@ import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
 import { can, canIn, channelPerms, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
 import { LinkPreviews } from './BaglantiOnizleme';
 import { PopoutButton } from './AyriPencere';
-import { ChannelPic } from './OdaResmi';
 import { memberMenu } from './Moderation';
 import { insertMention } from './Members';
 
@@ -543,7 +542,7 @@ function ChannelStart({ c, ch, loading, more }: { c?: Community; ch: Channel; lo
   if (c?.dm) return <DmStart c={c} />;
   return (
     <div className="ch-start">
-      <div className={cx('ch-start-icon', ch.image && 'has-pic')}>{ch.image ? <img src={ch.image} alt="" /> : ch.type === 'announce' ? <Megaphone size={36} /> : ch.type === 'site' ? (ch.icon ? <img src={ch.icon} alt="" width={40} height={40} className="ch-site-icon" /> : <Globe size={38} />) : <Hash size={40} />}</div>
+      <div className="ch-start-icon">{ch.type === 'announce' ? <Megaphone size={36} /> : ch.type === 'site' ? (ch.icon ? <img src={ch.icon} alt="" width={40} height={40} className="ch-site-icon" /> : <Globe size={38} />) : <Hash size={40} />}</div>
       <h1>{ch.type === 'site' ? `${ch.name} odasına hoş geldin!` : `#${ch.name} kanalına hoş geldin!`}</h1>
       <p>
         {ch.type === 'site' ? 'Odanın sohbeti burada; sohbetteki site bağlantıları doğrudan odada açılır.' : `Bu, #${ch.name} kanalının başlangıcı.`} {ch.topic}
@@ -1454,7 +1453,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   if (c.dm) return <DmHeader c={c} ch={ch} pins={pins} setPins={setPins} />;
   return (
     <div className="chat-header">
-      {ch.image ? <ChannelPic type={ch.type} image={ch.image} size={28} /> : <span className="ch-head-icon">{ch.type === 'announce' ? <Megaphone size={22} /> : <Hash size={22} />}</span>}
+      <span className="ch-head-icon">{ch.type === 'announce' ? <Megaphone size={22} /> : <Hash size={22} />}</span>
       <h2>{ch.name}</h2>
       {ch.topic && (
         <>

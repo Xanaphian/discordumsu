@@ -127,7 +127,7 @@ function buildHat(hat: AvatarLook['hat'], color: string): THREE.Group {
 function labelTexture(name: string, color: string) {
   const c = textCanvas(512, 112);
   const g = c.getContext('2d')!;
-  g.font = '700 46px Inter, "Segoe UI", sans-serif';
+  g.font = '700 46px Rubik, "Segoe UI", sans-serif';
   const w = Math.min(500, g.measureText(name).width + 70);
   roundRect(g, (512 - w) / 2, 18, w, 76, 38);
   g.fillStyle = 'rgba(16,12,8,0.62)';
@@ -174,7 +174,7 @@ function wrap(g: CanvasRenderingContext2D, text: string, max: number, lines: num
 function bubbleTexture(text: string) {
   const c = textCanvas(512, 256);
   const g = c.getContext('2d')!;
-  g.font = '600 34px Inter, "Segoe UI", "Segoe UI Emoji", sans-serif';
+  g.font = '600 34px Rubik, "Segoe UI", "Segoe UI Emoji", sans-serif';
   const lines = wrap(g, text, 440, 4);
   const lh = 42;
   const w = Math.min(500, Math.max(...lines.map((l) => g.measureText(l).width)) + 48);

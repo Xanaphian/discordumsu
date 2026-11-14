@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Plus, Trash2, ImagePlus, Link as LinkIcon, UserPlus, Pencil, CalendarDays, Users, ScrollText, Crown } from 'lucide-react';
+import { X, Plus, Trash2, ImagePlus, Link as LinkIcon, UserPlus, Pencil, CalendarDays, Users, ScrollText, Crown, Crop } from 'lucide-react';
 import { useStore, cmd, openModal, toast } from '../lib/store';
 import { Avatar, CommunityIcon } from './Common';
 import { cx, fmtDay, displayName, countOnline } from '../lib/util';
@@ -10,7 +10,18 @@ import {
 } from '../../shared/profile';
 import { PATTERN_LABEL, bannerBackground, linkBrand } from './profile/look';
 import { Banner, LinkList } from './profile/ProfileCard';
-import { ColorPick, ImageFramer, Section, Seg, readImage } from './profile/ProfileEditor';
+import { ColorPick, Section, Seg } from './profile/ProfileEditor';
+import { cropImage, recropImage, CropPreview, type CropOpts } from './Kirpma';
+
+const commBannerOpts = (h?: number): CropOpts => ({
+  title: 'Topluluk afişi',
+  aspect: 560 / (h || BANNER_H.def),
+  outW: 960,
+  max: BANNER_MAX,
+  keepGif: true,
+  wide: 11,
+  hint: 'Topluluk profilinde, oda listesinin üstünde ve ana sayfada bu kısım görünür.',
+});
 
 const close = () => openModal(null);
 
@@ -50,7 +61,7 @@ export function CommunityProfileCard({
   const empty = !desc && !rules.length && !p.links?.length && !p.tags?.length;
   return (
     <div className={cx('cp-card', preview && 'cp-preview')}>
-      <Banner user={{ color: c.color }} profile={{ banner: p.banner }} className="cp-banner" />
+      <Banner user={{ color: c.color }} profile={{ banner: p.banner }} refW={560} className="cp-banner" />
       <div className="cp-head">
         <span className="cp-icon">
           <CommunityIcon c={c} size={preview ? 72 : 88} />
@@ -245,11 +256,8 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
                 const f = e.target.files?.[0];
                 e.target.value = '';
                 if (!f) return;
-                try {
-                  setBanner({ kind: 'image', image: await readImage(f, 1100, 700, BANNER_MAX), x: undefined, y: undefined, zoom: undefined });
-                } catch {
-                  toast('Resim okunamadı.', 'err');
-                }
+                const r = await cropImage(f, commBannerOpts(banner.h));
+                if (r) setBanner({ kind: 'image', ...r });
               }}
             />
             {d.banner && (
@@ -260,8 +268,17 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
             )}
             {d.banner && banner.kind === 'image' && banner.image ? (
               <>
-                <ImageFramer src={banner.image} value={banner} onChange={(f) => setBanner(f)} aspect={560 / (banner.h || BANNER_H.def)} />
+                <CropPreview image={banner.image} framing={banner} aspect={560 / (banner.h || BANNER_H.def)} />
                 <div className="pe-inline">
+                  <button
+                    className="btn ghost sm"
+                    onClick={async () => {
+                      const r = await recropImage(banner.image!, commBannerOpts(banner.h), banner);
+                      if (r) setBanner({ kind: 'image', ...r });
+                    }}
+                  >
+                    <Crop size={14} /> Yerleşimi düzenle
+                  </button>
                   <button className="btn ghost sm" onClick={() => bannerFile.current?.click()}>
                     <ImagePlus size={14} /> Başka resim seç
                   </button>

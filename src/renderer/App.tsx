@@ -8,6 +8,7 @@ import { ChatView, PickerHost } from './components/Chat';
 import { MemberList, DmProfile } from './components/Members';
 import { Modals } from './components/Modals';
 import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
+import { CropHost } from './components/Kirpma';
 import { HomeView, Onboarding } from './components/Views';
 import { VoiceView, IncomingCall } from './components/Media';
 import { SpaceView } from './components/SpaceView';
@@ -180,6 +181,7 @@ export function App() {
       <ContextMenu />
       <UserPopout />
       <PickerHost />
+      <CropHost />
       <Toasts />
       <IncomingCall />
     </div>

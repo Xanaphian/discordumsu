@@ -1,0 +1,110 @@
+/* v1.43 alttaki panel: mikrofon ve kulaklığın yanında cihaz seçme oku */
+.user-panel .up-dev {
+  flex: none;
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+  transition: background 0.1s;
+}
+.user-panel .up-dev:hover,
+.user-panel .up-dev.open {
+  background: rgba(6, 10, 22, 0.45);
+}
+.user-panel .up-dev .icon-btn {
+  width: 30px;
+}
+.user-panel .up-dev .icon-btn:hover {
+  background: transparent;
+}
+.up-chev {
+  width: 16px;
+  height: 32px;
+  margin-left: -4px;
+  margin-right: 1px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.75);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+  transition: color 0.1s, transform 0.15s;
+}
+.up-chev:hover,
+.up-chev.open {
+  color: #fff;
+}
+.up-chev.open svg {
+  transform: rotate(180deg);
+}
+.up-chev svg {
+  transition: transform 0.15s;
+}
+
+/* açılan menü: sağ tık menüsüyle aynı görünüm */
+.ctx-menu.dev-menu {
+  position: fixed;
+  z-index: 1000;
+  width: 264px;
+  max-width: 264px;
+}
+.dev-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.dev-head svg {
+  color: var(--accent);
+}
+html .ctx-menu .ctx-item.dev-item {
+  padding-left: 10px;
+}
+.dev-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.dev-text .ctx-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dev-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dev-empty {
+  padding: 4px 10px 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.dev-vol {
+  padding: 4px 10px 6px;
+}
+.dev-vol-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.dev-vol-top b {
+  font-weight: 600;
+  color: var(--text);
+}
+.dev-vol input[type='range'] {
+  width: 100%;
+}
+/* cihaz listesinde seçim yuvarlak (tek seçim olduğu belli olsun) */
+.dev-item .ctx-check {
+  border-radius: 50%;
+}

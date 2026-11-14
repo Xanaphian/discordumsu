@@ -1,153 +1,177 @@
-/* v1.29 oda resmi: simgenin yerine küçük kare resim, sağ altta tür işareti */
-.ch-pic {
-  position: relative;
-  flex: 0 0 auto;
-  display: inline-block;
+/* v1.40 oda afişi ve oda çerçevesi.
+   1.30–1.39'daki küçük kare oda resmi kaldırıldı (profil resmine benzeyip odayı kişiyle karıştırıyordu). */
+
+/* odalar (ses, site) çerçeveli bir kutu: başta oda satırı, altında içindekiler.
+   Böylece odalar sesteki kişi kartlarıyla karışmaz. */
+.room-box {
+  margin: 5px 0;
+  padding: 3px;
+  border-radius: 12px;
+  /* çerçeve rengi tek yerde: dış çerçeve ve içteki ayırıcı çizgi aynı rengi kullanır */
+  --room-frame: color-mix(in srgb, var(--text) 22%, transparent);
+  border: 2px solid var(--room-frame);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  transition: border-color 0.12s;
+}
+.room-box:hover {
+  --room-frame: color-mix(in srgb, var(--text) 32%, transparent);
+}
+.room-box.on {
+  --room-frame: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.room-box > .ch-row.room {
+  margin: 0;
+  border-radius: 9px;
+}
+.room-box > .vc-members.vc-cards,
+.room-box > .ch-row.room + .vc-members.vc-cards {
+  margin: 3px 0 0;
+}
+/* afişli metin kanalı da çerçeveli */
+.ch-row.has-banner:not(.room) {
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
   border-radius: 10px;
 }
-.ch-pic > img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  border-radius: inherit;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
-}
-.ch-pic-type {
-  position: absolute;
-  right: -4px;
-  bottom: -4px;
-  display: grid;
-  place-items: center;
-  padding: 2px;
-  border-radius: 6px;
-  color: var(--text-2);
-  background: var(--bg-elev);
-  box-shadow: 0 0 0 2px var(--bg-side, var(--bg-2, var(--bg)));
-  line-height: 0;
-}
-.ch-pic-type svg,
-.ch-pic-type img {
-  display: block;
-}
-.ch-pic-type .ch-site-icon {
-  border-radius: 3px;
+.ch-row.has-banner.active:not(.room) {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-/* resimli satırlar oda satırları gibi biraz daha yüksek */
-.ch-row.has-pic {
-  min-height: 44px;
+/* afişli oda satırı */
+.ch-row.has-banner {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 46px;
   height: auto;
   margin: 2px 0;
   padding: 5px 8px;
-  gap: 10px;
-  border: 1px solid transparent;
+  color: #fff;
 }
-.ch-row.has-pic:not(.room) .ch-text .ch-name {
-  font-weight: 600;
+.ch-banner-img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
 }
-.ch-row.has-pic:not(.room) .ch-sub {
-  font-weight: 500;
+.ch-banner-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(6, 10, 22, 0.82) 0%, rgba(6, 10, 22, 0.55) 55%, rgba(6, 10, 22, 0.25) 100%);
+  pointer-events: none;
 }
-.ch-row.has-pic .ch-text {
-  min-width: 0;
+.ch-row.has-banner:hover .ch-banner-shade {
+  background: linear-gradient(90deg, rgba(6, 10, 22, 0.72) 0%, rgba(6, 10, 22, 0.45) 55%, rgba(6, 10, 22, 0.15) 100%);
 }
-.ch-row.has-pic:hover .ch-pic-type,
-.ch-row.has-pic.active .ch-pic-type,
-.ch-row.has-pic.in-voice .ch-pic-type {
-  color: var(--accent);
+.ch-row.has-banner .ch-icon,
+.ch-row.has-banner.room .ch-icon {
+  color: #fff;
+  background: rgba(6, 10, 22, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
-.ch-row.has-pic.muted .ch-pic {
-  opacity: 0.5;
-}
-.ch-row.has-pic.unread .ch-name {
-  color: var(--text);
-}
-
-/* sohbet başlığı */
-.chat-header > .ch-pic {
-  margin-right: 10px;
+.ch-row.has-banner:not(.room) .ch-icon {
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
+  display: grid;
+  place-items: center;
 }
-.chat-header > .ch-pic .ch-pic-type {
-  box-shadow: 0 0 0 2px var(--bg-chat, var(--bg));
+.ch-row.has-banner .ch-name,
+.ch-row.has-banner .ch-text .ch-name {
+  color: #fff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.ch-row.has-banner .ch-sub {
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.ch-row.has-banner .ch-gear,
+.ch-row.has-banner .room-tag,
+.ch-row.has-banner .ch-limit {
+  color: #fff;
 }
 
-/* ayarlar / oluşturma alanı */
-.oda-resmi {
+/* ayarlardaki afiş alanı: önizleme oda satırının kendisi */
+.oda-afis-onizleme {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   align-items: center;
-  gap: 14px;
-}
-.oda-resmi-kutu {
-  flex: 0 0 auto;
-  width: 64px;
-  height: 64px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
+  gap: 10px;
+  width: 100%;
+  max-width: 300px;
+  min-height: 46px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--text) 26%, transparent);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  color: var(--text-2);
+  text-align: left;
   cursor: pointer;
 }
-.oda-resmi-kutu:disabled {
+.oda-afis-onizleme.has-banner {
+  border-style: solid;
+  color: #fff;
+}
+.oda-afis-onizleme:disabled {
   cursor: default;
 }
-.oda-resmi-kutu .ch-pic {
-  border-radius: 12px;
-}
-.oda-resmi-kutu .ch-pic-type {
-  box-shadow: 0 0 0 2px var(--bg-modal, var(--bg-elev));
-  padding: 3px;
-}
-.oda-resmi-bos {
-  width: 56px;
-  height: 56px;
+.oda-afis-onizleme .ch-icon {
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
-  color: var(--text-3);
+  border-radius: 8px;
   background: var(--bg-elev);
-  border: 1px dashed color-mix(in srgb, var(--text) 22%, transparent);
-  transition: color 0.12s, border-color 0.12s;
 }
-.oda-resmi-kutu:not(:disabled):hover .oda-resmi-bos {
-  color: var(--accent);
+.oda-afis-onizleme.has-banner .ch-icon {
+  background: rgba(6, 10, 22, 0.55);
+}
+.oda-afis-onizleme .ch-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.oda-afis-onizleme.has-banner .ch-name {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.oda-afis-ipucu {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.oda-afis-onizleme:not(:disabled):hover {
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
 }
-.oda-resmi-bos .ch-site-icon {
-  width: 24px;
-  height: 24px;
-}
-.oda-resmi-yan {
+.oda-afis-alt {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0;
+  margin-top: 8px;
 }
-.oda-resmi-dugmeler {
+.oda-afis-dugmeler {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
-.oda-resmi-field .field-hint {
+.oda-afis-field {
+  margin-bottom: 8px;
+}
+.oda-afis-field .field-hint {
   margin: 0;
 }
-
-/* kanalın başlangıcındaki büyük simge */
-.ch-start-icon.has-pic {
-  padding: 0;
-  overflow: hidden;
-  background: transparent;
-}
-.ch-start-icon.has-pic > img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.oda-resmi-field { margin-bottom: 8px; }
 
 /* v1.32.1 oda listesi sütunu daha geniş: uzun oda adları ve açıklamalar sığsın */
 .sidebar {
@@ -270,4 +294,49 @@
 }
 .vc-card.no-banner .vc-card-shade {
   background: none;
+}
+/* kutunun başlığı olan oda satırı ile içindekiler arasında belirgin ayraç (v1.41) */
+.room-box > .ch-row.room:not(:last-child) {
+  margin-bottom: 0;
+}
+/* v1.41.1 ayırıcı çizgi kutunun çerçevesine bağlı: kenardan kenara, çerçeveyle aynı renk */
+.room-box > .vc-members.vc-cards,
+.room-box > .ch-row.room + .vc-members.vc-cards {
+  margin: 3px -3px 0;
+  padding: 5px 3px 0;
+  /* v1.43.2: renk kutunun değişkeninden; eskiden seçili odada daha özgül kural gri rengi koruyordu */
+  border-top: 2px solid var(--room-frame);
+  transition: border-color 0.12s;
+}
+
+/* v1.41 alttaki kendi panelin: afiş net (ses kartı gibi), yazılar ve düğmeler afişin üstünde okunaklı */
+html .user-panel,
+[data-style='destan'] .user-panel {
+  border-radius: 12px !important;
+  border: 1px solid color-mix(in srgb, #fff 10%, transparent);
+  background: var(--bg-elev);
+}
+html .user-panel .up-banner {
+  opacity: 1;
+  filter: none;
+}
+html .user-panel::after {
+  background: linear-gradient(90deg, rgba(6, 10, 22, 0.72) 0%, rgba(6, 10, 22, 0.45) 55%, rgba(6, 10, 22, 0.3) 100%);
+}
+.user-panel .up-name {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.user-panel .up-status,
+.user-panel .up-status .act-line {
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.user-panel > .tip-wrap .icon-btn,
+.user-panel .icon-btn {
+  color: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}
+.user-panel .icon-btn:hover {
+  background: rgba(6, 10, 22, 0.45);
 }

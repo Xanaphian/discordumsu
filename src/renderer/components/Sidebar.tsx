@@ -12,18 +12,23 @@ import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, 
 import { enterSpace, exitSpace, toggle3d, useSpace } from '../lib/space';
 import { Avatar, CommunityIcon, STATUS_LABEL, Tooltip } from './Common';
 import { SiteViewers } from './SiteView';
-import { ChannelGlyph, ChannelPic } from './OdaResmi';
+import { ChannelGlyph, ChannelBannerBg } from './OdaResmi';
 import { isToolChannel } from '../../shared/protocol';
 import { useSite } from '../lib/site';
 import { Banner, NameText } from './profile/ProfileCard';
 import { focusProfileSection } from './profile/ProfileEditor';
 import { activeCustom, type ProfileExtra } from '../../shared/profile';
-import { bannerBackground, imgFrameStyle } from './profile/look';
+import { bannerBackground } from './profile/look';
+import { BannerPic } from './Kirpma';
+import { BANNER_H } from '../../shared/profile';
 import { useActsOf } from '../lib/activity';
 import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName, countOnline } from '../lib/util';
 import { openPopout } from './AyriPencere';
+import { memberMenu } from './Moderation';
+import { insertMention } from './Members';
+import { DeviceChevron, DeviceMenu, type DeviceKind } from './DeviceMenu';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status } from '../../shared/protocol';
 
 /** Sesli kanala katılmadan önce yetki ve kişi sınırı denetimi */
@@ -85,8 +90,15 @@ const VoiceMembers = memo(function VoiceMembers({ c, chId }: { c: Community; chI
             className={cx('vc-member vc-card', talk && 'talking', !img && 'no-img', !b && 'no-banner')}
             style={{ ['--uc' as any]: u?.color || '#c8aa6e', background: img || !b ? undefined : bannerBackground(b, u?.color || '#c8aa6e') }}
             onClick={(e) => useStore.setState({ popout: { uid: m.userId, cid: c.id, x: e.clientX, y: e.clientY } })}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // üye listesindeki kişi menüsünün aynısı: Profil, Bahset, Mesaj, ses düzeyi…
+              const name = displayName(c, m.userId, users);
+              openMenu(e, memberMenu(c, meId, m.userId, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
+            }}
           >
-            {img && <img className="vc-card-img" src={img} alt="" draggable={false} style={imgFrameStyle(b)} />}
+            {img && <BannerPic className="vc-card-img" image={img} framing={b} aspect={330 / (b?.h || BANNER_H.def)} />}
             <span className="vc-card-shade" aria-hidden />
             <Avatar user={u ? { ...u, profile: prof } : undefined} size={compact ? 26 : 34} speaking={talk} />
             <span className="vc-name">{displayName(c, m.userId, users)}</span>
@@ -136,7 +148,7 @@ const ChannelRow = memo(function ChannelRow({
   const occupants = useStore((s) => (isVoiceLike(ch.type) ? s.voice[ch.id]?.length || 0 : 0));
   const viewers = useSite((s) => (ch.type === 'site' ? new Set((s.viewers[ch.id] || []).map((v) => v.userId)).size : 0));
   const live = useVoice((v) => isVoiceLike(ch.type) && (useStore.getState().voice[ch.id] || []).some((m) => v.speaking[m.userId] && !m.muted));
-  const sub = room ? roomSub(ch, occupants, viewers) : ch.image && ch.topic ? ch.topic.replace(/\s+/g, ' ').slice(0, 80) : '';
+  const sub = room ? roomSub(ch, occupants, viewers) : ch.banner && ch.topic ? ch.topic.replace(/\s+/g, ' ').slice(0, 80) : '';
   const click = () => {
     if (isVoiceLike(ch.type) && !inVoice) tryJoinVoice(c, ch);
     selectChannel(c.id, ch.id);
@@ -185,13 +197,13 @@ const ChannelRow = memo(function ChannelRow({
           ]
         : []),
     ]);
-  return (
+  const body = (
     <>
       <div
         className={cx(
           'ch-row',
           room && 'room room-' + ch.type,
-          ch.image && 'has-pic',
+          ch.banner && 'has-banner',
           (occupants > 0 || viewers > 0) && 'occupied',
           live && 'live',
           active && 'active',
@@ -221,13 +233,10 @@ const ChannelRow = memo(function ChannelRow({
       >
         {unread && !active && !muted && <span className="ch-unread-pill" />}
         {room && <span className="room-art" aria-hidden />}
-        {ch.image ? (
-          <ChannelPic type={ch.type} image={ch.image} />
-        ) : (
-          <span className="ch-icon">
-            <ChannelGlyph type={ch.type} icon={ch.icon} size={room ? 20 : 18} />
-          </span>
-        )}
+        {ch.banner && <ChannelBannerBg banner={ch.banner} />}
+        <span className="ch-icon">
+          <ChannelGlyph type={ch.type} icon={ch.icon} size={room ? 20 : 18} />
+        </span>
         {room || sub ? (
           <span className="ch-text">
             <span className="ch-name">{ch.name}</span>
@@ -264,6 +273,8 @@ const ChannelRow = memo(function ChannelRow({
       {ch.type === 'site' && <SiteViewers c={c} chId={ch.id} />}
     </>
   );
+  // odalar (ses, site) bir çerçevenin içinde: altındaki kişiler odaya ait görünür, kişi kartlarıyla karışmaz
+  return room ? <div className={cx('room-box', (active || inVoice) && 'on', (occupants > 0 || viewers > 0) && 'occupied')}>{body}</div> : body;
 });
 
 export function ChannelSidebar({ c }: { c: Community }) {
@@ -332,7 +343,7 @@ export function ChannelSidebar({ c }: { c: Community }) {
   return (
     <>
       <button className={cx('side-header comm-head', c.profile?.banner && 'has-banner')} onClick={headerMenu} style={{ ['--cc' as any]: c.color }}>
-        {c.profile?.banner && <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} className="sh-banner" />}
+        {c.profile?.banner && <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} refW={560} className="sh-banner" />}
         <span className="sh-icon">
           <CommunityIcon c={c} size={34} />
         </span>
@@ -561,6 +572,8 @@ export function UserPanel() {
   const deaf = useVoice((s) => s.deaf);
   const myLive = useActsOf(me.id).length > 0;
   const actShare = useStore((s) => s.settings.actShare);
+  const [devMenu, setDevMenu] = useState<{ kind: DeviceKind; r: DOMRect } | null>(null);
+  const toggleDev = (kind: DeviceKind, r: DOMRect) => setDevMenu((m) => (m?.kind === kind ? null : { kind, r }));
   const statusMenu = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     openMenu({ clientX: r.left, clientY: r.top - 8 - 10 * 34 - 70 }, [
@@ -598,16 +611,23 @@ export function UserPanel() {
           </div>
         </div>
       </button>
-      <Tooltip text={muted ? 'Sesi aç' : 'Sustur'} side="top">
-        <button className={cx('icon-btn', muted && 'danger-on')} onClick={toggleMute} aria-label="Mikrofon">
-          {muted ? <MicOff size={18} /> : <Mic size={18} />}
-        </button>
-      </Tooltip>
-      <Tooltip text={deaf ? 'Sağırlaştırmayı kapat' : 'Sağırlaştır'} side="top">
-        <button className={cx('icon-btn', deaf && 'danger-on')} onClick={toggleDeaf} aria-label="Kulaklık">
-          {deaf ? <HeadphoneOff size={18} /> : <Headphones size={18} />}
-        </button>
-      </Tooltip>
+      <div className={cx('up-dev', devMenu?.kind === 'mic' && 'open')}>
+        <Tooltip text={muted ? 'Sesi aç' : 'Sustur'} side="top">
+          <button className={cx('icon-btn', muted && 'danger-on')} onClick={toggleMute} aria-label="Mikrofon">
+            {muted ? <MicOff size={18} /> : <Mic size={18} />}
+          </button>
+        </Tooltip>
+        <DeviceChevron kind="mic" open={devMenu?.kind === 'mic'} onToggle={(r) => toggleDev('mic', r)} />
+      </div>
+      <div className={cx('up-dev', devMenu?.kind === 'speaker' && 'open')}>
+        <Tooltip text={deaf ? 'Sağırlaştırmayı kapat' : 'Sağırlaştır'} side="top">
+          <button className={cx('icon-btn', deaf && 'danger-on')} onClick={toggleDeaf} aria-label="Kulaklık">
+            {deaf ? <HeadphoneOff size={18} /> : <Headphones size={18} />}
+          </button>
+        </Tooltip>
+        <DeviceChevron kind="speaker" open={devMenu?.kind === 'speaker'} onToggle={(r) => toggleDev('speaker', r)} />
+      </div>
+      {devMenu && <DeviceMenu kind={devMenu.kind} anchor={devMenu.r} onClose={() => setDevMenu(null)} />}
       <Tooltip text="Kullanıcı ayarları" side="top">
         <button className="icon-btn" onClick={() => openModal({ type: 'settings' })} aria-label="Ayarlar">
           <Settings size={18} />

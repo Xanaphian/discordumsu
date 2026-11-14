@@ -5,13 +5,15 @@ import {
   Box, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Video, VideoOff, MonitorUp, MonitorX, Maximize2, Minimize2, Expand, Settings2,
   RefreshCw, Monitor, AppWindow, LoaderCircle, Volume1, VolumeX, Phone,
 } from 'lucide-react';
-import { useStore, openModal, updateSettings, dismissCall, selectCommunity } from '../lib/store';
+import { useStore, openModal, openMenu, updateSettings, dismissCall, selectCommunity } from '../lib/store';
+import { memberMenu } from './Moderation';
+import { insertMention } from './Members';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, startScreen, stopScreen, setUserVolume, screenLabelOf } from '../lib/voice';
 import { Avatar, Tooltip, Toggle } from './Common';
 import { Modal } from './Modals';
 import { cx, displayName } from '../lib/util';
 import type { Channel, Community, ID, VoiceMember } from '../../shared/protocol';
-import { ChannelPic } from './OdaResmi';
+import { DesignStage, LayoutPicker } from './SesDuzeni';
 
 /** Akışı bir <video> öğesine bağlar; akış değişmedikçe yeniden bağlamaz */
 export const StreamVideo = memo(function StreamVideo({ stream, mirror, fit = 'cover', muted = true }: { stream: MediaStream; mirror?: boolean; fit?: 'cover' | 'contain'; muted?: boolean }) {
@@ -86,6 +88,13 @@ function TileView({ t, c, focused, onFocus, small }: { t: Tile; c: Community; fo
       style={{ ['--tile' as any]: u?.color || '#f5a524' }}
       onDoubleClick={full}
       onClick={onFocus}
+      onContextMenu={(e) => {
+        // kişinin karosuna sağ tık: kenar çubuğundaki ses kartı ve üye listesiyle aynı kişi menüsü (v1.43.2)
+        e.preventDefault();
+        e.stopPropagation();
+        const meId = useStore.getState().me.id;
+        openMenu(e, memberMenu(c, meId, t.uid, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
+      }}
     >
       {t.stream ? (
         <StreamVideo stream={t.stream} mirror={t.kind === 'user' && t.me && mirror} fit={t.kind === 'screen' ? 'contain' : 'cover'} />
@@ -147,16 +156,16 @@ export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embe
   const others = focused ? tiles.filter((t) => t !== focused) : tiles;
   const n = tiles.length;
   const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+  // v1.45: Baloncuklar / Akordeon / Klasik (sağ alttaki seçici); özel arama kutusu hep klasik
+  const layout = useStore((s) => s.settings.voiceLayout);
+  const designed = !embedded && layout !== 'klasik';
+  const screens = tiles.filter((t) => t.kind === 'screen');
   return (
-    <section className={cx('voice-view', embedded && 'embedded')}>
+    <section className={cx('voice-view', embedded && 'embedded', designed && 'sd-on')}>
       {!embedded && <div className="chat-header">
-        {ch.image ? (
-          <ChannelPic type={ch.type} image={ch.image} size={28} />
-        ) : (
-          <span className="ch-head-icon">
+        <span className="ch-head-icon">
             <Volume2 size={22} />
           </span>
-        )}
         <h2>{ch.name}</h2>
         <span className="head-sep" />
         <span className="ch-topic">{members.length ? `${members.length} kişi bağlı` : 'Kimse yok'}</span>
@@ -186,6 +195,17 @@ export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embe
               </div>
             )}
           </>
+        ) : designed ? (
+          <div className="sd-wrap">
+            {screens.length > 0 && (
+              <div className="vv-strip sd-screens">
+                {screens.map((t) => (
+                  <TileView key={t.key} t={t} c={c} focused={false} small onFocus={() => setFocus(t.key)} />
+                ))}
+              </div>
+            )}
+            <DesignStage c={c} layout={layout} people={tiles.filter((t) => t.kind === 'user').map((t) => ({ key: t.key, uid: t.uid, me: t.me, m: t.member, stream: t.stream }))} />
+          </div>
         ) : (
           <div className="vv-grid2" style={{ ['--cols' as any]: cols }}>
             {tiles.map((t) => (
@@ -242,6 +262,7 @@ export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embe
             </button>
           )
         )}
+        {!embedded && <LayoutPicker />}
       </div>
       {v.noMic && inHere && <div className="vv-warn">Mikrofon bulunamadı; dinleyici olarak bağlısın.</div>}
     </section>

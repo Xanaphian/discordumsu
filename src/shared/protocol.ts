@@ -199,7 +199,8 @@ export interface Channel {
   icon?: string; // site odası: sitenin kendi simgesi (küçük data URL, hub doldurur)
   siteTitle?: string; // site odası: sitenin başlığı (hub doldurur)
   metaAt?: number; // site bilgisinin son alındığı an
-  image?: string; // odanın özel resmi (küçük kare data URL); yoksa türünün simgesi görünür
+  image?: string; // (1.30–1.39) eski küçük oda resmi; artık gösterilmiyor
+  banner?: string; // odanın afişi (geniş data URL, 3:1); oda satırının arka planında görünür
   room3d?: Room3d; // ses odasının 3D görünümünde kullanılan dünya (yoksa salon)
 }
 
@@ -213,6 +214,11 @@ export const cleanRoom3d = (v: unknown): Room3d | undefined => (ROOM3D as unknow
 export const CHANNEL_IMAGE_MAX = 120_000;
 export const cleanChannelImage = (v: unknown): string | undefined =>
   typeof v === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,/.test(v) && v.length <= CHANNEL_IMAGE_MAX ? v : undefined;
+
+/** Oda afişi: 600x200 webp ~15-40 KB tutar */
+export const CHANNEL_BANNER_MAX = 200_000;
+export const cleanChannelBanner = (v: unknown): string | undefined =>
+  typeof v === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length <= CHANNEL_BANNER_MAX ? v : undefined;
 
 export interface Category {
   id: ID;
@@ -375,8 +381,8 @@ export type ClientFrame =
   | { t: 'comm.guard'; cid: ID; guard?: JoinGuard; unlock?: boolean }
   | { t: 'comm.listing'; cid: ID; listing: Listing | null }
   | { t: 'explore'; rid: string }
-  | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; url?: string; rid?: string; private?: boolean; clone?: ID; image?: string }
-  | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string; overwrites?: Overwrite[]; userLimit?: number; type?: ChannelType; image?: string | null; room3d?: Room3d }
+  | { t: 'chan.create'; cid: ID; name: string; type: ChannelType; categoryId: ID | null; url?: string; rid?: string; private?: boolean; clone?: ID; image?: string; banner?: string }
+  | { t: 'chan.update'; cid: ID; id: ID; name?: string; topic?: string; categoryId?: ID | null; slowmode?: number; url?: string; overwrites?: Overwrite[]; userLimit?: number; type?: ChannelType; image?: string | null; banner?: string | null; room3d?: Room3d }
   | { t: 'chan.delete'; cid: ID; id: ID }
   | { t: 'chan.move'; cid: ID; id: ID; categoryId: ID | null; index: number }
   | { t: 'cat.create'; cid: ID; name: string }

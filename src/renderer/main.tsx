@@ -24,17 +24,22 @@ import './styles/farklar.css';
 import './styles/root-ozellikleri.css';
 import './styles/tam-profil.css';
 import './styles/oda-resmi.css';
+import './styles/sag-tik.css';
+import './styles/ses-cihazi.css';
 import './styles/oda-3d.css';
 import './styles/gurultu.css';
 import './styles/ana-sayfa.css';
+import './styles/yazi-tipi.css';
+import './styles/kirpma.css';
+import './styles/ses-duzeni.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
 const booting = boot().catch((e) => console.error('Açılış hatası', e));
 
 // Yazı tipleri yüklenmeden çizersek mesaj yükseklikleri sonradan değişir ve liste en altta kalmaz.
-// Yalnız gerçekten kullanılan yazı tipleri (metin: Source Sans 3, başlık: Marcellus) beklenir.
+// Yalnız gerçekten kullanılan yazı tipleri (her yazı Rubik) beklenir.
 const fontsReady = Promise.race([
-  Promise.all(['400 14px "Source Sans 3"', '700 14px "Source Sans 3"', '400 16px "Marcellus"'].map((f) => document.fonts.load(f, 'aşğıİç'))),
+  Promise.all(['400 14px "Rubik"', '500 14px "Rubik"', '700 14px "Rubik"'].map((f) => document.fonts.load(f, 'aşğıİç'))),
   new Promise((r) => setTimeout(r, 1200)),
 ]).catch(() => {});
 

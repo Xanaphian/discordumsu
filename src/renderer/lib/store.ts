@@ -71,6 +71,9 @@ export interface Settings {
   camRes: 360 | 720 | 1080;
   camFps: 15 | 30 | 60;
   camMirror: boolean;
+  // ses odası ana görünümü (v1.45)
+  voiceLayout: 'baloncuk' | 'akordeon' | 'klasik';
+  voiceDemo: boolean; // odaya yalnız sende görünen örnek kişiler
   // ekran paylaşımı
   screenRes: 720 | 1080 | 1440 | 2160 | 0; // 0 = kaynak
   screenFps: 15 | 30 | 60;
@@ -181,6 +184,8 @@ export const DEFAULT_SETTINGS: Settings = {
   camRes: 720,
   camFps: 30,
   camMirror: true,
+  voiceLayout: 'baloncuk',
+  voiceDemo: false,
   screenRes: 1080,
   screenFps: 30,
   screenHint: 'motion',
@@ -268,6 +273,8 @@ export interface MenuItem {
   onEmoji?: (e: string) => void;
   /** üzerine gelince sağda açılan alt menü */
   sub?: MenuItem[];
+  /** menünün başında kişi başlığı (avatar + ad) */
+  person?: { uid: string; cid?: string };
 }
 
 export interface Toast {
