@@ -6,6 +6,7 @@ import { Toggle } from './Common';
 import { cx } from '../lib/util';
 import { StreamVideo } from './Media';
 import type { Settings } from '../lib/store';
+import { NOISE_MODES, noiseModeOf, browserNS, buildNoiseChain, type NoiseChain } from '../lib/ses/gurultu';
 
 function Row({ title, sub, children }: { title: string; sub?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -77,23 +78,28 @@ function MicTest() {
     let stream: MediaStream | null = null;
     let raf = 0;
     let ctx: AudioContext | null = null;
+    let chain: NoiseChain | null = null;
     let alive = true;
     navigator.mediaDevices
       .getUserMedia({
         audio: {
           deviceId: s.micId !== 'default' ? { exact: s.micId } : undefined,
-          noiseSuppression: s.noiseSuppression,
+          noiseSuppression: browserNS(noiseModeOf(s)),
           echoCancellation: s.echoCancellation,
           autoGainControl: s.autoGainControl,
           channelCount: 1,
         },
       })
-      .then((st) => {
+      .then(async (st) => {
         if (!alive) return st.getTracks().forEach((t) => t.stop());
         stream = st;
         ctx = new AudioContext({ latencyHint: 'interactive' });
         if (s.speakerId !== 'default' && 'setSinkId' in ctx) (ctx as any).setSinkId(s.speakerId).catch(() => {});
         const src = ctx.createMediaStreamSource(st);
+        // denemede de seçili gürültü engelleme duyulsun
+        chain = await buildNoiseChain(ctx, noiseModeOf(useStore.getState().settings));
+        if (!alive) return;
+        src.connect(chain.input);
         const g = ctx.createGain();
         g.gain.value = useStore.getState().settings.inputVolume / 100;
         const an = ctx.createAnalyser();
@@ -101,7 +107,7 @@ function MicTest() {
         const out = ctx.createGain();
         out.gain.value = 0;
         hearRef.current = out;
-        src.connect(g);
+        chain.output.connect(g);
         g.connect(an);
         g.connect(out).connect(ctx.destination);
         const buf = new Float32Array(1024);
@@ -123,10 +129,11 @@ function MicTest() {
       alive = false;
       cancelAnimationFrame(raf);
       stream?.getTracks().forEach((t) => t.stop());
+      chain?.dispose();
       ctx?.close();
       hearRef.current = null;
     };
-  }, [testing, s.micId, s.noiseSuppression, s.echoCancellation, s.autoGainControl, s.speakerId]);
+  }, [testing, s.micId, s.noiseSuppression, s.noiseMode, s.echoCancellation, s.autoGainControl, s.speakerId]);
   const open = s.inputMode === 'vad' && lvl > (s.vadThreshold > 0 ? thresholdOf(s.vadThreshold) : 0.012);
   return (
     <>
@@ -307,8 +314,8 @@ export function VoiceTab() {
       )}
 
       <h3>Ses işleme</h3>
-      <Row title="Gürültü bastırma" sub="Klavye, fan, trafik gibi arka plan seslerini azaltır.">
-        <Toggle value={s.noiseSuppression} onChange={(v) => set({ noiseSuppression: v })} />
+      <Row title="Gürültü engelleme" sub={NOISE_MODES.find((m) => m.id === noiseModeOf(s))!.sub + ' Mikrofon denemesinde farkı duyabilirsin.'}>
+        <Seg value={noiseModeOf(s)} options={NOISE_MODES.map((m) => ({ v: m.id, label: m.label }))} onChange={(v) => set({ noiseMode: v, noiseSuppression: v !== 'kapali' })} />
       </Row>
       <Row title="Yankı engelleme" sub="Hoparlörden çıkan sesin mikrofona geri dönmesini önler. Kulaklıkla kapatabilirsin.">
         <Toggle value={s.echoCancellation} onChange={(v) => set({ echoCancellation: v })} />

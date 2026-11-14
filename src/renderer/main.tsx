@@ -25,6 +25,7 @@ import './styles/root-ozellikleri.css';
 import './styles/tam-profil.css';
 import './styles/oda-resmi.css';
 import './styles/oda-3d.css';
+import './styles/gurultu.css';
 import './styles/ana-sayfa.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
