@@ -521,8 +521,10 @@ export function RecentList({ profile, empty }: { profile?: ProfileExtra; empty?:
       {list.map((r: RecentActivity) => {
         const Icon = KIND_ICON[r.kind];
         return (
-          <div key={r.kind + r.name} className={cx('recent-row', 'act-' + r.kind)}>
-            {activityBrand(r) ? (
+          <div key={r.kind + r.name} className={cx('recent-row', 'act-' + r.kind, r.song && 'has-song')}>
+            {r.song && r.art ? (
+              <img className="recent-art" src={r.art} alt="" draggable={false} title={r.name} />
+            ) : activityBrand(r) ? (
               <BrandLogo k={activityBrand(r)!} size={44} className="recent-brand" />
             ) : (
               <span className="recent-ic">
@@ -530,7 +532,8 @@ export function RecentList({ profile, empty }: { profile?: ProfileExtra; empty?:
               </span>
             )}
             <div className="recent-text">
-              <b>{r.name}</b>
+              <b title={r.song ? `${r.song}${r.artist ? ' · ' + r.artist : ''} (${r.name})` : undefined}>{r.song || r.name}</b>
+              {r.song && r.artist && <span className="recent-artist">{r.artist}</span>}
               <div className="recent-meta">
                 <span>
                   {r.kind === 'playing' ? <Gamepad2 size={13} /> : r.kind === 'listening' ? <Headphones size={13} /> : <Radio size={13} />}
