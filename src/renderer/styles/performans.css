@@ -21,3 +21,12 @@
 .members {
   will-change: scroll-position;
 }
+
+/* v1.54.1: pencere küçültülmüş ya da tepsideyken (görüşmede Chromium çizmeyi bırakmıyor) hiçbir animasyon ilerlemez.
+   Görünmeyen pencerede fark edilmez; pencere açılınca kaldıkları yerden sürer. */
+html.pencere-gizli *,
+html.pencere-gizli *::before,
+html.pencere-gizli *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}

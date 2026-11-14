@@ -327,6 +327,11 @@ function createWindow() {
     }
   });
   win.on('focus', () => win?.flashFrame(false));
+  // v1.54.1: görüşmede arka plan kısıtlaması kapalıyken Chromium küçültülmüş pencereyi de çizer; arayüz gerçek durumu bilsin
+  const sendVisible = () => {
+    if (win && !win.isDestroyed()) win.webContents.send('win:gorunur', win.isVisible() && !win.isMinimized());
+  };
+  for (const ev of ['minimize', 'restore', 'hide', 'show'] as const) win.on(ev as 'show', sendVisible);
   if (isDev && process.env.KOVAN_DEV_URL) win.loadURL(process.env.KOVAN_DEV_URL);
   else win.loadFile(path.join(__dirname, '../renderer/index.html'));
 }

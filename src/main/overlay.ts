@@ -21,6 +21,15 @@ let last: OverlayState | null = null;
 let ready = false;
 let userHidden = false;
 let shortcut = '';
+// v1.54.1: profil resimleri yalnız değişince gelir; hepsi burada tutulur, kaplamaya henüz gitmemiş değişiklikler ayrıca
+const avatars = new Map<string, string>();
+let avPending: Record<string, string | null> | null = null;
+
+function sendState() {
+  if (!ovl || ovl.isDestroyed() || !ready || !last) return;
+  ovl.webContents.send('ovl:state', avPending ? { ...last, avatars: avPending } : last);
+  avPending = null;
+}
 
 function place() {
   if (!ovl || !last) return;
@@ -68,7 +77,9 @@ function ensure(isDev: boolean) {
   ovl.webContents.on('will-navigate', (e) => e.preventDefault());
   ovl.webContents.once('did-finish-load', () => {
     ready = true;
-    if (last) ovl?.webContents.send('ovl:state', last);
+    // yeni açılan kaplama sayfası hiçbir resmi bilmez: hepsini gönder
+    avPending = Object.fromEntries(avatars);
+    sendState();
   });
   ovl.on('closed', () => (ovl = null));
   if (isDev && process.env.KOVAN_DEV_URL) ovl.loadURL(new URL('overlay.html', process.env.KOVAN_DEV_URL).toString());
@@ -85,13 +96,22 @@ function apply(isDev: boolean) {
   const w = ensure(isDev);
   place();
   w.setOpacity(Math.max(0.3, Math.min(1, (last!.opacity || 100) / 100)));
-  if (ready) w.webContents.send('ovl:state', last);
+  sendState();
   if (!w.isVisible()) w.showInactive();
   w.setAlwaysOnTop(true, 'screen-saver');
 }
 
 export function initOverlay(getMain: () => BrowserWindow | null, isDev: boolean) {
   ipcMain.on('ovl:state', (_e, st: OverlayState) => {
+    const av = st.avatars as Record<string, string | null> | undefined;
+    if (av && typeof av === 'object') {
+      for (const [id, a] of Object.entries(av)) {
+        if (typeof a === 'string') avatars.set(id, a);
+        else avatars.delete(id);
+        (avPending ||= {})[id] = typeof a === 'string' ? a : null;
+      }
+      delete st.avatars;
+    }
     last = st;
     apply(isDev);
   });
