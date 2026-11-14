@@ -718,6 +718,20 @@ export async function myFriendCode(reset = false): Promise<string> {
   return `${INVITE_PREFIX}/${r.data}`;
 }
 
+/** Ortak arkadaşlar: sunucu eskiyse (friend.mutual bilmiyorsa) null döner */
+export async function mutualFriends(uid: ID): Promise<UserPublic[] | null> {
+  const home = homeHost();
+  const conn = conns.get(home);
+  if (!conn) return null;
+  try {
+    await waitOnline(home);
+    const r = await conn.request<{ data: UserPublic[] }>({ t: 'friend.mutual', uid, rid: '' }, 6000);
+    return Array.isArray(r.data) ? r.data : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Gerçek topluluklar (özel mesajlar hariç) */
 export const realCommunities = (communities: Record<ID, Community>) => Object.values(communities).filter((c) => !c.dm);
 

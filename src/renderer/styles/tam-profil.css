@@ -1,0 +1,575 @@
+/* ==========================================================================
+   v1.29 Tam profil: geniş pencere, solda kimlik sütunu, sağda sekmeli içerik.
+   Kartın renkleri, çerçevesi, arka planı ve efektleri eski .pcard kurallarından gelir.
+   ========================================================================== */
+
+.modal.pc-modal.wide {
+  width: min(980px, calc(100vw - 48px));
+  max-width: none;
+}
+.pcard.pcard-wide {
+  display: grid;
+  grid-template-columns: 318px minmax(0, 1fr);
+  height: min(660px, calc(100vh - 72px));
+  max-height: none;
+  overflow: hidden;
+  mask: none;
+  -webkit-mask: none;
+}
+.pcard-wide > .xp-side,
+.pcard-wide > .xp-main {
+  position: relative;
+  z-index: 2;
+  min-height: 0;
+}
+
+/* ---------------- sol sütun ---------------- */
+.xp-side {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  background: color-mix(in srgb, var(--pcx) 5%, rgba(0, 0, 0, 0.22));
+  border-right: 1px solid color-mix(in srgb, var(--pcx) 28%, transparent);
+}
+.pcard.tone-light .xp-side {
+  background: color-mix(in srgb, var(--pcx) 6%, rgba(255, 255, 255, 0.35));
+}
+.xp-side::-webkit-scrollbar {
+  display: none;
+}
+.pcard .xp-banner {
+  flex: none;
+  height: var(--bh, 116px);
+  border-radius: 16px 0 0 0;
+}
+/* afişin altında ince vurgu çizgisi */
+.xp-banner::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  z-index: 2;
+  background: linear-gradient(90deg, transparent, var(--pcx), transparent);
+  opacity: 0.85;
+}
+.xp-id {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 22px 18px;
+  margin-top: -58px;
+  position: relative;
+  z-index: 3;
+}
+.xp-av {
+  position: relative;
+  padding: 5px;
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--pcx), transparent 30%, transparent 70%, var(--pcx));
+}
+.xp-av:has(.shape-squircle),
+.xp-av:has(.shape-hex),
+.xp-av:has(.shape-diamond) {
+  border-radius: 28px;
+}
+.xp-av .avatar {
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
+}
+.xp-id .pc-bubble {
+  max-width: 260px;
+  margin: 10px 0 0;
+  border-radius: 14px;
+  justify-content: center;
+}
+.xp-id .pc-bubble::before,
+.xp-id .pc-bubble::after {
+  display: none;
+}
+.xp-name.pc-name {
+  margin-top: 12px;
+  font-size: 26px;
+  line-height: 1.15;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.xp-handle {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.xp-handle > span + span:not(.tag-bot)::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin: 0 10px 2px 0;
+  border-radius: 50%;
+  background: var(--pcx);
+  vertical-align: middle;
+}
+.xp-status {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  border: 1px solid var(--line);
+}
+.xp-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.xp-status.online::before {
+  background: var(--green, #3ba55d);
+}
+.xp-status.idle::before {
+  background: var(--yellow, #f0b232);
+}
+.xp-status.dnd::before {
+  background: var(--red, #e5484d);
+}
+.xp-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.xp-badge {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--pcx);
+  background: color-mix(in srgb, var(--pcx) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pcx) 35%, transparent);
+}
+.xp-actions.pc-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 0;
+  border: 0;
+}
+.xp-actions .xp-main-btn {
+  flex: 1;
+  justify-content: center;
+  height: 38px;
+  font-size: 14px;
+}
+.xp-actions .pc-friend,
+.xp-actions .xp-sq {
+  min-width: 38px;
+  height: 38px;
+  justify-content: center;
+}
+.xp-actions .pc-friend.wait {
+  font-size: 12px;
+}
+.pcard.themed .xp-actions .btn.primary {
+  background: var(--pcx);
+  border-color: var(--pcx);
+  color: color-mix(in srgb, var(--pcx) 12%, #0a0a0a);
+}
+.pcard.themed.tone-light .xp-actions .btn.primary {
+  color: #fff;
+}
+
+.xp-side-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 18px 20px;
+}
+.xp-facts {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.xp-fact {
+  display: grid;
+  grid-template-columns: 22px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 2px;
+  font-size: 13px;
+}
+.xp-fact + .xp-fact {
+  border-top: 1px dashed color-mix(in srgb, var(--text) 10%, transparent);
+}
+.xp-fact-ic {
+  color: var(--pcx);
+  display: grid;
+  place-items: center;
+}
+.xp-fact-l {
+  color: var(--text-3);
+}
+.xp-fact-v {
+  text-align: right;
+  color: var(--text);
+  font-weight: 600;
+  min-width: 0;
+}
+.xp-fact-v em {
+  display: block;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* bölüm başlığı: küçük harf aralıklı yazı + sağa uzanan çizgi */
+.xp-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--pcx) 70%, var(--text));
+}
+.xp-label em {
+  font-style: normal;
+  font-size: 11px;
+  padding: 0 7px;
+  border-radius: 99px;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  letter-spacing: 0;
+}
+.xp-label i {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pcx) 45%, transparent), transparent);
+}
+.xp-side .acc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.xp-side .pc-note-add,
+.xp-side .pc-note {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--pcx) 30%, var(--line));
+}
+
+/* ---------------- sağ alan ---------------- */
+.xp-main {
+  display: flex;
+  flex-direction: column;
+}
+.xp-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 0 22px;
+}
+.xp-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid var(--line);
+}
+.xp-tabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.xp-tabs button:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.xp-tabs button.on {
+  color: var(--text);
+  background: color-mix(in srgb, var(--pcx) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pcx) 45%, transparent);
+}
+.xp-tabs button.on svg {
+  color: var(--pcx);
+}
+.xp-tabs em {
+  font-style: normal;
+  font-size: 11.5px;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  text-align: center;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+.xp-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green, #3ba55d);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green, #3ba55d) 25%, transparent);
+}
+.xp-close {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+.xp-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  padding: 20px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.xp-empty {
+  padding: 18px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--text-3);
+  border: 1px dashed var(--line);
+}
+.xp-bio {
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.xp-now {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.xp-now > .act-list {
+  display: contents;
+}
+
+/* ses odası kartı */
+.xp-room {
+  min-width: 0;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  background: var(--sec-bg, var(--bg-elev));
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--green, #3ba55d);
+}
+.xp-room-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.xp-room-ic {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--green, #3ba55d);
+  background: color-mix(in srgb, var(--green, #3ba55d) 14%, transparent);
+}
+.xp-room-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.xp-room-t b {
+  font-size: 14.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xp-room-t small {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xp-room-join,
+.xp-room-here {
+  margin-left: auto;
+}
+.xp-room-join {
+  flex: none;
+}
+.xp-room-here {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green, #3ba55d);
+}
+.xp-room-people {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 12px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.xp-stack {
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+}
+.xp-stack-av {
+  margin-left: -8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--bg-float);
+  display: inline-flex;
+}
+.xp-stack-av .avatar {
+  border-radius: 50%;
+}
+.xp-stack-more {
+  margin-left: -6px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0 7px;
+  display: grid;
+  place-items: center;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--text) 12%, var(--bg-float));
+  box-shadow: 0 0 0 3px var(--bg-float);
+}
+.xp-room-count {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* son 30 gün: zaman çizelgesi */
+.xp-pane .recent-list {
+  position: relative;
+  gap: 4px;
+  padding-left: 22px;
+}
+.xp-pane .recent-list::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(var(--pcx), color-mix(in srgb, var(--pcx) 10%, transparent));
+  opacity: 0.6;
+}
+.xp-pane .recent-row {
+  position: relative;
+  background: transparent;
+  border-color: transparent;
+}
+.xp-pane .recent-row:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border-color: var(--line);
+}
+.xp-pane .recent-row::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--bg-float);
+  border: 2px solid var(--pcx);
+}
+
+/* ortak arkadaşlar / topluluklar */
+.xp-people {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.xp-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  text-align: left;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid var(--line);
+}
+.xp-person:hover {
+  border-color: color-mix(in srgb, var(--pcx) 50%, transparent);
+  background: color-mix(in srgb, var(--pcx) 8%, transparent);
+}
+.xp-person-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.xp-person-t > b,
+.xp-person-t > span {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xp-person-t small {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.xp-comm-ic {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 11px;
+}
+
+@media (max-width: 860px) {
+  .pcard.pcard-wide {
+    grid-template-columns: 270px minmax(0, 1fr);
+  }
+}

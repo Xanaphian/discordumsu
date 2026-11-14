@@ -4,7 +4,7 @@ import { useStore, openModal, updateProfile, meAsUser, toast } from '../../lib/s
 import { EmojiPicker } from '../Overlays';
 import { cx } from '../../lib/util';
 import { activeCustom } from '../../../shared/profile';
-import { ProfileCard } from './ProfileCard';
+import { ProfileFull } from './ProfileFull';
 
 const close = () => openModal(null);
 
@@ -33,11 +33,8 @@ export function ProfileModal({ uid, cid }: { uid: string; cid?: string }) {
   const u = isMe ? meAsUser(me) : users[uid] || c?.users[uid];
   const status = isMe ? (me.status === 'invisible' ? 'offline' : me.status) : uid === 'kovan-asistan' ? 'online' : presence[uid] || 'offline';
   return (
-    <Backdrop className="pc-modal">
-      <button className="pc-modal-x icon-btn" onClick={close} aria-label="Kapat">
-        <X size={20} />
-      </button>
-      <ProfileCard uid={uid} user={u} status={status} c={c} variant="full" isMe={isMe} onClose={close} />
+    <Backdrop className="pc-modal wide">
+      <ProfileFull key={uid} uid={uid} user={u} status={status} c={c} isMe={isMe} onClose={close} />
     </Backdrop>
   );
 }

@@ -1139,6 +1139,23 @@ export class Hub {
       case 'friend.code':
         this.send(s, { t: 'ok', rid: f.rid, data: this.friendCodeOf(uid, !!f.reset) });
         return true;
+      case 'friend.mutual': {
+        // iki kişinin de onaylı arkadaşı olanlar
+        const other = String(f.uid || '');
+        const fr = this.data.friends || {};
+        const out: UserPublic[] = [];
+        if (other && other !== uid) {
+          for (const k of Object.keys(fr)) {
+            if (!fr[k].ok) continue;
+            const p = dmPeerOf(k, uid);
+            if (!p || p === other || !fr[dmChannelId(other, p)]?.ok) continue;
+            const pu = this.data.users[p];
+            if (pu) out.push(pu.pub);
+          }
+        }
+        this.send(s, { t: 'ok', rid: f.rid, data: out.slice(0, 200) });
+        return true;
+      }
       case 'privacy': {
         const on = f.dms === 'friends';
         if (on === !!this.data.dmFriendsOnly?.[uid]) return true;
