@@ -242,10 +242,10 @@ function MusicDiag() {
   else if (m && m.src === 'browser' && !s.actBrowser)
     (text = `Tarayıcıda (${m.appName}) çalan bir şey var: "${m.title}". Spotify'ı tarayıcıdan dinliyorsan aşağıdan "Tarayıcıda çalanları da göster"i aç ya da Spotify masaüstü uygulamasını kullan.`), (warn = true);
   else if (m && !m.playing) text = `${m.appName} açık ama şu an duraklatılmış.`;
-  else if (m) text = `Algılanan müzik: ${m.appName} · ${m.title}${m.artist ? ' — ' + m.artist : ''}`;
+  else if (m) text = `Algılanan müzik${d.mediaFrom === 'retrofy' ? ' (Retrofy)' : d.mediaFrom === 'account' ? ' (Spotify hesabı)' : ''}: ${m.appName} · ${m.title}${m.artist ? ' — ' + m.artist : ''}`;
   else if (d.mediaOk === false)
     (text = "Windows'un medya denetimlerine ulaşılamadı. Spotify masaüstü uygulaması yine de pencere başlığından tanınır; başka çalarlar görünmeyebilir."), (warn = true);
-  else text = 'Şu an çalan bir müzik algılanmadı. Spotify masaüstü uygulamasında şarkı çalınca burada görünür.';
+  else text = 'Şu an çalan bir müzik algılanmadı. Spotify, Retrofy ya da başka bir müzik uygulamasında şarkı çalınca burada görünür.';
   return <p className={cx('act-diag', warn && 'warn')}>{text}</p>;
 }
 
@@ -260,8 +260,16 @@ function SpotifyAccount() {
   React.useEffect(() => {
     window.kovan.spotify.status().then(setSt);
   }, []);
+  const [open, setOpen] = useState(false);
   const cur = live || st;
   if (!cur) return null;
+  // çoğu kişi için gerekmez (Spotify uygulaması ve Retrofy kendiliğinden algılanır): bağlı değilse küçük bir bağlantı olarak durur
+  if (!cur.connected && !open && !busy)
+    return (
+      <button className="act-more-link" onClick={() => setOpen(true)}>
+        Telefondan ya da başka bir uygulamadan dinlediklerin görünmüyor mu? Spotify hesabından okumayı aç
+      </button>
+    );
   const needId = !cur.defaultClientId;
   const idVal = id ?? cur.clientId;
   const connect = async () => {
