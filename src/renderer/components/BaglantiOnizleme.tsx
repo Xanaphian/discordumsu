@@ -5,6 +5,7 @@ import { Play } from 'lucide-react';
 import { useStore, confirmDialog, openModal } from '../lib/store';
 import { openInSiteRoom } from '../lib/site';
 import { cx } from '../lib/util';
+import { isInviteLink } from '../../shared/davetBaglanti';
 
 type Meta = NonNullable<Awaited<ReturnType<typeof window.kovan.linkMeta>>>;
 
@@ -34,6 +35,7 @@ export function previewUrls(content: string): string[] {
   const out: string[] = [];
   for (const m of text.matchAll(/\[[^\]\n]{1,200}\]\((https?:\/\/[^\s)]+)\)|https?:\/\/[^\s<>]+[^\s<.,:;"')\]!?*_~|>]/g)) {
     const u = m[1] || m[0];
+    if (isInviteLink(u)) continue; // davet bağlantısı kendi kartıyla görünür
     if (!out.includes(u)) out.push(u);
     if (out.length >= 3) break;
   }
@@ -41,6 +43,8 @@ export function previewUrls(content: string): string[] {
 }
 
 export function openLink(href: string) {
+  // davet bağlantısı tarayıcıya gitmez: katılma penceresi açılır
+  if (isInviteLink(href)) return openModal({ type: 'join', code: href });
   if (openInSiteRoom(href)) return;
   if (useStore.getState().settings.confirmLinks)
     confirmDialog('Bağlantı açılsın mı?', `Tarayıcında şu adres açılacak:\n${href}`, () => window.kovan.openExternal(href), 'Aç', false);

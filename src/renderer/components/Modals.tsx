@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Hash, Volume2, Megaphone, Box, Globe, Copy, Check, ImagePlus, LoaderCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
+import { InvitePreview, InviteShare } from './DavetBaglantisi';
 import {
-  useStore, openModal, escBusy, createCommunity, joinByInvite, makeInvite, updateSettings, inviteHostOptions, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
+  useStore, openModal, escBusy, createCommunity, joinByInvite, makeInvite, homeHost, confirmDialog, updateSettings, inviteHostOptions, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
 } from '../lib/store';
 import { CommunityIcon, Avatar } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtTime, displayName } from '../lib/util';
@@ -193,15 +194,16 @@ function JoinModal({ code: initial }: { code?: string }) {
   };
   return (
     <Modal onClose={close}>
-      <ModalHead title="Bir topluluğa katıl" sub="Arkadaşından aldığın davet kodunu yapıştır." />
+      <ModalHead title="Bir topluluğa katıl" sub="Arkadaşından aldığın davet bağlantısını yapıştır." />
       <div className="modal-body">
         <label className="field">
-          <span>Davet kodu</span>
-          <input autoFocus placeholder="ör. xanaphian/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.repeat && submit()} className={cx(err && 'invalid')} />
+          <span>Davet bağlantısı</span>
+          <input autoFocus placeholder="ör. https://xanaphian.com/davet/s3gas25" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.repeat && submit()} className={cx(err && 'invalid')} />
         </label>
         {err && <div className="field-err">{err}</div>}
+        <InvitePreview text={code} />
         <div className="hint-card">
-          Davet kodları <code>xanaphian/s3gas25</code> gibi görünür. Kodu yapıştırıp Katıl'a basman yeterli; arkadaşının bilgisayarının açık olması gerekmez.
+          Davet bağlantıları <code>xanaphian.com/davet/s3gas25</code> gibi görünür. Bağlantıyı yapıştırıp Katıl'a basman yeterli; eski <code>xanaphian/s3gas25</code> kodları da çalışır.
         </div>
       </div>
       <div className="modal-foot">
@@ -226,7 +228,29 @@ function InviteModal({ cid }: { cid: string }) {
   const opts = useMemo(() => inviteHostOptions(cid), [cid, publicAddress, info]); // eslint-disable-line
   const code = useMemo(() => makeInvite(cid), [cid, c?.inviteKey, c?.inviteCode, publicAddress, inviteHost, info]); // eslint-disable-line
   const local = useStore((s) => s.commHost[cid] === `127.0.0.1:${s.info?.hubPort}`);
+  const home = useStore((s) => s.commHost[cid] === homeHost());
   if (!c) return null;
+  // merkezi sunucudaki topluluk: paylaşılabilir bağlantı, arkadaşlara gönderme, süre ve kullanım sınırı
+  if (home)
+    return (
+      <Modal onClose={close} className="dv-modal">
+        <ModalHead title="Arkadaşlarını davet et" sub={`${c.name} · bağlantıyı alan herkes katılabilir`} />
+        <div className="modal-body">
+          <InviteShare cid={cid} />
+          {can(c, me, Perm.MANAGE_COMMUNITY) && (
+            <button
+              className="dv-link-btn dv-reset"
+              title="Bu topluluğun bütün davet bağlantıları geçersiz olur, yeni bir kalıcı bağlantı oluşur"
+              onClick={() =>
+                confirmDialog('Davetler sıfırlansın mı?', 'Bu topluluğun şimdiye kadar paylaşılan bütün davet bağlantıları geçersiz olur ve yeni bir bağlantı oluşur. Mevcut üyeler etkilenmez.', () => cmd(cid, { t: 'comm.invite.reset', cid }), 'Sıfırla')
+              }
+            >
+              <RefreshCw size={14} /> Bütün davetleri sıfırla
+            </button>
+          )}
+        </div>
+      </Modal>
+    );
   return (
     <Modal onClose={close}>
       <ModalHead title="Arkadaşlarını davet et" sub={`${c.name} · kodu alan herkes katılabilir`} />

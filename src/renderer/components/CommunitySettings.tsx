@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, RefreshCw, Trash2, Plus, ChevronUp, ChevronDown, GripVertical, Lock, Copy, Search, MoreHorizontal, Clock, Shield, LoaderCircle } from 'lucide-react';
+import { InviteList } from './DavetBaglantisi';
 import { useStore, cmd, toast, confirmDialog, deleteCommunity, makeInvite, openMenu, request, loadModData, type ModData } from '../lib/store';
 import { Avatar, CommunityIcon, CustomColor, Toggle } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtDay, fmtTime, displayName } from '../lib/util';
@@ -574,6 +575,7 @@ function BansTab({ c }: { c: Community }) {
 const AUDIT_LABEL: Record<string, string> = {
   'comm.update': 'topluluğu güncelledi',
   'invite.reset': 'davet kodunu yeniledi',
+  'invite.del': 'bir daveti sildi',
   'chan.create': 'kanal oluşturdu',
   'chan.update': 'kanalı düzenledi',
   'chan.delete': 'kanalı sildi',
@@ -811,7 +813,7 @@ function InvitesTab({ c, manage }: { c: Community; manage: boolean }) {
       {code ? (
         <div className="copy-row">
           <input readOnly value={code} onFocus={(e) => e.target.select()} />
-          <button className="btn primary" onClick={() => (copyText(code), toast('Davet kodu kopyalandı', 'ok'))}>
+          <button className="btn primary" onClick={() => (copyText(code), toast('Davet bağlantısı kopyalandı', 'ok'))}>
             Kopyala
           </button>
         </div>
@@ -828,6 +830,7 @@ function InvitesTab({ c, manage }: { c: Community; manage: boolean }) {
           </button>
         </>
       )}
+      <InviteList c={c} manage={manage} />
     </>
   );
 }

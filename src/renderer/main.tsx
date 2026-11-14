@@ -42,6 +42,7 @@ import './styles/etiket.css';
 import './styles/kucuk-ekler.css';
 import './styles/davet.css';
 import './styles/klavye.css';
+import './styles/davet-baglantisi.css';
 
 hataDinle();
 

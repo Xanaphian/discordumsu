@@ -1,0 +1,270 @@
+/* v1.57 Davet bağlantıları: sohbetteki davet kartı, katılma önizlemesi, davet penceresi, davet listesi. Sade, tek vurgu rengi. */
+
+/* ---- sohbetteki kart ---- */
+.dv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: 440px;
+}
+.dv-card {
+  padding: 12px 14px 14px;
+  border-radius: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+}
+.dv-head {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.dv-card .dv-head {
+  margin-bottom: 10px;
+}
+.dv-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.dv-row .comm-icon-img,
+.dv-row .comm-icon-text,
+.dv-preview .comm-icon-img,
+.dv-preview .comm-icon-text {
+  flex: none;
+  border-radius: 26%;
+  object-fit: cover;
+}
+.dv-row .comm-icon-text,
+.dv-preview .comm-icon-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #fff;
+}
+.dv-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dv-name {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-sub {
+  font-size: 13px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.dv-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.dv-counts i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+.dv-counts i.on {
+  background: var(--green);
+}
+.dv-row .btn {
+  flex: none;
+  min-width: 76px;
+  justify-content: center;
+}
+.dv-ph,
+.dv-bad-ic {
+  flex: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 26%;
+  background: var(--bg-active);
+}
+.dv-ph.sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.dv-bad-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+}
+.dv-ph-line {
+  height: 12px;
+  width: 60%;
+  border-radius: 6px;
+  background: var(--bg-active);
+}
+.dv-ph-line.short {
+  width: 38%;
+}
+.dv-card.bad .dv-name {
+  color: var(--text-2);
+}
+
+/* ---- katılma penceresindeki önizleme ---- */
+.dv-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--bg-side);
+  border: 1px solid var(--line);
+}
+
+/* ---- davet penceresi ---- */
+.dv-friends {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dv-friend-list {
+  max-height: 196px;
+  overflow-y: auto;
+  margin: 0 -6px;
+}
+.dv-friend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border-radius: 8px;
+}
+.dv-friend:hover {
+  background: var(--bg-hover);
+}
+.dv-friend-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-friend .btn {
+  min-width: 92px;
+  justify-content: center;
+}
+.dv-empty {
+  padding: 14px 6px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.dv-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: -6px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.dv-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--line-2);
+}
+.dv-link-btn:hover {
+  color: var(--text);
+}
+.dv-edit {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--bg-side);
+  border: 1px solid var(--line);
+}
+.dv-edit-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---- ayarlardaki davet listesi ---- */
+.dv-table {
+  margin-top: 22px;
+}
+.dv-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.dv-table-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.dv-inv {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+  border-top: 1px solid var(--line);
+}
+.dv-inv-code {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* yayıncı modu: davet bağlantıları ve kartları ekranda okunmaz */
+html.sm-invites .dv-inv-code,
+html.sm-invites .dv-card .dv-name,
+html.sm-invites .dv-card .comm-icon-img {
+  filter: blur(6px);
+}
+
+/* davet penceresi biraz daha geniş: bağlantı kesilmeden sığsın */
+.modal.dv-modal {
+  width: 560px;
+}
+.dv-modal .copy-row input {
+  letter-spacing: 0;
+  font-size: 12.5px;
+}
+.dv-reset {
+  align-self: flex-start;
+  color: var(--text-3);
+}

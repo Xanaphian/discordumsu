@@ -387,6 +387,10 @@ export type ClientFrame =
   | { t: 'comm.delete'; cid: ID }
   | { t: 'comm.leave'; cid: ID }
   | { t: 'comm.invite.reset'; cid: ID }
+  | { t: 'invite.info'; code: string; rid: string }
+  | { t: 'invite.create'; cid: ID; age?: number; max?: number; rid: string }
+  | { t: 'invite.list'; cid: ID; rid: string }
+  | { t: 'invite.del'; cid: ID; code: string; rid?: string }
   /** v1.27: katılma koruması, baskın kilidini kaldırma, keşfet listesi */
   | { t: 'comm.guard'; cid: ID; guard?: JoinGuard; unlock?: boolean }
   | { t: 'comm.listing'; cid: ID; listing: Listing | null }

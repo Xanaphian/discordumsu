@@ -366,11 +366,17 @@ function createTray() {
 }
 
 function handleArgv(argv: string[]) {
-  const link = argv.find((a) => a.startsWith('kovan://'));
+  // xanaphian://davet/s3gas25 (davet sayfasındaki düğme) ya da eski kovan://invite/...
+  const link = argv.find((a) => /^(kovan|xanaphian):\/\//i.test(a));
   if (!link) return;
-  const m = link.match(/^kovan:\/\/invite\/(.+?)\/?$/i);
+  const m = link.match(/^(?:kovan|xanaphian):\/\/(?:invite|davet)\/(.+?)\/?$/i);
   if (!m) return;
-  const code = decodeURIComponent(m[1]);
+  let code: string;
+  try {
+    code = decodeURIComponent(m[1]).slice(0, 400);
+  } catch {
+    return;
+  }
   if (win && !win.webContents.isLoading()) win.webContents.send('invite', code);
   else pendingInvite = code;
 }
@@ -380,9 +386,11 @@ app.on('second-instance', (_e, argv) => {
   handleArgv(argv);
 });
 
-if (process.defaultApp) {
-  if (process.argv.length >= 2) app.setAsDefaultProtocolClient('kovan', process.execPath, [path.resolve(process.argv[1])]);
-} else app.setAsDefaultProtocolClient('kovan');
+for (const scheme of ['kovan', 'xanaphian']) {
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) app.setAsDefaultProtocolClient(scheme, process.execPath, [path.resolve(process.argv[1])]);
+  } else app.setAsDefaultProtocolClient(scheme);
+}
 
 Menu.setApplicationMenu(null);
 
