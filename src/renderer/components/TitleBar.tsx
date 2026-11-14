@@ -4,7 +4,7 @@ import { ThemeQuick } from './Appearance';
 import { cx } from '../lib/util';
 import { useStore, toast, openModal } from '../lib/store';
 import { StreamerBadge } from './YayinciModu';
-import { Logo, Tooltip } from './Common';
+import { Logo, Tooltip, CommunityIcon } from './Common';
 import { fmtSize } from '../lib/util';
 
 export function UpdateButton() {
@@ -67,6 +67,20 @@ function UpdateIdle({ version, dev }: { version?: string; dev?: boolean }) {
       );
 }
 
+/** Çubuğun tam ortasında o an bakılan topluluk: resmi + adı. Ana Sayfa, özel mesaj ve Keşfet'te boş. */
+function TitleCommunity() {
+  const c = useStore((s) => (s.current === 'home' ? undefined : s.communities[s.current]));
+  if (!c || c.dm) return null;
+  return (
+    <div className="tb-now" title={c.name}>
+      <span className="tb-now-icon">
+        <CommunityIcon c={c} size={20} />
+      </span>
+      <span className="tb-now-name">{c.name}</span>
+    </div>
+  );
+}
+
 export function TitleBar() {
   const u = useStore((s) => s.update);
   // elle denetimde "güncelsin" bildirimi
@@ -84,8 +98,8 @@ export function TitleBar() {
     <header className="titlebar">
       <div className="tb-brand">
         <Logo size={26} />
-        <span lang="en">Xanaphian</span>
       </div>
+      <TitleCommunity />
       <div className="tb-drag" />
       <div className="tb-actions">
         <Tooltip text="Renk teması" side="bottom">
