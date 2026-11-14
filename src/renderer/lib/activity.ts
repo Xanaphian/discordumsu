@@ -11,7 +11,7 @@ export interface DetectedState {
   mediaOk?: boolean;
   sessions?: string[];
   mediaErr?: string;
-  game: { name: string; exe: string; start?: number; icon?: string; details?: string; state?: string; matchStart?: number } | null;
+  game: { name: string; exe: string; start?: number; icon?: string; details?: string; state?: string; matchStart?: number; store?: string } | null;
   media: {
     app: string;
     src: string;
