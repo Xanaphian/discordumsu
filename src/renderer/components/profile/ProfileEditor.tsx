@@ -14,6 +14,7 @@ import {
 import { ToneEditor, TONE_PRESETS } from './Tones';
 import { AccountsEditor } from './Accounts';
 import { NameText, ProfileCard } from './ProfileCard';
+import { FullLayoutEditor } from './TamProfilAyar';
 
 interface Draft {
   name: string;
@@ -194,12 +195,13 @@ export function ImageFramer({ src, value, onChange, aspect, tall }: { src: strin
   );
 }
 
-type TabId = 'basic' | 'media' | 'style' | 'more';
+type TabId = 'basic' | 'media' | 'style' | 'more' | 'layout';
 const TABS: [TabId, string, string][] = [
   ['basic', 'Temel', 'Ad, fotoğraf, durum, hakkımda'],
   ['media', 'Afiş ve arka plan', 'Resimler, konum ve yükseklik'],
   ['style', 'Süsler', 'Hazır görünümler, çerçeve, isim stili'],
   ['more', 'Hesaplar', 'Bağlı hesaplar, bağlantılar, saat'],
+  ['layout', 'Tam profil', 'Düğmeler, sıra, vitrin'],
 ];
 const TAB_OF: Record<string, TabId> = {
   identity: 'basic',
@@ -214,6 +216,7 @@ const TAB_OF: Record<string, TabId> = {
   accounts: 'more',
   links: 'more',
   extra: 'more',
+  fulllayout: 'layout',
 };
 const TabCtx = createContext<TabId>('basic');
 
@@ -346,6 +349,10 @@ export function ProfileEditor() {
       <TabCtx.Provider value={tab}>
       <div className="pe-grid">
         <div className="pe-form">
+          <Section id="fulllayout" title="Tam profil düzeni" sub="Profiline tıklayanların gördüğü büyük pencere. Kaydettiğinde herkes bu düzeni görür.">
+            <FullLayoutEditor extra={x} onChange={(full) => setX({ full })} />
+          </Section>
+
           <Section
             id="presets"
             title="Hazır görünümler"
