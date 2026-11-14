@@ -569,9 +569,23 @@ voiceHooks.onSignal = async (h, from, data: any) => {
 };
 
 // ---------------------------------------------------------------- mikrofon
+let micSeq = 0;
 async function openMic() {
   const s = ST();
+  const seq = ++micSeq;
   const ctx = audioCtx();
+  // v1.47.3: eski mikrofon açıkken istenirse Chromium aynı cihazın eski işleme ayarlarını verir
+  // (ör. sesteyken Kapalı'ya geçince tarayıcının gürültü bastırması açık kalıyordu). Önce eskisini kapat.
+  if (rawMic) {
+    try {
+      micSrc?.disconnect();
+    } catch {
+      /* kopuk */
+    }
+    rawMic.getTracks().forEach((t) => t.stop());
+    rawMic = null;
+    micSrc = null;
+  }
   const raw = await navigator.mediaDevices.getUserMedia({
     audio: {
       deviceId: s.micId && s.micId !== 'default' ? { exact: s.micId } : undefined,
@@ -583,6 +597,11 @@ async function openMic() {
     },
     video: false,
   });
+  if (seq !== micSeq) {
+    // bu arada daha yeni bir açma isteği geldi (ör. modlar hızlı değiştirildi)
+    raw.getTracks().forEach((t) => t.stop());
+    return;
+  }
   if (!inGain) {
     inGain = ctx.createGain();
     gate = ctx.createGain();
@@ -595,8 +614,6 @@ async function openMic() {
     inGain.connect(gate).connect(micDest);
     local = micDest.stream;
   }
-  micSrc?.disconnect();
-  rawMic?.getTracks().forEach((t) => t.stop());
   rawMic = raw;
   micSrc = ctx.createMediaStreamSource(raw);
   await attachNoise(ctx);
@@ -626,6 +643,7 @@ async function attachNoise(ctx: AudioContext) {
 }
 
 function closeMic() {
+  micSeq++;
   noise?.dispose();
   noise = null;
   noiseNow = null;
