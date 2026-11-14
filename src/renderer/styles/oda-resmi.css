@@ -148,3 +148,13 @@
   display: block;
 }
 .oda-resmi-field { margin-bottom: 8px; }
+
+/* v1.32.1 oda listesi sütunu daha geniş: uzun oda adları ve açıklamalar sığsın */
+.sidebar {
+  width: 300px;
+}
+@media (max-width: 1100px) {
+  .sidebar {
+    width: 276px;
+  }
+}
