@@ -31,6 +31,7 @@ import './styles/gurultu.css';
 import './styles/ana-sayfa.css';
 import './styles/yazi-tipi.css';
 import './styles/kirpma.css';
+import './styles/ses-duzeni.css';
 
 // Bağlantı ve ayarlar hemen başlasın; yazı tiplerini beklemek yalnız ilk çizimi bekletir.
 const booting = boot().catch((e) => console.error('Açılış hatası', e));
