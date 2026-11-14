@@ -297,14 +297,19 @@
 .room-box > .ch-row.room:not(:last-child) {
   margin-bottom: 0;
 }
+/* v1.41.1 ayırıcı çizgi kutunun çerçevesine bağlı: kenardan kenara, çerçeveyle aynı renk */
 .room-box > .vc-members.vc-cards,
 .room-box > .ch-row.room + .vc-members.vc-cards {
-  margin: 4px 0 0;
-  padding-top: 5px;
-  border-top: 2px solid color-mix(in srgb, var(--text) 20%, transparent);
+  margin: 3px -3px 0;
+  padding: 5px 3px 0;
+  border-top: 2px solid color-mix(in srgb, var(--text) 22%, transparent);
+  transition: border-color 0.12s;
+}
+.room-box:hover > .vc-members.vc-cards {
+  border-top-color: color-mix(in srgb, var(--text) 32%, transparent);
 }
 .room-box.on > .vc-members.vc-cards {
-  border-top-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-top-color: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 /* v1.41 alttaki kendi panelin: afiş net (ses kartı gibi), yazılar ve düğmeler afişin üstünde okunaklı */
