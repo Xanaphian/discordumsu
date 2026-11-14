@@ -4,7 +4,7 @@
 import { create } from 'zustand';
 import type { Attachment, ID, ServerFrame } from '../../shared/protocol';
 import { FEAT_POSTS, type FeedScope, type PostView, type PostVis } from '../../shared/paylasim';
-import { useStore, homeHost, homeRequest, postHooks, sendHost, toast } from './store';
+import { useStore, homeHost, homeRequest, postHooks, sendHost, toast, uploadLimitText } from './store';
 import { httpBase } from './net';
 import { imageSize } from './util';
 
@@ -114,6 +114,7 @@ async function uploadHome(file: File): Promise<Attachment> {
   }
   const r = await fetch(`${homeFileBase()}/upload`, { method: 'POST', headers, body: file });
   if (r.status === 413) throw new Error('Resim çok büyük.');
+  if (r.status === 429) throw new Error(await uploadLimitText(r));
   if (!r.ok) throw new Error('Resim yüklenemedi (' + r.status + ')');
   return r.json();
 }

@@ -19,6 +19,7 @@ import { BotManager, type BotHost } from './bots';
 import { sanitizeStickers } from '../shared/stickers';
 import { PostStore } from './paylasim';
 import { FEAT_POSTS } from '../shared/paylasim';
+import { Ekler, type EkOptions } from './ekler';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
 const MAX_CONTENT = 4000;
@@ -164,6 +165,8 @@ interface HubData {
   moved?: Record<ID, string>;
   /** özel mesaj gizliliği: yalnız arkadaşlarından yeni mesaj alan kullanıcılar */
   dmFriendsOnly?: Record<ID, 1>;
+  /** v1.50: henüz mesaj atılmamış özel sohbet -> listesinde görünmeyeceği kişi (sohbeti açmayan taraf) */
+  dmQuiet?: Record<ID, ID>;
 }
 
 /** Bir topluluğun taşınma paketi (yerel kovan → merkezi sunucu) */
@@ -195,6 +198,8 @@ export interface HubOptions {
   server?: boolean;
   /** Sunucu kipinde kişi başı kurulabilecek topluluk sayısı */
   maxOwned?: number;
+  /** v1.50 ekler: yöneticiler, TURN, yükleme kotası */
+  ek?: EkOptions;
 }
 
 interface Session {
@@ -255,6 +260,11 @@ export class Hub {
   readonly bots: BotManager;
   /** v1.48 Ana Sayfa paylaşımları (load() içinde kurulur) */
   private posts!: PostStore;
+  /** v1.50 ekler: hata bildirimleri, yükleme kotası, TURN (load() içinde kurulur) */
+  private ek!: Ekler;
+  private ekOpts: EkOptions;
+  /** bağlantı hız sınırı: adres -> son bir dakikadaki bağlantı anları */
+  private connRate = new Map<string, number[]>();
 
   readonly serverMode: boolean;
   private maxOwned: number;
@@ -263,6 +273,7 @@ export class Hub {
     this.dir = path.join(baseDir, 'hub');
     this.serverMode = !!opts.server;
     this.maxOwned = opts.maxOwned ?? 20;
+    this.ekOpts = opts.ek || {};
     if (this.serverMode) this.ownerName = 'Kovan';
     this.bots = new BotManager(this.botHost());
   }
@@ -300,6 +311,7 @@ export class Hub {
       }
     }
     this.ensureBot();
+    this.ek = new Ekler(this.dir, this.ekOpts);
     this.posts = new PostStore({
       dir: this.dir,
       user: (id) => this.data.users[id]?.pub,
@@ -485,6 +497,7 @@ export class Hub {
     });
     this.server.on('upgrade', (req, socket, head) => {
       if (!req.url?.startsWith('/ws')) return socket.destroy();
+      if (this.serverMode && this.tooManyConnections(req)) return socket.destroy();
       this.wss!.handleUpgrade(req, socket, head, (ws) => this.attach(ws as unknown as Sock, req.socket.remoteAddress || ''));
     });
     const tryListen = (port: number) =>
@@ -535,6 +548,7 @@ export class Hub {
     }
     this.saveTimers.clear();
     this.bots.flush();
+    this.ek?.flush();
     for (const s of this.sessions) s.ws.close(1001);
     this.server?.close();
   }
@@ -665,6 +679,12 @@ export class Hub {
       if (!u || u.secretHash !== sha(secret)) return void res.writeHead(401).end();
       const len = Number(req.headers['content-length'] || 0);
       if (!len || len > MAX_UPLOAD) return void res.writeHead(413).end();
+      if (this.serverMode) {
+        // v1.50: kişi başı saatlik yükleme sınırı ve hız sınırı (sunucu dosyayla doldurulamasın)
+        const why = this.ek.uploadBlocked(uid, len);
+        if (why) return void res.writeHead(429, { 'content-type': 'application/json' }).end(JSON.stringify({ error: why }));
+        this.ek.uploadCount(uid, len);
+      }
       const id = makeId();
       const file = path.join(this.dir, 'files', id);
       const out = fs.createWriteStream(file);
@@ -700,6 +720,22 @@ export class Hub {
       return;
     }
     res.writeHead(404).end();
+  }
+
+  /** v1.50: aynı adresten dakikada 120'den çok yeni bağlantı gelirse reddedilir (bağlantı yağmuruna karşı).
+   *  Önünde nginx varken gerçek adres X-Forwarded-For'dan okunur; o başlık yoksa (adres bilinmiyorsa) sınır uygulanmaz. */
+  private tooManyConnections(req: http.IncomingMessage) {
+    const peer = req.socket.remoteAddress || '';
+    const local = peer === '127.0.0.1' || peer === '::1' || peer === '::ffff:127.0.0.1';
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',').pop()?.trim();
+    const ip = local ? fwd : peer;
+    if (!ip) return false;
+    const now = Date.now();
+    const list = (this.connRate.get(ip) || []).filter((t) => now - t < 60_000);
+    list.push(now);
+    this.connRate.set(ip, list);
+    if (this.connRate.size > 20_000) for (const [k, v] of this.connRate) if (now - v[v.length - 1] > 60_000) this.connRate.delete(k);
+    return list.length > 120;
   }
 
   // ---------- WebSocket ----------
@@ -1041,7 +1077,7 @@ export class Hub {
       friends: this.friendsFor(uid),
       acts,
       v: PROTOCOL_VERSION,
-      feats: [FEAT_POSTS],
+      feats: [FEAT_POSTS, ...this.ek.feats(uid)],
     });
   }
 
@@ -1054,6 +1090,7 @@ export class Hub {
   private dmsFor(uid: ID): DmInfo[] {
     const out: DmInfo[] = [];
     for (const [ch, lastId] of Object.entries(this.data.dms || {})) {
+      if (!lastId && this.data.dmQuiet?.[ch] === uid) continue; // karşı taraf açtı ama henüz yazmadı
       const peer = dmPeerOf(ch, uid);
       const pu = peer && this.data.users[peer];
       if (pu) out.push({ ch, peer: pu.pub, ...(lastId ? { lastId } : {}) });
@@ -1237,19 +1274,29 @@ export class Hub {
     for (const uid of [m[1], m[2]]) for (const x of this.userSessions.get(uid) || []) if (x !== except) this.sendRaw(x, data);
   }
 
-  /** DM kaydını oluşturur/günceller; yeni ise iki tarafa da haber verir */
-  private dmTouch(ch: ID, lastId: ID | '') {
+  /** DM kaydını oluşturur/günceller; yeni ise taraflara haber verir.
+   *  v1.50: sohbeti yalnız açan kişi (opener) görür; karşı tarafın listesine ilk mesajda ya da aramada girer.
+   *  Böylece kimse mesaj atmadan başkasının özel mesaj listesinde belirmez. */
+  private dmTouch(ch: ID, lastId: ID | '', opener?: ID) {
     this.data.dms ||= {};
     const isNew = !(ch in this.data.dms);
     this.data.dms[ch] = lastId || this.data.dms[ch] || '';
-    this.saveHub();
+    const m = /^d_([\w-]+)_([\w-]+)$/.exec(ch)!;
+    const tell = (uid: ID) => {
+      const info = this.dmInfo(ch, uid);
+      if (info) for (const x of this.userSessions.get(uid) || []) this.send(x, { t: 'dm', dm: info });
+    };
+    const quiet = this.data.dmQuiet?.[ch];
     if (isNew) {
-      const m = /^d_([\w-]+)_([\w-]+)$/.exec(ch)!;
-      for (const uid of [m[1], m[2]]) {
-        const info = this.dmInfo(ch, uid);
-        if (info) for (const x of this.userSessions.get(uid) || []) this.send(x, { t: 'dm', dm: info });
-      }
+      const other = opener && !lastId ? (m[1] === opener ? m[2] : m[1]) : undefined;
+      if (other) (this.data.dmQuiet ||= {})[ch] = other;
+      for (const uid of [m[1], m[2]]) if (uid !== other) tell(uid);
+    } else if (quiet && (!opener || opener === quiet)) {
+      // ilk mesaj, arama ya da karşı tarafın da sohbeti açması: artık iki tarafta da görünür
+      delete this.data.dmQuiet![ch];
+      tell(quiet);
     }
+    this.saveHub();
   }
 
   private handleDm(s: Session, uid: ID, f: ClientFrame): boolean {
@@ -1261,7 +1308,7 @@ export class Hub {
         this.send(s, { t: 'err', msg: why || 'Bu kişiyle ortak bir topluluğun olmadığı için mesajlaşamazsın.', rid: f.rid });
         return true;
       }
-      this.dmTouch(ch, '');
+      this.dmTouch(ch, '', uid);
       this.send(s, { t: 'ok', rid: f.rid, data: this.dmInfo(ch, uid) });
       return true;
     }
@@ -1379,6 +1426,7 @@ export class Hub {
     if (f.t.startsWith('bot.')) return this.bots.handleFrame(uid, f as Extract<ClientFrame, { t: `bot.${string}` }>, (x) => this.send(s, x));
     if (this.handleFriend(s, uid, f) || this.handleDm(s, uid, f)) return;
     if (this.posts.handle(uid, f, (x) => this.send(s, x))) return;
+    if (this.ek.handle(uid, f, (x) => this.send(s, x))) return;
 
     switch (f.t) {
       case 'join': {

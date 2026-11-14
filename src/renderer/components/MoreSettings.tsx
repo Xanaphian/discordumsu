@@ -6,6 +6,7 @@ import { Avatar, Toggle } from './Common';
 import { Row } from './Settings';
 import { DmPrivacySection } from './YayinciModu';
 import { cx, copyText } from '../lib/util';
+import { HataBildirBolumu } from './HataBildir';
 
 export function ChatTab() {
   const s = useStore((x) => x.settings);
@@ -158,6 +159,7 @@ export function AdvancedTab() {
           </b>
         </div>
       </div>
+      <HataBildirBolumu />
       <h3>Sıfırlama</h3>
       <p className="note">Sohbet, gizlilik ve bildirim tercihlerini varsayılana döndürür. Profilin, toplulukların, ses aygıtların ve bağlantı ayarların değişmez.</p>
       <button

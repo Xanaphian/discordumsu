@@ -17,7 +17,16 @@ app.setAppUserModelId('com.xanaphian.kovan');
 
 // WebRTC: donanım hızlandırmalı kodlama/çözme ve ekran yakalama iyileştirmeleri
 app.commandLine.appendSwitch('enable-features', 'AllowWgcScreenCapturer,AllowWgcWindowCapturer,WebRtcUseMinMaxVEADimensions');
-app.commandLine.appendSwitch('force_high_performance_gpu');
+// Pil dostu mod (v1.50): açıksa güçlü ekran kartı zorlanmaz; dizüstünde tümleşik kartla çalışıp daha az pil harcar.
+// Ayar dosyası pencere açılmadan önce okunur, çünkü bu seçenek yalnız başlangıçta verilebilir.
+const powerSaver = (() => {
+  try {
+    return !!JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'kovan-config.json'), 'utf8'))?.settings?.powerSaver;
+  } catch {
+    return false;
+  }
+})();
+if (!powerSaver) app.commandLine.appendSwitch('force_high_performance_gpu');
 
 // Ana süreçte yakalanmamış bir hata Electron'un "JavaScript error occurred in the main process" penceresini açar.
 // Uygulama çalışmaya devam edebildiği için kullanıcıya pencere göstermek yerine kayda yazılır.
@@ -547,6 +556,7 @@ function registerIpc() {
     exePath: process.execPath,
     mcpBridge: mcpBridgePath(),
     server: process.env.KOVAN_SERVER || undefined,
+    powerSaver,
   }));
   ipcMain.handle('mcp:claude-desktop', (_e, a: { name: string; url: string; token: string }) => installClaudeDesktop(a));
   ipcMain.handle('cfg:get', () => config);
@@ -643,6 +653,13 @@ function registerIpc() {
   });
   ipcMain.on('app:quit', () => {
     quitting = true;
+    app.quit();
+  });
+  // Uygulamayı kapatıp yeniden açar (pil dostu mod gibi yalnız başlangıçta okunan ayarlar için)
+  ipcMain.on('app:relaunch', () => {
+    saveConfig(true);
+    quitting = true;
+    app.relaunch();
     app.quit();
   });
   ipcMain.handle('upd:check', () => updater?.check(true));

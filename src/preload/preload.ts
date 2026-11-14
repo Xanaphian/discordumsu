@@ -20,6 +20,7 @@ const api = {
   badge: (count: number) => ipcRenderer.send('badge', count),
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
   quit: () => ipcRenderer.send('app:quit'),
+  relaunch: () => ipcRenderer.send('app:relaunch'),
   installClaudeDesktop: (a: { name: string; url: string; token: string }) =>
     ipcRenderer.invoke('mcp:claude-desktop', a) as Promise<{ ok: boolean; files: string[]; error?: string }>,
   onInvite: (cb: (code: string) => void) => on('invite', cb),
