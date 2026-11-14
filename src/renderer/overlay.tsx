@@ -17,10 +17,10 @@ function Face({ m, size = 28 }: { m: { name: string; avatar?: string; color: str
   );
 }
 
-function Member({ m }: { m: OvlMember }) {
+function Member({ m, avatar }: { m: OvlMember; avatar?: string }) {
   return (
     <li className={'ovl-mem' + (m.speaking ? ' talk' : '')}>
-      <Face m={m} />
+      <Face m={{ ...m, avatar }} />
       <span className="ovl-name">{m.name}</span>
       <span className="ovl-marks">
         {m.screen && <MonitorUp size={13} className="ovl-live" />}
@@ -32,9 +32,21 @@ function Member({ m }: { m: OvlMember }) {
 
 function Overlay() {
   const [st, setSt] = useState<OvlPayload | null>(null);
+  // profil resimleri yalnız değişince gelir (v1.59.1)
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [msgs, setMsgs] = useState<(OvlMessage & { out?: boolean })[]>([]);
   useEffect(() => {
     const a = window.kovan.overlay.onState((p: OvlPayload) => {
+      const delta = p.avatars;
+      if (delta)
+        setAvatars((old) => {
+          const n = { ...old };
+          for (const [id, av] of Object.entries(delta)) {
+            if (av) n[id] = av;
+            else delete n[id];
+          }
+          return n;
+        });
       setSt(p);
       document.documentElement.dataset.corner = p.corner;
       document.documentElement.style.setProperty('--ovl-accent', p.accent || '#c8aa6e');
@@ -62,7 +74,7 @@ function Overlay() {
       {members.length ? (
         <ul className="ovl-list">
           {members.slice(0, 12).map((m) => (
-            <Member key={m.id} m={m} />
+            <Member key={m.id} m={m} avatar={avatars[m.id]} />
           ))}
           {members.length > 12 && <li className="ovl-more">+{members.length - 12} kişi daha</li>}
         </ul>

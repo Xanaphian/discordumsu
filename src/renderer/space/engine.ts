@@ -5,6 +5,7 @@ import type { ID, Room3d } from '../../shared/protocol';
 import { buildMeydan, drawBoothSign, BOOTH_COLORS, type World } from './world';
 import { Avatar } from './avatar';
 import { varlikTut, varlikBirak } from './assets';
+import { pencere, pencereDinle } from '../lib/gorunurluk';
 import { buildSalon } from './salon';
 import { camReach } from './camera';
 import { live, sendMove, emote as sendEmote, useSpace, type SpaceEvent } from '../lib/space';
@@ -453,8 +454,31 @@ export class SpaceEngine {
     this.camera.updateProjectionMatrix();
   }
 
+  // v1.59.1: pencere küçültülmüş/tepsideyken çizim tamamen durur (kare istenmez). Konumsal ses doğru kalsın diye
+  // sahne (yürüyenler, ses kaynaklarının yeri) saniyede 4 kez çizimsiz ilerletilir; pencere açılınca döngü sürer.
+  private bgTimer: ReturnType<typeof setInterval> | null = null;
+  private offVisible = pencereDinle((gizli) => {
+    if (this.disposed) return;
+    if (gizli) {
+      this.bgTimer ??= setInterval(() => {
+        const dt = Math.min(0.3, this.clock.getDelta());
+        if (!this.paused) this.step(dt, this.clock.elapsedTime);
+      }, 250);
+      return;
+    }
+    if (this.bgTimer) clearInterval(this.bgTimer), (this.bgTimer = null);
+    if (!this.raf) {
+      this.clock.getDelta();
+      this.raf = requestAnimationFrame(this.loop);
+    }
+  });
+
   private loop = () => {
     if (this.disposed) return;
+    if (pencere.gizli) {
+      this.raf = 0;
+      return;
+    }
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(0.05, this.clock.getDelta());
     if (this.paused || document.hidden) return;
@@ -673,6 +697,8 @@ export class SpaceEngine {
     this.disposed = true;
     if ((window as any).__kovanSpace === this) (window as any).__kovanSpace = null;
     cancelAnimationFrame(this.raf);
+    if (this.bgTimer) clearInterval(this.bgTimer);
+    this.offVisible();
     this.unsub();
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);

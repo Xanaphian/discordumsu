@@ -4,6 +4,7 @@ import { App, PopoutRoot } from './App';
 import { IS_POPOUT } from './lib/popout';
 import { HataSiniri } from './components/HataSiniri';
 import './lib/yayinci';
+import './lib/gorunurluk';
 import { boot } from './lib/store';
 import './lib/activity';
 import { hataDinle } from './lib/hata';

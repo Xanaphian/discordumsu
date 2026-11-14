@@ -6,6 +6,7 @@ import { canIn, Perm, type Channel, type Community, type ID, type VoiceMember } 
 import { useStore, voiceHooks, cmd, toast, request } from './store';
 import { FEAT_ICE, type IceInfo } from '../../shared/ekler';
 import { playSound } from './sound';
+import { pencere } from './gorunurluk';
 
 export interface RemoteMedia {
   cam?: MediaStream;
@@ -147,8 +148,21 @@ function audioCtx() {
     master.connect(actx.destination);
     applyOutput();
   }
-  if (actx.state === 'suspended') actx.resume().catch(() => {});
+  // askıya alma isteği bitmeden durum 'running' görünebilir: her çağrıda sürdür (çalışırken zararsız)
+  if (actx.state !== 'closed') actx.resume().catch(() => {});
   return actx;
+}
+
+/** v1.59.1: görüşme bitince ses bağlamı askıya alınır. Çalışır durumda kalan bağlam hiçbir ses yokken bile Windows'ta
+ *  ses hizmetini ve arayüzün ses iş parçacığını sürekli çalıştırıyordu. Yeni görüşmede audioCtx() yeniden başlatır. */
+function sleepAudio() {
+  const c = actx;
+  if (!c || c.state !== 'running') return;
+  c.suspend()
+    .then(() => {
+      if (V().ch && c.state === 'suspended') c.resume().catch(() => {});
+    })
+    .catch(() => {});
 }
 
 function applyOutput() {
@@ -217,6 +231,9 @@ function startLoop() {
       gate.gain.setTargetAtTime(open ? 1 : 0, actx.currentTime, open ? 0.004 : 0.04);
     }
     if (++tick % 3) return;
+    // v1.59.1: pencere küçültülmüş/tepsideyken ve kaplama da yoksa göstergeleri güncellemek yalnız boşa çizim demek;
+    // pencere açılınca ilk turda güncel duruma gelir. (Kapı yukarıda her turda çalışmaya devam eder.)
+    if (pencere.gizli && !pencere.kaplama) return;
     // konuşma göstergeleri (~120 ms)
     const me = useStore.getState().me.id;
     const next: Record<ID, boolean> = {};
@@ -789,6 +806,7 @@ export function leaveVoice(silent = false) {
   spatialMode = false;
   screenGate = null;
   lastPos.clear();
+  sleepAudio();
   window.kovan.inCall(false);
   setV({ ch: null, cid: null, state: 'idle', speaking: {}, media: {}, cam: null, screen: null, screenLabel: null });
   if (!silent && ST().sounds) playSound('leave');

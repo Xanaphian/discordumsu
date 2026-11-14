@@ -5,14 +5,25 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import http from 'node:http';
-import Anthropic from '@anthropic-ai/sdk';
-import { betaTool } from '@anthropic-ai/sdk/helpers/beta/json-schema';
+import type Anthropic from '@anthropic-ai/sdk';
 import {
   Channel, Community, ID, Message, Perm, ServerFrame, Status, UserPublic, VoiceMember, canIn, isVoiceLike, makeId,
 } from '../shared/protocol';
 import {
   BotAiConfig, BotClientFrame, BotPatch, BotRule, BotTemplate, BotView, DEFAULT_AI_MODEL, parseBotToken, AI_MODELS,
 } from '../shared/bots';
+
+// v1.59.1: Anthropic SDK'sı (ana paketin yarıdan fazlası) yalnız yapay zekâlı bot ilk kez çalışınca yüklenir;
+// açılışta her seferinde ayrıştırılıp çalıştırılması uygulamanın açılışını geciktiriyordu.
+type Sdk = { Anthropic: typeof import('@anthropic-ai/sdk').default; betaTool: typeof import('@anthropic-ai/sdk/helpers/beta/json-schema').betaTool };
+let sdk: Sdk | null = null;
+async function loadSdk(): Promise<Sdk> {
+  if (!sdk) {
+    const [a, h] = await Promise.all([import('@anthropic-ai/sdk'), import('@anthropic-ai/sdk/helpers/beta/json-schema')]);
+    sdk = { Anthropic: a.default, betaTool: h.betaTool };
+  }
+  return sdk;
+}
 
 type StoredComm = Omit<Community, 'users'>;
 
@@ -811,14 +822,18 @@ export class BotManager {
     run(m);
   }
 
-  private client(b: BotRecord) {
+  private async client(b: BotRecord) {
     const apiKey = this.dec(b.ai.key);
     if (!apiKey) throw new Error('NO_KEY');
+    const { Anthropic } = await loadSdk();
     return new Anthropic({ apiKey, maxRetries: 2, timeout: 180_000 });
   }
 
   aiError(e: unknown): string {
     if (e instanceof Error && e.message === 'NO_KEY') return 'API anahtarı girilmemiş. Bot ayarlarından bir Anthropic API anahtarı ekle.';
+    // SDK yüklenmediyse hata zaten SDK'dan gelmiş olamaz
+    const Anthropic = sdk?.Anthropic;
+    if (!Anthropic) return 'Yapay zekâ hatası: ' + (e instanceof Error ? e.message : String(e)).slice(0, 200);
     if (e instanceof Anthropic.AuthenticationError) return 'API anahtarı geçersiz.';
     if (e instanceof Anthropic.PermissionDeniedError) return 'Bu API anahtarının bu modele erişimi yok.';
     if (e instanceof Anthropic.NotFoundError) return 'Model bulunamadı. Bot ayarlarından başka bir model seç.';
@@ -830,7 +845,7 @@ export class BotManager {
   }
 
   private async testAi(c: StoredComm, b: BotRecord): Promise<string> {
-    const client = this.client(b);
+    const client = await this.client(b);
     const res = await client.beta.messages.create({
       model: b.ai.model,
       max_tokens: 2048,
@@ -880,7 +895,7 @@ export class BotManager {
     this.host.typing(c, ch.id, b.id);
     const typingTimer = setInterval(() => this.host.typing(c, ch.id, b.id), 5000);
     try {
-      const client = this.client(b);
+      const client = await this.client(b);
       const hist = this.host.history(ch.id);
       const idx = hist.findIndex((x) => x.id === trigger.id);
       const before = hist.slice(Math.max(0, idx - b.ai.context), idx).filter((x) => x.kind !== 'pin' && x.kind !== 'channel');
@@ -898,6 +913,7 @@ export class BotManager {
 
       const ctx: ToolCtx = { mgr: this, bot: b, c, ch: ch.id, sent: 0 };
       const tools: Anthropic.Beta.Messages.BetaToolUnion[] = [];
+      const { betaTool } = await loadSdk();
       const runnable = b.ai.tools
         ? TOOLS.filter((t) => !t.mcpOnly).map((t) =>
             betaTool({

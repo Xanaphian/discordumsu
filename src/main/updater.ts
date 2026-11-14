@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import type { AppUpdater } from 'electron-updater';
 
 export type UpdateState =
   | { state: 'idle' }
@@ -21,6 +21,8 @@ export class Updater {
   private timer: NodeJS.Timeout | null = null;
   private version = '';
   private notes?: string;
+  /** v1.59.1: electron-updater (ve bağımlılıkları) açılışı yavaşlatmasın diye ilk denetimde yüklenir */
+  private au: AppUpdater | null = null;
 
   constructor(private getWin: () => BrowserWindow | null, private dev: boolean) {}
 
@@ -34,6 +36,17 @@ export class Updater {
       this.set({ state: 'dev' });
       return;
     }
+    setTimeout(() => this.check(false), 4000);
+    this.timer = setInterval(() => this.check(false), 30 * 60 * 1000);
+  }
+
+  private updater(): AppUpdater {
+    if (this.au) return this.au;
+    // require (import() değil): paket dışarıda bırakılıyor ve import() Node'un ESM yükleyicisine gider; orada CJS paketin
+    // tembel 'autoUpdater' alanı adlı dışa aktarım olarak görünmeyebilir
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { autoUpdater } = require('electron-updater') as typeof import('electron-updater');
+    this.au = autoUpdater;
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.allowPrerelease = false;
@@ -53,8 +66,7 @@ export class Updater {
       // indirme/denetim hatası: arayüz tekrar denemeyi önerir
       this.set({ state: 'error', message: friendly(err?.message || String(err)), manual: this.manual });
     });
-    setTimeout(() => this.check(false), 4000);
-    this.timer = setInterval(() => this.check(false), 30 * 60 * 1000);
+    return autoUpdater;
   }
 
   async check(manual: boolean) {
@@ -62,7 +74,7 @@ export class Updater {
     if (this.state.state === 'downloading' || this.state.state === 'ready') return;
     this.manual = manual;
     try {
-      await autoUpdater.checkForUpdates();
+      await this.updater().checkForUpdates();
     } catch (e) {
       this.set({ state: 'error', message: friendly((e as Error).message), manual });
     }
@@ -72,7 +84,7 @@ export class Updater {
     if (this.dev || this.state.state !== 'available') return;
     this.set({ state: 'downloading', version: this.version, percent: 0, bps: 0, transferred: 0, total: 0 });
     try {
-      await autoUpdater.downloadUpdate();
+      await this.updater().downloadUpdate();
     } catch (e) {
       this.set({ state: 'error', message: friendly((e as Error).message), manual: true });
     }
@@ -82,7 +94,8 @@ export class Updater {
     if (this.state.state !== 'ready') return;
     if (this.timer) clearInterval(this.timer);
     // sessiz kurulum + kurulumdan sonra uygulamayı yeniden aç
-    setImmediate(() => autoUpdater.quitAndInstall(true, true));
+    // 'ready' durumuna yalnız yüklenmiş güncelleyiciyle gelinir
+    setImmediate(() => this.au?.quitAndInstall(true, true));
   }
 }
 

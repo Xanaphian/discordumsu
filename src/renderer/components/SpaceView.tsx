@@ -14,6 +14,7 @@ import { cx, COLORS, displayName } from '../lib/util';
 import { canIn, Perm, type AvatarLook, type AvatarModel, type Channel, type Community, type ID, type Room3d } from '../../shared/protocol';
 import type { SpaceEngine, Prompt } from '../space/engine';
 import { modelFor } from '../lib/avatarModel';
+import { pencere } from '../lib/gorunurluk';
 
 // 'antenna' eski varsayılan değer; v1.51'den beri karakterin kendi başlığı (miğfer, büyücü şapkası...) demek
 const HATS: { id: AvatarLook['hat']; label: string }[] = [
@@ -103,7 +104,8 @@ function Minimap({ engine }: { engine: SpaceEngine | null }) {
     if (!engine) return;
     const id = setInterval(() => {
       const cv = ref.current;
-      if (!cv) return;
+      // v1.59.1: pencere küçültülmüşken harita çizilmez (her çizim bütün pencereyi yeniden birleştirtiyordu)
+      if (!cv || pencere.gizli) return;
       const g = cv.getContext('2d')!;
       const md = engine.mapDraw;
       const S = cv.width, k = S / 2 / (md ? md.scale : 37);

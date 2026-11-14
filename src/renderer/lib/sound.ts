@@ -18,11 +18,18 @@ const TONES: Record<Kind, [number, number, number][]> = {
 /** yayıncı modu ya da ayrı pencere sesleri susturabilir */
 export const soundGate = { muted: false };
 
+// v1.59.1: çalışır durumda kalan bir AudioContext, hiçbir ses çalmasa da Windows'ta ses hizmetini (AudioService)
+// ve arayüzün ses iş parçacığını sürekli çalıştırır (ölçüm: boştayken tek çekirdeğin %6-8'i). Bu yüzden son sesten
+// kısa süre sonra bağlam askıya alınır; sıradaki ses onu yeniden başlatır.
+let idleTimer: ReturnType<typeof setTimeout> | null = null;
+const IDLE_MS = 2500;
+
 export function playSound(kind: Kind, volume = 0.12) {
   if (soundGate.muted) return;
   try {
     ctx ||= new AudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
+    // her seferinde sürdür: askıya alma isteği henüz bitmemişken durum hâlâ 'running' görünebilir; sonraki istek öncekini geçersiz kılar
+    ctx.resume().catch(() => {});
     const now = ctx.currentTime;
     for (const [f, start, dur] of TONES[kind]) {
       const o = ctx.createOscillator();
@@ -36,6 +43,13 @@ export function playSound(kind: Kind, volume = 0.12) {
       o.start(now + start);
       o.stop(now + start + dur + 0.02);
     }
+    const end = Math.max(...TONES[kind].map(([, start, dur]) => start + dur));
+    if (idleTimer) clearTimeout(idleTimer);
+    const c = ctx;
+    idleTimer = setTimeout(() => {
+      idleTimer = null;
+      if (c.state === 'running') c.suspend().catch(() => {});
+    }, end * 1000 + IDLE_MS);
   } catch {
     /* ses yok */
   }

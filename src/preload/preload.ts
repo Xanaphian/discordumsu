@@ -33,6 +33,8 @@ const api = {
     select: (sel: { id: string; audio: boolean } | null) => ipcRenderer.invoke('cap:select', sel),
   },
   inCall: (on: boolean) => ipcRenderer.send('win:in-call', on),
+  /** pencere gerçekten görünüyor mu (küçültülmüş ya da tepsideyse false) */
+  onVisible: (cb: (visible: boolean) => void) => ipcRenderer.on('win:gorunur', (_e, v: boolean) => cb(v)),
   ptt: {
     configure: (cfg: { enabled: boolean; code: string }) => ipcRenderer.invoke('ptt:config', cfg) as Promise<boolean>,
     onChange: (cb: (down: boolean) => void) => on('ptt', cb),

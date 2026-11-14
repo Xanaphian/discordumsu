@@ -5,6 +5,7 @@ import { useStore, overlayHooks } from './store';
 import { useVoice } from './voice';
 import { useActs } from './activity';
 import { displayName } from './util';
+import { pencere } from './gorunurluk';
 
 export type Corner = 'tl' | 'tr' | 'bl' | 'br';
 export interface OverlaySettings {
@@ -85,6 +86,8 @@ export interface OvlPayload {
   onlySpeaking: boolean;
   theme: string;
   accent: string;
+  /** v1.59.1: yalnız değişen profil resimleri (null = kaldırıldı); üyelerin kendi avatar alanı gönderilmez */
+  avatars?: Record<ID, string | null>;
 }
 export interface OvlMessage {
   id: ID;
@@ -144,11 +147,30 @@ function build(): OvlPayload {
 
 let lastSig = '';
 let timer: ReturnType<typeof setTimeout> | null = null;
+/** kaplamaya gönderilmiş profil resimleri */
+const sentAvatars = new Map<ID, string>();
 function push() {
   if (timer) return;
   timer = setTimeout(() => {
     timer = null;
-    const p = build();
+    let p = build();
+    pencere.kaplama = p.show;
+    // v1.59.1: kaplama görünmüyorken sesliler gönderilmez. Önceden her konuşma değişikliğinde (saniyede birkaç kez)
+    // herkesin profil resmiyle birlikte yüzlerce KB JSON'a çevrilip ana sürece yollanıyordu, kaplama kapalıyken bile.
+    if (!p.show) p = { ...p, voice: null };
+    // profil resimleri (kişi başı 200 KB'a kadar data URL) yalnız değişince gider; kaplama kendisi saklar
+    if (p.voice) {
+      let avatars: Record<ID, string | null> | undefined;
+      p.voice.members = p.voice.members.map(({ avatar, ...m }) => {
+        if (avatar ? sentAvatars.get(m.id) !== avatar : sentAvatars.has(m.id)) {
+          (avatars ||= {})[m.id] = avatar || null;
+          if (avatar) sentAvatars.set(m.id, avatar);
+          else sentAvatars.delete(m.id);
+        }
+        return m;
+      });
+      if (avatars) p.avatars = avatars;
+    }
     const sig = JSON.stringify(p);
     if (sig === lastSig) return;
     lastSig = sig;
