@@ -274,6 +274,33 @@ async function appChecks({ comm, text, voice, bots }) {
   await healthy('mesajlaşma');
   step('uygulama: mesaj gönderme ve alma');
 
+  // kendi mesajını düzenleme (sağ tık > Mesajı düzenle) ve silme; karşı taraf da görmeli
+  const msgAt = (txt) =>
+    page.ev(`(() => { const m = [...document.querySelectorAll('.msg')].reverse().find((m) => m.textContent.includes(${JSON.stringify(txt)})); if (!m) return null; m.scrollIntoView({ block: 'center' }); const b = m.getBoundingClientRect(); return { x: b.left + Math.min(200, b.width / 2), y: b.top + b.height / 2 }; })()`);
+  let at = await until(() => msgAt('duman: uygulamadan gönderildi'), 'gönderilen mesaj bulunamadı');
+  await clickAt(at.x, at.y, 'right');
+  must(await until(() => click('.ctx-item', 'Mesajı düzenle'), 'sağ tık menüsünde "Mesajı düzenle" yok', 4000), 'düzenleme açılamadı');
+  await until(() => page.ev(`document.activeElement?.closest('.edit-box') ? true : false`), 'düzenleme kutusu açılmadı', 4000);
+  await page.ev(`(() => { const t = document.activeElement; t.select(); return true; })()`);
+  await page.send('Input.insertText', { text: 'duman: düzenlendi' });
+  await key('Enter', 'Enter', 13);
+  await until(() => page.ev(`[...document.querySelectorAll('.msg')].some((m) => m.textContent.includes('duman: düzenlendi'))`), 'düzenlenen mesaj ekranda değişmedi');
+  await until(async () => bots[2].frames.some((f) => f.t === 'msg.upd' && f.m.content === 'duman: düzenlendi'), 'düzenleme diğer üyeye ulaşmadı', 4000);
+  at = await msgAt('duman: düzenlendi');
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+  must(
+    await until(
+      () => page.ev(`(() => { const m = [...document.querySelectorAll('.msg')].reverse().find((m) => m.textContent.includes('duman: düzenlendi')); const b = m?.querySelector('.mt-btn.danger'); if (!b) return false; b.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })); return true; })()`),
+      'mesajın sil düğmesi görünmedi',
+      4000,
+    ),
+    'silinemedi',
+  );
+  await until(async () => !(await page.ev(`[...document.querySelectorAll('.msg')].some((m) => m.textContent.includes('duman: düzenlendi'))`)), 'silinen mesaj ekrandan gitmedi');
+  await until(async () => bots[2].frames.some((f) => f.t === 'msg.del'), 'silme diğer üyeye ulaşmadı', 4000);
+  await healthy('mesaj düzenleme ve silme');
+  step('uygulama: mesaj düzenleme ve silme');
+
   // ses odası: başkaları odadayken gir, çık
   for (const b of bots.slice(0, 2)) b.send(JSON.stringify({ t: 'vc.join', ch: voice[0].id, muted: false, deaf: false }));
   await sleep(300);
@@ -312,6 +339,22 @@ async function appChecks({ comm, text, voice, bots }) {
     await sleep(450);
     await healthy('ana sayfa > ' + t);
   }
+  // etiketle arkadaş ekleme: Arkadaşlar > Arkadaş ekle > ad#kod; karşı taraf kabul edince listede görünür
+  const friend = bots[3];
+  const ftag = `Üye 3#${friend.ready.tag}`;
+  await click('.sidebar .ch-row, .sidebar .side-item, .sidebar button', 'Arkadaşlar');
+  must(await until(() => click('.fr-tab.add'), 'Arkadaş ekle sekmesi yok', 4000), 'arkadaş ekle açılamadı');
+  must(await until(() => page.ev(`(() => { const i = document.querySelector('.tag-add-input'); if (!i) return false; i.focus(); return true; })()`), 'etiket kutusu yok', 4000), 'etiket kutusu yok');
+  await page.send('Input.insertText', { text: ftag });
+  await key('Enter', 'Enter', 13);
+  await until(() => count('.tag-add.is-ok'), `"${ftag}" ile istek gönderilemedi: ` + 'ekranda başarı görünmedi', 6000);
+  await until(async () => friend.frames.some((f) => f.t === 'friend' && f.f.user.id === OWNER.id && f.f.state === 'in'), 'istek karşı tarafa ulaşmadı', 4000);
+  friend.send(JSON.stringify({ t: 'friend.accept', to: OWNER.id }));
+  await page.ev(`[...document.querySelectorAll('.fr-tab')].find((b) => /Tümü|Çevrim/.test(b.textContent))?.click()`);
+  await until(() => page.ev(`[...document.querySelectorAll('.fr-row')].some((r) => r.textContent.includes('Üye 3'))`), 'kabul edilen arkadaş listede görünmedi', 6000);
+  await healthy('arkadaş ekleme');
+  step('uygulama: etiketle arkadaş ekleme');
+
   must(await click('.sidebar .dm-row, .sidebar .ch-row', 'Üye 0'), 'mesaj atan kişi özel mesaj listesinde yok');
   await until(() => page.ev(`[...document.querySelectorAll('.msg')].some((m) => m.textContent.includes('selam'))`), 'özel mesaj açılmadı');
   await healthy('özel mesaj');

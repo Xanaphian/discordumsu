@@ -10,6 +10,7 @@ import path from 'node:path';
 import { KNOWN_GAMES, NOT_GAMES, gameFromPath } from './games';
 import { initSpotify, setSpotifyPolling, spotifyStatus, type SpotifyStatus, type SpotifyTrack } from './spotify';
 import { initRetrofy, setRetrofyWatch } from './retrofy';
+import { rememberGame, storeOf } from './oyunAc';
 
 export interface DetectedGame {
   name: string;
@@ -20,6 +21,8 @@ export interface DetectedGame {
   state?: string;
   /** LoL maç başlangıcı (oyun süresinden) */
   matchStart?: number;
+  /** oyunun mağazası (yoldan): steam, epic, riot… davet kartında "Steam'de katıl" için */
+  store?: string;
 }
 export interface DetectedMedia {
   app: string;
@@ -558,7 +561,8 @@ async function pickGame(procs: Proc[]): Promise<DetectedGame | null> {
   const sameAsBefore = state.game && state.game.name === best.name;
   // aynı oyun içinde süreç değişse de (istemci -> maç) başlangıç saati korunur
   const start = sameAsBefore && state.game!.start ? state.game!.start : best.pr.s || Date.now();
-  const g: DetectedGame = { name: best.name, exe: n, start, icon: await iconFor(best.pr.p) };
+  const g: DetectedGame = { name: best.name, exe: n, start, icon: await iconFor(best.pr.p), store: storeOf(best.pr.p) };
+  rememberGame(best.name, best.pr.p);
   if (n === 'leagueclientux') g.state = 'İstemcide';
   return g;
 }
@@ -723,7 +727,7 @@ function loadFake() {
   try {
     const f = JSON.parse(fs.readFileSync(process.env.KOVAN_FAKE_ACTIVITY!, 'utf8'));
     const img = (p?: string) => (p && fs.existsSync(p) ? 'data:image/' + (p.endsWith('.png') ? 'png' : 'jpeg') + ';base64,' + fs.readFileSync(p).toString('base64') : undefined);
-    if (f.game) f.game.icon = img(f.game.iconFile);
+    if (f.game) (f.game.icon = img(f.game.iconFile)), rememberGame(f.game.name, f.game.path), (f.game.store = f.game.store || storeOf(f.game.path)), delete f.game.path;
     if (f.media) f.media.art = img(f.media.artFile), (f.media.at = Date.now());
     state = { supported: true, mediaOk: f.mediaOk ?? true, game: f.game || null, media: f.media || null, streams: f.streams || [] };
     if (state.game && !state.game.start) state.game.start = Date.now() - 23 * 60_000;

@@ -11,6 +11,12 @@ on:
 permissions:
   contents: write
 
+# Arka arkaya iki birleştirme olursa yayınlar sırayla çalışsın: ikisi aynı sürümü aynı anda
+# silip yeniden yüklemesin (sonraki, sürüm zaten yayınlandıysa atlar)
+concurrency:
+  group: surum-yayinla
+  cancel-in-progress: false
+
 jobs:
   # Önce otomatik sınama: uygulama açılmıyorsa ya da bir ekran çöküyorsa sürüm yayınlanmaz
   sinama:
@@ -53,3 +59,7 @@ jobs:
           [ -f "$NOTES" ] || { echo "Kovan $V" > /tmp/notes.md; NOTES=/tmp/notes.md; }
           gh release create "$V" --target "$GITHUB_SHA" --title "Kovan $V" --notes-file "$NOTES" \
             release/Kovan-Setup-*.exe release/Kovan-Setup-*.exe.blockmap release/latest.yml
+      - if: steps.exists.outputs.skip != '1'
+        name: Güncelleme düğmesi bu sürümü görüyor mu
+        shell: bash
+        run: node test/surum/yayin-dogrula.mjs "${{ steps.ver.outputs.v }}"
