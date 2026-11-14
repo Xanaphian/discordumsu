@@ -93,7 +93,7 @@ function MicTest() {
       .then(async (st) => {
         if (!alive) return st.getTracks().forEach((t) => t.stop());
         stream = st;
-        ctx = new AudioContext({ latencyHint: 'interactive' });
+        ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 }); // RNNoise (Maksimum) 48 kHz ister
         if (s.speakerId !== 'default' && 'setSinkId' in ctx) (ctx as any).setSinkId(s.speakerId).catch(() => {});
         const src = ctx.createMediaStreamSource(st);
         // denemede de seçili gürültü engelleme duyulsun
