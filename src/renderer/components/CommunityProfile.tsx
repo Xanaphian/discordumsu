@@ -16,9 +16,10 @@ import { cropImage, recropImage, CropPreview, type CropOpts } from './Kirpma';
 const commBannerOpts = (h?: number): CropOpts => ({
   title: 'Topluluk afişi',
   aspect: 560 / (h || BANNER_H.def),
-  outW: 1120,
+  outW: 960,
   max: BANNER_MAX,
   keepGif: true,
+  wide: 11,
   hint: 'Topluluk profilinde, oda listesinin üstünde ve ana sayfada bu kısım görünür.',
 });
 
