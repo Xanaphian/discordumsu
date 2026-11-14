@@ -53,3 +53,7 @@ jobs:
           [ -f "$NOTES" ] || { echo "Kovan $V" > /tmp/notes.md; NOTES=/tmp/notes.md; }
           gh release create "$V" --target "$GITHUB_SHA" --title "Kovan $V" --notes-file "$NOTES" \
             release/Kovan-Setup-*.exe release/Kovan-Setup-*.exe.blockmap release/latest.yml
+      - if: steps.exists.outputs.skip != '1'
+        name: Güncelleme düğmesi bu sürümü görüyor mu
+        shell: bash
+        run: node test/surum/yayin-dogrula.mjs "${{ steps.ver.outputs.v }}"
