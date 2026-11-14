@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type { ID, Room3d } from '../../shared/protocol';
 import { buildMeydan, drawBoothSign, BOOTH_COLORS, type World } from './world';
 import { Avatar } from './avatar';
+import { varlikTut, varlikBirak } from './assets';
 import { buildSalon } from './salon';
 import { live, sendMove, emote as sendEmote, useSpace, type SpaceEvent } from '../lib/space';
 import { useVoice, spatialListener, spatialSource, spatialForget } from '../lib/voice';
@@ -81,6 +82,7 @@ export class SpaceEngine {
   typing = false;
 
   constructor(private el: HTMLElement, private opts: EngineOpts) {
+    varlikTut();
     this.renderer = new THREE.WebGLRenderer({ antialias: opts.quality === 'high', powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, opts.quality === 'high' ? 1.5 : 1));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -697,5 +699,6 @@ export class SpaceEngine {
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
+    varlikBirak();
   }
 }

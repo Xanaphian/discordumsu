@@ -5,6 +5,7 @@ import { Sparkles, Search, Images, ChevronDown, ChevronLeft, ChevronRight, X, Ca
 import { useStore } from '../lib/store';
 import { kayitlar, gruplar, cmpVersion, sonGorulen, gorulduIsaretle, type Kayit, type Blok, type Gorsel, type Grup } from '../lib/yenilikler';
 import { cx } from '../lib/util';
+import { kucukResim, kucukGenislik } from '../lib/kucukResim';
 import '../styles/son-eklenenler.css';
 
 function inline(s: string): React.ReactNode[] {
@@ -56,6 +57,35 @@ function Govde({ blocks, limit }: { blocks: Blok[]; limit?: number }) {
 }
 const sayi = (blocks: Blok[]) => blocks.reduce((n, b) => n + (b.t === 'ul' ? b.items.length : b.t === 'p' ? 1 : 0), 0);
 
+// Görsel yalnız ekrana yakınken yüklenir ve gösterildiği boyuta inmiş kopyası kullanılır (lib/kucukResim);
+// uzaklaşınca bırakılır. 140'ı aşkın ekran görüntüsünün hepsi tam boyda çözülüp bellekte kalınca arayüz
+// ~400 MB şişiyordu. Kutunun boyutu CSS'teki en-boy oranından geldiği için yerleşim kaymaz.
+function Resim({ src, alt }: { src: string; alt: string }) {
+  const ref = useRef<HTMLImageElement>(null);
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let live = true;
+    let want = false;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        want = e.isIntersecting;
+        if (!want) return setUrl(undefined);
+        kucukResim(src, kucukGenislik(el.clientWidth)).then((u) => live && want && setUrl(u));
+      },
+      // büyük görsel penceresi (sabit konumlu) kaydırıcının içinde sayılmaz; orada pencerenin kendisine bakılır
+      { root: el.closest('.se-lb') ? null : el.closest('.se'), rootMargin: '900px 0px' },
+    );
+    io.observe(el);
+    return () => {
+      live = false;
+      io.disconnect();
+    };
+  }, [src]);
+  return <img ref={ref} src={url} alt={url ? alt : ''} decoding="async" draggable={false} />;
+}
+
 function Galeri({ images, onOpen, small }: { images: Gorsel[]; onOpen: (i: number) => void; small?: boolean }) {
   if (!images.length) return null;
   const shown = images.slice(0, small ? 4 : 3);
@@ -64,7 +94,7 @@ function Galeri({ images, onOpen, small }: { images: Gorsel[]; onOpen: (i: numbe
     <div className={cx('se-gal', small ? 'small' : `n${shown.length}`)}>
       {shown.map((g, i) => (
         <button key={g.src} className="se-shot" onClick={() => onOpen(i)} title={g.caption}>
-          <img src={g.src} alt={g.caption} loading="lazy" decoding="async" draggable={false} />
+          <Resim src={g.src} alt={g.caption} />
           {!small && <span className="se-cap">{g.caption}</span>}
           {more > 0 && i === shown.length - 1 && <span className="se-more">+{more}</span>}
         </button>
@@ -119,7 +149,7 @@ function Isik({ k, start, onClose }: { k: Kayit; start: number; onClose: () => v
         <div className="se-lb-thumbs">
           {k.images.map((x, j) => (
             <button key={x.src} className={cx(j === i && 'on')} onClick={() => setI(j)} aria-label={x.caption}>
-              <img src={x.src} alt="" draggable={false} />
+              <Resim src={x.src} alt="" />
             </button>
           ))}
         </div>

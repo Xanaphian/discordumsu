@@ -2,9 +2,21 @@
 import * as THREE from 'three';
 import type { AvatarLook } from '../../shared/protocol';
 import { Avatar } from './avatar';
+import { varlikTut, varlikBirak } from './assets';
 
 let R: { renderer: THREE.WebGLRenderer; scene: THREE.Scene; cam: THREE.PerspectiveCamera } | null = null;
 let queue: Promise<void> = Promise.resolve();
+// v1.53.1 bellek: panel kapandıktan yarım dakika sonra paylaşılan WebGL bağlamı da kapatılır
+let kapatT: ReturnType<typeof setTimeout> | undefined;
+function kapatSonra() {
+  clearTimeout(kapatT);
+  kapatT = setTimeout(() => {
+    if (!R) return;
+    R.renderer.dispose();
+    R.renderer.forceContextLoss();
+    R = null;
+  }, 30_000);
+}
 
 function init(w: number, h: number) {
   if (!R) {
@@ -29,7 +41,9 @@ export function drawAvatarPreview(target: HTMLCanvasElement, look: AvatarLook, s
   queue = queue
     .then(async () => {
       if (!alive()) return;
+      clearTimeout(kapatT);
       const { renderer, scene, cam } = init(target.width, target.height);
+      varlikTut();
       const av = new Avatar(look, '', true, seed);
       try {
         await av.ready;
@@ -47,6 +61,8 @@ export function drawAvatarPreview(target: HTMLCanvasElement, look: AvatarLook, s
       } finally {
         scene.remove(av.root);
         av.dispose();
+        varlikBirak();
+        kapatSonra();
       }
     })
     .catch((e) => console.warn('3D önizleme çizilemedi', e));

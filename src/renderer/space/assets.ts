@@ -1,5 +1,5 @@
 // 3D oda varlıkları: karakterler, ortak animasyonlar ve eşya kitaplıkları (GLB, meshopt ile sıkıştırılmış).
-// Dosyalar yalnızca 3D oda ilk açıldığında yüklenir ve oturum boyunca bellekte kalır.
+// Dosyalar yalnızca 3D oda açıldığında yüklenir; 3D kapandıktan bir dakika sonra bırakılır (varlikBirak).
 // Kaynak ve lisanslar: src/renderer/assets/3d/KAYNAKLAR.md
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -204,6 +204,26 @@ export async function createCharacter(model: AvatarModel, color: string): Promis
   };
   setColor(color);
   return { model, root, clips, bones, headgear, setColor };
+}
+
+// v1.53.1 bellek: 3D oda ve kıyafet önizlemesi kapandıktan bir dakika sonra yüklenen modeller, animasyonlar ve
+// kullanıcı rengine boyanmış kıyafet dokuları bırakılır (yaklaşık 40 MB). Kısa süre içinde geri dönülürse
+// hiçbir şey yeniden yüklenmez. Kullanımdaki nesneler kendi başvurularını tuttuğu için etkilenmez.
+let kullanan = 0;
+let bosaltT: ReturnType<typeof setTimeout> | undefined;
+export function varlikTut() {
+  kullanan++;
+  clearTimeout(bosaltT);
+}
+export function varlikBirak() {
+  kullanan = Math.max(0, kullanan - 1);
+  if (kullanan) return;
+  clearTimeout(bosaltT);
+  bosaltT = setTimeout(() => {
+    libs.clear();
+    chars.clear();
+    animP = null;
+  }, 60_000);
 }
 
 /** Sık kullanılan dosyaları önceden iste (oda açılırken) */
