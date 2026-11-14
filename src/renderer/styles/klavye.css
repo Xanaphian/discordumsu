@@ -1,4 +1,4 @@
-/* v1.56 klavye ile kullanım: görünür odak, kısayol penceresi, genel tuş ayarı */
+/* v1.58 klavye ile kullanım: görünür odak, kısayol penceresi, genel tuş ayarı */
 
 /* Yalnızca klavyeyle gezinirken (fareyle tıklayınca değil) belirgin bir odak çizgisi */
 :where(button, [role='button'], a, summary, [tabindex]):focus-visible {

@@ -232,7 +232,7 @@ export function AccountList({ profile, liveSvcs, chips }: { profile?: ProfileExt
 // ---------------------------------------------------------------------------
 // Anlık etkinlik
 
-function useNow(on: boolean, ms = 1000) {
+export function useNow(on: boolean, ms = 1000) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!on) return;

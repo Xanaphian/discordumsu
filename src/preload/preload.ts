@@ -63,6 +63,9 @@ const api = {
     lolInvite: (riotId: string) => ipcRenderer.invoke('game:lol-invite', riotId) as Promise<{ ok: boolean; error?: string }>,
     lolAccept: (from: string) => ipcRenderer.invoke('game:lol-accept', from) as Promise<{ ok: boolean; error?: string }>,
     steamJoin: (id: string) => ipcRenderer.invoke('game:steam-join', id) as Promise<boolean>,
+    /** oyuna davet: bu bilgisayarda görülmüş oyun mu, aç */
+    has: (name: string) => ipcRenderer.invoke('game:has', name) as Promise<boolean>,
+    launch: (name: string) => ipcRenderer.invoke('game:launch', name) as Promise<{ ok: boolean; error?: string }>,
   },
   /** v1.26: bağlantı önizlemesi, yayıncı modu, ayrı pencereler */
   linkMeta: (url: string) => ipcRenderer.invoke('link:meta', url) as Promise<LinkMetaT | null>,
