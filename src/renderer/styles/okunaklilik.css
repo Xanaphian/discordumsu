@@ -1,0 +1,94 @@
+/* v1.47.1 okunaklılık: Enes 14 Kas "genel tara düzelt". En son yüklenir.
+   Kural: yazı/simge rengi her zaman üzerinde durduğu zeminle aynı aileden gelir.
+   Tema zemini üstünde --text*, video/resim üstündeki koyu katmanda --ov-* (ses-duzeni.css). */
+
+/* ---------- sol alttaki ses bağlantı paneli: kalın çizgiler, açık durum dolu ---------- */
+.voice-panel .vp-btn,
+.voice-panel .vp-head .icon-btn {
+  border: 1.5px solid color-mix(in srgb, var(--text) 26%, transparent);
+  color: var(--text);
+}
+.voice-panel .vp-btn {
+  height: 34px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.voice-panel .vp-head .icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+.voice-panel .vp-btn svg,
+.voice-panel .vp-head .icon-btn svg {
+  stroke-width: 2.4;
+}
+.voice-panel .vp-btn:hover,
+.voice-panel .vp-head .icon-btn:hover {
+  border-color: color-mix(in srgb, var(--text) 50%, transparent);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+}
+/* açık: kamera (vurgu rengiyle dolu), ekran paylaşımı ve 3D (ikincil vurguyla dolu) */
+.voice-panel .vp-btn.on,
+.voice-panel .vp-btn.live,
+.voice-panel .vp-btn.vp-3d.on {
+  color: var(--accent-ink) !important;
+  border-color: transparent;
+  font-weight: 700;
+}
+.voice-panel .vp-btn.on { background: var(--orn, var(--accent)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--orn, var(--accent)) 30%, transparent); }
+.voice-panel .vp-btn.live,
+.voice-panel .vp-btn.vp-3d.on {
+  background: var(--arc, var(--green)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--arc, var(--green)) 30%, transparent);
+}
+.voice-panel .vp-btn.on:hover,
+.voice-panel .vp-btn.live:hover,
+.voice-panel .vp-btn.vp-3d.on:hover { filter: brightness(1.08); }
+/* bağlantıyı kes: kırmızı çerçeve, üzerine gelince dolu kırmızı */
+.voice-panel .vp-head .icon-btn.danger {
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 55%, transparent);
+  background: color-mix(in srgb, var(--red) 9%, transparent);
+}
+.voice-panel .vp-head .icon-btn.danger:hover {
+  color: #fff;
+  background: var(--red);
+  border-color: var(--red);
+}
+/* gürültü engelleme açıkken ikincil vurguyla çerçeveli ve hafif dolu */
+.voice-panel .ns-btn.on {
+  color: var(--arc, var(--green));
+  border-color: var(--arc, var(--green));
+  background: color-mix(in srgb, var(--arc, var(--green)) 14%, transparent);
+}
+.voice-panel .ns-dot { box-shadow: 0 0 0 2px var(--bg-side, var(--bg-elev)); }
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .voice-panel .vp-state.connected {
+  color: color-mix(in srgb, var(--green, #3ecf8e) 55%, #000);
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .voice-panel .icon-btn.danger {
+  color: color-mix(in srgb, var(--red) 75%, #000);
+}
+
+/* ---------- sol listedeki ses kişileri: afişi olmayan kartta zemin temanın yüzeyi, yazı temanın yazısı ---------- */
+.vc-member.vc-card.no-banner,
+.vc-member.vc-card.no-banner .vc-name {
+  color: var(--text);
+  text-shadow: none;
+}
+.vc-member.vc-card.no-banner .avatar { filter: none; }
+
+/* ---------- açık temalar: sarı/turuncu küçük işaretler krem zeminde kayboluyordu ---------- */
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .owner-crown {
+  color: var(--orn);
+}
+/* rol renginde yazılan adlar (açık sarı/turuncu roller): açık temada koyulaştırılır, renk tonu korunur */
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .name-x[style*='color'] {
+  filter: brightness(0.72) saturate(1.25);
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .voice-status-ic {
+  color: #23753d;
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .voice-status:has(.lucide-monitor-up) .voice-status-ic,
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .sn-item.danger {
+  color: #b3262c;
+}
