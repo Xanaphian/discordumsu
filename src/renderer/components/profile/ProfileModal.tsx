@@ -1,25 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { Status } from '../../../shared/protocol';
 import { X, Smile } from 'lucide-react';
 import { useStore, openModal, updateProfile, meAsUser, toast } from '../../lib/store';
 import { EmojiPicker } from '../Overlays';
 import { cx } from '../../lib/util';
 import { activeCustom } from '../../../shared/profile';
 import { ProfileFull } from './ProfileFull';
+import { ProfilStudyo } from './ProfilStudyo';
 
 const close = () => openModal(null);
 
-function Backdrop({ children, className }: { children: React.ReactNode; className?: string }) {
+function Backdrop({ children, className, onClose = close }: { children: React.ReactNode; className?: string; onClose?: () => void }) {
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.emoji-picker') && close();
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.emoji-picker') && onClose();
     document.addEventListener('keydown', k);
     return () => document.removeEventListener('keydown', k);
-  }, []);
+  }, [onClose]);
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={cx('modal', className)} role="dialog" aria-modal>
         {children}
       </div>
     </div>
+  );
+}
+
+/** Kendi tam profilin: düzenleme şeridiyle. Kaydedilmemiş değişiklik varken kapatmak önce sorar. */
+function StudioModal({ status }: { status?: Status }) {
+  const guard = useRef<() => void>(close);
+  const onClose = useCallback(() => guard.current(), []);
+  return (
+    <Backdrop className="pc-modal wide studio" onClose={onClose}>
+      <ProfilStudyo status={status} onClose={close} setGuard={(g) => (guard.current = g)} />
+    </Backdrop>
   );
 }
 
@@ -32,6 +45,7 @@ export function ProfileModal({ uid, cid }: { uid: string; cid?: string }) {
   const isMe = uid === me.id;
   const u = isMe ? meAsUser(me) : users[uid] || c?.users[uid];
   const status = isMe ? (me.status === 'invisible' ? 'offline' : me.status) : uid === 'kovan-asistan' ? 'online' : presence[uid] || 'offline';
+  if (isMe) return <StudioModal status={status} />;
   return (
     <Backdrop className="pc-modal wide">
       <ProfileFull key={uid} uid={uid} user={u} status={status} c={c} isMe={isMe} onClose={close} />
