@@ -201,7 +201,7 @@ const TABS: [TabId, string, string][] = [
   ['media', 'Afiş ve arka plan', 'Resimler, konum ve yükseklik'],
   ['style', 'Süsler', 'Hazır görünümler, çerçeve, isim stili'],
   ['more', 'Hesaplar', 'Bağlı hesaplar, bağlantılar, saat'],
-  ['layout', 'Tam profil', 'Düğmeler, sıra, vitrin'],
+  ['layout', 'Tam profil', 'Düğmeler, sıra, görünüm'],
 ];
 const TAB_OF: Record<string, TabId> = {
   identity: 'basic',

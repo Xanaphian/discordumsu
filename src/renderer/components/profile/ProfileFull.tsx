@@ -1,10 +1,10 @@
-// Tam profil (v1.31): geniş afişli vitrin düzeni. Üstte afiş + kimlik şeridi, solda künye kartları,
+// Tam profil (v1.31): geniş afişli düzen. Üstte afiş + kimlik şeridi, solda künye kartları,
 // sağda büyük düğmeler (Etkinlik, Ortak arkadaşlar, Ortak topluluklar, Hakkında) ve içerik.
-// Kişi düğmelerin sırasını, hangilerinin görüneceğini, açılış düğmesini ve vitrini kendisi seçer.
+// Kişi düğmelerin sırasını, hangilerinin görüneceğini ve açılış düğmesini kendisi seçer.
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Clock, Cake, Pencil, Copy, MessageCircle, X, CalendarDays, HeartHandshake, DoorOpen, Volume2, MonitorUp, LogIn, Users,
-  Activity as ActivityIcon, UserRound, Home, Trophy, Flame, Timer, SlidersHorizontal, Plus, Gamepad2, Link2,
+  Activity as ActivityIcon, UserRound, Home, SlidersHorizontal, Gamepad2, Link2,
 } from 'lucide-react';
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
 import { idTime } from '../../../shared/protocol';
@@ -14,9 +14,8 @@ import { useStore, openModal, toast, selectCommunity, openDm, mutualFriends } fr
 import { useVoice, joinVoice } from '../../lib/voice';
 import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
 import { bannerBackground, cardTheme, imgFrameStyle } from './look';
-import { ActivityCards, AccountList, BrandLogo, PrivateNote, RecentList } from './Activity';
+import { ActivityCards, AccountList, PrivateNote, RecentList } from './Activity';
 import { useActsOf } from '../../lib/activity';
-import { gameBrand } from '../../lib/brands';
 import {
   Banner, CardFx, NameText, CustomStatusBubble, ActivityRow, LinkList, FriendButton, useBadges, useMinuteTick, tzNow, tzDiff, fmtBirthday,
 } from './ProfileCard';
@@ -104,23 +103,6 @@ function Fact({ icon, label, children }: { icon: React.ReactNode; label: string;
   );
 }
 
-function hoursText(m: number) {
-  if (m < 60) return `${Math.max(1, Math.round(m))} dk`;
-  const h = m / 60;
-  return h < 10 ? `${h.toFixed(1).replace('.', ',')} sa` : `${Math.round(h)} sa`;
-}
-
-/** Vitrindeki oyun kutusu: bilinen oyunlarda logosu, yoksa baş harfleri */
-function FavTile({ name }: { name: string }) {
-  const brand = gameBrand(name);
-  return (
-    <div className="xp-fav">
-      <span className="xp-fav-art">{brand ? <BrandLogo k={brand} size={52} /> : <span className="xp-fav-init">{name.slice(0, 2).toLocaleUpperCase('tr')}</span>}</span>
-      <b title={name}>{name}</b>
-    </div>
-  );
-}
-
 function PersonRow({ u, sub, onClick }: { u: UserPublic; sub?: string; onClick: () => void }) {
   const st = useStore((s) => s.presence[u.id] || 'offline');
   return (
@@ -170,7 +152,6 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
   const shownName = c ? displayName(c, uid, users) : user?.name || 'İsimsiz';
   const color = c ? roleColor(c, uid) : '';
   const recent = (p?.recent || []).filter((r) => r.ts > Date.now() - 30 * 86_400_000);
-  const fav = layout?.fav || [];
 
   // ortak topluluklar (kendi profilinde: toplulukların)
   const comms = useMemo(
@@ -197,7 +178,7 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
   const [tab, setTab] = useState<FullTab>(() => {
     if (layout?.open && tabs.includes(layout.open)) return layout.open;
     if (layout?.order?.length) return tabs[0];
-    if (tabs.includes('activity') && (acts.length || inVoice || recent.length || fav.length)) return 'activity';
+    if (tabs.includes('activity') && (acts.length || inVoice || recent.length)) return 'activity';
     if (tabs.includes('about') && hasAbout) return 'about';
     return tabs[0];
   });
@@ -208,7 +189,7 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
     activity: {
       icon: <ActivityIcon size={18} />,
       title: 'Etkinlik',
-      sub: live ? (live.kind === 'listening' ? live.details || live.name : live.name) : inVoice ? 'Sesli odada' : recent.length ? `Son 30 günde ${recent.length} kayıt` : fav.length ? 'Vitrin' : 'Şu an sessiz',
+      sub: live ? (live.kind === 'listening' ? live.details || live.name : live.name) : inVoice ? 'Sesli odada' : recent.length ? `Son 30 günde ${recent.length} kayıt` : 'Şu an sessiz',
       dot: !!live || inVoice,
     },
     friends: {
@@ -231,9 +212,6 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
   };
 
   const openProfile = (id: string) => openModal({ type: 'profile', uid: id });
-  const totalMins = recent.reduce((a, r) => a + (r.mins || 0), 0);
-  const top = [...recent].sort((a, b) => (b.mins || 0) - (a.mins || 0))[0];
-  const bestStreak = Math.max(0, ...recent.map((r) => r.streak || 0));
   const heroImg = p?.banner?.kind === 'image' ? p.banner.image : undefined;
   const heroColor = p?.banner?.a || user?.color || '#c8aa6e';
 
@@ -409,58 +387,6 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
                     <div className="xp-now">
                       {acts.length > 0 && <ActivityCards uid={uid} />}
                       <VoiceRoomCard uid={uid} onClose={onClose} />
-                    </div>
-                  </section>
-                )}
-                {(fav.length > 0 || isMe) && (
-                  <section className="xp-block">
-                    <Label
-                      right={
-                        isMe && (
-                          <button className="xp-mini" onClick={() => openLayout(onClose)}>
-                            <Pencil size={12} /> Düzenle
-                          </button>
-                        )
-                      }
-                    >
-                      Vitrin
-                    </Label>
-                    <div className="xp-favs">
-                      {fav.map((g) => (
-                        <FavTile key={g} name={g} />
-                      ))}
-                      {isMe && fav.length < 4 && (
-                        <button className="xp-fav add" onClick={() => openLayout(onClose)}>
-                          <span className="xp-fav-art">
-                            <Plus size={22} />
-                          </span>
-                          <b>Oyun ekle</b>
-                        </button>
-                      )}
-                    </div>
-                  </section>
-                )}
-                {recent.length > 0 && (
-                  <section className="xp-block">
-                    <Label>Son 30 gün özeti</Label>
-                    <div className="xp-stats">
-                      <div className="xp-stat">
-                        <Timer size={16} />
-                        <b>{hoursText(totalMins)}</b>
-                        <small>toplam</small>
-                      </div>
-                      {top && (
-                        <div className="xp-stat">
-                          <Trophy size={16} />
-                          <b title={top.name}>{top.name}</b>
-                          <small>en çok</small>
-                        </div>
-                      )}
-                      <div className="xp-stat">
-                        <Flame size={16} />
-                        <b>{bestStreak > 1 ? `${bestStreak} gün` : '—'}</b>
-                        <small>en uzun seri</small>
-                      </div>
                     </div>
                   </section>
                 )}
