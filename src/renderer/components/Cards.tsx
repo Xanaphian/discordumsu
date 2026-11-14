@@ -6,14 +6,14 @@ import { useVoice, joinVoice } from '../lib/voice';
 import { Avatar } from './Common';
 import { cx, displayName, hm, fmtTime } from '../lib/util';
 import {
-  encodeCard, lfgSlots, lfgClosed, pollVotes, slotKey, voteKey,
-  type LfgCard, type PollCard, type Card,
+  encodeCard, lfgSlots, lfgClosed, pollVotes, slotKey, voteKey, LOL_POS,
+  type LfgCard, type LobbyInfo, type PollCard, type Card,
 } from '../lib/cards';
 import { presets, schedule } from '../lib/later';
 import { useActs } from '../lib/activity';
 import { LFG_GAMES, lfgGameOf, slotsFor } from '../lib/lfgGames';
 import { BrandLogo } from './profile/Activity';
-import { STEAM_JOIN, accountFor, lolWaitInvite, steamJoin } from '../lib/lfgJoin';
+import { STEAM_JOIN, accountFor, lolWaitInvite, steamJoin, lobbyCard } from '../lib/lfgJoin';
 import { isVoiceLike, type Community, type Message, type ID } from '../../shared/protocol';
 
 // ---------------------------------------------------------------------------
@@ -23,15 +23,31 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
   const voice = useStore((s) => s.voice);
   const myVc = useVoice((s) => s.ch);
   const slots = lfgSlots(m, card);
-  const filled = slots.filter(Boolean).length;
-  const full = filled === slots.length;
   const mySlot = slots.indexOf(me);
   const roles = card.s.some((x) => x);
   const mineCard = m.authorId === me;
   const closed = lfgClosed(m, card);
+  // LoL: lobideki kişiler istemciden gelir; uygulamadaki kişiler Riot ID'leriyle eşlenir
+  const lm = card.lm;
+  const lobbyUids = useMemo(() => {
+    if (!lm) return [] as (ID | undefined)[];
+    const by = new Map<string, ID>();
+    const key = (x: string) => x.toLocaleLowerCase('tr').replace(/\s+/g, '');
+    for (const uid of new Set([me, m.authorId, ...Object.keys(c.users || {})])) {
+      const r = accountFor(uid, 'lol');
+      if (r) by.set(key(r), uid);
+    }
+    return lm.map((x) => by.get(key(x.n)));
+  }, [lm, c.users, users, me, m.authorId]); // eslint-disable-line
+  const waiting = lm ? (slots.filter((u) => u && !lobbyUids.includes(u)) as ID[]) : [];
+  const filled = lm ? Math.min(slots.length, lm.length + waiting.length) : slots.filter(Boolean).length;
+  const full = filled >= slots.length;
+  const freeSlot = () => slots.findIndex((x) => !x);
 
   const take = (i: number) => {
-    if (closed) return;
+    if (closed || i < 0) return;
+    if (lm && mineCard) return toast('Bu senin lobin; zaten içindesin.', 'info');
+    if (lm && slots[i] !== me && (full || lobbyUids.includes(me))) return toast(lobbyUids.includes(me) ? 'Zaten bu lobidesin.' : 'Lobi dolu.', 'info');
     if (slots[i] && slots[i] !== me) return;
     if (mineCard && card.own !== undefined) return toast('Bu senin ilanın; zaten takımdasın.', 'info');
     // tek yer: önce eski yerden çık
@@ -42,7 +58,7 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
   };
 
   // takım dolunca: ilan sahibinin bulunduğu ya da ilk ses odası
-  const team = slots.filter(Boolean) as ID[];
+  const team = lm ? ([...lobbyUids.filter(Boolean), ...waiting] as ID[]) : (slots.filter(Boolean) as ID[]);
   const vc = useMemo(() => {
     const vcs = c.channels.filter((x) => isVoiceLike(x.type));
     return vcs.find((x) => (voice[x.id] || []).some((v) => v.userId === m.authorId)) || vcs.find((x) => x.type === 'voice') || vcs[0];
@@ -126,6 +142,59 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
               </button>
             );
           })}
+        </div>
+      ) : lm ? (
+        <div className="lfg-banners lobby" style={{ gridTemplateColumns: `repeat(${Math.min(slots.length, 5)}, minmax(0, 1fr))` }}>
+          {lm.map((x, i) => {
+            const uid = lobbyUids[i];
+            const [gn, tag] = x.n.split('#');
+            const pos = [x.r, x.r2].filter((p): p is string => !!p && !!LOL_POS[p]).map((p) => LOL_POS[p]);
+            return (
+              <div key={'l' + i} className={cx('bn', 'taken', uid === me && 'me')}>
+                <span className="bn-role">{x.lead ? 'Lider' : 'Lobide'}</span>
+                <span className="bn-frame">{uid ? <Avatar user={users[uid] || c.users[uid]} size={46} /> : <span className="bn-ini">{(gn || '?').slice(0, 1).toLocaleUpperCase('tr')}</span>}</span>
+                <span className="bn-plate">
+                  <b>{gn}</b>
+                  <small>{tag ? '#' + tag : ''}</small>
+                </span>
+                <span className={cx('bn-pos', !pos.length && 'none')}>{pos[0] || 'Rol yok'}</span>
+                <span className="bn-pos2">{pos[1] ? `ya da ${pos[1]}` : '\u00a0'}</span>
+              </div>
+            );
+          })}
+          {waiting.map((u) => {
+            const [gn, tag] = (accountFor(u, 'lol') || '').split('#');
+            return (
+              <button key={'w' + u} className={cx('bn', 'taken', 'wait', u === me && 'me')} onClick={() => u === me && take(mySlot)} disabled={!!closed || u !== me} title={u === me ? 'Takımdan çık' : undefined}>
+                <span className="bn-role">Davet bekliyor</span>
+                <span className="bn-frame">
+                  <Avatar user={users[u] || c.users[u]} size={46} />
+                </span>
+                <span className="bn-plate">
+                  <b>{gn || displayName(c, u, users)}</b>
+                  <small>{tag ? '#' + tag : u === me ? 'Sen' : ''}</small>
+                </span>
+                <span className="bn-pos none">Geliyor</span>
+                <span className="bn-pos2">&nbsp;</span>
+              </button>
+            );
+          })}
+          {Array.from({ length: Math.max(0, slots.length - lm.length - waiting.length) }, (_, i) => (
+            <button key={'e' + i} className="bn open" onClick={() => take(freeSlot())} disabled={!!closed || mineCard} title={closed || mineCard ? undefined : 'Lobiye katıl'}>
+              <span className="bn-role">Boş yer</span>
+              <span className="bn-frame">
+                <span className="bn-plus">
+                  <Plus size={20} strokeWidth={2.2} />
+                </span>
+              </span>
+              <span className="bn-plate">
+                <b>Boş</b>
+                <small>{closed || mineCard ? '—' : 'Katıl'}</small>
+              </span>
+              <span className="bn-pos none">&nbsp;</span>
+              <span className="bn-pos2">&nbsp;</span>
+            </button>
+          ))}
         </div>
       ) : (
         <div className={cx('lfg-banners', !game && 'plain')} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
@@ -232,13 +301,13 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
             <span className="xcard-muted">
               <UsersRound size={14} /> {slots.length - filled} boş yer
             </span>
-            {mySlot >= 0 && !(mineCard && card.own !== undefined) && (
+            {mySlot >= 0 && !(mineCard && (card.own !== undefined || lm)) && (
               <button className="btn ghost sm" onClick={() => take(mySlot)}>
                 Ayrıl
               </button>
             )}
-            {mySlot < 0 && (
-              <button className="btn primary sm" onClick={() => take(slots.findIndex((x) => !x))}>
+            {mySlot < 0 && !(lm && (mineCard || lobbyUids.includes(me))) && (
+              <button className="btn primary sm" onClick={() => take(freeSlot())}>
                 Katıl
               </button>
             )}
@@ -336,6 +405,7 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
   const live = playing ? lfgGameOf({ g: playing }) : undefined;
   const [lobby, setLobby] = useState<boolean | null>(null);
   const [lobbyId, setLobbyId] = useState<string | undefined>();
+  const [info, setInfo] = useState<LobbyInfo | undefined>();
   const [tries, setTries] = useState(0);
   const game = live && (live.key !== 'lol' || lobby) ? live : null;
   const [modeIx, setModeIx] = useState(live?.key === 'lol' ? 1 : 0);
@@ -346,10 +416,16 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
   useEffect(() => {
     if (live?.key !== 'lol') return;
     setLobby(null);
-    (window as any).kovan?.game
-      ?.lolState()
-      .then((x: { lobby: boolean; lobbyId?: string }) => (setLobby(!!x?.lobby), setLobbyId(x?.lobbyId)))
-      .catch(() => setLobby(false));
+    let on = true;
+    // pencere açıkken lobi canlı izlenir: biri girer çıkar ya da rol değiştirirse burada da değişir
+    const read = () =>
+      (window as any).kovan?.game
+        ?.lolState()
+        .then((x: { lobby: boolean; lobbyId?: string; info?: LobbyInfo }) => on && (setLobby(!!x?.lobby), setLobbyId(x?.lobbyId), setInfo(x?.info)))
+        .catch(() => on && setLobby(false));
+    read();
+    const t = setInterval(read, 3000);
+    return () => ((on = false), clearInterval(t));
   }, [live?.key, tries]);
 
   if (!game) {
@@ -388,6 +464,81 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
           ))}
         </div>
         {!sharing && <div className="lfg-hint">Oyunun görünmesi için Ayarlar → Etkinlik'te oyun paylaşımı açık olmalı.</div>}
+      </Dialog>
+    );
+  }
+
+  if (game.key === 'lol' && info) {
+    const theme = { '--g-a': game.theme.a, '--g-b': game.theme.b, '--g-bg': game.theme.bg, '--g-ink': game.theme.ink || '#111' } as React.CSSProperties;
+    const open = Math.max(0, info.size - info.members.length);
+    const send = () => {
+      const card = lobbyCard({ lb: lobbyId }, info);
+      if (n.trim()) card.n = n.trim().slice(0, 200);
+      if (!card.lb) delete card.lb;
+      sendMessage(ch, encodeCard(card));
+      onClose();
+    };
+    return (
+      <Dialog
+        title="Takım kur"
+        onClose={onClose}
+        className="lfg-dialog themed g-lol"
+        style={theme}
+        foot={
+          <>
+            <button className="btn ghost" onClick={onClose}>
+              Vazgeç
+            </button>
+            <button className="btn primary lfg-send" onClick={send} disabled={!open}>
+              {open ? 'İlanı paylaş' : 'Lobi dolu'}
+            </button>
+          </>
+        }
+      >
+        <div className="lfg-hero">
+          <BrandLogo k={game.brand!} size={52} />
+          <div>
+            <b>{game.name}</b>
+            <small>
+              {info.mode} · {info.members.length}/{info.size} kişi · {open ? `${open} boş yer` : 'lobi dolu'}
+            </small>
+          </div>
+        </div>
+        <div className="field">
+          <span>Lobin · istemciden canlı okunuyor</span>
+          <div className="lfg-lobby">
+            {info.members.map((x, i) => {
+              const [gn, tag] = x.n.split('#');
+              const pos = [x.r, x.r2].filter((p): p is string => !!p && !!LOL_POS[p]).map((p) => LOL_POS[p]);
+              return (
+                <div key={i} className="lfg-lm">
+                  <span className="bn-ini">{(gn || '?').slice(0, 1).toLocaleUpperCase('tr')}</span>
+                  <span className="lfg-lm-name">
+                    <b>{gn}</b>
+                    <small>{tag ? '#' + tag : ''}</small>
+                  </span>
+                  <span className={cx('bn-pos', !pos.length && 'none')}>{pos.length ? pos.join(' · ') : info.roles ? 'Rol seçmedi' : 'Lobide'}</span>
+                  {x.lead && <span className="lfg-lead">Lider</span>}
+                </div>
+              );
+            })}
+            {Array.from({ length: open }, (_, i) => (
+              <div key={'e' + i} className="lfg-lm empty">
+                <span className="bn-ini">
+                  <Plus size={16} />
+                </span>
+                <span className="lfg-lm-name">
+                  <b>Boş yer</b>
+                  <small>İlandan katılan buraya gelir</small>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <label className="field">
+          <span>Not (isteğe bağlı)</span>
+          <input value={n} onChange={(e) => setN(e.target.value)} maxLength={200} placeholder="Seviye, saat, mikrofon şartı…" />
+        </label>
       </Dialog>
     );
   }

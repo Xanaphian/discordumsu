@@ -109,12 +109,83 @@ export interface LolState {
   lobbyId?: string;
   /** maç akışı: Lobby, Matchmaking, ChampSelect, InProgress… (takım oyundaysa lobi uç noktası boş dönebilir) */
   phase?: string;
+  /** açık lobinin ayrıntısı: kip, kişi sınırı, üyeler ve rolleri */
+  info?: LobbyInfo;
+}
+
+export interface LobbyMember {
+  /** Riot ID (Ad#Etiket) */
+  n: string;
+  /** koridor tercihi: TOP JUNGLE MIDDLE BOTTOM UTILITY FILL (yoksa boş) */
+  r?: string;
+  /** ikinci tercih */
+  r2?: string;
+  lead?: boolean;
+}
+export interface LobbyInfo {
+  queueId?: number;
+  /** kip adı (Türkçe) */
+  mode: string;
+  size: number;
+  /** koridor seçimi olan kip mi */
+  roles: boolean;
+  members: LobbyMember[];
+}
+
+const QUEUES: Record<number, string> = {
+  420: 'Dereceli Tekli/Çiftli',
+  440: 'Dereceli Esnek',
+  400: 'Normal Seçmeli',
+  430: 'Normal Kör Seçim',
+  490: 'Hızlı Oyun',
+  450: 'ARAM',
+  1700: 'Arena',
+  1710: 'Arena',
+  900: 'URF',
+  1900: 'URF',
+  700: 'Clash',
+  830: 'Yapay Zekâya Karşı',
+  840: 'Yapay Zekâya Karşı',
+  850: 'Yapay Zekâya Karşı',
+  870: 'Yapay Zekâya Karşı',
+  880: 'Yapay Zekâya Karşı',
+  890: 'Yapay Zekâya Karşı',
+};
+
+function lobbyInfo(d: any): LobbyInfo {
+  const gc = d?.gameConfig || {};
+  const pos = (x: any) => (typeof x === 'string' && x !== 'UNSELECTED' && x !== 'NONE' ? x : undefined);
+  const name = (m: any) => (m?.gameName ? `${m.gameName}#${m.tagLine || ''}`.replace(/#$/, '') : String(m?.summonerName || 'Oyuncu'));
+  const members: LobbyMember[] = (Array.isArray(d?.members) ? d.members : []).slice(0, 16).map((m: any) => ({
+    n: name(m).slice(0, 40),
+    r: pos(m.firstPositionPreference),
+    r2: pos(m.secondPositionPreference),
+    lead: !!m.isLeader || undefined,
+  }));
+  const qid = Number(gc.queueId) || undefined;
+  return {
+    queueId: qid,
+    mode: (qid && QUEUES[qid]) || (gc.isCustom ? 'Özel oyun' : String(gc.gameMode || 'Lobi')),
+    size: Math.max(members.length, Math.min(16, Number(gc.maxLobbySize) || 5)),
+    roles: !!gc.showPositionSelector,
+    members,
+  };
 }
 
 export async function lolState(): Promise<LolState> {
   if (process.env.KOVAN_FAKE_LOBBY) {
     const on = process.env.KOVAN_FAKE_LOBBY === '1';
-    return { running: true, lobby: on, lobbyId: on ? 'sahte-lobi' : undefined, me: 'Xanaphian#TR1' };
+    const info = on
+      ? lobbyInfo({
+          gameConfig: { queueId: 440, maxLobbySize: 5, showPositionSelector: true },
+          members: [
+            { gameName: 'Xanaphian', tagLine: 'TR1', firstPositionPreference: 'MIDDLE', secondPositionPreference: 'JUNGLE', isLeader: true },
+            { gameName: 'Ozan', tagLine: 'TR1', firstPositionPreference: 'TOP', secondPositionPreference: 'FILL' },
+            { gameName: 'Yabancı', tagLine: 'EUW', firstPositionPreference: 'UTILITY', secondPositionPreference: 'BOTTOM' },
+          ],
+        })
+      : undefined;
+    return { running: true, lobby: on, lobbyId: on ? 'sahte-lobi' : undefined, me: 'Xanaphian#TR1', info };
   }
   const l = await lcu();
   if (!l) return { running: false, lobby: false };
@@ -125,7 +196,7 @@ export async function lolState(): Promise<LolState> {
   const open = lobby.status === 200;
   const ph = await req(l, 'GET', '/lol-gameflow/v1/gameflow-phase');
   const phase = ph.status === 200 && typeof ph.data === 'string' ? ph.data : undefined;
-  return { running: true, me: id, lobby: open, phase, lobbyId: open ? String(lobby.data?.partyId || lobby.data?.gameConfig?.queueId || 'lobi') : undefined };
+  return { running: true, me: id, lobby: open, phase, info: open ? lobbyInfo(lobby.data) : undefined, lobbyId: open ? String(lobby.data?.partyId || lobby.data?.gameConfig?.queueId || 'lobi') : undefined };
 }
 
 /** Riot ID (Ad#Etiket) -> sihirdar kimliği */

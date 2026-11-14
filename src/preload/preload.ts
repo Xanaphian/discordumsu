@@ -46,7 +46,7 @@ const api = {
     disconnect: () => ipcRenderer.invoke('spotify:disconnect') as Promise<SpotifyStatusT>,
   },
   game: {
-    lolState: () => ipcRenderer.invoke('game:lol-state') as Promise<{ running: boolean; me?: string; lobby: boolean; lobbyId?: string; phase?: string }>,
+    lolState: () => ipcRenderer.invoke('game:lol-state') as Promise<{ running: boolean; me?: string; lobby: boolean; lobbyId?: string; phase?: string; info?: { queueId?: number; mode: string; size: number; roles: boolean; members: { n: string; r?: string; r2?: string; lead?: boolean }[] } }>,
     lolInvite: (riotId: string) => ipcRenderer.invoke('game:lol-invite', riotId) as Promise<{ ok: boolean; error?: string }>,
     lolAccept: (from: string) => ipcRenderer.invoke('game:lol-accept', from) as Promise<{ ok: boolean; error?: string }>,
     steamJoin: (id: string) => ipcRenderer.invoke('game:steam-join', id) as Promise<boolean>,
