@@ -5,7 +5,9 @@ import {
   Box, Volume2, Mic, MicOff, Headphones, HeadphoneOff, PhoneOff, Video, VideoOff, MonitorUp, MonitorX, Maximize2, Minimize2, Expand, Settings2,
   RefreshCw, Monitor, AppWindow, LoaderCircle, Volume1, VolumeX, Phone,
 } from 'lucide-react';
-import { useStore, openModal, updateSettings, dismissCall, selectCommunity } from '../lib/store';
+import { useStore, openModal, openMenu, updateSettings, dismissCall, selectCommunity } from '../lib/store';
+import { memberMenu } from './Moderation';
+import { insertMention } from './Members';
 import { useVoice, joinVoice, leaveVoice, toggleMute, toggleDeaf, toggleCamera, startScreen, stopScreen, setUserVolume, screenLabelOf } from '../lib/voice';
 import { Avatar, Tooltip, Toggle } from './Common';
 import { Modal } from './Modals';
@@ -85,6 +87,13 @@ function TileView({ t, c, focused, onFocus, small }: { t: Tile; c: Community; fo
       style={{ ['--tile' as any]: u?.color || '#f5a524' }}
       onDoubleClick={full}
       onClick={onFocus}
+      onContextMenu={(e) => {
+        // kişinin karosuna sağ tık: kenar çubuğundaki ses kartı ve üye listesiyle aynı kişi menüsü (v1.43.2)
+        e.preventDefault();
+        e.stopPropagation();
+        const meId = useStore.getState().me.id;
+        openMenu(e, memberMenu(c, meId, t.uid, { at: { x: e.clientX, y: e.clientY }, onMention: () => insertMention(name) }));
+      }}
     >
       {t.stream ? (
         <StreamVideo stream={t.stream} mirror={t.kind === 'user' && t.me && mirror} fit={t.kind === 'screen' ? 'contain' : 'cover'} />

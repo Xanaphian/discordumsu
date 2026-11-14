@@ -7,15 +7,17 @@
   margin: 5px 0;
   padding: 3px;
   border-radius: 12px;
-  border: 2px solid color-mix(in srgb, var(--text) 22%, transparent);
+  /* çerçeve rengi tek yerde: dış çerçeve ve içteki ayırıcı çizgi aynı rengi kullanır */
+  --room-frame: color-mix(in srgb, var(--text) 22%, transparent);
+  border: 2px solid var(--room-frame);
   background: color-mix(in srgb, var(--text) 3%, transparent);
   transition: border-color 0.12s;
 }
 .room-box:hover {
-  border-color: color-mix(in srgb, var(--text) 32%, transparent);
+  --room-frame: color-mix(in srgb, var(--text) 32%, transparent);
 }
 .room-box.on {
-  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  --room-frame: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .room-box > .ch-row.room {
   margin: 0;
@@ -302,14 +304,9 @@
 .room-box > .ch-row.room + .vc-members.vc-cards {
   margin: 3px -3px 0;
   padding: 5px 3px 0;
-  border-top: 2px solid color-mix(in srgb, var(--text) 22%, transparent);
+  /* v1.43.2: renk kutunun değişkeninden; eskiden seçili odada daha özgül kural gri rengi koruyordu */
+  border-top: 2px solid var(--room-frame);
   transition: border-color 0.12s;
-}
-.room-box:hover > .vc-members.vc-cards {
-  border-top-color: color-mix(in srgb, var(--text) 32%, transparent);
-}
-.room-box.on > .vc-members.vc-cards {
-  border-top-color: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 /* v1.41 alttaki kendi panelin: afiş net (ses kartı gibi), yazılar ve düğmeler afişin üstünde okunaklı */
