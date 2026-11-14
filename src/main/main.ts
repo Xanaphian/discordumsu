@@ -19,6 +19,11 @@ app.setAppUserModelId('com.xanaphian.kovan');
 app.commandLine.appendSwitch('enable-features', 'AllowWgcScreenCapturer,AllowWgcWindowCapturer,WebRtcUseMinMaxVEADimensions');
 app.commandLine.appendSwitch('force_high_performance_gpu');
 
+// Ana süreçte yakalanmamış bir hata Electron'un "JavaScript error occurred in the main process" penceresini açar.
+// Uygulama çalışmaya devam edebildiği için kullanıcıya pencere göstermek yerine kayda yazılır.
+process.on('uncaughtException', (e) => console.error('Ana süreç hatası:', e));
+process.on('unhandledRejection', (e) => console.error('Ana süreç söz hatası:', e));
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
@@ -440,15 +445,31 @@ app.whenReady().then(async () => {
       enc: (s: string) => safeStorage.encryptString(s).toString('base64'),
       dec: (s: string) => safeStorage.decryptString(Buffer.from(s, 'base64')),
     };
-  try {
-    await hub.start((config.settings.hubPort as number) || DEFAULT_PORT);
-  } catch (e) {
-    console.error('Hub başlatılamadı', e);
-  }
+  // v1.48: bilgisayardaki yerel sunucu artık yalnız gerektiğinde açılır (bu bilgisayarda taşınmamış eski bir topluluk varsa
+  // ya da sunucu adresi bu bilgisayarı gösteriyorsa). Herkes merkezi sunucuya bağlandığı için çoğu kişide gereksizdi:
+  // ağa açık bir kapı, Windows güvenlik duvarı sorusu ve boşa çalışan bir sunucu demekti.
+  const prefPort = (config.settings.hubPort as number) || DEFAULT_PORT;
+  const srvIsMe = (() => {
+    // "sunucu adresi" bu bilgisayardaki yerel sunucuyu mu gösteriyor? (ör. 127.0.0.1:47820 ya da kendi ağ adresi)
+    const m = String(config.settings.serverUrl || process.env.KOVAN_SERVER || '').trim().match(/^(?:https?:\/\/)?(\[[^\]]+\]|[^:/]+)(?::(\d+))?/i);
+    if (!m) return false;
+    const h = m[1].toLowerCase();
+    const port = Number(m[2] || 0);
+    const mine = h === '127.0.0.1' || h === 'localhost' || h === '[::1]' || Hub.lanAddresses().includes(h);
+    return mine && port >= prefPort && port < prefPort + 20;
+  })();
+  const localWanted = hub.hasStoredCommunities() || srvIsMe || process.env.KOVAN_LOCAL_HUB === '1';
   hub.ownerName = config.profile.name || 'Xanaphian';
   hub.siteMeta = fetchSiteMeta;
-  setTimeout(() => hub.refreshAllSiteMeta(), 4000);
-  setInterval(() => hub.refreshAllSiteMeta(), 6 * 3600_000);
+  if (localWanted) {
+    try {
+      await hub.start(prefPort);
+      setTimeout(() => hub.refreshAllSiteMeta(), 4000);
+      setInterval(() => hub.refreshAllSiteMeta(), 6 * 3600_000);
+    } catch (e) {
+      console.error('Hub başlatılamadı', e);
+    }
+  }
   registerIpc();
   initEkstralar({
     preload: path.join(__dirname, 'preload.js'),
@@ -659,7 +680,8 @@ function claudeDesktopConfigs(): string[] {
 
 function installClaudeDesktop(a: { name: string; url: string; token: string }): { ok: boolean; files: string[]; error?: string } {
   const name = String(a.name || 'kovan').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 40) || 'kovan';
-  if (!/^kvb\./.test(a.token) || !/^http:\/\/[^\s]+\/mcp$/.test(a.url)) return { ok: false, files: [], error: 'Geçersiz bilgi' };
+  // merkezi sunucudaki botların adresi https ile başlar
+  if (!/^kvb\./.test(a.token) || !/^https?:\/\/[^\s]+\/mcp$/.test(a.url)) return { ok: false, files: [], error: 'Geçersiz bilgi' };
   const entry = { command: process.execPath, args: [mcpBridgePath(), '--url', a.url], env: { ELECTRON_RUN_AS_NODE: '1', KOVAN_TOKEN: a.token } };
   const files: string[] = [];
   const targets = claudeDesktopConfigs();

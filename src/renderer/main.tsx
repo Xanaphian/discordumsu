@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App, PopoutRoot } from './App';
 import { IS_POPOUT } from './lib/popout';
+import { HataSiniri } from './components/HataSiniri';
 import './lib/yayinci';
 import { boot } from './lib/store';
 import './lib/activity';
@@ -46,6 +47,8 @@ const fontsReady = Promise.race([
 ]).catch(() => {});
 
 fontsReady.then(() => {
-  createRoot(document.getElementById('root')!).render(IS_POPOUT ? <PopoutRoot /> : <App />);
+  createRoot(document.getElementById('root')!).render(
+    <HataSiniri name="uygulama" full>{IS_POPOUT ? <PopoutRoot /> : <App />}</HataSiniri>,
+  );
   return booting;
 });

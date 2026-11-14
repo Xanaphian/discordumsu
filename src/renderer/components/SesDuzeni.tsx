@@ -453,10 +453,12 @@ export function DesignStage({ c, layout, people }: { c: Community; layout: Voice
     if (rawOn.some((k) => !keys.has(k)) || (big && !keys.has(big))) useWatch.setState({ on: rawOn.filter((k) => keys.has(k)), big: big && keys.has(big) ? big : null });
   }, [rawOn, big, keys]);
   // yayın sesi yalnız izlenen yayınlardan gelir
+  // Yalnız içinde bulunduğum odanın görünümü belirler (başka bir odaya bakmak sesi değiştirmez). Görünümden çıkınca
+  // sıfırlanmaz: yoksa başka kanala geçince izlenmeyen yayınların sesi birden açılırdı. Odadan çıkınca voice.ts sıfırlar.
+  const mine = people.some((p) => p.me);
   useEffect(() => {
-    setScreenGate(new Set(on.map((k) => keys.get(k)!.uid)));
-  }, [on, keys]);
-  useEffect(() => () => setScreenGate(null), []);
+    if (mine) setScreenGate(new Set(on.map((k) => keys.get(k)!.uid)));
+  }, [on, keys, mine]);
   if (!ps.length) return null;
   const bigP = big ? keys.get(big) : undefined;
   return (

@@ -22,6 +22,7 @@ import { isToolChannel } from '../shared/protocol';
 import { ToolView } from './components/Tools';
 import { startOverlay } from './lib/overlay';
 import { ExploreView, startCommunityWatch } from './components/ToplulukAraclari';
+import { HataSiniri } from './components/HataSiniri';
 
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
@@ -152,6 +153,8 @@ export function App() {
   useTheme();
   useShortcuts();
   usePopoutReturn();
+  const where = useStore((s) => s.current);
+  const whereCh = useStore((s) => (s.current !== 'home' ? s.chanByComm[s.current] : ''));
   useEffect(() => {
     if (!booted) return;
     startOverlay();
@@ -163,27 +166,49 @@ export function App() {
         <Logo size={72} />
       </div>
     );
+  // Her bölüm kendi çökme sınırında: biri hata verirse diğerleri (ve ses bağlantısı) çalışmaya devam eder.
+  const close = (patch: Partial<ReturnType<typeof useStore.getState>>) => () => useStore.setState(patch);
   return (
     <div className="app">
-      <TitleBar />
+      <HataSiniri name="üst çubuk" silent>
+        <TitleBar />
+      </HataSiniri>
       {!onboarded ? (
         <Onboarding />
       ) : (
         <div className="shell">
-          <ServerRail />
-          <Sidebar />
+          <HataSiniri name="topluluk listesi">
+            <ServerRail />
+          </HataSiniri>
+          <HataSiniri name="kenar çubuğu" resetKey={String(where)}>
+            <Sidebar />
+          </HataSiniri>
           <div className="content">
-            <Main />
+            <HataSiniri name="içerik" resetKey={where + ':' + (whereCh || '')}>
+              <Main />
+            </HataSiniri>
           </div>
         </div>
       )}
-      <Modals />
+      <HataSiniri name="pencere" silent onError={close({ modal: null })}>
+        <Modals />
+      </HataSiniri>
       <ContextMenu />
-      <UserPopout />
-      <PickerHost />
-      <CropHost />
-      <Toasts />
-      <IncomingCall />
+      <HataSiniri name="profil kartı" silent onError={close({ popout: null })}>
+        <UserPopout />
+      </HataSiniri>
+      <HataSiniri name="emoji seçici" silent>
+        <PickerHost />
+      </HataSiniri>
+      <HataSiniri name="kırpma" silent>
+        <CropHost />
+      </HataSiniri>
+      <HataSiniri name="bildirimler" silent>
+        <Toasts />
+      </HataSiniri>
+      <HataSiniri name="gelen arama" silent onError={close({ ringing: null })}>
+        <IncomingCall />
+      </HataSiniri>
     </div>
   );
 }
