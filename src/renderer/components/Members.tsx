@@ -64,7 +64,7 @@ function MemberSub({ user }: { user: UserPublic | undefined }) {
   return user?.bio ? <span className="member-sub">{user.bio}</span> : null;
 }
 
-function insertMention(name: string) {
+export function insertMention(name: string) {
   const el = document.getElementById('composer-input') as HTMLTextAreaElement | null;
   if (!el) return;
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
