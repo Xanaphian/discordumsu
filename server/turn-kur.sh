@@ -41,6 +41,9 @@ fi
 
 echo "== TURN: coturn paketi"
 if ! command -v turnserver >/dev/null; then
+  # Paket kurulurken servis ayarsız (kimlik sormayan) haliyle bir an bile açılmasın: ayar yazılana kadar maskeli kalır
+  systemctl mask coturn >/dev/null 2>&1 || true
+  trap 'systemctl unmask coturn >/dev/null 2>&1 || true' EXIT
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
   apt-get install -y -qq coturn
@@ -120,6 +123,8 @@ CPUQuota=60%
 Restart=always
 RestartSec=3
 UNIT
+systemctl unmask coturn >/dev/null 2>&1 || true
+trap - EXIT
 systemctl daemon-reload
 systemctl enable coturn >/dev/null 2>&1
 systemctl restart coturn
