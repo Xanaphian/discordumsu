@@ -144,22 +144,26 @@ export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embe
   const tiles = useTiles(ch.id, inHere);
   const [focus, setFocus] = useState<string | null>(null);
   const prevScreens = useRef(new Set<string>());
-  // biri yayına başlayınca kendiliğinden odakla (kendi yayınım hariç)
+  const layout = useStore((s) => s.settings.voiceLayout);
+  const designed = !embedded && layout !== 'klasik';
+  // biri yayına başlayınca kendiliğinden odakla (kendi yayınım hariç); yeni görünümlerde yayın balonda bulanık bekler (v1.47)
   useEffect(() => {
+    if (designed) {
+      prevScreens.current = new Set(tiles.filter((t) => t.kind === 'screen').map((t) => t.key));
+      if (focus) setFocus(null);
+      return;
+    }
     const screens = tiles.filter((t) => t.kind === 'screen');
     const fresh = screens.find((t) => !prevScreens.current.has(t.key) && !t.me);
     prevScreens.current = new Set(screens.map((t) => t.key));
     if (fresh && !focus) setFocus(fresh.key);
     if (focus && !tiles.some((t) => t.key === focus)) setFocus(null);
-  }, [tiles, focus]);
-  const focused = focus ? tiles.find((t) => t.key === focus) : undefined;
+  }, [tiles, focus, designed]);
+  const focused = focus && !designed ? tiles.find((t) => t.key === focus) : undefined;
   const others = focused ? tiles.filter((t) => t !== focused) : tiles;
   const n = tiles.length;
   const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
   // v1.45: Baloncuklar / Akordeon / Klasik (sağ alttaki seçici); özel arama kutusu hep klasik
-  const layout = useStore((s) => s.settings.voiceLayout);
-  const designed = !embedded && layout !== 'klasik';
-  const screens = tiles.filter((t) => t.kind === 'screen');
   return (
     <section className={cx('voice-view', embedded && 'embedded', designed && 'sd-on')}>
       {!embedded && <div className="chat-header">
@@ -197,14 +201,16 @@ export function VoiceView({ c, ch, embedded }: { c: Community; ch: Channel; embe
           </>
         ) : designed ? (
           <div className="sd-wrap">
-            {screens.length > 0 && (
-              <div className="vv-strip sd-screens">
-                {screens.map((t) => (
-                  <TileView key={t.key} t={t} c={c} focused={false} small onFocus={() => setFocus(t.key)} />
-                ))}
-              </div>
-            )}
-            <DesignStage c={c} layout={layout} people={tiles.filter((t) => t.kind === 'user').map((t) => ({ key: t.key, uid: t.uid, me: t.me, m: t.member, stream: t.stream }))} />
+            <DesignStage
+              c={c}
+              layout={layout}
+              people={tiles
+                .filter((t) => t.kind === 'user')
+                .map((t) => {
+                  const sc = tiles.find((x) => x.kind === 'screen' && x.sid === t.sid);
+                  return { key: t.key, uid: t.uid, me: t.me, m: t.member, stream: t.stream, scr: sc ? { key: sc.key, stream: sc.stream } : undefined };
+                })}
+            />
           </div>
         ) : (
           <div className="vv-grid2" style={{ ['--cols' as any]: cols }}>

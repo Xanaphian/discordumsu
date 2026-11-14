@@ -139,7 +139,17 @@ function applyOutput() {
     for (const a of p.audio.values()) a.gain.gain.setTargetAtTime(userGain(p.uid, a.kind), actx.currentTime, 0.03);
 }
 
+/** v1.47: yeni görünümlerde yayının sesi yalnız "Yayını izle" denince gelir; null = kısıt yok (Klasik) */
+let screenGate: Set<ID> | null = null;
+export function setScreenGate(uids: Set<ID> | null) {
+  const same = screenGate === uids || (!!screenGate && !!uids && screenGate.size === uids.size && [...uids].every((u) => screenGate!.has(u)));
+  if (same) return;
+  screenGate = uids;
+  applyOutput();
+}
+
 function userGain(uid: ID, kind: 'mic' | 'screen') {
+  if (kind === 'screen' && screenGate && !screenGate.has(uid)) return 0;
   const v = ST().userVolumes[uid];
   const g = (v ?? 100) / 100;
   return kind === 'screen' ? g * 0.9 : g;
