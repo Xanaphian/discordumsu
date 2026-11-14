@@ -123,6 +123,32 @@ export interface ProfileExtra {
   effect?: CardEffect;
   tz?: number; // UTC'ye göre dakika; varsa yerel saat gösterilir
   birthday?: string; // 'AA-GG'
+  /** tam profil düzeni: düğmelerin sırası, gizlenenler, açılış, vitrin */
+  full?: FullLayout;
+}
+
+export type FullTab = 'activity' | 'friends' | 'comms' | 'about';
+export const FULL_TABS: FullTab[] = ['activity', 'friends', 'comms', 'about'];
+export type FullBtnStyle = 'tiles' | 'pills';
+export interface FullLayout {
+  /** düğme sırası (eksikler sona eklenir) */
+  order?: FullTab[];
+  /** gizlenen düğmeler (en az biri görünür kalır) */
+  hide?: FullTab[];
+  /** pencere açılınca seçili düğme */
+  open?: FullTab;
+  /** düğme görünümü */
+  btn?: FullBtnStyle;
+  /** vitrindeki favori oyunlar (en çok 4) */
+  fav?: string[];
+}
+
+/** Tam profil düğmeleri: kişinin sırası, gizledikleri çıkarılmış */
+export function fullTabs(l?: FullLayout): FullTab[] {
+  const order = [...(l?.order || []).filter((t) => FULL_TABS.includes(t)), ...FULL_TABS];
+  const seen = new Set<FullTab>();
+  const out = order.filter((t) => !seen.has(t) && seen.add(t) && !l?.hide?.includes(t));
+  return out.length ? out : ['activity'];
 }
 
 export const SHAPES: AvatarShape[] = ['hex', 'circle', 'squircle', 'diamond'];
@@ -328,6 +354,25 @@ export function sanitizeProfile(p: unknown): ProfileExtra | undefined {
   if (effect && effect !== 'none') out.effect = effect;
   if (typeof x.tz === 'number' && isFinite(x.tz) && Math.abs(x.tz) <= 14 * 60) out.tz = Math.round(x.tz);
   if (typeof x.birthday === 'string' && /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(x.birthday)) out.birthday = x.birthday;
+  if (x.full && typeof x.full === 'object') {
+    const f = x.full as Record<string, any>;
+    const tabs = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((t): t is FullTab => FULL_TABS.includes(t as FullTab)))] : []);
+    const full: FullLayout = {};
+    const order = tabs(f.order);
+    if (order.length) full.order = order;
+    const hide = tabs(f.hide).slice(0, FULL_TABS.length - 1);
+    if (hide.length) full.hide = hide;
+    const open = pick(f.open, FULL_TABS);
+    if (open) full.open = open;
+    const btn = pick(f.btn, ['tiles', 'pills'] as const);
+    if (btn && btn !== 'tiles') full.btn = btn;
+    if (Array.isArray(f.fav)) {
+      const seen = new Set<string>();
+      const fav = f.fav.map((g: unknown) => str(g, 40)).filter((g: string) => g && !seen.has(g.toLowerCase()) && seen.add(g.toLowerCase())).slice(0, 4);
+      if (fav.length) full.fav = fav;
+    }
+    if (Object.keys(full).length) out.full = full;
+  }
   return Object.keys(out).length ? out : undefined;
 }
 

@@ -1,23 +1,26 @@
-// Tam profil (v1.29): geniş pencere, solda kimlik sütunu, sağda sekmeli içerik.
+// Tam profil (v1.31): geniş afişli vitrin düzeni. Üstte afiş + kimlik şeridi, solda künye kartları,
+// sağda büyük düğmeler (Etkinlik, Ortak arkadaşlar, Ortak topluluklar, Hakkında) ve içerik.
+// Kişi düğmelerin sırasını, hangilerinin görüneceğini, açılış düğmesini ve vitrini kendisi seçer.
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Clock, Cake, Pencil, Copy, MessageCircle, X, CalendarDays, HeartHandshake, DoorOpen, Volume2, MonitorUp, LogIn, Users,
-  Activity as ActivityIcon, UserRound, Home,
+  Activity as ActivityIcon, UserRound, Home, Trophy, Flame, Timer, SlidersHorizontal, Plus, Gamepad2, Link2,
 } from 'lucide-react';
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
 import { idTime } from '../../../shared/protocol';
+import { fullTabs, type FullTab } from '../../../shared/profile';
 import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
 import { useStore, openModal, toast, selectCommunity, openDm, mutualFriends } from '../../lib/store';
 import { useVoice, joinVoice } from '../../lib/voice';
 import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
-import { cardTheme, imgFrameStyle } from './look';
-import { ActivityCards, AccountList, PrivateNote, RecentList } from './Activity';
+import { bannerBackground, cardTheme, imgFrameStyle } from './look';
+import { ActivityCards, AccountList, BrandLogo, PrivateNote, RecentList } from './Activity';
 import { useActsOf } from '../../lib/activity';
+import { gameBrand } from '../../lib/brands';
 import {
   Banner, CardFx, NameText, CustomStatusBubble, ActivityRow, LinkList, FriendButton, useBadges, useMinuteTick, tzNow, tzDiff, fmtBirthday,
 } from './ProfileCard';
-
-type Tab = 'activity' | 'about' | 'friends' | 'comms';
+import { focusProfileSection } from './ProfileEditor';
 
 /** Kişinin bulunduğu ses odası: odadakiler ve katıl düğmesi */
 function VoiceRoomCard({ uid, onClose }: { uid: string; onClose?: () => void }) {
@@ -36,23 +39,22 @@ function VoiceRoomCard({ uid, onClose }: { uid: string; onClose?: () => void }) 
   });
   const [ch, cid, dm, chName, cName] = key.split('\u0000');
   const list = useStore((s) => (ch ? s.voice[ch] : undefined));
-  const info = key && list ? { ch, cid, list, dm: !!dm, chName, cName } : null;
   const users = useStore((s) => s.users);
   const comms = useStore((s) => s.communities);
-  if (!info) return null;
-  const self = info.list.find((x) => x.userId === uid);
-  const people = info.list.map((m) => users[m.userId] || comms[info.cid]?.users[m.userId]).filter(Boolean) as UserPublic[];
+  if (!key || !list) return null;
+  const self = list.find((x) => x.userId === uid);
+  const people = list.map((m) => users[m.userId] || comms[cid]?.users[m.userId]).filter(Boolean) as UserPublic[];
   const shown = people.slice(0, 6);
-  const here = myCh === info.ch;
+  const here = myCh === ch;
   return (
     <div className="xp-room">
       <div className="xp-room-top">
         <span className="xp-room-ic">{self?.screen ? <MonitorUp size={15} /> : <Volume2 size={15} />}</span>
         <div className="xp-room-t">
-          <b>{info.dm ? 'Özel aramada' : info.chName}</b>
+          <b>{dm ? 'Özel aramada' : chName}</b>
           <small>
             {self?.screen ? 'Ekranını paylaşıyor' : 'Sesli odada'}
-            {!info.dm && info.cName && ` · ${info.cName}`}
+            {!dm && cName && ` · ${cName}`}
           </small>
         </div>
       </div>
@@ -69,9 +71,9 @@ function VoiceRoomCard({ uid, onClose }: { uid: string; onClose?: () => void }) 
         {here ? (
           <span className="xp-room-here">Sen de buradasın</span>
         ) : (
-          !info.dm &&
-          info.cid && (
-            <button className="btn sm primary xp-room-join" onClick={() => (onClose?.(), joinVoice(info.cid, info.ch))}>
+          !dm &&
+          cid && (
+            <button className="btn sm primary xp-room-join" onClick={() => (onClose?.(), joinVoice(cid, ch))}>
               <LogIn size={14} /> Odaya katıl
             </button>
           )
@@ -81,12 +83,13 @@ function VoiceRoomCard({ uid, onClose }: { uid: string; onClose?: () => void }) 
   );
 }
 
-function Label({ children, count }: { children: React.ReactNode; count?: number }) {
+function Label({ children, count, right }: { children: React.ReactNode; count?: number; right?: React.ReactNode }) {
   return (
     <h4 className="xp-label">
       <span>{children}</span>
       {count !== undefined && <em>{count}</em>}
       <i />
+      {right}
     </h4>
   );
 }
@@ -101,13 +104,61 @@ function Fact({ icon, label, children }: { icon: React.ReactNode; label: string;
   );
 }
 
+function hoursText(m: number) {
+  if (m < 60) return `${Math.max(1, Math.round(m))} dk`;
+  const h = m / 60;
+  return h < 10 ? `${h.toFixed(1).replace('.', ',')} sa` : `${Math.round(h)} sa`;
+}
+
+/** Vitrindeki oyun kutusu: bilinen oyunlarda logosu, yoksa baş harfleri */
+function FavTile({ name }: { name: string }) {
+  const brand = gameBrand(name);
+  return (
+    <div className="xp-fav">
+      <span className="xp-fav-art">{brand ? <BrandLogo k={brand} size={52} /> : <span className="xp-fav-init">{name.slice(0, 2).toLocaleUpperCase('tr')}</span>}</span>
+      <b title={name}>{name}</b>
+    </div>
+  );
+}
+
+function PersonRow({ u, sub, onClick }: { u: UserPublic; sub?: string; onClick: () => void }) {
+  const st = useStore((s) => s.presence[u.id] || 'offline');
+  return (
+    <button className="xp-person" onClick={onClick}>
+      <Avatar user={u} size={40} status={st} />
+      <span className="xp-person-t">
+        <NameText profile={u.profile}>{u.name}</NameText>
+        <small>{sub || STATUS_LABEL[st]}</small>
+      </span>
+    </button>
+  );
+}
+
+function Empty({ icon, title, text, action }: { icon: React.ReactNode; title: string; text?: string; action?: React.ReactNode }) {
+  return (
+    <div className="xp-empty">
+      <span className="xp-empty-ic">{icon}</span>
+      <b>{title}</b>
+      {text && <p>{text}</p>}
+      {action}
+    </div>
+  );
+}
+
+const openLayout = (onClose?: () => void) => {
+  focusProfileSection('fulllayout');
+  onClose?.();
+  openModal({ type: 'settings', tab: 'profile' });
+};
+
 export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: string; user: UserPublic | undefined; status?: Status; c?: Community; isMe?: boolean; onClose?: () => void }) {
   const users = useStore((s) => s.users);
   const communities = useStore((s) => s.communities);
-  const friend = useStore((s) => s.friends[uid]);
-  const presence = useStore((s) => s.presence);
+  const friends = useStore((s) => s.friends);
+  const friend = friends[uid];
   const inVoice = useStore((s) => Object.values(s.voice).some((l) => l?.some((x) => x.userId === uid)));
   const p = user?.profile;
+  const layout = p?.full;
   const theme = cardTheme(p);
   const badges = useBadges(uid, c, p, user?.bot);
   const acts = useActsOf(uid);
@@ -119,11 +170,16 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
   const shownName = c ? displayName(c, uid, users) : user?.name || 'İsimsiz';
   const color = c ? roleColor(c, uid) : '';
   const recent = (p?.recent || []).filter((r) => r.ts > Date.now() - 30 * 86_400_000);
-  const mutualC = useMemo(
-    () => (isMe ? [] : Object.values(communities).filter((x) => !x.dm && x.members.some((m) => m.userId === uid))),
+  const fav = layout?.fav || [];
+
+  // ortak topluluklar (kendi profilinde: toplulukların)
+  const comms = useMemo(
+    () => Object.values(communities).filter((x) => !x.dm && (isMe || x.members.some((m) => m.userId === uid))),
     [isMe, communities, uid],
   );
-  const [mutualF, setMutualF] = useState<UserPublic[] | null>(null);
+  // ortak arkadaşlar (kendi profilinde: arkadaşların). Eski sunucu cevap vermezse null.
+  const myFriends = useMemo(() => Object.values(friends).filter((f) => f.state === 'ok').map((f) => f.user), [friends]);
+  const [mutualF, setMutualF] = useState<UserPublic[] | null | undefined>(undefined);
   useEffect(() => {
     if (isMe || bot) return;
     let live = true;
@@ -132,21 +188,60 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
       live = false;
     };
   }, [uid, isMe, bot]);
+  const friendList = isMe ? myFriends : mutualF;
+
+  let tabs = fullTabs(layout);
+  if (bot) tabs = tabs.filter((t) => t !== 'friends');
+  if (!tabs.length) tabs = ['activity'];
   const hasAbout = !!(user?.bio || p?.tags?.length || p?.links?.length || roles.length || p?.activity);
-  const [tab, setTab] = useState<Tab>(() => (acts.length || inVoice || recent.length || !hasAbout ? 'activity' : 'about'));
+  const [tab, setTab] = useState<FullTab>(() => {
+    if (layout?.open && tabs.includes(layout.open)) return layout.open;
+    if (layout?.order?.length) return tabs[0];
+    if (tabs.includes('activity') && (acts.length || inVoice || recent.length || fav.length)) return 'activity';
+    if (tabs.includes('about') && hasAbout) return 'about';
+    return tabs[0];
+  });
   const isUid = /^[0-9a-z]{14}$/.test(uid);
 
-  const tabs: [Tab, string, React.ReactNode, number?][] = [
-    ['activity', 'Etkinlik', <ActivityIcon size={14} key="a" />],
-    ['about', 'Hakkında', <UserRound size={14} key="b" />],
-  ];
-  if (!isMe && !bot && mutualF) tabs.push(['friends', 'Arkadaşlar', <Users size={14} key="c" />, mutualF.length]);
-  if (!isMe && mutualC.length) tabs.push(['comms', 'Topluluklar', <Home size={14} key="d" />, mutualC.length]);
+  const live = acts[0];
+  const META: Record<FullTab, { icon: React.ReactNode; title: string; sub: string; n?: number; dot?: boolean }> = {
+    activity: {
+      icon: <ActivityIcon size={18} />,
+      title: 'Etkinlik',
+      sub: live ? (live.kind === 'listening' ? live.details || live.name : live.name) : inVoice ? 'Sesli odada' : recent.length ? `Son 30 günde ${recent.length} kayıt` : fav.length ? 'Vitrin' : 'Şu an sessiz',
+      dot: !!live || inVoice,
+    },
+    friends: {
+      icon: <Users size={18} />,
+      title: isMe ? 'Arkadaşların' : 'Ortak arkadaşlar',
+      sub: friendList ? (friendList.length ? `${friendList.length} kişi` : 'Henüz yok') : friendList === null ? 'Sunucu güncellenince' : 'Yükleniyor…',
+      n: friendList?.length,
+    },
+    comms: {
+      icon: <Home size={18} />,
+      title: isMe ? 'Toplulukların' : 'Ortak topluluklar',
+      sub: comms.length ? `${comms.length} topluluk` : 'Henüz yok',
+      n: comms.length,
+    },
+    about: {
+      icon: <UserRound size={18} />,
+      title: 'Hakkında',
+      sub: p?.tags?.length ? p.tags.slice(0, 2).join(' · ') : user?.bio ? 'Biyografi' : 'Kendinden bahset',
+    },
+  };
 
   const openProfile = (id: string) => openModal({ type: 'profile', uid: id });
+  const totalMins = recent.reduce((a, r) => a + (r.mins || 0), 0);
+  const top = [...recent].sort((a, b) => (b.mins || 0) - (a.mins || 0))[0];
+  const bestStreak = Math.max(0, ...recent.map((r) => r.streak || 0));
+  const heroImg = p?.banner?.kind === 'image' ? p.banner.image : undefined;
+  const heroColor = p?.banner?.a || user?.color || '#c8aa6e';
 
   return (
-    <div className={cx('pcard pcard-full pcard-wide', theme && 'themed', theme && 'tone-' + theme.tone, p?.bg && 'has-bg')} style={theme?.style}>
+    <div
+      className={cx('pcard pcard-full pcard-wide xp2', 'btn-' + (layout?.btn || 'tiles'), theme && 'themed', theme && 'tone-' + theme.tone, p?.bg && 'has-bg')}
+      style={{ ...theme?.style, ['--hero' as any]: heroColor }}
+    >
       {p?.bg && (
         <>
           <div className="pc-bgimg" style={{ filter: p.bg.blur ? `blur(${p.bg.blur}px)` : undefined }}>
@@ -155,239 +250,346 @@ export function ProfileFull({ uid, user, status, c, isMe, onClose }: { uid: stri
           <div className="pc-bgdim" style={{ opacity: (p.bg.dim ?? 45) / 100 }} />
         </>
       )}
+      {/* afişin rengi/resmi pencerenin üstüne yumuşakça taşar */}
+      <div className="xp-glow" aria-hidden style={heroImg ? undefined : { background: bannerBackground(p?.banner, user?.color || '#c8aa6e') }}>
+        {heroImg && <img src={heroImg} alt="" draggable={false} />}
+      </div>
       <CardFx effect={p?.effect} />
 
-      {/* ---------------- sol: kimlik ---------------- */}
-      <aside className="xp-side">
+      <header className="xp-hero">
         <Banner user={user} profile={p} className="xp-banner" />
-        <div className="xp-id">
-          <div className="xp-av">
-            <Avatar user={user} size={108} status={status} />
+        <button className="icon-btn xp-close" onClick={onClose} aria-label="Kapat">
+          <X size={18} />
+        </button>
+      </header>
+
+      <div className="xp-idbar">
+        <div className="xp-av">
+          <Avatar user={user} size={124} status={status} />
+        </div>
+        <div className="xp-idtext">
+          <div className="xp-nameline">
+            <NameText profile={p} color={color || undefined} className="pc-name xp-name">
+              {shownName}
+            </NameText>
+            {badges.length > 0 && (
+              <span className="xp-badges">
+                {badges.map((b) => (
+                  <Tooltip key={b.id} text={b.label}>
+                    <span className={cx('xp-badge', 'b-' + b.id)}>{b.icon}</span>
+                  </Tooltip>
+                ))}
+              </span>
+            )}
           </div>
-          <CustomStatusBubble profile={p} />
-          <NameText profile={p} color={color || undefined} className="pc-name xp-name">
-            {shownName}
-          </NameText>
           <div className="xp-handle">
             {user?.name && <span>@{user.name}</span>}
             {p?.pronouns && <span>{p.pronouns}</span>}
+            {status && <span className={cx('xp-status', status)}>{STATUS_LABEL[status]}</span>}
             {bot && <span className="tag-bot">{uid === 'kovan-asistan' ? 'ASİSTAN' : 'BOT'}</span>}
           </div>
-          {status && <span className={cx('xp-status', status)}>{STATUS_LABEL[status]}</span>}
-          {badges.length > 0 && (
-            <div className="xp-badges">
-              {badges.map((b) => (
-                <Tooltip key={b.id} text={b.label}>
-                  <span className={cx('xp-badge', 'b-' + b.id)}>{b.icon}</span>
-                </Tooltip>
-              ))}
-            </div>
-          )}
-          <div className="xp-actions pc-actions">
-            {isMe ? (
+          <CustomStatusBubble profile={p} />
+        </div>
+        <div className="xp-actions pc-actions">
+          {isMe ? (
+            <>
+              <button className="btn ghost xp-sq-txt" onClick={() => openLayout(onClose)} title="Tam profil düzenini değiştir">
+                <SlidersHorizontal size={15} /> Düzen
+              </button>
               <button className="btn primary xp-main-btn" onClick={() => (onClose?.(), openModal({ type: 'settings', tab: 'profile' }))}>
                 <Pencil size={15} /> Profili düzenle
               </button>
-            ) : bot ? (
-              <button className="btn ghost xp-main-btn" onClick={() => (copyText(uid), toast('Kimlik kopyalandı', 'ok'), onClose?.())}>
-                <Copy size={15} /> Kimliği kopyala
-              </button>
-            ) : (
-              <>
-                {c?.dm !== uid && (
-                  <button className="btn primary xp-main-btn" onClick={() => (onClose?.(), openDm(uid))}>
-                    <MessageCircle size={15} /> Mesaj yaz
-                  </button>
-                )}
-                <FriendButton uid={uid} />
-                <Tooltip text="Kimliği kopyala">
-                  <button className="btn sm ghost xp-sq" aria-label="Kimliği kopyala" onClick={() => (copyText(uid), toast('Kimlik kopyalandı', 'ok'))}>
-                    <Copy size={14} />
-                  </button>
-                </Tooltip>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="xp-side-body">
-          {(isUid || member || friend?.state === 'ok' || p?.tz !== undefined || p?.birthday) && (
-            <div className="xp-facts">
-              {isUid && (
-                <Fact icon={<CalendarDays size={14} />} label="Xanaphian'da">
-                  {fmtDay(idTime(uid))}
-                </Fact>
+            </>
+          ) : bot ? (
+            <button className="btn ghost xp-main-btn" onClick={() => (copyText(uid), toast('Kimlik kopyalandı', 'ok'), onClose?.())}>
+              <Copy size={15} /> Kimliği kopyala
+            </button>
+          ) : (
+            <>
+              <FriendButton uid={uid} />
+              <Tooltip text="Kimliği kopyala">
+                <button className="btn sm ghost xp-sq" aria-label="Kimliği kopyala" onClick={() => (copyText(uid), toast('Kimlik kopyalandı', 'ok'))}>
+                  <Copy size={15} />
+                </button>
+              </Tooltip>
+              {c?.dm !== uid && (
+                <button className="btn primary xp-main-btn" onClick={() => (onClose?.(), openDm(uid))}>
+                  <MessageCircle size={15} /> Mesaj yaz
+                </button>
               )}
-              {friend?.state === 'ok' && (
-                <Fact icon={<HeartHandshake size={14} />} label="Arkadaşsınız">
-                  {fmtDay(friend.ts)}
-                </Fact>
-              )}
-              {member && (
-                <Fact icon={<DoorOpen size={14} />} label="Toplulukta">
-                  {fmtDay(member.joinedAt)}
-                </Fact>
-              )}
-              {p?.tz !== undefined && (
-                <Fact icon={<Clock size={14} />} label="Yerel saat">
-                  <b>{tzNow(p.tz)}</b>
-                  {!isMe && <em>{tzDiff(p.tz)}</em>}
-                </Fact>
-              )}
-              {p?.birthday && (
-                <Fact icon={<Cake size={14} />} label="Doğum günü">
-                  {fmtBirthday(p.birthday)}
-                </Fact>
-              )}
-            </div>
+            </>
           )}
-          {!!p?.accounts?.length && (
-            <section className="xp-block">
-              <Label>Bağlı hesaplar</Label>
-              <AccountList profile={p} liveSvcs={liveSvcs} chips />
+        </div>
+      </div>
+
+      <div className="xp-body">
+        {/* ---------------- sol: künye ---------------- */}
+        <aside className="xp-side">
+          {(isUid || member || friend?.state === 'ok' || p?.tz !== undefined || p?.birthday) && (
+            <section className="xp-card">
+              <Label>Künye</Label>
+              <div className="xp-facts">
+                {isUid && (
+                  <Fact icon={<CalendarDays size={14} />} label="Xanaphian'da">
+                    {fmtDay(idTime(uid))}
+                  </Fact>
+                )}
+                {friend?.state === 'ok' && (
+                  <Fact icon={<HeartHandshake size={14} />} label="Arkadaşsınız">
+                    {fmtDay(friend.ts)}
+                  </Fact>
+                )}
+                {member && (
+                  <Fact icon={<DoorOpen size={14} />} label="Toplulukta">
+                    {fmtDay(member.joinedAt)}
+                  </Fact>
+                )}
+                {p?.tz !== undefined && (
+                  <Fact icon={<Clock size={14} />} label="Yerel saat">
+                    <b>{tzNow(p.tz)}</b>
+                    {!isMe && <em>{tzDiff(p.tz)}</em>}
+                  </Fact>
+                )}
+                {p?.birthday && (
+                  <Fact icon={<Cake size={14} />} label="Doğum günü">
+                    {fmtBirthday(p.birthday)}
+                  </Fact>
+                )}
+              </div>
             </section>
           )}
+          {!!p?.accounts?.length ? (
+            <section className="xp-card">
+              <Label count={p.accounts.length}>Bağlı hesaplar</Label>
+              <AccountList profile={p} liveSvcs={liveSvcs} chips />
+            </section>
+          ) : (
+            isMe && (
+              <button className="xp-card xp-add" onClick={() => (focusProfileSection('accounts'), onClose?.(), openModal({ type: 'settings', tab: 'profile' }))}>
+                <Link2 size={16} /> Hesap bağla <em>Steam, Riot, Spotify…</em>
+              </button>
+            )
+          )}
           {!isMe && !bot && (
-            <section className="xp-block">
+            <section className="xp-card xp-note-card">
               <PrivateNote uid={uid} />
             </section>
           )}
-        </div>
-      </aside>
+        </aside>
 
-      {/* ---------------- sağ: sekmeler ---------------- */}
-      <main className="xp-main">
-        <div className="xp-top">
-          <nav className="xp-tabs" role="tablist">
-            {tabs.map(([k, label, icon, n]) => (
-              <button key={k} role="tab" aria-selected={tab === k} className={cx(tab === k && 'on')} onClick={() => setTab(k)} title={k === 'friends' ? 'Ortak arkadaşlarınız' : k === 'comms' ? 'Ortak topluluklarınız' : undefined}>
-                {icon}
-                <span>{label}</span>
-                {n !== undefined && <em>{n}</em>}
-                {k === 'activity' && (acts.length > 0 || inVoice) && <i className="xp-live" />}
-              </button>
-            ))}
+        {/* ---------------- sağ: düğmeler + içerik ---------------- */}
+        <main className="xp-main">
+          <nav className="xp-nav" role="tablist" style={{ ['--n' as any]: tabs.length }}>
+            {tabs.map((k) => {
+              const m = META[k];
+              return (
+                <button key={k} role="tab" aria-selected={tab === k} className={cx('xp-tile', 't-' + k, tab === k && 'on')} onClick={() => setTab(k)}>
+                  <span className="xp-tile-ic">
+                    {m.icon}
+                    {m.dot && <i className="xp-live" />}
+                  </span>
+                  <span className="xp-tile-t">
+                    <b>
+                      {m.title}
+                      {m.n !== undefined && <em>{m.n}</em>}
+                    </b>
+                    <small>{m.sub}</small>
+                  </span>
+                </button>
+              );
+            })}
           </nav>
-          <button className="icon-btn xp-close" onClick={onClose} aria-label="Kapat">
-            <X size={18} />
-          </button>
-        </div>
 
-        <div className="xp-pane">
-          {tab === 'activity' && (
-            <>
-              {(acts.length > 0 || inVoice) && (
-                <section className="xp-block">
-                  <Label>Şu an</Label>
-                  <div className="xp-now">
-                    {acts.length > 0 && <ActivityCards uid={uid} />}
-                    <VoiceRoomCard uid={uid} onClose={onClose} />
-                  </div>
-                </section>
-              )}
-              <section className="xp-block">
-                <Label count={recent.length || undefined}>Son 30 gün</Label>
-                <RecentList
-                  profile={p}
-                  empty={
-                    <div className="xp-empty">
-                      {isMe ? 'Henüz kaydedilmiş etkinliğin yok. Bir oyun açtığında ya da müzik dinlediğinde burada görünür.' : 'Son 30 günde paylaşılmış bir etkinlik yok.'}
+          <div className="xp-pane">
+            {tab === 'activity' && (
+              <>
+                {(acts.length > 0 || inVoice) && (
+                  <section className="xp-block">
+                    <Label>Şu an</Label>
+                    <div className="xp-now">
+                      {acts.length > 0 && <ActivityCards uid={uid} />}
+                      <VoiceRoomCard uid={uid} onClose={onClose} />
                     </div>
-                  }
+                  </section>
+                )}
+                {(fav.length > 0 || isMe) && (
+                  <section className="xp-block">
+                    <Label
+                      right={
+                        isMe && (
+                          <button className="xp-mini" onClick={() => openLayout(onClose)}>
+                            <Pencil size={12} /> Düzenle
+                          </button>
+                        )
+                      }
+                    >
+                      Vitrin
+                    </Label>
+                    <div className="xp-favs">
+                      {fav.map((g) => (
+                        <FavTile key={g} name={g} />
+                      ))}
+                      {isMe && fav.length < 4 && (
+                        <button className="xp-fav add" onClick={() => openLayout(onClose)}>
+                          <span className="xp-fav-art">
+                            <Plus size={22} />
+                          </span>
+                          <b>Oyun ekle</b>
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                )}
+                {recent.length > 0 && (
+                  <section className="xp-block">
+                    <Label>Son 30 gün özeti</Label>
+                    <div className="xp-stats">
+                      <div className="xp-stat">
+                        <Timer size={16} />
+                        <b>{hoursText(totalMins)}</b>
+                        <small>toplam</small>
+                      </div>
+                      {top && (
+                        <div className="xp-stat">
+                          <Trophy size={16} />
+                          <b title={top.name}>{top.name}</b>
+                          <small>en çok</small>
+                        </div>
+                      )}
+                      <div className="xp-stat">
+                        <Flame size={16} />
+                        <b>{bestStreak > 1 ? `${bestStreak} gün` : '—'}</b>
+                        <small>en uzun seri</small>
+                      </div>
+                    </div>
+                  </section>
+                )}
+                <section className="xp-block">
+                  <Label count={recent.length || undefined}>Son etkinlik</Label>
+                  <RecentList
+                    profile={p}
+                    empty={
+                      <Empty
+                        icon={<Gamepad2 size={22} />}
+                        title={isMe ? 'Henüz kayıt yok' : 'Son 30 günde paylaşılmış etkinlik yok'}
+                        text={isMe ? 'Bir oyun açtığında ya da müzik dinlediğinde burada görünür.' : undefined}
+                      />
+                    }
+                  />
+                </section>
+              </>
+            )}
+
+            {tab === 'about' && (
+              <>
+                {user?.bio && (
+                  <section className="xp-block">
+                    <Label>Hakkında</Label>
+                    <div className="pc-bio xp-bio">{user.bio}</div>
+                  </section>
+                )}
+                {p?.activity && (
+                  <section className="xp-block">
+                    <Label>Durum</Label>
+                    <ActivityRow profile={p} />
+                  </section>
+                )}
+                {!!p?.tags?.length && (
+                  <section className="xp-block">
+                    <Label>İlgi alanları</Label>
+                    <div className="pc-tags">
+                      {p.tags.map((t) => (
+                        <span key={t} className="pc-tag">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                {!!p?.links?.length && (
+                  <section className="xp-block">
+                    <Label>Bağlantılar</Label>
+                    <LinkList profile={p} />
+                  </section>
+                )}
+                {roles.length > 0 && (
+                  <section className="xp-block">
+                    <Label count={roles.length}>Roller</Label>
+                    <div className="role-chips">
+                      {roles.map((r) => (
+                        <span key={r.id} className="role-chip">
+                          <i style={{ background: r.color || 'var(--text-3)' }} />
+                          {r.icon && <span className="role-icon">{r.icon}</span>}
+                          {r.name}
+                        </span>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                {!hasAbout && (
+                  <Empty
+                    icon={<UserRound size={22} />}
+                    title={isMe ? 'Kendini anlat' : 'Henüz kendinden bahsetmemiş'}
+                    text={isMe ? 'Biyografi, ilgi alanları ve bağlantılar burada görünür.' : undefined}
+                    action={
+                      isMe && (
+                        <button className="btn sm primary" onClick={() => (onClose?.(), openModal({ type: 'settings', tab: 'profile' }))}>
+                          <Pencil size={14} /> Profili düzenle
+                        </button>
+                      )
+                    }
+                  />
+                )}
+              </>
+            )}
+
+            {tab === 'friends' &&
+              (friendList ? (
+                friendList.length ? (
+                  <div className="xp-people">
+                    {friendList.map((f) => (
+                      <PersonRow key={f.id} u={f} onClick={() => openProfile(f.id)} />
+                    ))}
+                  </div>
+                ) : (
+                  <Empty icon={<Users size={22} />} title={isMe ? 'Henüz arkadaşın yok' : 'Ortak arkadaşınız yok'} text={isMe ? 'Bir profilden arkadaşlık isteği gönderebilir ya da arkadaş kodunu paylaşabilirsin.' : undefined} />
+                )
+              ) : (
+                <Empty
+                  icon={<Users size={22} />}
+                  title={friendList === null ? 'Ortak arkadaşlar şu an görünmüyor' : 'Yükleniyor…'}
+                  text={friendList === null ? 'Sunucu güncellendiğinde burada listelenecek.' : undefined}
                 />
-              </section>
-            </>
-          )}
-
-          {tab === 'about' && (
-            <>
-              {user?.bio && (
-                <section className="xp-block">
-                  <Label>Hakkında</Label>
-                  <div className="pc-bio xp-bio">{user.bio}</div>
-                </section>
-              )}
-              {p?.activity && (
-                <section className="xp-block">
-                  <Label>Durum</Label>
-                  <ActivityRow profile={p} />
-                </section>
-              )}
-              {!!p?.tags?.length && (
-                <section className="xp-block">
-                  <Label>İlgi alanları</Label>
-                  <div className="pc-tags">
-                    {p.tags.map((t) => (
-                      <span key={t} className="pc-tag">
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              )}
-              {!!p?.links?.length && (
-                <section className="xp-block">
-                  <Label>Bağlantılar</Label>
-                  <LinkList profile={p} />
-                </section>
-              )}
-              {roles.length > 0 && (
-                <section className="xp-block">
-                  <Label count={roles.length}>Roller</Label>
-                  <div className="role-chips">
-                    {roles.map((r) => (
-                      <span key={r.id} className="role-chip">
-                        <i style={{ background: r.color || 'var(--text-3)' }} />
-                        {r.icon && <span className="role-icon">{r.icon}</span>}
-                        {r.name}
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              )}
-              {!hasAbout && <div className="xp-empty">{isMe ? 'Profilinde henüz bir şey yazmıyor. "Profili düzenle"den kendini anlatabilirsin.' : 'Henüz kendinden bahsetmemiş.'}</div>}
-            </>
-          )}
-
-          {tab === 'friends' && mutualF && (
-            <div className="xp-people">
-              {mutualF.length === 0 && <div className="xp-empty">Ortak arkadaşınız yok.</div>}
-              {mutualF.map((f) => (
-                <button key={f.id} className="xp-person" onClick={() => openProfile(f.id)}>
-                  <Avatar user={f} size={38} status={presence[f.id] || 'offline'} />
-                  <span className="xp-person-t">
-                    <NameText profile={f.profile}>{f.name}</NameText>
-                    <small>{STATUS_LABEL[presence[f.id] || 'offline']}</small>
-                  </span>
-                </button>
               ))}
-            </div>
-          )}
 
-          {tab === 'comms' && (
-            <div className="xp-people">
-              {mutualC.map((m) => (
-                <button
-                  key={m.id}
-                  className="xp-person"
-                  onClick={() => {
-                    onClose?.();
-                    selectCommunity(m.id);
-                  }}
-                >
-                  <span className="pc-mutual-ic xp-comm-ic" style={{ background: m.color }}>
-                    {m.icon ? <img src={m.icon} alt="" /> : m.name.slice(0, 2).toLocaleUpperCase('tr')}
-                  </span>
-                  <span className="xp-person-t">
-                    <b>{m.name}</b>
-                    <small>{m.members.length} üye</small>
-                  </span>
-                </button>
+            {tab === 'comms' &&
+              (comms.length ? (
+                <div className="xp-people">
+                  {comms.map((m) => (
+                    <button
+                      key={m.id}
+                      className="xp-person"
+                      onClick={() => {
+                        onClose?.();
+                        selectCommunity(m.id);
+                      }}
+                    >
+                      <span className="pc-mutual-ic xp-comm-ic" style={{ background: m.color }}>
+                        {m.icon ? <img src={m.icon} alt="" /> : m.name.slice(0, 2).toLocaleUpperCase('tr')}
+                      </span>
+                      <span className="xp-person-t">
+                        <b>{m.name}</b>
+                        <small>{m.members.length} üye</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <Empty icon={<Home size={22} />} title={isMe ? 'Henüz bir topluluğun yok' : 'Ortak topluluğunuz yok'} />
               ))}
-            </div>
-          )}
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
