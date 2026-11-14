@@ -631,23 +631,6 @@ function HomeSidebar() {
         ))}
         {!dms.length && <div className="dm-empty">Henüz özel mesajın yok. Bir arkadaşının profiline tıklayıp <b>Mesaj gönder</b> diyebilirsin.</div>}
         <div className="cat-row static">
-          <span>Kısayollar</span>
-        </div>
-        <div className="home-links">
-          <button className="ch-row" onClick={() => openModal({ type: 'createCommunity' })}>
-            <span className="ch-icon"><Plus size={18} /></span>
-            <span className="ch-name">Topluluk oluştur</span>
-          </button>
-          <button className="ch-row" onClick={() => openModal({ type: 'join' })}>
-            <span className="ch-icon"><UserPlus size={18} /></span>
-            <span className="ch-name">Davetle katıl</span>
-          </button>
-          <button className="ch-row" onClick={() => openModal({ type: 'settings', tab: 'notifications' })}>
-            <span className="ch-icon"><Bell size={18} /></span>
-            <span className="ch-name">Bildirimler</span>
-          </button>
-        </div>
-        <div className="cat-row static">
           <span>Bağlantılar</span>
         </div>
         {home && (
@@ -664,21 +647,6 @@ function HomeSidebar() {
             <span className="conn-meta">{x.status === 'online' ? 'bağlı' : x.status === 'connecting' ? 'bağlanıyor' : 'çevrimdışı'}</span>
           </div>
         ))}
-        <div className="cat-row static">
-          <span>Toplulukların ({realCommunities(communities).length})</span>
-        </div>
-        <div className="home-links">
-          {realCommunities(communities).map((c) => (
-            <button key={c.id} className={cx('ch-row home-comm-row', comm[c.id]?.unread && 'unread')} onClick={() => selectCommunity(c.id)}>
-              <span className="ch-icon">
-                <CommunityIcon c={c} size={20} />
-              </span>
-              <span className="ch-name">{c.name}</span>
-              {comm[c.id]?.mentions ? <span className="badge">{comm[c.id].mentions}</span> : null}
-            </button>
-          ))}
-          {!realCommunities(communities).length && <div className="dm-empty">Henüz bir topluluğun yok. Kısayollardan oluşturabilir ya da bir davetle katılabilirsin.</div>}
-        </div>
       </div>
     </>
   );

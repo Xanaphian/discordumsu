@@ -1,0 +1,1037 @@
+/* ==========================================================================
+   v1.33 Ana Sayfa > Başlangıç (AnaSayfa.tsx): canlı pano. Renkler tema değişkenlerinden;
+   açık temalarda da çalışsın diye beyaz yerine var(--text) ile karıştırılır.
+   ========================================================================== */
+
+.ah {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  isolation: isolate;
+  container-type: inline-size;
+  container-name: ah;
+  --ah-card: color-mix(in srgb, var(--bg-elev) 72%, transparent);
+  --ah-card-hi: color-mix(in srgb, var(--bg-elev) 92%, var(--text) 4%);
+  --ah-line: color-mix(in srgb, var(--text) 9%, transparent);
+  --ah-line-top: color-mix(in srgb, var(--text) 16%, transparent);
+  --ah-r: 14px;
+}
+.ah-glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 420px;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.38;
+  -webkit-mask: linear-gradient(#000 20%, transparent);
+  mask: linear-gradient(#000 20%, transparent);
+}
+.ah-glow img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(70px) saturate(1.3);
+  transform: scale(1.2);
+}
+.ah-glow span {
+  position: absolute;
+  inset: 0;
+}
+[data-theme='kagit'] .ah-glow,
+[data-theme='tozpembe'] .ah-glow,
+[data-theme='bej'] .ah-glow {
+  opacity: 0.22;
+}
+
+.ah-in {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 26px 30px 40px;
+}
+
+/* ---------------- karşılama ---------------- */
+.ah-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'main stats' 'acts acts';
+  gap: 18px 24px;
+  align-items: center;
+  padding: 22px 24px;
+  border-radius: calc(var(--ah-r) + 4px);
+  background:
+    radial-gradient(ellipse 50% 120% at 100% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elev) 82%, transparent), color-mix(in srgb, var(--bg-side) 70%, transparent));
+  border: 1px solid var(--ah-line);
+  border-top-color: var(--ah-line-top);
+  box-shadow: 0 24px 50px -30px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(6px);
+}
+.ah-hero-main {
+  grid-area: main;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.ah-me {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.ah-me:hover {
+  transform: scale(1.04);
+}
+.ah-hello {
+  min-width: 0;
+}
+.ah-date {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-4);
+  margin-bottom: 4px;
+}
+.ah .ah-hello h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah .ah-hello h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+.ah-hello p {
+  margin: 6px 0 0;
+  color: var(--text-3);
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+
+.ah-stats {
+  grid-area: stats;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(92px, 1fr));
+  gap: 8px;
+}
+.ah-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ah-line);
+  background: color-mix(in srgb, var(--bg-app) 45%, transparent);
+  color: var(--text-3);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.ah-stat:hover {
+  background: var(--bg-hover);
+  border-color: var(--ah-line-top);
+}
+.ah-stat b {
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ah-stat span {
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ah-stat.ok:not(.zero) b {
+  color: var(--green, #3ecf8e);
+}
+.ah-stat.voice:not(.zero) b {
+  color: var(--arc, var(--accent));
+}
+.ah-stat.alert:not(.zero) b {
+  color: var(--red, #f2555a);
+}
+.ah-stat.zero b {
+  color: var(--text-4);
+}
+
+.ah-actions {
+  grid-area: acts;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ah-line);
+}
+.ah-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+.ah-act svg {
+  color: var(--accent);
+}
+.ah-act:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.ah-act.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.ah-act.primary svg {
+  color: var(--accent-ink);
+}
+.ah-act.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, #fff);
+  color: var(--accent-ink);
+}
+
+/* ---------------- yerleşim ---------------- */
+.ah-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 22px;
+  margin-top: 22px;
+  align-items: start;
+}
+.ah-main,
+.ah-side {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+.ah-side {
+  position: sticky;
+  top: 0;
+}
+@container ah (max-width: 1080px) {
+  .ah-hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'main' 'stats' 'acts';
+  }
+}
+@container ah (max-width: 940px) {
+  .ah-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ah-side {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    align-items: start;
+  }
+  .ah-in {
+    padding: 20px 20px 32px;
+  }
+}
+@container ah (max-width: 560px) {
+  .ah-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ah .ah-hello h1 {
+    font-size: 24px;
+  }
+}
+
+.ah .ah-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  font-family: inherit;
+  -webkit-text-stroke: 0;
+}
+.ah-h > svg {
+  color: var(--accent);
+  flex: none;
+}
+.ah-h i {
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--text-4);
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.ah-h-fill {
+  flex: 1;
+}
+.ah-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.ah-link:hover {
+  color: var(--accent);
+  background: var(--bg-hover);
+}
+.ah-link.center {
+  align-self: center;
+  margin-top: 4px;
+}
+
+.ah-panel {
+  padding: 16px;
+  border-radius: var(--ah-r);
+  background: var(--ah-card);
+  border: 1px solid var(--ah-line);
+  border-top-color: var(--ah-line-top);
+}
+
+/* ---------------- seste şimdi ---------------- */
+.ah-rooms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+.ah-room {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--ah-r);
+  background:
+    radial-gradient(ellipse 80% 90% at 0% 0%, color-mix(in srgb, var(--cc) 18%, transparent), transparent 70%),
+    var(--ah-card);
+  border: 1px solid var(--ah-line);
+  border-top-color: var(--ah-line-top);
+  overflow: hidden;
+}
+.ah-room.here {
+  border-color: color-mix(in srgb, var(--green, #3ecf8e) 50%, transparent);
+}
+.ah-room-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ah-room-ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  overflow: hidden;
+}
+.ah-room-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.ah-room-t b {
+  font-size: 15px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-room-top:hover b {
+  text-decoration: underline;
+}
+.ah-room-t > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-room-t > span .comm-icon,
+.ah-room-t > span > * {
+  flex: none;
+}
+.ah-live {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: var(--red, #e5484d);
+}
+.ah-room-people {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.ah-stack {
+  display: flex;
+  flex: none;
+  padding-left: 6px;
+}
+.ah-stack-av,
+.ah-stack-more {
+  margin-left: -8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bg-elev) 90%, #000);
+}
+.ah-stack-av .avatar {
+  display: block;
+}
+.ah-stack-more {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--text-2);
+  background: var(--bg-elev-2, var(--bg-elev));
+}
+.ah-room-names {
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-join {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px solid color-mix(in srgb, var(--green, #3ecf8e) 45%, transparent);
+  background: color-mix(in srgb, var(--green, #3ecf8e) 14%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ah-join svg {
+  color: var(--green, #3ecf8e);
+}
+.ah-join:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--green, #3ecf8e) 26%, transparent);
+}
+.ah-join.on {
+  cursor: default;
+  opacity: 0.85;
+}
+
+/* ---------------- satır listeleri ---------------- */
+.ah-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--ah-r);
+  background: var(--ah-card);
+  border: 1px solid var(--ah-line);
+  border-top-color: var(--ah-line-top);
+  overflow: hidden;
+}
+.ah-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--ah-line);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ah-row:last-child {
+  border-bottom: 0;
+}
+.ah-row:hover {
+  background: var(--bg-hover);
+}
+.ah-row.hot {
+  box-shadow: inset 3px 0 0 var(--red, #f2555a);
+}
+.ah-row-ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.ah-row-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ah-row-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.ah-row-title b {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.ah-row-title b svg {
+  color: var(--text-4);
+}
+.ah-row-where {
+  font-size: 12px;
+  color: var(--text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-row-sub {
+  font-size: 13px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-row-sub em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.ah-row-end {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.ah-row-end time {
+  font-size: 11.5px;
+  color: var(--text-4);
+}
+.ah-slots {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 7px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.ah-more {
+  padding: 9px 14px;
+  font-size: 12.5px;
+  color: var(--text-4);
+  text-align: center;
+}
+.ah-allread {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--ah-r);
+  border: 1px dashed var(--ah-line-top);
+  color: var(--text-3);
+}
+.ah-allread-ic {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--green, #3ecf8e);
+  background: color-mix(in srgb, var(--green, #3ecf8e) 14%, transparent);
+}
+.ah-allread b {
+  display: block;
+  color: var(--text-2);
+  font-size: 14px;
+}
+.ah-allread span {
+  font-size: 12.5px;
+}
+
+/* ---------------- topluluk kartları ---------------- */
+.ah-comms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+.ah-comm {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 148px;
+  padding: 0 14px 13px;
+  border-radius: var(--ah-r);
+  border: 1px solid var(--ah-line);
+  border-top-color: var(--ah-line-top);
+  background: var(--ah-card);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.ah-comm:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--cc, var(--accent)) 55%, transparent);
+  box-shadow: 0 14px 30px -18px color-mix(in srgb, var(--cc, var(--accent)) 70%, #000);
+}
+.ah .ah-comm-ban {
+  display: block;
+  height: 56px;
+  margin: 0 -14px;
+  width: calc(100% + 28px);
+  border-radius: 0;
+  flex: none;
+}
+.ah-comm-ic {
+  margin-top: -24px;
+  border-radius: 14px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--bg-elev) 95%, #000);
+  line-height: 0;
+  position: relative;
+}
+.ah-comm b {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--text);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-comm-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.ah-comm-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ah-comm-meta .v {
+  color: var(--green, #3ecf8e);
+  font-weight: 700;
+}
+.ah-comm-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+.ah-comm-dot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35);
+}
+.ah-comm.add {
+  justify-content: center;
+  align-items: center;
+  padding: 14px;
+  text-align: center;
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.ah-comm.add b {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.ah-add-ic {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.ah-comm.add:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+/* ---------------- arkadaşlar paneli ---------------- */
+.ah-frs,
+.ah-req {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -8px;
+}
+.ah-req {
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--ah-line);
+}
+.ah-fr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  min-width: 0;
+}
+.ah-fr:hover {
+  background: var(--bg-hover);
+}
+.ah-fr.req {
+  cursor: default;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.ah-fr-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ah-fr-t b {
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-fr-t > span,
+.ah .ah-fr-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.ah-fr .member-marks {
+  flex: none;
+}
+.ah-ib {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 0;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text-3);
+  cursor: pointer;
+}
+.ah-ib:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+.ah-ib.ok:hover {
+  color: #fff;
+  background: var(--green, #3ecf8e);
+}
+.ah-ib.no:hover {
+  color: #fff;
+  background: var(--red, #f2555a);
+}
+.ah-fr .ah-ib.msg {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.ah-fr:hover .ah-ib.msg {
+  opacity: 1;
+}
+
+.ah-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px 4px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.ah-empty b {
+  color: var(--text-2);
+  font-size: 14px;
+}
+.ah-empty .btn {
+  margin-top: 6px;
+}
+.ah-empty-avs {
+  display: flex;
+  margin-bottom: 6px;
+}
+.ah-empty-avs span {
+  width: 36px;
+  height: 36px;
+  margin: 0 -5px;
+  border-radius: 50%;
+  border: 3px solid var(--bg-elev);
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-elev));
+}
+.ah-empty-avs span:nth-child(2) {
+  background: color-mix(in srgb, var(--arc, var(--accent)) 30%, var(--bg-elev));
+  transform: translateY(-5px);
+}
+.ah-empty-avs span:nth-child(3) {
+  background: color-mix(in srgb, var(--text) 18%, var(--bg-elev));
+}
+
+/* ---------------- başlarken ---------------- */
+.ah-start {
+  padding: 16px;
+  border-radius: var(--ah-r);
+  background:
+    radial-gradient(ellipse 60% 100% at 0% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+    var(--ah-card);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.ah-start-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.ah-start-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+.ah-start-head b {
+  font-size: 16px;
+  color: var(--text);
+}
+.ah-start-head span {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.ah-prog {
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  overflow: hidden;
+}
+.ah-prog i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.ah-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+.ah-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ah-line);
+  background: color-mix(in srgb, var(--bg-app) 35%, transparent);
+  color: var(--text-3);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.ah-step:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.ah-step b {
+  margin-top: 6px;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.ah-step-ic {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.ah-step.done {
+  cursor: default;
+  opacity: 0.7;
+}
+.ah-step.done .ah-step-ic {
+  color: #fff;
+  background: var(--green, #3ecf8e);
+}
+.ah-step.done b {
+  text-decoration: line-through;
+  text-decoration-color: var(--text-4);
+}
+
+/* ---------------- keşfet ---------------- */
+.ah-ex-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 -6px;
+}
+.ah-ex.big .ah-ex-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.ah-ex-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  min-width: 0;
+}
+.ah-ex.big .ah-ex-item {
+  padding: 12px;
+  border-radius: var(--ah-r);
+  background:
+    radial-gradient(ellipse 80% 100% at 0% 0%, color-mix(in srgb, var(--cc) 16%, transparent), transparent 70%),
+    var(--ah-card);
+  border: 1px solid var(--ah-line);
+  border-top-color: var(--ah-line-top);
+}
+.ah-ex-item:hover {
+  background-color: var(--bg-hover);
+}
+.ah-ex-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ah-ex-t b {
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-ex-t > span {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ah-ex-t .ah-ex-meta {
+  color: var(--text-4);
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ah-loading {
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  color: var(--text-4);
+}
+
+/* ---------------- ipucu ---------------- */
+.ah-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  border-radius: var(--ah-r);
+  border: 1px dashed var(--ah-line-top);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+.ah-tip > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+.ah-tip b {
+  color: var(--text-2);
+}
+.ah-tip .ah-ib {
+  width: 26px;
+  height: 26px;
+}

@@ -7,98 +7,11 @@ import { Avatar, CommunityIcon, Logo, Tooltip } from './Common';
 import { cx, COLORS, displayName, resizeImage, modKey } from '../lib/util';
 import type { Channel, Community } from '../../shared/protocol';
 import { useUnread } from './ServerRail';
-import { Banner } from './profile/ProfileCard';
+import { HomeStart } from './AnaSayfa';
 
 export function HomeView() {
   const tab = useStore((s) => s.homeTab);
   return tab === 'home' ? <HomeStart /> : <FriendsView />;
-}
-
-function HomeStart() {
-  const me = useStore((s) => s.me);
-  const communities = useStore((s) => s.communities);
-  const presence = useStore((s) => s.presence);
-  const { comm } = useUnread();
-  const list = realCommunities(communities);
-  return (
-    <section className="home scroll-thin">
-      <div className="home-inner">
-        <div className="home-hero">
-          <div className="hh-text">
-            <h1>
-              Merhaba, <em>{me.name}</em>
-            </h1>
-            <p>Toplulukların, özel mesajların ve arkadaşların bir arada. Kendi topluluğunu kur ya da bir davetle katıl.</p>
-            <div className="btn-row">
-              <button className="btn primary lg" onClick={() => openModal({ type: 'createCommunity' })}>
-                <Plus size={18} /> Topluluk oluştur
-              </button>
-              <button className="btn ghost lg" onClick={() => openModal({ type: 'join' })}>
-                <LogIn size={18} /> Davetle katıl
-              </button>
-              <button className="btn ghost lg" onClick={() => setHomeTab('add')}>
-                <Users size={18} /> Arkadaş ekle
-              </button>
-            </div>
-          </div>
-          <div className="hh-art xa-art" aria-hidden>
-            <span className="xa-ring r1" />
-            <span className="xa-ring r2" />
-            <Logo size={148} />
-          </div>
-        </div>
-        <h3 className="home-h">Toplulukların</h3>
-        <div className="comm-cards">
-          {list.map((c) => {
-            const online = c.members.filter((m) => presence[m.userId] && presence[m.userId] !== 'offline').length;
-            return (
-              <button key={c.id} className="comm-card" onClick={() => selectCommunity(c.id)}>
-                {c.profile?.banner ? (
-                  <Banner user={{ color: c.color }} profile={{ banner: c.profile.banner }} className="cc-banner" />
-                ) : (
-                  <div className="cc-banner" style={{ background: `linear-gradient(135deg, ${c.color}, color-mix(in srgb, ${c.color} 30%, #000))` }} />
-                )}
-                <div className="cc-icon hex">
-                  <CommunityIcon c={c} size={52} />
-                </div>
-                <div className="cc-body">
-                  <b>{c.name}</b>
-                  <span className="cc-meta">
-                    <i className="dot online" /> {online} çevrimiçi · {c.members.length} üye
-                  </span>
-                  {comm[c.id]?.mentions ? <span className="badge">{comm[c.id].mentions} bahsetme</span> : comm[c.id]?.unread ? <span className="cc-unread">Yeni mesajlar</span> : null}
-                </div>
-              </button>
-            );
-          })}
-          {!list.length && <div className="empty-note">Henüz bir topluluğun yok.</div>}
-        </div>
-        <h3 className="home-h">İpuçları</h3>
-        <div className="tips">
-          <div className="tip-card">
-            <Keyboard size={20} />
-            <b>{modKey}+K</b>
-            <span>Hızlı geçiş ile her kanala iki tuşla git.</span>
-          </div>
-          <div className="tip-card">
-            <Users size={20} />
-            <b>Davet kodu</b>
-            <span>Topluluk adına tıkla, Davet et'i seç ve kodu arkadaşına gönder.</span>
-          </div>
-          <div className="tip-card">
-            <Zap size={20} />
-            <b>Tek tuşla güncelleme</b>
-            <span>Yeni sürüm çıkınca üst çubukta Güncelle düğmesi belirir.</span>
-          </div>
-          <div className="tip-card">
-            <Globe size={20} />
-            <b>Her yerden erişim</b>
-            <span>Toplulukların ve mesajların Xanaphian sunucusunda durur; bilgisayarın kapalıyken de arkadaşların yazabilir.</span>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
 }
 
 export function Onboarding() {
