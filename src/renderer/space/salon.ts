@@ -176,15 +176,15 @@ export function buildSalon(quality: 'low' | 'high'): World & { tables: TableSpot
     const now = new Date();
     g.fillStyle = CREAM;
     g.textAlign = 'center';
-    g.font = '300 170px "Source Sans 3", "Segoe UI", sans-serif';
+    g.font = '300 170px Rubik, "Segoe UI", sans-serif';
     g.fillText(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`, 640, 330);
-    g.font = '600 40px "Source Sans 3", "Segoe UI", sans-serif';
+    g.font = '600 40px Rubik, "Segoe UI", sans-serif';
     g.fillText('Ekranda şu an yayın yok', 640, 430);
     g.fillStyle = '#a9b6cc';
-    g.font = '28px "Source Sans 3", "Segoe UI", sans-serif';
+    g.font = '28px Rubik, "Segoe UI", sans-serif';
     g.fillText(idleLabel || 'Alttaki ekran paylaş tuşuna bas, yayının burada herkese görünsün.', 640, 482);
     g.fillStyle = GOLD;
-    g.font = '24px "Marcellus", serif';
+    g.font = '24px Rubik, sans-serif';
     g.fillText('X A N A P H I A N', 640, 640);
     screenTex.needsUpdate = true;
   };
@@ -471,7 +471,7 @@ export function buildSalon(quality: 'low' | 'high'): World & { tables: TableSpot
         g.lineWidth = 2;
         g.stroke();
         g.fillStyle = CREAM;
-        g.font = '600 26px "Source Sans 3", "Segoe UI", sans-serif';
+        g.font = '600 26px Rubik, "Segoe UI", sans-serif';
         g.textAlign = 'center';
         g.fillText(txt, 128, 41);
         t.tex.needsUpdate = true;
