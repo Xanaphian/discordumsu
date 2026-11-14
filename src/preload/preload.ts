@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent, webFrame } from 'electron';
 type SpotifyStatusT = { clientId: string; defaultClientId: boolean; connected: boolean; user?: string; error?: string; redirect: string };
 import type { LinkMeta as LinkMetaT } from '../main/ekstralar';
 
@@ -36,6 +36,16 @@ const api = {
   ptt: {
     configure: (cfg: { enabled: boolean; code: string }) => ipcRenderer.invoke('ptt:config', cfg) as Promise<boolean>,
     onChange: (cb: (down: boolean) => void) => on('ptt', cb),
+  },
+  /** genel sustur / sağırlaştır tuşları (oyun öndeyken de çalışır) */
+  keys: {
+    configure: (cfg: { enabled: boolean; mute: string; deaf: string }) => ipcRenderer.invoke('keys:config', cfg) as Promise<boolean>,
+    onPress: (cb: (action: 'mute' | 'deaf') => void) => on('keys:press', cb),
+  },
+  /** arayüz yakınlaştırması (uygulama menüsü olmadığından Ctrl+/- burada) */
+  zoom: {
+    set: (factor: number) => webFrame.setZoomFactor(Math.max(0.5, Math.min(2.5, factor || 1))),
+    get: () => webFrame.getZoomFactor(),
   },
   activity: {
     configure: (c: unknown) => ipcRenderer.invoke('act:config', c),

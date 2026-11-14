@@ -25,8 +25,49 @@ import { ChannelBannerField } from './OdaResmi';
 import { cropImage, ICON_CROP } from './Kirpma';
 import { ResimGoruntuleyici } from './ResimGoruntuleyici';
 import { IletModal } from './Ilet';
+import { ShortcutsModal } from './Kisayollar';
+import { modKey } from '../lib/util';
+
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Pencere açıkken Tab arkadaki düğmelere kaçmasın; kapanınca odak eski yerine dönsün */
+export function useFocusTrap(ref: React.RefObject<HTMLElement | null>) {
+  // açılmadan önceki odak: ilk çizimde alınır (autoFocus'lu alan etkiden önce odağı alıyor)
+  const [before] = useState(() => document.activeElement as HTMLElement | null);
+  useEffect(() => {
+    const box = ref.current;
+    // autoFocus'lu bir alan yoksa odağı pencereye al (Tab ile içeriden başlansın)
+    if (box && !box.contains(document.activeElement)) box.focus({ preventScroll: true });
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !ref.current) return;
+      // üstte başka bir pencere (onay kutusu) açıksa o yönetir
+      const all = document.querySelectorAll('[aria-modal]');
+      if (all[all.length - 1] !== ref.current) return;
+      const items = [...ref.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el.getClientRects().length);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const inside = ref.current.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', k);
+    return () => {
+      document.removeEventListener('keydown', k);
+      const now = document.activeElement;
+      if ((!now || now === document.body) && before && before.isConnected) before.focus({ preventScroll: true });
+    };
+  }, [ref, before]);
+}
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(ref);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && !escBusy() && onClose();
     document.addEventListener('keydown', k);
@@ -34,7 +75,7 @@ export function Modal({ children, onClose, className, wide }: { children: React.
   }, [onClose]);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={cx('modal', wide && 'wide', className)} role="dialog" aria-modal>
+      <div ref={ref} className={cx('modal', wide && 'wide', className)} role="dialog" aria-modal tabIndex={-1}>
         {children}
       </div>
     </div>
@@ -475,7 +516,10 @@ function QuickSwitcher() {
           {!items.length && <div className="empty-note">Eşleşen bir şey yok.</div>}
         </div>
         <div className="quick-hint">
-          <kbd>↑</kbd> <kbd>↓</kbd> gezin · <kbd>Enter</kbd> git · <kbd>Esc</kbd> kapat
+          <kbd>↑</kbd> <kbd>↓</kbd> gezin · <kbd>Enter</kbd> git · <kbd>Esc</kbd> kapat ·{' '}
+          <button className="link" onClick={() => openModal({ type: 'shortcuts' })}>
+            <kbd>{modKey}+/</kbd> tüm kısayollar
+          </button>
         </div>
       </div>
     </Modal>
@@ -571,6 +615,12 @@ export function Modals() {
       return <ScreenPickerModal />;
     case 'quick':
       return <QuickSwitcher />;
+    case 'shortcuts':
+      return (
+        <Modal onClose={close} className="ks">
+          <ShortcutsModal />
+        </Modal>
+      );
     case 'search':
       return <SearchModal cid={m.cid} q={m.q} />;
     case 'settings':
