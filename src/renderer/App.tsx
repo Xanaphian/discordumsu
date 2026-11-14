@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useStore, openModal, selectChannel, sortedChannels } from './lib/store';
+import { useStore, openModal, selectChannel, sortedChannels, markRead } from './lib/store';
 import { toggleMute, toggleDeaf, useVoice } from './lib/voice';
 import { TitleBar } from './components/TitleBar';
 import { ServerRail } from './components/ServerRail';
@@ -62,6 +62,18 @@ function useShortcuts() {
         e.preventDefault();
         openModal(st.modal?.type === 'quick' ? null : { type: 'quick' });
         return;
+      }
+      if (mod && e.key === '/') {
+        e.preventDefault();
+        openModal(st.modal?.type === 'settings' ? null : { type: 'settings', tab: 'app' });
+        return;
+      }
+      // Esc: açık kanalı okundu say (pencere ya da menü açık değilken, yanıt/düzenleme yokken)
+      if (e.key === 'Escape' && !st.modal && !st.menu && !st.editing && st.current !== 'home' && !document.querySelector('.modal-backdrop, .suggest, .popout, .emoji-picker')) {
+        const ch = st.chanByComm[st.current];
+        if (ch && !st.replyTo[ch] && st.lastIds[ch] && st.lastIds[ch] > (st.read[ch] || '')) {
+          markRead(ch);
+        }
       }
       if (mod && e.key === ',') {
         e.preventDefault();

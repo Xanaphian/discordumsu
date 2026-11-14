@@ -23,6 +23,8 @@ import { SelfRolesModal } from './RolSec';
 import { TemplateImport } from './ToplulukAraclari';
 import { ChannelBannerField } from './OdaResmi';
 import { cropImage, ICON_CROP } from './Kirpma';
+import { ResimGoruntuleyici } from './ResimGoruntuleyici';
+import { IletModal } from './Ilet';
 
 export function Modal({ children, onClose, className, wide }: { children: React.ReactNode; onClose: () => void; className?: string; wide?: boolean }) {
   useEffect(() => {
@@ -405,23 +407,6 @@ function ConfirmModal({ m }: { m: Extract<ModalT, { type: 'confirm' }> }) {
   );
 }
 
-function ImageModal({ src, name }: { src: string; name: string }) {
-  return (
-    <div className="image-viewer" onClick={close}>
-      <img src={src} alt={name} onClick={(e) => e.stopPropagation()} />
-      <div className="iv-bar" onClick={(e) => e.stopPropagation()}>
-        <span>{name}</span>
-        <a href={src} download={name} className="link">
-          İndir
-        </a>
-        <button className="link" onClick={() => window.kovan.openExternal(src)}>
-          Tarayıcıda aç <ExternalLink size={12} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function QuickSwitcher() {
   const communities = useStore((s) => s.communities);
   const lastIds = useStore((s) => s.lastIds);
@@ -569,7 +554,9 @@ export function Modals() {
     case 'confirm':
       return <ConfirmModal m={m} />;
     case 'image':
-      return <ImageModal src={m.src} name={m.name} />;
+      return <ResimGoruntuleyici src={m.src} name={m.name} />;
+    case 'forward':
+      return <IletModal cid={m.cid} chId={m.chId} id={m.id} />;
     case 'screenShare':
       return <ScreenPickerModal />;
     case 'quick':
