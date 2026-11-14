@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import https from 'node:https';
 import path from 'node:path';
 import { KNOWN_GAMES, NOT_GAMES, gameFromPath } from './games';
+import { initSpotify, setSpotifyPolling, spotifyStatus, type SpotifyStatus, type SpotifyTrack } from './spotify';
 
 export interface DetectedGame {
   name: string;
@@ -54,6 +55,10 @@ export interface ActivityState {
   game: DetectedGame | null;
   media: DetectedMedia | null;
   streams: DetectedStream[];
+  /** Spotify hesabı bağlantısı (Ayarlar > Etkinlik) */
+  spotify?: SpotifyStatus;
+  /** şarkı Spotify hesabından mı okundu */
+  mediaFrom?: 'account' | 'windows';
 }
 export interface ActivityConfig {
   enabled: boolean;
@@ -77,6 +82,11 @@ let psRestart: NodeJS.Timeout | null = null;
 let lastProcs: Proc[] = [];
 let lastThumb: string | undefined;
 let lastThumbKey = '';
+/** Windows medya denetimlerinden / pencere başlığından okunan son şarkı */
+let localMedia: DetectedMedia | null = null;
+/** Spotify hesabından okunan şarkı */
+let accountMedia: DetectedMedia | null = null;
+const accountArt = new Map<string, string | null>();
 let lolTimer: NodeJS.Timeout | null = null;
 let streamTimer: NodeJS.Timeout | null = null;
 const iconCache = new Map<string, string>();
@@ -88,7 +98,7 @@ interface Proc {
   s?: number;
 }
 
-const emit = () => send({ ...state, streams: [...state.streams] });
+const emit = () => send({ ...state, streams: [...state.streams], spotify: spotifyStatus() });
 
 // ---------------------------------------------------------------------------
 // PowerShell izleyicisi: 4 saniyede bir pencereli süreçler + medya oturumu; yalnız değişince yazar.
@@ -358,7 +368,8 @@ async function onSample(o: { p?: Proc | Proc[]; m?: any; th?: string | null; tk?
     game.state = prevGame.state;
     game.matchStart = prevGame.matchStart;
   }
-  state = { ...state, game, media, mediaOk: !!o.ok, sessions: arr(o.s).slice(0, 8), mediaErr: o.e ? String(o.e).slice(0, 200) : undefined };
+  localMedia = media;
+  state = { ...state, game, media: pickMedia(), mediaFrom: accountMedia?.playing ? 'account' : media ? 'windows' : undefined, mediaOk: !!o.ok, sessions: arr(o.s).slice(0, 8), mediaErr: o.e ? String(o.e).slice(0, 200) : undefined };
   syncLol();
   emit();
 }
@@ -480,9 +491,10 @@ function withOnlineArt(media: DetectedMedia) {
     artPending.delete(key);
     if (artCache.size > 300) artCache.clear();
     artCache.set(key, art);
-    const cur = state.media;
+    const cur = localMedia;
     if (art && cur && !cur.art && cur.title === media.title && (cur.artist || '') === (media.artist || '')) {
-      state = { ...state, media: { ...cur, art } };
+      localMedia = { ...cur, art };
+      state = { ...state, media: pickMedia() };
       emit();
     }
   })();
@@ -714,6 +726,7 @@ function loadFake() {
     if (state.game && !state.game.start) state.game.start = Date.now() - 23 * 60_000;
     if (state.game?.matchStart) state.game.matchStart = Date.now() - state.game.matchStart;
     for (const s of state.streams) if (s.start && s.start < 1e9) s.start = Date.now() - s.start;
+    localMedia = state.media;
     if (state.media && !state.media.art) withOnlineArt(state.media);
   } catch {
     /* sahte veri yok */
@@ -722,11 +735,60 @@ function loadFake() {
 
 export function initActivity(sender: (s: ActivityState) => void) {
   send = sender;
+  initSpotify(onAccountTrack, () => emit());
   if (process.env.KOVAN_FAKE_ACTIVITY) loadFake();
 }
 
 export function getActivity(): ActivityState {
-  return state;
+  return { ...state, spotify: spotifyStatus() };
+}
+
+// ---------------------------------------------------------------------------
+// Spotify hesabı: çalıyorsa Windows'tan okunanın önüne geçer (Retrofy, telefon, web çalar dahil her yerden dinleneni görür)
+function pickMedia(): DetectedMedia | null {
+  if (accountMedia?.playing) return accountMedia;
+  return localMedia || accountMedia;
+}
+
+function onAccountTrack(t: SpotifyTrack | null) {
+  if (!t || !t.title) accountMedia = null;
+  else {
+    const art = t.artUrl ? accountArt.get(t.artUrl) : undefined;
+    accountMedia = {
+      app: 'Spotify',
+      src: 'spotify',
+      appName: 'Spotify',
+      title: t.title,
+      artist: t.artist,
+      album: t.album,
+      playing: t.playing,
+      pos: t.pos,
+      dur: t.dur,
+      at: t.at,
+      art: art || undefined,
+    };
+    if (t.artUrl && art === undefined && (/^https:\/\//.test(t.artUrl) || (!!process.env.KOVAN_SPOTIFY_TEST && t.artUrl.startsWith(process.env.KOVAN_SPOTIFY_TEST)))) {
+      const url = t.artUrl;
+      accountArt.set(url, null);
+      net
+        .fetch(url, { headers: { 'user-agent': UA } })
+        .then(async (r) => (r.ok ? resizeArt(Buffer.from(await r.arrayBuffer()).toString('base64')) || null : null))
+        .catch(() => null)
+        .then((a) => {
+          if (accountArt.size > 200) accountArt.clear();
+          if (!a) return accountArt.delete(url);
+          accountArt.set(url, a);
+          if (accountMedia && t.artUrl === url) (accountMedia = { ...accountMedia, art: a }), (state = { ...state, media: pickMedia() }), emit();
+        });
+    }
+    // hesap kapak vermediyse (yerel dosya) internetten bul
+    if (!t.artUrl) withOnlineArt(accountMedia);
+  }
+  // ilerleme her yoklamada değişir; yalnız şarkı, durum, kapak ya da atlama (başlangıç anı kayması) olunca gönder
+  const sig = (m: DetectedMedia | null) => (m ? [m.title, m.artist, m.playing, m.art ? 1 : 0, Math.round(((m.at || 0) - (m.pos || 0)) / 3000)].join('|') : '');
+  const before = sig(state.media);
+  state = { ...state, media: pickMedia(), mediaFrom: accountMedia?.playing ? 'account' : localMedia ? 'windows' : undefined };
+  if (before !== sig(state.media)) emit();
 }
 
 export function configureActivity(next: ActivityConfig) {
@@ -739,8 +801,10 @@ export function configureActivity(next: ActivityConfig) {
     streams: (next.streams || []).filter((s) => s.svc === 'kick' || s.svc === 'twitch').map((s) => ({ svc: s.svc, name: String(s.name).slice(0, 48) })),
   };
   if (process.env.KOVAN_FAKE_ACTIVITY) return emit();
+  setSpotifyPolling(cfg.enabled);
   if (!cfg.enabled) {
     stopWatcher();
+    localMedia = null;
     state = { ...state, game: null, media: null, streams: [] };
     syncLol();
     syncStreams();
@@ -798,6 +862,7 @@ export async function runningApps(): Promise<RunningApp[]> {
 }
 
 export function stopActivity() {
+  setSpotifyPolling(false);
   stopWatcher();
   if (lolTimer) clearInterval(lolTimer);
   if (streamTimer) clearInterval(streamTimer);
