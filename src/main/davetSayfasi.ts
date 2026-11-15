@@ -52,7 +52,7 @@ export function invitePageHeaders(nonce: string): Record<string, string> {
     'x-robots-tag': 'noindex',
     // xanaphian.com'daki aktarıcı bu başlığa bakarak yanıtın gerçekten davet sayfası olduğunu anlar (server/site/)
     'x-xanaphian-davet': '1',
-    'content-security-policy': `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src 'self' ${new URL(INVITE_LINK_BASE).origin} ${new URL(OFFICIAL_SERVER).origin}; media-src 'self' ${new URL(OFFICIAL_SERVER).origin}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    'content-security-policy': `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src 'self' ${new URL(INVITE_LINK_BASE).origin} ${new URL(OFFICIAL_SERVER).origin}; media-src 'self' ${new URL(OFFICIAL_SERVER).origin}; font-src ${new URL(OFFICIAL_SERVER).origin}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   };
 }
 
@@ -81,7 +81,7 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
       ${info.about ? `<p class="ab">${esc(info.about)}</p>` : ''}
       <p class="st"><span class="pl"><i class="on"></i>${info.online} çevrimiçi</span><span class="pl"><i></i>${info.members} üye</span></p>
       <a class="b" id="ac" href="${esc(appLink)}">Xanaphian'da aç</a>
-      <p class="n" id="not">Uygulama kuruluysa birkaç saniye içinde açılır.</p>
+      <p class="n" id="not">Uygulama kuruluysa düğmeye basınca açılır.</p>
       <div class="sep"><span>uygulaman yok mu?</span></div>
       <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Xanaphian'ı indir</a>
       <p class="n kc">Uygulamada <b>Bir topluluğa katıl</b> kutusuna bu bağlantıyı da yapıştırabilirsin<code>${esc(link.replace(/^https?:\/\//, ''))}</code></p>`
@@ -105,6 +105,8 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
 <meta property="og:url" content="${esc(link)}">
 ${hasIcon ? `<meta property="og:image" content="${esc(iconUrl)}">\n<meta name="twitter:card" content="summary">` : ''}
 <style>
+@font-face{font-family:'Rubik';font-style:normal;font-weight:300 900;font-display:swap;src:url(${OFFICIAL_SERVER}/davet-yazi/ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Rubik';font-style:normal;font-weight:300 900;font-display:swap;src:url(${OFFICIAL_SERVER}/davet-yazi/latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 *{box-sizing:border-box}
 html,body{min-height:100%;margin:0}
 body{--c:${color};background:#0d0f14;color:#e9ebf1;font:16px/1.55 Rubik,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 16px;position:relative;overflow-x:hidden;-webkit-font-smoothing:antialiased}
@@ -155,15 +157,16 @@ ${bgLayer}
 <p class="ft">Xanaphian · Arkadaşlarınla sohbet et, oyna, birlikte vakit geçir</p>
 ${info ? `<script nonce="${nonce}">
 (function(){
-  var not=document.getElementById('not');
-  // sayfa açılır açılmaz uygulamayı dene; kurulu değilse tarayıcı hiçbir şey yapmaz ve indirme düğmesi yerinde durur
-  var t;
+  // uygulama kendiliğinden açılmaz (tarayıcı üstte izin penceresi çıkarıp sayfayı örtüyordu); yalnız "Xanaphian'da aç"a basınca açılır
+  var ac=document.getElementById('ac'), not=document.getElementById('not'), t;
+  if(!ac||!not) return;
+  var first=not.textContent;
   window.addEventListener('blur',function(){ clearTimeout(t); not.textContent="Xanaphian açılıyor. Katılma penceresi uygulamada seni bekliyor."; });
-  function ac(){
+  ac.addEventListener('click',function(){
+    clearTimeout(t);
     t=setTimeout(function(){ not.textContent="Xanaphian açılmadı mı? Yüklü değilse aşağıdan indir, sonra bu sayfaya dön."; },2500);
-    try{ location.href=${JSON.stringify(appLink)}; }catch(e){}
-  }
-  if(document.readyState==='complete') setTimeout(ac,100); else window.addEventListener('load',function(){ setTimeout(ac,100); });
+  });
+  window.addEventListener('focus',function(){ clearTimeout(t); not.textContent=first; });
 })();
 </script>` : ''}
 </body>

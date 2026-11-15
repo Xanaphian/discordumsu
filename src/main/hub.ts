@@ -21,6 +21,7 @@ import { PostStore } from './paylasim';
 import { FEAT_POSTS } from '../shared/paylasim';
 import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, TAG_CHANGES_PER_DAY, formatCode, tagKey, parseTag, customCodeError, nameError } from '../shared/etiket';
 import { Ekler, type EkOptions } from './ekler';
+import { RUBIK } from './rubikYazi';
 import { cleanAge, cleanMax, iconBytes, inviteAlive, invitePage, invitePageHeaders } from './davetSayfasi';
 import { FEAT_INVITES, INVITE_BG_MAX, INVITE_BG_RE, MAX_INVITES, inviteBgKind, type Invite, type InviteInfo } from '../shared/davetBaglanti';
 import { cleanAttachments, cleanImportedCommunity, cleanImportedMessage, SAFE_ID, USER_ID } from './ithal';
@@ -420,6 +421,12 @@ export class Hub {
 
   /** GET /davet/<kod> (sayfa), /davet/<kod>/simge (topluluk resmi), /invite/<kod> (JSON özet) */
   private handleInviteHttp(req: http.IncomingMessage, res: http.ServerResponse, url: URL): boolean {
+    const fm = /^\/davet-yazi\/(latin|ext)\.woff2$/.exec(url.pathname);
+    if (fm && req.method === 'GET') {
+      const buf = RUBIK[fm[1] as 'latin' | 'ext'];
+      res.writeHead(200, { 'content-type': 'font/woff2', 'content-length': buf.length, 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': '*', 'x-content-type-options': 'nosniff' }).end(buf);
+      return true;
+    }
     const m = /^\/(davet|invite)\/([A-Za-z0-9]{1,16})(\/simge|\/arkaplan)?\/?$/.exec(url.pathname);
     if (!m || req.method !== 'GET') return false;
     if (this.inviteHttpLimited(req)) return void res.writeHead(429, { 'retry-after': '60' }).end(), true;
