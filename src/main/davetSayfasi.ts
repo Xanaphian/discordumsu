@@ -84,7 +84,7 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
   const icon = info
     ? hasIcon
       ? // göreli adres: sayfa hem xanaphian.com/davet/<kod> hem de sunucunun kendi adresinden açılınca çalışır
-        `<img class="ic" src="${esc(code)}/simge" alt="" width="104" height="104">`
+        `<img class="ic" src="${esc(code)}/simge" alt="" width="124" height="124">`
       : `<div class="ic tx">${esc(initials(info.name))}</div>`
     : `<div class="ic tx bad">!</div>`;
   const body = info
@@ -126,22 +126,22 @@ ${hasIcon ? `<meta property="og:image" content="${esc(iconUrl)}">\n<meta name="t
 *{box-sizing:border-box}
 html,body{min-height:100%;margin:0}
 body{--c:${color};color:#f1f3f8;font:16px/1.55 Rubik,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;display:flex;align-items:center;justify-content:center;padding:28px 16px;position:relative;overflow-x:hidden;-webkit-font-smoothing:antialiased;background:#08090d}
-.bg{position:fixed;inset:-24px;background:${bg.css};${bg.image ? 'filter:blur(7px) saturate(1.1);' : ''}transform:scale(1.04);z-index:0}
-.bg:after{content:"";position:absolute;inset:0;background:radial-gradient(90% 70% at 50% 40%,rgba(8,9,13,.28),rgba(8,9,13,.78)),linear-gradient(180deg,rgba(8,9,13,.35),rgba(8,9,13,.65))}
-main{position:relative;z-index:1;width:100%;max-width:400px;padding:34px 28px 24px;text-align:center;border-radius:24px;background:rgba(14,16,22,.52);border:1px solid rgba(255,255,255,.12);-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:0 30px 80px -20px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.03) inset;animation:in .6s cubic-bezier(.2,.8,.2,1) both}
+.bg{position:fixed;inset:-24px;background:${bg.css};${bg.image ? 'filter:blur(2px) saturate(1.2) brightness(1.05);' : ''}transform:scale(1.04);z-index:0}
+.bg:after{content:"";position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 45%,rgba(8,9,13,.05),rgba(8,9,13,.55)),linear-gradient(180deg,rgba(8,9,13,.12),rgba(8,9,13,.4))}
+main{position:relative;z-index:1;width:100%;max-width:400px;padding:34px 28px 24px;text-align:center;border-radius:28px;background:rgba(10,11,16,.28);border:1px solid rgba(255,255,255,.07);-webkit-backdrop-filter:blur(10px) saturate(1.3);backdrop-filter:blur(10px) saturate(1.3);box-shadow:0 30px 80px -30px rgba(0,0,0,.6);animation:in .6s cubic-bezier(.2,.8,.2,1) both}
 @keyframes in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){main{animation:none}}
-.ic{width:104px;height:104px;border-radius:50%;display:block;margin:0 auto 18px;object-fit:cover;border:3px solid rgba(255,255,255,.85);background:#14161d;box-shadow:0 0 0 6px color-mix(in srgb,var(--c) 30%,transparent),0 10px 40px -4px var(--c)}
+.ic{width:124px;height:124px;border-radius:50%;display:block;margin:0 auto 18px;object-fit:cover;border:3px solid rgba(255,255,255,.85);background:#14161d;box-shadow:0 0 0 6px color-mix(in srgb,var(--c) 30%,transparent),0 10px 40px -4px var(--c)}
 .tx{display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:600;color:#fff;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 50%,#000))}
 .bad{background:#3a2a2e;color:#f0a2ac;box-shadow:none}
 .k{margin:0 0 6px;font-size:11.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62)}
-h1{margin:0;font-size:27px;line-height:1.2;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere;text-shadow:0 0 24px color-mix(in srgb,var(--c) 70%,transparent),0 2px 12px rgba(0,0,0,.5)}
+h1{margin:0;font-size:36px;line-height:1.2;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere;text-shadow:0 0 24px color-mix(in srgb,var(--c) 70%,transparent),0 2px 12px rgba(0,0,0,.5)}
 .ab{margin:10px 0 0;color:rgba(255,255,255,.78);font-size:14.5px;overflow-wrap:anywhere}
 .st{margin:18px 0 24px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;font-size:13.5px;color:rgba(255,255,255,.85)}
 .pl{display:inline-flex;align-items:center;padding:5px 13px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
 .st i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#7c8394;margin-right:7px}
 .st i.on{background:#3fe08f;box-shadow:0 0 10px #3fe08f}
-.row{display:flex;align-items:center;gap:13px;width:100%;margin-top:10px;padding:11px 14px;border-radius:18px;text-align:left;text-decoration:none;color:#f1f3f8;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 8px 24px -12px rgba(0,0,0,.6);transition:transform .14s,background .14s,border-color .14s}
+.row{display:flex;align-items:center;gap:13px;width:100%;margin-top:10px;padding:11px 14px;border-radius:18px;text-align:left;text-decoration:none;color:#f1f3f8;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);transition:transform .14s,background .14s,border-color .14s}
 .row:hover{transform:translateY(-2px);background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.26)}
 .row:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .st+.row{margin-top:0}
@@ -167,7 +167,7 @@ h1{background:linear-gradient(100deg,#fff 0%,#fff 38%,color-mix(in srgb,var(--c)
 @media(prefers-reduced-motion:reduce){.dots,h1{animation:none}}
 .brand{position:fixed;left:0;right:0;bottom:16px;z-index:1;text-align:center;font-size:12px;letter-spacing:.06em;color:rgba(255,255,255,.5)}
 .brand b{color:rgba(255,255,255,.85);font-weight:600}
-@media(max-width:420px){main{padding:30px 20px 22px}h1{font-size:24px}}
+@media(max-width:420px){main{padding:30px 20px 22px}h1{font-size:30px}}
 </style>
 </head>
 <body>
