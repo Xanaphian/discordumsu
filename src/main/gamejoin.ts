@@ -152,10 +152,14 @@ const QUEUES: Record<number, string> = {
   890: 'Yapay Zekâya Karşı',
 };
 
-function lobbyInfo(d: any): LobbyInfo {
+/** lobi üyesinin adını verir: istemci adı vermediyse (yalnız kimlik gönderir) önceden çözülmüş addan alır */
+function lobbyInfo(d: any, resolved?: Map<string, string>): LobbyInfo {
   const gc = d?.gameConfig || {};
   const pos = (x: any) => (typeof x === 'string' && x !== 'UNSELECTED' && x !== 'NONE' ? x : undefined);
-  const name = (m: any) => (m?.gameName ? `${m.gameName}#${m.tagLine || ''}`.replace(/#$/, '') : String(m?.summonerName || 'Oyuncu'));
+  const name = (m: any) =>
+    m?.gameName
+      ? `${m.gameName}#${m.tagLine || ''}`.replace(/#$/, '')
+      : String(m?.summonerName || m?.summonerInternalName || resolved?.get(String(m?.puuid || m?.summonerId)) || 'Oyuncu');
   const members: LobbyMember[] = (Array.isArray(d?.members) ? d.members : []).slice(0, 16).map((m: any) => ({
     n: name(m).slice(0, 40),
     r: pos(m.firstPositionPreference),
@@ -194,9 +198,24 @@ export async function lolState(): Promise<LolState> {
   const lobby = await req(l, 'GET', '/lol-lobby/v2/lobby');
   const id = me.data?.gameName ? `${me.data.gameName}#${me.data.tagLine}` : me.data?.displayName;
   const open = lobby.status === 200;
+  // istemci lobi üyelerinin adını göndermiyorsa tek tek sorgula (önce kendimiz, sonra diğerleri)
+  const resolved = new Map<string, string>();
+  if (open && Array.isArray(lobby.data?.members)) {
+    for (const m of lobby.data.members) {
+      if (m?.gameName || m?.summonerName) continue;
+      const key = String(m?.puuid || m?.summonerId || '');
+      if (!key) continue;
+      if (me.data?.puuid && m.puuid === me.data.puuid && id) { resolved.set(key, id); continue; }
+      const q = m?.puuid ? `/lol-summoner/v2/summoners/puuid/${encodeURIComponent(m.puuid)}` : `/lol-summoner/v1/summoners/${m.summonerId}`;
+      const r = await req(l, 'GET', q);
+      const d = r.status === 200 ? r.data : null;
+      const n = d?.gameName ? `${d.gameName}#${d.tagLine || ''}`.replace(/#$/, '') : d?.displayName || d?.internalName;
+      if (n) resolved.set(key, String(n));
+    }
+  }
   const ph = await req(l, 'GET', '/lol-gameflow/v1/gameflow-phase');
   const phase = ph.status === 200 && typeof ph.data === 'string' ? ph.data : undefined;
-  return { running: true, me: id, lobby: open, phase, info: open ? lobbyInfo(lobby.data) : undefined, lobbyId: open ? String(lobby.data?.partyId || lobby.data?.gameConfig?.queueId || 'lobi') : undefined };
+  return { running: true, me: id, lobby: open, phase, info: open ? lobbyInfo(lobby.data, resolved) : undefined, lobbyId: open ? String(lobby.data?.partyId || lobby.data?.gameConfig?.queueId || 'lobi') : undefined };
 }
 
 /** Riot ID (Ad#Etiket) -> sihirdar kimliği */
