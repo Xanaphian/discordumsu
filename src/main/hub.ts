@@ -398,6 +398,8 @@ export class Hub {
     if (withIcon && c.icon) info.icon = c.icon;
     const about = (c.profile?.tagline || c.description || '').trim().slice(0, 160);
     if (about) info.about = about;
+    const bn = c.profile?.banner;
+    if (bn && (bn.kind !== 'image' || bn.image)) info.bg = { k: bn.kind, a: bn.a, ...(bn.b ? { b: bn.b } : {}), ...(typeof bn.angle === 'number' ? { ang: bn.angle } : {}), ...(typeof bn.x === 'number' ? { x: bn.x } : {}), ...(typeof bn.y === 'number' ? { y: bn.y } : {}), ...(typeof bn.zoom === 'number' ? { z: bn.zoom } : {}) };
     if (r.inv?.exp) info.exp = r.inv.exp;
     if (uid && c.members.some((m) => m.userId === uid)) info.joined = true;
     return info;
@@ -418,12 +420,14 @@ export class Hub {
 
   /** GET /davet/<kod> (sayfa), /davet/<kod>/simge (topluluk resmi), /invite/<kod> (JSON özet) */
   private handleInviteHttp(req: http.IncomingMessage, res: http.ServerResponse, url: URL): boolean {
-    const m = /^\/(davet|invite)\/([A-Za-z0-9]{1,16})(\/simge)?\/?$/.exec(url.pathname);
+    const m = /^\/(davet|invite)\/([A-Za-z0-9]{1,16})(\/simge|\/arkaplan)?\/?$/.exec(url.pathname);
     if (!m || req.method !== 'GET') return false;
     if (this.inviteHttpLimited(req)) return void res.writeHead(429, { 'retry-after': '60' }).end(), true;
     const code = m[2].toLowerCase();
     if (m[3]) {
-      const img = iconBytes(this.inviteInfo(code)?.icon);
+      const found = this.findInvite(code);
+      const live = found && !found.c.invitesPaused ? found.c : null;
+      const img = iconBytes(m[3] === '/arkaplan' ? (live?.profile?.banner?.kind === 'image' ? live.profile.banner.image : undefined) : live?.icon);
       if (!img) return void res.writeHead(404).end(), true;
       res.writeHead(200, { 'content-type': img.mime, 'content-length': img.buf.length, 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox" }).end(img.buf);
       return true;
