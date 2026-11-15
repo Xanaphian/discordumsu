@@ -121,6 +121,8 @@ export interface LobbyMember {
   /** ikinci tercih */
   r2?: string;
   lead?: boolean;
+  /** LoL profil simgesi numarası (yoksa boş) */
+  i?: number;
 }
 export interface LobbyInfo {
   queueId?: number;
@@ -153,7 +155,7 @@ const QUEUES: Record<number, string> = {
 };
 
 /** lobi üyesinin adını verir: istemci adı vermediyse (yalnız kimlik gönderir) önceden çözülmüş addan alır */
-function lobbyInfo(d: any, resolved?: Map<string, string>): LobbyInfo {
+function lobbyInfo(d: any, resolved?: Map<string, string>, icons?: Map<string, number>): LobbyInfo {
   const gc = d?.gameConfig || {};
   const pos = (x: any) => (typeof x === 'string' && x !== 'UNSELECTED' && x !== 'NONE' ? x : undefined);
   const name = (m: any) =>
@@ -165,6 +167,7 @@ function lobbyInfo(d: any, resolved?: Map<string, string>): LobbyInfo {
     r: pos(m.firstPositionPreference),
     r2: pos(m.secondPositionPreference),
     lead: !!m.isLeader || undefined,
+    i: Number(m.summonerIconId || m.profileIconId || icons?.get(String(m?.puuid || m?.summonerId))) || undefined,
   }));
   const qid = Number(gc.queueId) || undefined;
   return {
@@ -200,22 +203,28 @@ export async function lolState(): Promise<LolState> {
   const open = lobby.status === 200;
   // istemci lobi üyelerinin adını göndermiyorsa tek tek sorgula (önce kendimiz, sonra diğerleri)
   const resolved = new Map<string, string>();
+  const icons = new Map<string, number>();
   if (open && Array.isArray(lobby.data?.members)) {
     for (const m of lobby.data.members) {
-      if (m?.gameName || m?.summonerName) continue;
       const key = String(m?.puuid || m?.summonerId || '');
       if (!key) continue;
-      if (me.data?.puuid && m.puuid === me.data.puuid && id) { resolved.set(key, id); continue; }
+      if (me.data?.puuid && m.puuid === me.data.puuid) {
+        if (id) resolved.set(key, id);
+        if (me.data?.profileIconId) icons.set(key, Number(me.data.profileIconId));
+        continue;
+      }
+      if ((m?.gameName || m?.summonerName) && (m.summonerIconId || m.profileIconId)) continue;
       const q = m?.puuid ? `/lol-summoner/v2/summoners/puuid/${encodeURIComponent(m.puuid)}` : `/lol-summoner/v1/summoners/${m.summonerId}`;
       const r = await req(l, 'GET', q);
       const d = r.status === 200 ? r.data : null;
       const n = d?.gameName ? `${d.gameName}#${d.tagLine || ''}`.replace(/#$/, '') : d?.displayName || d?.internalName;
       if (n) resolved.set(key, String(n));
+      if (d?.profileIconId) icons.set(key, Number(d.profileIconId));
     }
   }
   const ph = await req(l, 'GET', '/lol-gameflow/v1/gameflow-phase');
   const phase = ph.status === 200 && typeof ph.data === 'string' ? ph.data : undefined;
-  return { running: true, me: id, lobby: open, phase, info: open ? lobbyInfo(lobby.data, resolved) : undefined, lobbyId: open ? String(lobby.data?.partyId || lobby.data?.gameConfig?.queueId || 'lobi') : undefined };
+  return { running: true, me: id, lobby: open, phase, info: open ? lobbyInfo(lobby.data, resolved, icons) : undefined, lobbyId: open ? String(lobby.data?.partyId || lobby.data?.gameConfig?.queueId || 'lobi') : undefined };
 }
 
 /** Riot ID (Ad#Etiket) -> sihirdar kimliği */
