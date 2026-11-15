@@ -12,6 +12,8 @@ export interface LobbyMember {
   r?: string;
   r2?: string;
   lead?: boolean;
+  /** LoL profil simgesi numarası */
+  i?: number;
 }
 export interface LobbyInfo {
   queueId?: number;
