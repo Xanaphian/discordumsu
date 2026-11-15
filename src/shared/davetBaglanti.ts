@@ -44,6 +44,8 @@ export interface InviteInfo {
   /** soran kişi zaten üye (yalnız uygulama içinden sorulunca) */
   joined?: boolean;
   exp?: number;
+  /** davet sayfasının arka planı: topluluk profilindeki afişten (resim ayrı adresten sunulur) */
+  bg?: { k: 'solid' | 'gradient' | 'image'; a: string; b?: string; ang?: number; x?: number; y?: number; z?: number };
 }
 
 export const INVITE_AGES: { s: number; label: string }[] = [
