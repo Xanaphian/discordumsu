@@ -695,6 +695,8 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
       { label: isMutedId(c.id) ? 'Bildirimleri aç' : 'Sessize al', onClick: () => toggleMuted(c.id) },
       { sep: true },
       { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
+      { sep: true },
+      ...memberMenu(c, useStore.getState().me.id, c.dm!, { noProfile: true, dm: true }),
     ]);
   return (
     <div className={cx('ch-row dm-row', active && 'active', unread && 'unread', pinned && 'pinned')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} role="button" tabIndex={0}>

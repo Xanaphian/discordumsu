@@ -12,7 +12,7 @@ import { can, canEditRole, isTimedOut, isVoiceLike, outranks, Perm, type Communi
 const close = () => openModal(null);
 
 /** Bir üye için sağ tık menüsü (üye listesi, ayarlar, profil kartı) — Discord'daki sırayla */
-export function memberMenu(c: Community, me: string, uid: string, opts: { noProfile?: boolean; at?: { x: number; y: number }; onMention?: () => void } = {}): MenuItem[] {
+export function memberMenu(c: Community, me: string, uid: string, opts: { noProfile?: boolean; at?: { x: number; y: number }; onMention?: () => void; dm?: boolean } = {}): MenuItem[] {
   const st = useStore.getState();
   const m = c.members.find((x) => x.userId === uid);
   const name = displayName(c, uid, st.users);
@@ -72,6 +72,7 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
 
   // 4) topluluk: takma ad ve roller
   const comm: MenuItem[] = [];
+  if (!opts.dm) {
   if ((self && (can(c, me, Perm.CHANGE_NICKNAME) || can(c, me, Perm.MANAGE_NICKNAMES))) || (!self && (can(c, me, Perm.MANAGE_NICKNAMES) || can(c, me, Perm.MANAGE_ROLES)) && outranks(c, me, uid)))
     comm.push({ label: self ? 'Takma adını değiştir' : 'Takma adı değiştir', onClick: () => openModal({ type: 'moderate', cid: c.id, uid, action: 'nick' }) });
   if (can(c, me, Perm.MANAGE_ROLES) && m) {
@@ -92,11 +93,12 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
       ],
     });
   }
+  }
   if (comm.length) items.push({ sep: true }, ...comm);
 
   // 5) moderasyon
   const mod: MenuItem[] = [];
-  if (!self && m && outranks(c, me, uid)) {
+  if (!opts.dm && !self && m && outranks(c, me, uid)) {
     if (can(c, me, Perm.TIMEOUT))
       mod.push(
         isTimedOut(m)
