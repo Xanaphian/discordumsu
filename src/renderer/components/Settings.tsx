@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleCheck, Mic } from 'lucide-react';
 import {
-  useStore, openModal, moveToServer, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT, escBusy,
+  useStore, openModal, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT, escBusy,
 } from '../lib/store';
 import { VoiceTab } from './VoiceSettings';
 import { Avatar, CommunityIcon, Toggle, Logo, STATUS_LABEL } from './Common';
@@ -111,15 +111,8 @@ function NotificationsTab() {
 }
 
 function ConnectionTab() {
-  const info = useStore((x) => x.info);
-  const s = useStore((x) => x.settings);
   const conns = useStore((x) => x.conns);
-  const commHost = useStore((x) => x.commHost);
-  const communities = useStore((x) => x.communities);
-  const [pub, setPub] = useState(s.publicAddress);
   const home = Object.values(conns).find((c) => c.home);
-  const local = Object.values(conns).find((c) => c.local);
-  const localComms = local ? Object.values(communities).filter((c) => !c.dm && commHost[c.id] === local.host) : [];
   const others = Object.values(conns).filter((c) => !c.local && !c.home);
   const stText = (st?: string) => (st === 'online' ? 'Bağlı' : st === 'connecting' ? 'Bağlanıyor…' : 'Bağlantı yok');
   return (
@@ -140,25 +133,6 @@ function ConnectionTab() {
       <p className="note">
         Toplulukların, mesajların ve dosyaların sunucuda durur; bilgisayarın kapalıyken de arkadaşların sohbet etmeye devam eder. Sesli sohbet ve ekran paylaşımı kişiler arasında doğrudan akar.
       </p>
-      {localComms.length > 0 && <LocalCommunities comms={localComms} />}
-      {localComms.length > 0 && (
-        <label className="field" style={{ marginTop: 18 }}>
-          <span>Bilgisayarındaki topluluklar için dış adres (isteğe bağlı)</span>
-          <div className="copy-row">
-            <input placeholder="ör. 85.100.20.30 veya alanadi.com:47820" value={pub} onChange={(e) => setPub(e.target.value)} />
-            <button
-              className="btn primary"
-              onClick={() => {
-                updateSettings({ publicAddress: pub.trim() });
-                toast('Kaydedildi.', 'ok');
-              }}
-            >
-              Kaydet
-            </button>
-          </div>
-          <small className="note">Yalnızca sunucuya taşımadığın, bilgisayarında duran topluluklar için. Port: {info?.hubPort}.</small>
-        </label>
-      )}
       {others.length > 0 && (
         <>
           <h3>Bağlı olduğun diğer sunucular</h3>
@@ -183,49 +157,6 @@ function ConnectionTab() {
           </div>
         </>
       )}
-    </>
-  );
-}
-
-function LocalCommunities({ comms }: { comms: Community[] }) {
-  const me = useStore((x) => x.me.id);
-  const [busy, setBusy] = useState('');
-  const move = (c: Community) =>
-    confirmDialog(
-      `"${c.name}" sunucuya taşınsın mı?`,
-      'Kanallar, roller, üyeler, mesajlar ve dosyalar sunucuya kopyalanır. Üyeler topluluğu sunucuda görmeye devam eder; bilgisayarın kapalıyken de sohbet sürer. Bilgisayarındaki kopya yedek olarak kalır.',
-      async () => {
-        setBusy(c.id);
-        try {
-          const r = await moveToServer(c.id);
-          toast(r.failed ? `"${c.name}" taşındı, ${r.failed} dosya aktarılamadı.` : `"${c.name}" sunucuya taşındı.`, 'ok');
-        } catch (e) {
-          toast((e as Error).message, 'err');
-        }
-        setBusy('');
-      },
-      'Taşı',
-      false,
-    );
-  return (
-    <>
-      <h3>Bilgisayarında duran topluluklar</h3>
-      <div className="list-card">
-        {comms.map((c) => (
-          <div key={c.id} className="lc-row">
-            <span className="dot online" />
-            <div className="lc-text">
-              <b>{c.name}</b>
-              <span>{c.members.length} üye · bilgisayarın kapanınca ulaşılamaz</span>
-            </div>
-            {c.ownerId === me && (
-              <button className="btn primary sm" disabled={!!busy} onClick={() => move(c)}>
-                {busy === c.id ? 'Taşınıyor…' : 'Sunucuya taşı'}
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
     </>
   );
 }

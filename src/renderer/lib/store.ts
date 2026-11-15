@@ -1592,6 +1592,20 @@ export async function moveToServer(cid: ID) {
   return r;
 }
 
+/** Bilgisayarda kalmış eski topluluklar (sahibi sensen) açılışta kendiliğinden sunucuya taşınır; elle bir şey yapmak gerekmez. */
+const autoMoving = new Set<ID>();
+useStore.subscribe((st) => {
+  const local = localHost();
+  if (!local || !st.onboarded) return;
+  for (const c of Object.values(st.communities)) {
+    if (c.dm || st.commHost[c.id] !== local || c.ownerId !== st.me.id || autoMoving.has(c.id)) continue;
+    autoMoving.add(c.id);
+    moveToServer(c.id)
+      .then((r) => toast(r.failed ? `"${c.name}" sunucuya taşındı, ${r.failed} dosya aktarılamadı.` : `"${c.name}" artık sunucuda; bilgisayarın kapalıyken de açık.`, 'ok'))
+      .catch((e) => (autoMoving.delete(c.id), console.warn('otomatik taşıma', e)));
+  }
+});
+
 export async function createCommunity(name: string, color: string, icon?: string, blueprint?: Blueprint) {
   const home = homeHost();
   const conn = conns.get(home);
