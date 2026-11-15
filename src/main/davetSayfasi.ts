@@ -88,22 +88,20 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
       : `<div class="ic tx">${esc(initials(info.name))}</div>`
     : `<div class="ic tx bad">!</div>`;
   const body = info
-    ? `<p class="k">Bir topluluğa davet edildin</p>
-      <h1>${esc(info.name)}</h1>
+    ? `<div class="nm"><i class="sp s1"></i><i class="sp s2"></i><i class="sp s3"></i><i class="sp s4"></i><i class="sp s5"></i><h1>${esc(info.name)}</h1></div>
+      <div class="stat">
+        ${icon}
+        <div class="sx"><b>Bir topluluğa davet edildin</b><span><i class="on"></i>${info.online} çevrimiçi · ${info.members} üye</span></div>
+      </div>
       ${info.about ? `<p class="ab">${esc(info.about)}</p>` : ''}
-      <p class="st"><span class="pl"><i class="on"></i>${info.online} çevrimiçi</span><span class="pl"><i></i>${info.members} üye</span></p>
-      <a class="row" id="ac" href="${esc(appLink)}">
-        <span class="ri">${hasIcon ? `<img src="${esc(code)}/simge" alt="" width="46" height="46">` : esc(initials(info.name))}</span>
-        <span class="rt"><b>Xanaphian'da aç</b><em id="not">Uygulamayı aç ve topluluğa katıl</em></span>
-        <svg class="rc" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
-      </a>
-      <a class="row" href="${esc(DOWNLOAD_URL)}" rel="noopener">
-        <span class="ri dl"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg></span>
-        <span class="rt"><b>Xanaphian'ı indir</b><em>Uygulaman yoksa buradan al</em></span>
-        <svg class="rc" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
-      </a>
-      <p class="n kc">Ya da uygulamada <b>Bir topluluğa katıl</b> kutusuna yapıştır<code>${esc(link.replace(/^https?:\/\//, ''))}</code></p>`
-    : `<h1>Davet geçersiz</h1>
+      <div class="ibs">
+        <a class="ib" id="ac" href="${esc(appLink)}" title="Xanaphian'da aç"><span class="bx"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></span><em>Aç</em></a>
+        <a class="ib" href="${esc(DOWNLOAD_URL)}" rel="noopener" title="Xanaphian'ı indir"><span class="bx"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg></span><em>İndir</em></a>
+        <button class="ib" id="cp" type="button" data-l="${esc(link)}" title="Bağlantıyı kopyala"><span class="bx"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg></span><em>Kopyala</em></button>
+      </div>
+      <p class="n" id="not">Uygulamayı aç ve topluluğa katıl</p>
+      <p class="n kc">${esc(link.replace(/^https?:\/\//, ''))}</p>`
+    : `${icon}<h1>Davet geçersiz</h1>
       <p class="ab">Bu davet bağlantısı geçersiz ya da süresi dolmuş. Seni davet eden kişiden yeni bir bağlantı iste.</p>
       <a class="row" href="${esc(DOWNLOAD_URL)}" rel="noopener"><span class="ri dl"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg></span><span class="rt"><b>Xanaphian'ı indir</b><em>Uygulaman yoksa buradan al</em></span></a>`;
   return `<!doctype html>
@@ -168,6 +166,31 @@ h1{background:linear-gradient(100deg,#fff 0%,#fff 38%,color-mix(in srgb,var(--c)
 .brand{position:fixed;left:0;right:0;bottom:16px;z-index:1;text-align:center;font-size:12px;letter-spacing:.06em;color:rgba(255,255,255,.5)}
 .brand b{color:rgba(255,255,255,.85);font-weight:600}
 @media(max-width:420px){main{padding:30px 20px 22px}h1{font-size:30px}}
+
+main{max-width:460px;background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:10px 12px}
+.bg:after{background:radial-gradient(75% 65% at 50% 48%,rgba(6,7,10,.25),rgba(6,7,10,.78)),linear-gradient(180deg,rgba(6,7,10,.3),rgba(6,7,10,.55))}
+body:after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 1px,transparent 1px 3px)}
+.nm{position:relative;display:inline-block;margin:0 auto 22px}
+h1{font-size:clamp(40px,10vw,66px);font-weight:500;letter-spacing:-.02em}
+.sp{position:absolute;width:5px;height:5px;border-radius:50%;background:#fff;box-shadow:0 0 8px 2px color-mix(in srgb,var(--c) 70%,#fff);opacity:0;animation:tw 3.2s ease-in-out infinite}
+.s1{left:-6px;top:-4px}.s2{right:8%;top:-10px;animation-delay:.7s}.s3{right:-10px;top:42%;animation-delay:1.4s}.s4{left:18%;bottom:-8px;animation-delay:2s}.s5{left:-12px;top:55%;animation-delay:2.6s}
+@keyframes tw{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:1;transform:scale(1.2)}}
+.stat{display:flex;align-items:center;justify-content:center;gap:14px;text-align:left;margin:0 auto}
+.stat .ic{width:62px;height:62px;margin:0;border-width:2px;box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 28%,transparent),0 0 30px -2px var(--c);font-size:22px}
+.sx{display:flex;flex-direction:column;line-height:1.35}
+.sx b{font-size:19px;font-weight:600}
+.sx span{font-size:13.5px;color:rgba(255,255,255,.72);display:flex;align-items:center}
+.sx i{width:8px;height:8px;border-radius:50%;background:#3fe08f;box-shadow:0 0 10px #3fe08f;margin-right:7px}
+.ab{margin:16px auto 0;max-width:380px}
+.ibs{display:flex;justify-content:center;gap:18px;margin:34px 0 6px}
+.ib{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;color:#fff;transition:transform .16s}
+.ib:hover{transform:translateY(-4px) scale(1.06)}
+.ib:focus-visible{outline:2px solid #fff;outline-offset:4px;border-radius:14px}
+.bx{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);box-shadow:0 0 22px -2px color-mix(in srgb,var(--c) 70%,transparent),inset 0 0 14px rgba(255,255,255,.06);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.ib em{font-style:normal;font-size:12px;color:rgba(255,255,255,.7)}
+.n{text-align:center}
+.kc{border:0;padding:0;margin-top:6px;font:12px ui-monospace,Consolas,monospace;color:rgba(255,255,255,.4)}
+@media(max-width:420px){h1{font-size:40px}}
 </style>
 </head>
 <body>
@@ -175,13 +198,18 @@ h1{background:linear-gradient(100deg,#fff 0%,#fff 38%,color-mix(in srgb,var(--c)
 <div class="dots"></div>
 ${info ? `<div class="views" title="Üye sayısı"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>${info.members}</div>` : ''}
 <main id="card">
-      ${icon}
       ${body}
 </main>
 <div class="brand"><b>Xanaphian</b> · arkadaşlarınla sohbet et, oyna</div>
 ${info ? `<script nonce="${nonce}">
 (function(){
   // uygulama kendiliğinden açılmaz (tarayıcı üstte izin çubuğu çıkarıp sayfayı örtüyordu); yalnız "Xanaphian'da aç"a basınca açılır
+  var cp=document.getElementById('cp');
+  if(cp) cp.addEventListener('click',function(){
+    var l=cp.getAttribute('data-l'), em=cp.querySelector('em'), o=em.textContent;
+    function ok(){ em.textContent='Kopyalandı'; setTimeout(function(){ em.textContent=o; },1600); }
+    try{ navigator.clipboard.writeText(l).then(ok,function(){}); }catch(e){}
+  });
   var ac=document.getElementById('ac'), not=document.getElementById('not'), t;
   if(!ac||!not) return;
   var first=not.textContent;
