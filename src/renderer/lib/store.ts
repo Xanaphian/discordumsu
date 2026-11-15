@@ -271,7 +271,7 @@ export type Modal =
   | { type: 'notify'; cid: ID; chId?: ID }
   | { type: 'moderate'; cid: ID; uid: ID; action: 'kick' | 'ban' | 'timeout' | 'nick' }
   | { type: 'createCategory'; cid: ID; catId?: ID }
-  | { type: 'confirm'; title: string; body: string; confirmText?: string; danger?: boolean; onConfirm: () => void }
+  | { type: 'confirm'; title: string; body: string; confirmText?: string; cancelText?: string; danger?: boolean; onConfirm: () => void }
   | { type: 'image'; src: string; name: string }
   | { type: 'forward'; cid: ID; chId: ID; id: ID }
   | { type: 'quick' }

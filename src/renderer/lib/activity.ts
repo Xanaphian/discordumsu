@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import type { ID } from '../../shared/protocol';
 import type { LiveActivity, RecentActivity } from '../../shared/profile';
 import { IS_POPOUT } from './popout';
-import { useStore, actHooks, sendAll, sendHost, updateProfile, toast, type Settings } from './store';
+import { useStore, actHooks, sendAll, sendHost, updateProfile, toast, openModal, type Settings } from './store';
 
 export interface DetectedState {
   supported: boolean;
@@ -408,7 +408,16 @@ async function playAlong(a: LiveActivity, first: boolean) {
   // aynı uyarıyı her şarkıda tekrarlama
   if (!first && warned === r.code) return;
   warned = r.code || '';
-  if (r.code === 'noauth') toast('Şarkının senin Spotify\'ında da çalması için Ayarlar > Etkinlik\'ten Spotify hesabını bağla. Şimdilik ne dinlediğini kenarda görüyorsun.', 'info');
+  if (r.code === 'noauth')
+    openModal({
+      type: 'confirm',
+      title: 'Spotify bağlı değil',
+      body: "Spotify'ınızın bağlanması için sizi Ayarlar > Etkinlik sayfasına yönlendiriyorum.",
+      confirmText: 'Tamam',
+      cancelText: 'İptal',
+      danger: false,
+      onConfirm: () => openModal({ type: 'settings', tab: 'activity' }),
+    });
   else toast(r.error || 'Spotify çalmadı.', r.code === 'notfound' ? 'info' : 'err');
 }
 
