@@ -271,7 +271,7 @@ export type Modal =
   | { type: 'notify'; cid: ID; chId?: ID }
   | { type: 'moderate'; cid: ID; uid: ID; action: 'kick' | 'ban' | 'timeout' | 'nick' }
   | { type: 'createCategory'; cid: ID; catId?: ID }
-  | { type: 'confirm'; title: string; body: string; confirmText?: string; danger?: boolean; onConfirm: () => void }
+  | { type: 'confirm'; title: string; body: string; confirmText?: string; cancelText?: string; danger?: boolean; onConfirm: () => void }
   | { type: 'image'; src: string; name: string }
   | { type: 'forward'; cid: ID; chId: ID; id: ID }
   | { type: 'quick' }
@@ -1591,6 +1591,20 @@ export async function moveToServer(cid: ID) {
   if (!r.ok) throw new Error(r.error || 'Taşınamadı.');
   return r;
 }
+
+/** Bilgisayarda kalmış eski topluluklar (sahibi sensen) açılışta kendiliğinden sunucuya taşınır; elle bir şey yapmak gerekmez. */
+const autoMoving = new Set<ID>();
+useStore.subscribe((st) => {
+  const local = localHost();
+  if (!local || !st.onboarded) return;
+  for (const c of Object.values(st.communities)) {
+    if (c.dm || st.commHost[c.id] !== local || c.ownerId !== st.me.id || autoMoving.has(c.id)) continue;
+    autoMoving.add(c.id);
+    moveToServer(c.id)
+      .then((r) => toast(r.failed ? `"${c.name}" sunucuya taşındı, ${r.failed} dosya aktarılamadı.` : `"${c.name}" artık sunucuda; bilgisayarın kapalıyken de açık.`, 'ok'))
+      .catch((e) => (autoMoving.delete(c.id), console.warn('otomatik taşıma', e)));
+  }
+});
 
 export async function createCommunity(name: string, color: string, icon?: string, blueprint?: Blueprint) {
   const home = homeHost();

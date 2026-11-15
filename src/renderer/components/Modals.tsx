@@ -465,7 +465,7 @@ function ConfirmModal({ m }: { m: Extract<ModalT, { type: 'confirm' }> }) {
       </div>
       <div className="modal-foot">
         <button className="btn ghost" onClick={close}>
-          Vazgeç
+          {m.cancelText || 'Vazgeç'}
         </button>
         <button
           autoFocus

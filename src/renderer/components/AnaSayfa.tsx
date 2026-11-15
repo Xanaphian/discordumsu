@@ -8,10 +8,11 @@ import {
 } from 'lucide-react';
 import {
   useStore, openModal, selectCommunity, selectChannel, setHomeTab, realCommunities, dmList, hiddenDms, isDmHidden, openDm,
-  acceptFriend, removeFriend, markRead, loadHistory, plainText, homeRequest, toast, type State,
+  acceptFriend, removeFriend, markRead, loadHistory, plainText, homeRequest, toast, openMenu, confirmDialog, type State,
 } from '../lib/store';
 import { useVoice, joinVoice } from '../lib/voice';
-import { useActs } from '../lib/activity';
+import { useActs, startAlong, openInSpotify } from '../lib/activity';
+import { callUser, toggleBlock } from './Moderation';
 import { parseCard, lfgSlots, type LfgCard } from '../lib/cards';
 import { Avatar, CommunityIcon, STATUS_LABEL } from './Common';
 import { ChannelGlyph } from './OdaResmi';
@@ -559,8 +560,21 @@ function FriendLine({ u, status }: { u: UserPublic; status: State['presence'][st
   const hasAct = useActs((s) => !!s.acts[u.id]?.length);
   const inVoice = useStore((s) => Object.values(s.voice).some((l) => l?.some((m) => m.userId === u.id)));
   const cs = activeCustom(u.profile);
+  const menu = (e: React.MouseEvent) => {
+    const song = useActs.getState().acts[u.id]?.find((a) => a.kind === 'listening' && a.src === 'spotify');
+    const blocked = useStore.getState().settings.blocked.includes(u.id);
+    openMenu(e, [
+      { label: 'Profil', onClick: () => openModal({ type: 'profile', uid: u.id }) },
+      { label: 'Mesaj', onClick: () => openDm(u.id) },
+      { label: 'Ara', onClick: () => callUser(u.id) },
+      ...(song ? [{ sep: true } as const, { label: 'Beraber dinle', onClick: () => startAlong(u.id) }, { label: "Şarkıyı Spotify'da aç", onClick: () => openInSpotify(song) }] : []),
+      { sep: true },
+      { label: blocked ? 'Engeli kaldır' : 'Engelle', danger: !blocked, onClick: () => toggleBlock(u.id, u.name) },
+      { label: 'Arkadaşlıktan çıkar', danger: true, onClick: () => confirmDialog(`${u.name} arkadaşlıktan çıkarılsın mı?`, 'Ortak topluluğunuz varsa yine yazışabilirsiniz.', () => removeFriend(u.id), 'Çıkar') },
+    ]);
+  };
   return (
-    <div className="ah-fr" onClick={(e) => useStore.setState({ popout: { uid: u.id, x: e.clientX - 320, y: e.clientY - 40 } })} role="button">
+    <div className="ah-fr" onContextMenu={menu} onClick={(e) => useStore.setState({ popout: { uid: u.id, x: e.clientX - 320, y: e.clientY - 40 } })} role="button">
       <Avatar user={u} size={36} status={status} />
       <span className="ah-fr-t">
         <b>{u.name}</b>

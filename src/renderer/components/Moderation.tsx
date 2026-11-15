@@ -116,7 +116,7 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
 }
 
 /** Özel mesajı açıp sesli arama başlatır */
-async function callUser(uid: string) {
+export async function callUser(uid: string) {
   await openDm(uid);
   const st = useStore.getState();
   const cid = st.current;

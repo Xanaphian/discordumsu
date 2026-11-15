@@ -80,6 +80,29 @@ export const gifToken = (id: string) => `<gif:${id}>`;
 export const stickerToken = (id: string) => `<st:${id}>`;
 export const customStickerToken = (s: Pick<Sticker, 'url' | 'name'>) => `<st:${s.url}|${s.name.replace(/[>|]/g, '')}>`;
 
+// ---------------------------------------------------------------- Giphy (geniş GIF kütüphanesi)
+/** Giphy'nin herkese açık deneme anahtarı (saatlik sınırlı). Kendi ücretsiz anahtarınla değiştirmek için developers.giphy.com */
+const GIPHY_KEY = 'dc6zaTOxFJmzC';
+export interface GiphyItem {
+  id: string;
+  name: string;
+  thumb: string;
+}
+const giphyMsgUrl = (id: string) => `https://media.giphy.com/media/${id}/giphy.gif`;
+export const giphyThumb = (id: string) => `https://media.giphy.com/media/${id}/200w.gif`;
+export const giphyToken = (g: Pick<GiphyItem, 'id' | 'name'>) => `<gif:/g/${g.id}|${g.name.replace(/[>|]/g, '').slice(0, 60) || 'GIF'}>`;
+export async function giphyFetch(q: string, signal?: AbortSignal): Promise<GiphyItem[]> {
+  const url = q.trim()
+    ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q.trim())}&limit=30&lang=tr&rating=pg-13`
+    : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=30&rating=pg-13`;
+  const r = await fetch(url, { signal });
+  if (!r.ok) throw new Error('Giphy ' + r.status);
+  const j = await r.json();
+  return (j.data || [])
+    .filter((x: any) => /^[A-Za-z0-9]+$/.test(x?.id || ''))
+    .map((x: any) => ({ id: x.id, name: String(x.title || 'GIF').replace(/\s*GIF\s*$/i, '').trim() || 'GIF', thumb: x.images?.fixed_width_small?.url || x.images?.fixed_width?.url || giphyThumb(x.id) }));
+}
+
 export type MediaMsg = { kind: 'gif' | 'sticker'; url: string; name: string; local: boolean };
 
 const TOKEN_RE = /^<(gif|st):([^>|\s]+)(?:\|([^>]*))?>$/;
@@ -89,6 +112,7 @@ export function parseMedia(content: string | undefined): MediaMsg | null {
   const m = TOKEN_RE.exec(content.trim());
   if (!m) return null;
   const [, k, ref, name] = m;
+  if (k === 'gif' && /^\/g\/[A-Za-z0-9]+$/.test(ref)) return { kind: 'gif', url: giphyMsgUrl(ref.slice(3)), name: name || 'GIF', local: true };
   if (k === 'gif') {
     const g = gifById.get(ref);
     return g ? { kind: 'gif', url: g.url, name: g.name, local: true } : null;
@@ -106,13 +130,13 @@ export function mediaLabel(content: string): string | null {
 
 // ---------------------------------------------------------------- son kullanılanlar / favoriler (yalnız bu bilgisayarda)
 const KEY = 'kovan.medya';
-type Saved = { recentGif: string[]; recentSt: string[]; favGif: string[] };
+type Saved = { recentGif: string[]; recentSt: string[]; favGif: string[]; favSt: string[] };
 function load(): Saved {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) || '{}');
-    return { recentGif: v.recentGif || [], recentSt: v.recentSt || [], favGif: v.favGif || [] };
+    return { recentGif: v.recentGif || [], recentSt: v.recentSt || [], favGif: v.favGif || [], favSt: v.favSt || [] };
   } catch {
-    return { recentGif: [], recentSt: [], favGif: [] };
+    return { recentGif: [], recentSt: [], favGif: [], favSt: [] };
   }
 }
 function save(s: Saved) {
@@ -130,6 +154,12 @@ export function rememberMedia(kind: 'gif' | 'st', key: string) {
   const k = kind === 'gif' ? 'recentGif' : 'recentSt';
   s[k] = [key, ...s[k].filter((x) => x !== key)].slice(0, 12);
   save(s);
+}
+export function toggleFavSt(key: string) {
+  const s = load();
+  s.favSt = s.favSt.includes(key) ? s.favSt.filter((x) => x !== key) : [key, ...s.favSt].slice(0, 60);
+  save(s);
+  return s.favSt;
 }
 export function toggleFavGif(id: string) {
   const s = load();
