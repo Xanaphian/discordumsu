@@ -1,7 +1,7 @@
 {
   "name": "kovan",
   "productName": "Kovan",
-  "version": "1.59.2",
+  "version": "1.60.0",
   "description": "Kovan - topluluklar, kanallar ve gerçek zamanlı sohbet",
   "author": "Xanaphian",
   "license": "UNLICENSED",
@@ -33,6 +33,7 @@
     "@types/three": "^0.181.0",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.3.0",
+    "@workadventure/noise-suppression": "0.2.0",
     "electron": "^45.3.1",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",

@@ -8,6 +8,8 @@ export default defineConfig({
   root: 'src/renderer',
   base: './',
   plugins: [react()],
+  // Maksimum gürültü engelleme: DeepFilterNet3 worklet/WASM/model dosyaları (paket bu yolları dışa açmıyor)
+  resolve: { alias: { dfn3: page('./node_modules/@workadventure/noise-suppression/dist/assets') } },
   // Son eklenenler: tarihi yazılmamış sürüm notu derleme gününü alır
   define: { __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)) },
   build: {
