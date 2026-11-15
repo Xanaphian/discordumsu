@@ -52,24 +52,29 @@ export function invitePageHeaders(nonce: string): Record<string, string> {
     'x-robots-tag': 'noindex',
     // xanaphian.com'daki aktarıcı bu başlığa bakarak yanıtın gerçekten davet sayfası olduğunu anlar (server/site/)
     'x-xanaphian-davet': '1',
-    'content-security-policy': `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src 'self' ${new URL(INVITE_LINK_BASE).origin} ${new URL(OFFICIAL_SERVER).origin}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    'content-security-policy': `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src 'self' ${new URL(INVITE_LINK_BASE).origin} ${new URL(OFFICIAL_SERVER).origin}; media-src 'self' ${new URL(OFFICIAL_SERVER).origin}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   };
 }
 
-/** Sayfa arka planı (CSS): topluluk profilindeki afiş; yoksa topluluk renginden bir geçiş */
-function pageBackground(info: InviteInfo, code: string): { css: string; image: boolean } {
+/** Sayfa arka planı: sahibinin seçtiği resim/GIF/video; yoksa topluluk afişi; o da yoksa topluluk renginden bir geçiş */
+function pageBackground(info: InviteInfo, code: string): { css: string; video?: string } {
   const bg = info.bg;
   const fallback = safeColor(info.color);
+  const url = `${OFFICIAL_SERVER}/davet/${code}/arkaplan`;
+  if (bg?.k === 'video' && code) return { css: `linear-gradient(135deg, ${fallback}, #07080b)`, video: url };
   if (bg?.k === 'image' && code) {
     const pos = `${Math.min(100, Math.max(0, bg.x ?? 50))}% ${Math.min(100, Math.max(0, bg.y ?? 50))}%`;
-    return { css: `url("${OFFICIAL_SERVER}/davet/${code}/arkaplan") ${pos} / cover no-repeat, ${fallback}`, image: true };
+    return { css: `url("${url}") ${pos} / cover no-repeat, ${fallback}` };
   }
-  if (bg?.k === 'gradient') return { css: `linear-gradient(${Math.round(bg.ang ?? 135)}deg, ${safeColor(bg.a)}, ${safeColor(bg.b || bg.a)})`, image: false };
-  if (bg?.k === 'solid') return { css: safeColor(bg.a), image: false };
-  return { css: `linear-gradient(135deg, ${fallback}, color-mix(in srgb, ${fallback} 30%, #07080b))`, image: false };
+  if (bg?.k === 'gradient') return { css: `linear-gradient(${Math.round(bg.ang ?? 135)}deg, ${safeColor(bg.a)}, ${safeColor(bg.b || bg.a)})` };
+  if (bg?.k === 'solid') return { css: safeColor(bg.a) };
+  return { css: `linear-gradient(135deg, ${fallback}, color-mix(in srgb, ${fallback} 30%, #07080b))` };
 }
 
-/** Tarayıcıda açılan davet sayfası. info yoksa "davet geçersiz" sayfası döner. */
+const DL_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>';
+const CHEV = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+
+/** Tarayıcıda açılan davet sayfası (Discord davet sayfası düzeninde). info yoksa "davet geçersiz" sayfası döner. */
 export function invitePage(info: InviteInfo | null, code: string, nonce: string): string {
   const appLink = `${INVITE_APP_SCHEME}://davet/${code}`;
   const link = `${INVITE_LINK_BASE}/${code}`;
@@ -80,30 +85,25 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
   const hasIcon = !!info?.icon;
   const iconUrl = `${link}/simge`;
   const color = info ? safeColor(info.color) : '#5b8def';
-  const bg = info ? pageBackground(info, code) : { css: 'linear-gradient(135deg,#1b1f2a,#0b0d12)', image: false };
+  const bg = info ? pageBackground(info, code) : { css: 'linear-gradient(135deg,#1b1f2a,#0b0d12)' } as { css: string; video?: string };
   const icon = info
     ? hasIcon
       ? // göreli adres: sayfa hem xanaphian.com/davet/<kod> hem de sunucunun kendi adresinden açılınca çalışır
-        `<img class="ic" src="${esc(code)}/simge" alt="" width="124" height="124">`
+        `<img class="ic" src="${esc(code)}/simge" alt="" width="80" height="80">`
       : `<div class="ic tx">${esc(initials(info.name))}</div>`
     : `<div class="ic tx bad">!</div>`;
   const body = info
-    ? `<div class="nm"><i class="sp s1"></i><i class="sp s2"></i><i class="sp s3"></i><i class="sp s4"></i><i class="sp s5"></i><h1>${esc(info.name)}</h1></div>
-      <div class="stat">
-        ${icon}
-        <div class="sx"><b>Bir topluluğa davet edildin</b><span><i class="on"></i>${info.online} çevrimiçi · ${info.members} üye</span></div>
-      </div>
+    ? `${icon}
+      <p class="k">Bir topluluğa davet edildin</p>
+      <h1>${esc(info.name)}</h1>
+      <p class="st"><span><i class="on"></i>${info.online} çevrimiçi</span><span><i></i>${info.members} üye</span></p>
       ${info.about ? `<p class="ab">${esc(info.about)}</p>` : ''}
-      <div class="ibs">
-        <a class="ib" id="ac" href="${esc(appLink)}" title="Xanaphian'da aç"><span class="bx"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></span><em>Aç</em></a>
-        <a class="ib" href="${esc(DOWNLOAD_URL)}" rel="noopener" title="Xanaphian'ı indir"><span class="bx"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg></span><em>İndir</em></a>
-        <button class="ib" id="cp" type="button" data-l="${esc(link)}" title="Bağlantıyı kopyala"><span class="bx"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg></span><em>Kopyala</em></button>
-      </div>
-      <p class="n" id="not">Uygulamayı aç ve topluluğa katıl</p>
-      <p class="n kc">${esc(link.replace(/^https?:\/\//, ''))}</p>`
-    : `${icon}<h1>Davet geçersiz</h1>
-      <p class="ab">Bu davet bağlantısı geçersiz ya da süresi dolmuş. Seni davet eden kişiden yeni bir bağlantı iste.</p>
-      <a class="row" href="${esc(DOWNLOAD_URL)}" rel="noopener"><span class="ri dl"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg></span><span class="rt"><b>Xanaphian'ı indir</b><em>Uygulaman yoksa buradan al</em></span></a>`;
+      <a class="btn pri" id="ac" href="${esc(appLink)}">Uygulamayı Aç</a>
+      <button class="btn sec" id="cp" type="button" data-l="${esc(link)}">Bağlantıyı Kopyala</button>
+      <p class="n" id="not">Uygulama yüklüyse katılma penceresi orada açılır.</p>`
+    : `${icon}
+      <h1>Davet geçersiz</h1>
+      <p class="ab">Bu davet bağlantısı geçersiz ya da süresi dolmuş. Seni davet eden kişiden yeni bir bağlantı iste.</p>`;
   return `<!doctype html>
 <html lang="tr">
 <head>
@@ -111,7 +111,7 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#08090d">
+<meta name="theme-color" content="#1e1f22">
 <title>${esc(title)} · Xanaphian</title>
 <meta name="description" content="${esc(desc)}">
 <meta property="og:site_name" content="Xanaphian">
@@ -123,121 +123,61 @@ ${hasIcon ? `<meta property="og:image" content="${esc(iconUrl)}">\n<meta name="t
 <style>
 *{box-sizing:border-box}
 html,body{min-height:100%;margin:0}
-body{--c:${color};color:#f1f3f8;font:16px/1.55 Rubik,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;display:flex;align-items:center;justify-content:center;padding:28px 16px;position:relative;overflow-x:hidden;-webkit-font-smoothing:antialiased;background:#08090d}
-.bg{position:fixed;inset:-24px;background:${bg.css};${bg.image ? 'filter:blur(2px) saturate(1.2) brightness(1.05);' : ''}transform:scale(1.04);z-index:0}
-.bg:after{content:"";position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 45%,rgba(8,9,13,.05),rgba(8,9,13,.55)),linear-gradient(180deg,rgba(8,9,13,.12),rgba(8,9,13,.4))}
-main{position:relative;z-index:1;width:100%;max-width:400px;padding:34px 28px 24px;text-align:center;border-radius:28px;background:rgba(10,11,16,.28);border:1px solid rgba(255,255,255,.07);-webkit-backdrop-filter:blur(10px) saturate(1.3);backdrop-filter:blur(10px) saturate(1.3);box-shadow:0 30px 80px -30px rgba(0,0,0,.6);animation:in .6s cubic-bezier(.2,.8,.2,1) both}
-@keyframes in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+body{--c:${color};color:#f2f3f5;font:16px/1.4 "gg sans",Rubik,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:80px 16px 40px;position:relative;overflow-x:hidden;-webkit-font-smoothing:antialiased;background:#1e1f22}
+.bg{position:fixed;inset:0;background:${bg.css};z-index:0}
+.bgv{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;background:#0b0d12}
+.bg:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.34))}
+.logo{position:fixed;top:26px;left:34px;z-index:2;display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-.01em;color:#fff;text-decoration:none;text-shadow:0 2px 12px rgba(0,0,0,.45)}
+.logo i{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-style:normal;font-size:19px;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 45%,#000));box-shadow:0 4px 14px -4px rgba(0,0,0,.6)}
+main{position:relative;z-index:1;width:100%;max-width:480px;padding:32px;text-align:center;border-radius:8px;background:#313338;box-shadow:0 8px 30px rgba(0,0,0,.45);animation:in .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){main{animation:none}}
-.ic{width:124px;height:124px;border-radius:50%;display:block;margin:0 auto 18px;object-fit:cover;border:3px solid rgba(255,255,255,.85);background:#14161d;box-shadow:0 0 0 6px color-mix(in srgb,var(--c) 30%,transparent),0 10px 40px -4px var(--c)}
-.tx{display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:600;color:#fff;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 50%,#000))}
-.bad{background:#3a2a2e;color:#f0a2ac;box-shadow:none}
-.k{margin:0 0 6px;font-size:11.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62)}
-h1{margin:0;font-size:36px;line-height:1.2;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere;text-shadow:0 0 24px color-mix(in srgb,var(--c) 70%,transparent),0 2px 12px rgba(0,0,0,.5)}
-.ab{margin:10px 0 0;color:rgba(255,255,255,.78);font-size:14.5px;overflow-wrap:anywhere}
-.st{margin:18px 0 24px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;font-size:13.5px;color:rgba(255,255,255,.85)}
-.pl{display:inline-flex;align-items:center;padding:5px 13px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
-.st i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#7c8394;margin-right:7px}
-.st i.on{background:#3fe08f;box-shadow:0 0 10px #3fe08f}
-.row{display:flex;align-items:center;gap:13px;width:100%;margin-top:10px;padding:11px 14px;border-radius:18px;text-align:left;text-decoration:none;color:#f1f3f8;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);transition:transform .14s,background .14s,border-color .14s}
-.row:hover{transform:translateY(-2px);background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.26)}
-.row:focus-visible{outline:2px solid #fff;outline-offset:3px}
-.st+.row{margin-top:0}
-.ri{flex:none;width:46px;height:46px;border-radius:50%;overflow:hidden;display:grid;place-items:center;font-weight:600;font-size:16px;color:#fff;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 50%,#000));border:1px solid rgba(255,255,255,.28)}
-.ri img{width:100%;height:100%;object-fit:cover;display:block}
-.ri.dl{background:rgba(255,255,255,.12)}
-.rt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
-.rt b{font-size:15.5px;font-weight:600}
-.rt em{font-size:12.5px;font-style:italic;color:rgba(255,255,255,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rc{flex:none;color:rgba(255,255,255,.5)}
-.n{margin:12px 0 0;font-size:12.5px;color:rgba(255,255,255,.55)}
-.kc{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.12);line-height:1.7}
-.kc b{color:rgba(255,255,255,.85);font-weight:500}
-code{display:block;margin:8px auto 0;width:fit-content;max-width:100%;padding:5px 11px;border-radius:9px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);color:#e6e9f1;font:12.5px ui-monospace,Consolas,monospace;user-select:all;overflow-wrap:anywhere}
- .dots{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.55;background-image:radial-gradient(circle,rgba(255,255,255,.55) 1px,transparent 1.6px),radial-gradient(circle,rgba(255,255,255,.35) 1px,transparent 1.6px);background-size:120px 120px,190px 190px;background-position:0 0,60px 90px;animation:drift 60s linear infinite;-webkit-mask-image:radial-gradient(80% 70% at 50% 45%,#000,transparent);mask-image:radial-gradient(80% 70% at 50% 45%,#000,transparent)}
-@keyframes drift{to{background-position:0 -240px,60px -380px}}
-.views{position:fixed;top:16px;left:16px;z-index:2;display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;font-size:13px;font-weight:500;color:rgba(255,255,255,.88);background:rgba(14,16,22,.45);border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
-#card{transform-style:preserve-3d;will-change:transform}
-h1{background:linear-gradient(100deg,#fff 0%,#fff 38%,color-mix(in srgb,var(--c) 45%,#fff) 50%,#fff 62%,#fff 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;text-shadow:none;filter:drop-shadow(0 0 14px color-mix(in srgb,var(--c) 65%,transparent));animation:shine 5s ease-in-out infinite}
-@keyframes shine{0%,20%{background-position:120% 0}80%,100%{background-position:-20% 0}}
-.ab.ty:after{content:"";display:inline-block;width:2px;height:1em;margin-left:2px;vertical-align:-.12em;background:rgba(255,255,255,.8);animation:blink 1s steps(1) infinite}
-@keyframes blink{50%{opacity:0}}
-@media(prefers-reduced-motion:reduce){.dots,h1{animation:none}}
-.brand{position:fixed;left:0;right:0;bottom:16px;z-index:1;text-align:center;font-size:12px;letter-spacing:.06em;color:rgba(255,255,255,.5)}
-.brand b{color:rgba(255,255,255,.85);font-weight:600}
-@media(max-width:420px){main{padding:30px 20px 22px}h1{font-size:30px}}
-
-main{max-width:460px;background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:10px 12px}
-.bg:after{background:radial-gradient(75% 65% at 50% 48%,rgba(6,7,10,.25),rgba(6,7,10,.78)),linear-gradient(180deg,rgba(6,7,10,.3),rgba(6,7,10,.55))}
-body:after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 1px,transparent 1px 3px)}
-.nm{position:relative;display:inline-block;margin:0 auto 22px}
-h1{font-size:clamp(40px,10vw,66px);font-weight:500;letter-spacing:-.02em}
-.sp{position:absolute;width:5px;height:5px;border-radius:50%;background:#fff;box-shadow:0 0 8px 2px color-mix(in srgb,var(--c) 70%,#fff);opacity:0;animation:tw 3.2s ease-in-out infinite}
-.s1{left:-6px;top:-4px}.s2{right:8%;top:-10px;animation-delay:.7s}.s3{right:-10px;top:42%;animation-delay:1.4s}.s4{left:18%;bottom:-8px;animation-delay:2s}.s5{left:-12px;top:55%;animation-delay:2.6s}
-@keyframes tw{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:1;transform:scale(1.2)}}
-.stat{display:flex;align-items:center;justify-content:center;gap:14px;text-align:left;margin:0 auto}
-.stat .ic{width:62px;height:62px;margin:0;border-width:2px;box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 28%,transparent),0 0 30px -2px var(--c);font-size:22px}
-.sx{display:flex;flex-direction:column;line-height:1.35}
-.sx b{font-size:19px;font-weight:600}
-.sx span{font-size:13.5px;color:rgba(255,255,255,.72);display:flex;align-items:center}
-.sx i{width:8px;height:8px;border-radius:50%;background:#3fe08f;box-shadow:0 0 10px #3fe08f;margin-right:7px}
-.ab{margin:16px auto 0;max-width:380px}
-.ibs{display:flex;justify-content:center;gap:18px;margin:34px 0 6px}
-.ib{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;color:#fff;transition:transform .16s}
-.ib:hover{transform:translateY(-4px) scale(1.06)}
-.ib:focus-visible{outline:2px solid #fff;outline-offset:4px;border-radius:14px}
-.bx{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);box-shadow:0 0 22px -2px color-mix(in srgb,var(--c) 70%,transparent),inset 0 0 14px rgba(255,255,255,.06);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-.ib em{font-style:normal;font-size:12px;color:rgba(255,255,255,.7)}
-.n{text-align:center}
-.kc{border:0;padding:0;margin-top:6px;font:12px ui-monospace,Consolas,monospace;color:rgba(255,255,255,.4)}
-@media(max-width:420px){h1{font-size:40px}}
+.ic{width:80px;height:80px;border-radius:50%;display:block;margin:0 auto 16px;object-fit:cover;background:#1e1f22}
+.tx{display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 50%,#000))}
+.bad{background:#3a2a2e;color:#f0a2ac}
+.k{margin:0 0 6px;font-size:14px;color:#b5bac1}
+h1{margin:0;font-size:24px;line-height:1.25;font-weight:700;overflow-wrap:anywhere}
+.st{margin:12px 0 0;display:flex;gap:16px;justify-content:center;flex-wrap:wrap;font-size:13.5px;color:#b5bac1}
+.st span{display:inline-flex;align-items:center}
+.st i{width:9px;height:9px;border-radius:50%;background:#80848e;margin-right:6px}
+.st i.on{background:#23a559}
+.ab{margin:14px 0 0;color:#dbdee1;font-size:14.5px;overflow-wrap:anywhere}
+.btn{all:unset;box-sizing:border-box;display:block;width:100%;margin-top:10px;padding:11px 16px;border-radius:4px;text-align:center;font-size:15px;font-weight:600;cursor:pointer;color:#fff;transition:background .12s}
+.btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.pri{background:#5865f2;margin-top:24px}.pri:hover{background:#4752c4}
+.sec{background:#4e5058}.sec:hover{background:#6d6f78}
+.n{margin:14px 0 0;font-size:12.5px;color:#949ba4}
+.dl{position:relative;z-index:1;display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:6px;background:#111214;color:#fff;font-size:14px;font-weight:600;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.4);transition:background .12s}
+.dl:hover{background:#26282c}
+.dl:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media(max-width:520px){main{padding:26px 20px}.logo{left:18px;top:18px}}
 </style>
 </head>
 <body>
 <div class="bg"></div>
-<div class="dots"></div>
-${info ? `<div class="views" title="Üye sayısı"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>${info.members}</div>` : ''}
-<main id="card">
+${bg.video ? `<video class="bgv" src="${esc(bg.video)}" autoplay muted loop playsinline preload="auto"></video>` : ''}
+<a class="logo" href="${esc(DOWNLOAD_URL)}" rel="noopener"><i>X</i>Xanaphian</a>
+<main>
       ${body}
 </main>
-<div class="brand"><b>Xanaphian</b> · arkadaşlarınla sohbet et, oyna</div>
+<a class="dl" href="${esc(DOWNLOAD_URL)}" rel="noopener">${DL_ICON}Xanaphian'ı indir${CHEV}</a>
 ${info ? `<script nonce="${nonce}">
 (function(){
-  // uygulama kendiliğinden açılmaz (tarayıcı üstte izin çubuğu çıkarıp sayfayı örtüyordu); yalnız "Xanaphian'da aç"a basınca açılır
   var cp=document.getElementById('cp');
   if(cp) cp.addEventListener('click',function(){
-    var l=cp.getAttribute('data-l'), em=cp.querySelector('em'), o=em.textContent;
-    function ok(){ em.textContent='Kopyalandı'; setTimeout(function(){ em.textContent=o; },1600); }
-    try{ navigator.clipboard.writeText(l).then(ok,function(){}); }catch(e){}
+    var o=cp.textContent;
+    try{ navigator.clipboard.writeText(cp.getAttribute('data-l')).then(function(){ cp.textContent='Kopyalandı'; setTimeout(function(){ cp.textContent=o; },1600); },function(){}); }catch(e){}
   });
+  // uygulama kendiliğinden açılmaz (tarayıcı üstte izin çubuğu çıkarıp sayfayı örtüyordu); yalnız "Uygulamayı Aç"a basınca açılır
   var ac=document.getElementById('ac'), not=document.getElementById('not'), t;
   if(!ac||!not) return;
   var first=not.textContent;
   window.addEventListener('blur',function(){ clearTimeout(t); not.textContent="Xanaphian açılıyor. Katılma penceresi uygulamada seni bekliyor."; });
   ac.addEventListener('click',function(){
     clearTimeout(t);
-    t=setTimeout(function(){ not.textContent="Açılmadı mı? Yüklü değilse aşağıdan indir."; },2500);
+    t=setTimeout(function(){ not.textContent="Açılmadı mı? Yüklü değilse aşağıdaki düğmeyle indir."; },2500);
   });
   window.addEventListener('focus',function(){ clearTimeout(t); not.textContent=first; });
-})();
-</script>` : ''}
-${info ? `<script nonce="${nonce}">
-(function(){
-  var card=document.getElementById('card'); if(!card) return;
-  var calm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(calm) return;
-  // kart fareyi hafifçe takip eder (yalnız fareli cihazlarda)
-  if(matchMedia('(hover: hover) and (pointer: fine)').matches){
-    window.addEventListener('pointermove',function(e){
-      var x=(e.clientX/innerWidth-.5), y=(e.clientY/innerHeight-.5);
-      card.style.transform='perspective(900px) rotateY('+(x*9).toFixed(2)+'deg) rotateX('+(-y*9).toFixed(2)+'deg)';
-    });
-    document.addEventListener('pointerleave',function(){ card.style.transform=''; });
-  }
-  // tanıtım yazısı daktilo gibi yazılır
-  var ab=card.querySelector('.ab'); if(!ab) return;
-  var full=ab.textContent, i=0; ab.classList.add('ty'); ab.textContent='';
-  (function step(){ ab.textContent=full.slice(0,++i); if(i<full.length) setTimeout(step,28); else setTimeout(function(){ ab.classList.remove('ty'); },1400); })();
 })();
 </script>` : ''}
 </body>

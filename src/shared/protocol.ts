@@ -271,6 +271,8 @@ export interface Community {
   description?: string;
   /** sunucu profili: afiş, kısa tanıtım, etiketler, bağlantılar, kurallar */
   profile?: CommunityProfile;
+  /** davet sayfası arka planının türü (dosyanın kendisi yalnız davet sayfasında sunulur, pakete girmez) */
+  inviteBgKind?: 'image' | 'video';
   /** katılma koruması (v1.27) */
   joinGuard?: JoinGuard;
   /** baskın algılandı: bu ana kadar yeni üye alınmaz (ms) */
@@ -383,7 +385,7 @@ export type ClientFrame =
   | { t: 'activity'; acts: LiveActivity[] }
   | { t: 'profile'; user: UserPublic }
   | { t: 'comm.create'; name: string; icon?: string; color: string; template?: 'default' | 'lobby'; blueprint?: Blueprint; rid?: string }
-  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod; stickers?: Sticker[] }
+  | { t: 'comm.update'; cid: ID; name?: string; icon?: string | null; description?: string; profile?: CommunityProfile | null; inviteBg?: string | null; color?: string; systemChannelId?: ID | null; joinMessages?: boolean; invitesPaused?: boolean; automod?: AutoMod; stickers?: Sticker[] }
   | { t: 'comm.delete'; cid: ID }
   | { t: 'comm.leave'; cid: ID }
   | { t: 'comm.invite.reset'; cid: ID }
