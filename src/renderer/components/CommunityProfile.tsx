@@ -257,7 +257,7 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
       <p className="pe-lead">Üyelerin ve davet edilenlerin gördüğü tanıtım sayfası. Afiş, kısa tanıtım, etiketler, kurallar ve bağlantılar burada.</p>
       <div className="pe-grid">
         <div className="pe-form">
-          <Section title="Afiş" sub="Profilin üstünde görünür ve davet bağlantısı sayfasının arka planı olur. Hareketli GIF de olur.">
+          <Section title="Afiş" sub="Profilin üstünde görünür. Hareketli GIF de olur.">
             <Seg
               value={d.banner ? banner.kind : ('none' as any)}
               options={[

@@ -398,10 +398,8 @@ export class Hub {
     if (withIcon && c.icon) info.icon = c.icon;
     const about = (c.profile?.tagline || c.description || '').trim().slice(0, 160);
     if (about) info.about = about;
-    const bn = c.profile?.banner;
     const ibk = inviteBgKind(c.inviteBg);
     if (ibk) info.bg = { k: ibk, a: c.color };
-    else if (bn && (bn.kind !== 'image' || bn.image)) info.bg = { k: bn.kind, a: bn.a, ...(bn.b ? { b: bn.b } : {}), ...(typeof bn.angle === 'number' ? { ang: bn.angle } : {}), ...(typeof bn.x === 'number' ? { x: bn.x } : {}), ...(typeof bn.y === 'number' ? { y: bn.y } : {}), ...(typeof bn.zoom === 'number' ? { z: bn.zoom } : {}) };
     if (r.inv?.exp) info.exp = r.inv.exp;
     if (uid && c.members.some((m) => m.userId === uid)) info.joined = true;
     return info;
