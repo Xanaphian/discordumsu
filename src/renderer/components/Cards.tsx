@@ -19,10 +19,38 @@ import { isVoiceLike, type Community, type Message, type ID } from '../../shared
 
 // ---------------------------------------------------------------------------
 // Takım ilanı
+// LoL koridor amblemi (küçük çizgi simgesi); seçili koridor parlak, geri kalanı sönük
+function PosIcon({ k }: { k: string }) {
+  const on = (...a: string[]) => (a.includes(k) || k === 'FILL' ? 1 : 0.28);
+  return (
+    <svg className="pos-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="square" aria-hidden>
+      <path d="M3 21V3H21" opacity={on('TOP')} />
+      <path d="M21 3V21H3" opacity={on('BOTTOM')} />
+      <path d="M6 18L18 6" opacity={on('MIDDLE')} />
+      {k === 'JUNGLE' && <path d="M12 8L16 12L12 16L8 12Z" fill="currentColor" strokeWidth="1" />}
+      {k === 'UTILITY' && <path d="M12 7V17M7 12H17" strokeWidth="2.4" />}
+    </svg>
+  );
+}
+
+let ddv: Promise<string> | null = null;
+/** LoL profil simgeleri için güncel Data Dragon sürümü (bir kez alınır) */
+function useDdVersion() {
+  const [v, setV] = useState('');
+  useEffect(() => {
+    ddv ||= fetch('https://ddragon.leagueoflegends.com/api/versions.json').then((r) => r.json()).then((a) => String(a[0] || '')).catch(() => '');
+    let live = true;
+    ddv.then((x) => live && setV(x));
+    return () => { live = false; };
+  }, []);
+  return v;
+}
+
 function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; me: ID }) {
   const users = useStore((s) => s.users);
   const voice = useStore((s) => s.voice);
   const myVc = useVoice((s) => s.ch);
+  const ddVer = useDdVersion();
   const slots = lfgSlots(m, card);
   const mySlot = slots.indexOf(me);
   const roles = card.s.some((x) => x);
@@ -149,16 +177,28 @@ function LfgView({ m, card, c, me }: { m: Message; card: LfgCard; c: Community; 
           {lm.map((x, i) => {
             const uid = lobbyUids[i];
             const [gn, tag] = x.n.split('#');
-            const pos = [x.r, x.r2].filter((p): p is string => !!p && !!LOL_POS[p]).map((p) => LOL_POS[p]);
+            const keys = [x.r, x.r2].filter((p): p is string => !!p && !!LOL_POS[p]);
+            const pos = keys.map((p) => LOL_POS[p]);
             return (
               <div key={'l' + i} className={cx('bn', 'taken', uid === me && 'me')}>
                 <span className="bn-role">{x.lead ? 'Lider' : 'Lobide'}</span>
-                <span className="bn-frame">{uid ? <Avatar user={users[uid] || c.users[uid]} size={46} /> : <span className="bn-ini">{(gn || '?').slice(0, 1).toLocaleUpperCase('tr')}</span>}</span>
+                <span className="bn-frame">
+                  {x.i && ddVer ? (
+                    <img className="bn-lolicon" src={`https://ddragon.leagueoflegends.com/cdn/${ddVer}/img/profileicon/${x.i}.png`} alt="" draggable={false} />
+                  ) : uid ? (
+                    <Avatar user={users[uid] || c.users[uid]} size={46} />
+                  ) : (
+                    <span className="bn-ini">{(gn || '?').slice(0, 1).toLocaleUpperCase('tr')}</span>
+                  )}
+                </span>
                 <span className="bn-plate">
                   <b>{gn}</b>
                   <small>{tag ? '#' + tag : ''}</small>
                 </span>
-                <span className={cx('bn-pos', !pos.length && 'none')}>{pos[0] || 'Rol yok'}</span>
+                <span className={cx('bn-pos', !pos.length && 'none')}>
+                  {keys[0] && <PosIcon k={keys[0]} />}
+                  {pos[0] || 'Rol yok'}
+                </span>
                 <span className="bn-pos2">{pos[1] ? `ya da ${pos[1]}` : '\u00a0'}</span>
               </div>
             );
@@ -512,7 +552,8 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
           <div className="lfg-lobby">
             {info.members.map((x, i) => {
               const [gn, tag] = x.n.split('#');
-              const pos = [x.r, x.r2].filter((p): p is string => !!p && !!LOL_POS[p]).map((p) => LOL_POS[p]);
+              const keys = [x.r, x.r2].filter((p): p is string => !!p && !!LOL_POS[p]);
+            const pos = keys.map((p) => LOL_POS[p]);
               return (
                 <div key={i} className="lfg-lm">
                   <span className="bn-ini">{(gn || '?').slice(0, 1).toLocaleUpperCase('tr')}</span>

@@ -1872,3 +1872,21 @@
   font-size: 10.5px;
   color: rgba(255, 255, 255, 0.5);
 }
+
+/* LoL lobisi: profil simgesi ve koridor amblemi */
+.bn-lolicon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #091428;
+}
+.bn-pos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.pos-ico {
+  flex: none;
+}
