@@ -9,7 +9,7 @@ import http from 'node:http';
 import path from 'node:path';
 
 /** Xanaphian'ın Spotify geliştirici uygulamasının Client ID'si (gizli değildir). Boşsa Ayarlar'dan girilir. */
-export const DEFAULT_SPOTIFY_CLIENT_ID = '';
+export const DEFAULT_SPOTIFY_CLIENT_ID = '89bac0ff109440f499d0d900f7c72fce';
 export const SPOTIFY_REDIRECT_PORT = 47833;
 export const SPOTIFY_REDIRECT = `http://127.0.0.1:${SPOTIFY_REDIRECT_PORT}/spotify`;
 // user-modify-playback-state: "Beraber dinle" şarkıyı dinleyenin kendi Spotify'ında çalar (Premium gerekir)
