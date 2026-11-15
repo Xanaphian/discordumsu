@@ -2031,7 +2031,7 @@ export class Hub {
         if (f.inviteBg !== undefined) {
           if (f.inviteBg === null) delete c.inviteBg;
           else if (typeof f.inviteBg === 'string' && f.inviteBg.length <= INVITE_BG_MAX && INVITE_BG_RE.test(f.inviteBg)) c.inviteBg = f.inviteBg;
-          else return this.send(s, { t: 'err', msg: 'Davet arka planı resim, GIF ya da kısa video (mp4/webm, en çok ~4 MB) olmalı.', rid: f.rid });
+          else return this.send(s, { t: 'err', msg: 'Davet arka planı resim, GIF ya da kısa video (mp4/webm, en çok ~4 MB) olmalı.' });
           changed.push('davet arka planı');
         }
         if (f.color !== undefined && /^#[0-9a-f]{6}$/i.test(f.color)) (c.color = f.color), changed.push('renk');
