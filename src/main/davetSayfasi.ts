@@ -156,6 +156,15 @@ h1{margin:0;font-size:27px;line-height:1.2;font-weight:600;letter-spacing:-.01em
 .kc{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.12);line-height:1.7}
 .kc b{color:rgba(255,255,255,.85);font-weight:500}
 code{display:block;margin:8px auto 0;width:fit-content;max-width:100%;padding:5px 11px;border-radius:9px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);color:#e6e9f1;font:12.5px ui-monospace,Consolas,monospace;user-select:all;overflow-wrap:anywhere}
+ .dots{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.55;background-image:radial-gradient(circle,rgba(255,255,255,.55) 1px,transparent 1.6px),radial-gradient(circle,rgba(255,255,255,.35) 1px,transparent 1.6px);background-size:120px 120px,190px 190px;background-position:0 0,60px 90px;animation:drift 60s linear infinite;-webkit-mask-image:radial-gradient(80% 70% at 50% 45%,#000,transparent);mask-image:radial-gradient(80% 70% at 50% 45%,#000,transparent)}
+@keyframes drift{to{background-position:0 -240px,60px -380px}}
+.views{position:fixed;top:16px;left:16px;z-index:2;display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;font-size:13px;font-weight:500;color:rgba(255,255,255,.88);background:rgba(14,16,22,.45);border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#card{transform-style:preserve-3d;will-change:transform}
+h1{background:linear-gradient(100deg,#fff 0%,#fff 38%,color-mix(in srgb,var(--c) 45%,#fff) 50%,#fff 62%,#fff 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;text-shadow:none;filter:drop-shadow(0 0 14px color-mix(in srgb,var(--c) 65%,transparent));animation:shine 5s ease-in-out infinite}
+@keyframes shine{0%,20%{background-position:120% 0}80%,100%{background-position:-20% 0}}
+.ab.ty:after{content:"";display:inline-block;width:2px;height:1em;margin-left:2px;vertical-align:-.12em;background:rgba(255,255,255,.8);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.dots,h1{animation:none}}
 .brand{position:fixed;left:0;right:0;bottom:16px;z-index:1;text-align:center;font-size:12px;letter-spacing:.06em;color:rgba(255,255,255,.5)}
 .brand b{color:rgba(255,255,255,.85);font-weight:600}
 @media(max-width:420px){main{padding:30px 20px 22px}h1{font-size:24px}}
@@ -163,7 +172,9 @@ code{display:block;margin:8px auto 0;width:fit-content;max-width:100%;padding:5p
 </head>
 <body>
 <div class="bg"></div>
-<main>
+<div class="dots"></div>
+${info ? `<div class="views" title="Üye sayısı"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>${info.members}</div>` : ''}
+<main id="card">
       ${icon}
       ${body}
 </main>
@@ -180,6 +191,25 @@ ${info ? `<script nonce="${nonce}">
     t=setTimeout(function(){ not.textContent="Açılmadı mı? Yüklü değilse aşağıdan indir."; },2500);
   });
   window.addEventListener('focus',function(){ clearTimeout(t); not.textContent=first; });
+})();
+</script>` : ''}
+${info ? `<script nonce="${nonce}">
+(function(){
+  var card=document.getElementById('card'); if(!card) return;
+  var calm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(calm) return;
+  // kart fareyi hafifçe takip eder (yalnız fareli cihazlarda)
+  if(matchMedia('(hover: hover) and (pointer: fine)').matches){
+    window.addEventListener('pointermove',function(e){
+      var x=(e.clientX/innerWidth-.5), y=(e.clientY/innerHeight-.5);
+      card.style.transform='perspective(900px) rotateY('+(x*9).toFixed(2)+'deg) rotateX('+(-y*9).toFixed(2)+'deg)';
+    });
+    document.addEventListener('pointerleave',function(){ card.style.transform=''; });
+  }
+  // tanıtım yazısı daktilo gibi yazılır
+  var ab=card.querySelector('.ab'); if(!ab) return;
+  var full=ab.textContent, i=0; ab.classList.add('ty'); ab.textContent='';
+  (function step(){ ab.textContent=full.slice(0,++i); if(i<full.length) setTimeout(step,28); else setTimeout(function(){ ab.classList.remove('ty'); },1400); })();
 })();
 </script>` : ''}
 </body>
