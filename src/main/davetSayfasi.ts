@@ -92,13 +92,20 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
       <h1>${esc(info.name)}</h1>
       ${info.about ? `<p class="ab">${esc(info.about)}</p>` : ''}
       <p class="st"><span class="pl"><i class="on"></i>${info.online} çevrimiçi</span><span class="pl"><i></i>${info.members} üye</span></p>
-      <a class="b" id="ac" href="${esc(appLink)}">Xanaphian'da aç</a>
-      <p class="n" id="not">Uygulama kuruluysa birkaç saniye içinde açılır.</p>
-      <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Xanaphian'ı indir</a>
+      <a class="row" id="ac" href="${esc(appLink)}">
+        <span class="ri">${hasIcon ? `<img src="${esc(code)}/simge" alt="" width="46" height="46">` : esc(initials(info.name))}</span>
+        <span class="rt"><b>Xanaphian'da aç</b><em id="not">Uygulamayı aç ve topluluğa katıl</em></span>
+        <svg class="rc" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+      </a>
+      <a class="row" href="${esc(DOWNLOAD_URL)}" rel="noopener">
+        <span class="ri dl"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg></span>
+        <span class="rt"><b>Xanaphian'ı indir</b><em>Uygulaman yoksa buradan al</em></span>
+        <svg class="rc" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+      </a>
       <p class="n kc">Ya da uygulamada <b>Bir topluluğa katıl</b> kutusuna yapıştır<code>${esc(link.replace(/^https?:\/\//, ''))}</code></p>`
     : `<h1>Davet geçersiz</h1>
       <p class="ab">Bu davet bağlantısı geçersiz ya da süresi dolmuş. Seni davet eden kişiden yeni bir bağlantı iste.</p>
-      <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Xanaphian'ı indir</a>`;
+      <a class="row" href="${esc(DOWNLOAD_URL)}" rel="noopener"><span class="ri dl"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg></span><span class="rt"><b>Xanaphian'ı indir</b><em>Uygulaman yoksa buradan al</em></span></a>`;
   return `<!doctype html>
 <html lang="tr">
 <head>
@@ -134,14 +141,17 @@ h1{margin:0;font-size:27px;line-height:1.2;font-weight:600;letter-spacing:-.01em
 .pl{display:inline-flex;align-items:center;padding:5px 13px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
 .st i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#7c8394;margin-right:7px}
 .st i.on{background:#3fe08f;box-shadow:0 0 10px #3fe08f}
-.b{display:block;width:100%;padding:14px 16px;border-radius:13px;background:#fff;color:#0c0e14;font-weight:600;font-size:15.5px;text-decoration:none;transition:transform .12s,box-shadow .12s;box-shadow:0 10px 28px -10px rgba(255,255,255,.5)}
-.b:hover{transform:translateY(-2px);box-shadow:0 14px 32px -10px rgba(255,255,255,.65)}
-.b:focus-visible{outline:2px solid #fff;outline-offset:3px}
-.b.ik{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#f1f3f8;box-shadow:none;margin-top:10px}
-.b.ik:hover{background:rgba(255,255,255,.15);box-shadow:none}
-h1+.b,.ab+.st+.b{margin-top:0}
-main>h1+.ab,main>h1{margin-bottom:0}
-main>.ic+h1+.ab+.b{margin-top:24px}
+.row{display:flex;align-items:center;gap:13px;width:100%;margin-top:10px;padding:11px 14px;border-radius:18px;text-align:left;text-decoration:none;color:#f1f3f8;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 8px 24px -12px rgba(0,0,0,.6);transition:transform .14s,background .14s,border-color .14s}
+.row:hover{transform:translateY(-2px);background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.26)}
+.row:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.st+.row{margin-top:0}
+.ri{flex:none;width:46px;height:46px;border-radius:50%;overflow:hidden;display:grid;place-items:center;font-weight:600;font-size:16px;color:#fff;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 50%,#000));border:1px solid rgba(255,255,255,.28)}
+.ri img{width:100%;height:100%;object-fit:cover;display:block}
+.ri.dl{background:rgba(255,255,255,.12)}
+.rt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.rt b{font-size:15.5px;font-weight:600}
+.rt em{font-size:12.5px;font-style:italic;color:rgba(255,255,255,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc{flex:none;color:rgba(255,255,255,.5)}
 .n{margin:12px 0 0;font-size:12.5px;color:rgba(255,255,255,.55)}
 .kc{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.12);line-height:1.7}
 .kc b{color:rgba(255,255,255,.85);font-weight:500}
@@ -160,15 +170,16 @@ code{display:block;margin:8px auto 0;width:fit-content;max-width:100%;padding:5p
 <div class="brand"><b>Xanaphian</b> · arkadaşlarınla sohbet et, oyna</div>
 ${info ? `<script nonce="${nonce}">
 (function(){
-  var not=document.getElementById('not');
-  // sayfa açılır açılmaz uygulamayı dene; kurulu değilse tarayıcı hiçbir şey yapmaz ve indirme düğmesi yerinde durur
-  var t;
+  // uygulama kendiliğinden açılmaz (tarayıcı üstte izin çubuğu çıkarıp sayfayı örtüyordu); yalnız "Xanaphian'da aç"a basınca açılır
+  var ac=document.getElementById('ac'), not=document.getElementById('not'), t;
+  if(!ac||!not) return;
+  var first=not.textContent;
   window.addEventListener('blur',function(){ clearTimeout(t); not.textContent="Xanaphian açılıyor. Katılma penceresi uygulamada seni bekliyor."; });
-  function ac(){
-    t=setTimeout(function(){ not.textContent="Xanaphian açılmadı mı? Yüklü değilse aşağıdan indir, sonra bu sayfaya dön."; },2500);
-    try{ location.href=${JSON.stringify(appLink)}; }catch(e){}
-  }
-  if(document.readyState==='complete') setTimeout(ac,100); else window.addEventListener('load',function(){ setTimeout(ac,100); });
+  ac.addEventListener('click',function(){
+    clearTimeout(t);
+    t=setTimeout(function(){ not.textContent="Açılmadı mı? Yüklü değilse aşağıdan indir."; },2500);
+  });
+  window.addEventListener('focus',function(){ clearTimeout(t); not.textContent=first; });
 })();
 </script>` : ''}
 </body>
