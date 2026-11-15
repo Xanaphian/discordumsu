@@ -36,11 +36,6 @@ jobs:
         run: npm run test:surum
       - name: Sunucuyu derle
         run: npm run build:server
-      - name: Sunucu paketini sakla
-        uses: actions/upload-artifact@v4
-        with:
-          name: sunucu-paketi
-          path: server/paket/kovan-server.js
       - name: Sunucu kurallarını sına
         run: npm run test:sunucu
 

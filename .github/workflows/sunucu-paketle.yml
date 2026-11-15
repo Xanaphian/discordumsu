@@ -1,0 +1,46 @@
+name: Sunucu paketini yenile
+
+# Sohbet sunucusunun kodu (ya da sürüm) ana dalda değişince hazır paketi (server/paket/kovan-server.js)
+# yeniden derleyip depoya yazar. kur.sh sunucuya bu hazır dosyayı indirir.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/main/**'
+      - 'src/shared/**'
+      - 'server/node.ts'
+      - 'server/guvenli-getir.ts'
+      - 'scripts/build-server.mjs'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sunucu-paketle
+  cancel-in-progress: false
+
+jobs:
+  paketle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:server
+      - name: Değiştiyse depoya yaz
+        run: |
+          if git diff --quiet -- server/paket/kovan-server.js; then
+            echo "Paket zaten güncel."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/paket/kovan-server.js
+          git commit -m "Sunucu paketi yeniden derlendi"
+          git push
