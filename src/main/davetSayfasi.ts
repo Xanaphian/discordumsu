@@ -56,25 +56,7 @@ export function invitePageHeaders(nonce: string): Record<string, string> {
   };
 }
 
-/** Sayfa arka planı: sahibinin seçtiği resim/GIF/video; yoksa topluluk afişi; o da yoksa topluluk renginden bir geçiş */
-function pageBackground(info: InviteInfo, code: string): { css: string; video?: string } {
-  const bg = info.bg;
-  const fallback = safeColor(info.color);
-  const url = `${OFFICIAL_SERVER}/davet/${code}/arkaplan`;
-  if (bg?.k === 'video' && code) return { css: `linear-gradient(135deg, ${fallback}, #07080b)`, video: url };
-  if (bg?.k === 'image' && code) {
-    const pos = `${Math.min(100, Math.max(0, bg.x ?? 50))}% ${Math.min(100, Math.max(0, bg.y ?? 50))}%`;
-    return { css: `url("${url}") ${pos} / cover no-repeat, ${fallback}` };
-  }
-  if (bg?.k === 'gradient') return { css: `linear-gradient(${Math.round(bg.ang ?? 135)}deg, ${safeColor(bg.a)}, ${safeColor(bg.b || bg.a)})` };
-  if (bg?.k === 'solid') return { css: safeColor(bg.a) };
-  return { css: `linear-gradient(135deg, ${fallback}, color-mix(in srgb, ${fallback} 30%, #07080b))` };
-}
-
-const DL_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>';
-const CHEV = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
-
-/** Tarayıcıda açılan davet sayfası (Discord davet sayfası düzeninde). info yoksa "davet geçersiz" sayfası döner. */
+/** Tarayıcıda açılan davet sayfası. info yoksa "davet geçersiz" sayfası döner. */
 export function invitePage(info: InviteInfo | null, code: string, nonce: string): string {
   const appLink = `${INVITE_APP_SCHEME}://davet/${code}`;
   const link = `${INVITE_LINK_BASE}/${code}`;
@@ -85,25 +67,27 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
   const hasIcon = !!info?.icon;
   const iconUrl = `${link}/simge`;
   const color = info ? safeColor(info.color) : '#5b8def';
-  const bg = info ? pageBackground(info, code) : { css: 'linear-gradient(135deg,#1b1f2a,#0b0d12)' } as { css: string; video?: string };
+  const bgUrl = info?.bg && code ? `${OFFICIAL_SERVER}/davet/${code}/arkaplan` : '';
+  const bgLayer = !bgUrl ? '' : info!.bg!.k === 'video' ? `<video class="pbg" src="${esc(bgUrl)}" autoplay muted loop playsinline preload="auto"></video><div class="pbs"></div>` : `<div class="pbg" style="background:url('${esc(bgUrl)}') center/cover no-repeat"></div><div class="pbs"></div>`;
   const icon = info
     ? hasIcon
       ? // göreli adres: sayfa hem xanaphian.com/davet/<kod> hem de sunucunun kendi adresinden açılınca çalışır
-        `<img class="ic" src="${esc(code)}/simge" alt="" width="80" height="80">`
+        `<img class="ic" src="${esc(code)}/simge" alt="" width="96" height="96">`
       : `<div class="ic tx">${esc(initials(info.name))}</div>`
     : `<div class="ic tx bad">!</div>`;
   const body = info
-    ? `${icon}
-      <p class="k">Bir topluluğa davet edildin</p>
+    ? `<p class="k">Bir topluluğa davet edildin</p>
       <h1>${esc(info.name)}</h1>
-      <p class="st"><span><i class="on"></i>${info.online} çevrimiçi</span><span><i></i>${info.members} üye</span></p>
       ${info.about ? `<p class="ab">${esc(info.about)}</p>` : ''}
-      <a class="btn pri" id="ac" href="${esc(appLink)}">Uygulamayı Aç</a>
-      <button class="btn sec" id="cp" type="button" data-l="${esc(link)}">Bağlantıyı Kopyala</button>
-      <p class="n" id="not">Uygulama yüklüyse katılma penceresi orada açılır.</p>`
-    : `${icon}
-      <h1>Davet geçersiz</h1>
-      <p class="ab">Bu davet bağlantısı geçersiz ya da süresi dolmuş. Seni davet eden kişiden yeni bir bağlantı iste.</p>`;
+      <p class="st"><span class="pl"><i class="on"></i>${info.online} çevrimiçi</span><span class="pl"><i></i>${info.members} üye</span></p>
+      <a class="b" id="ac" href="${esc(appLink)}">Xanaphian'da aç</a>
+      <p class="n" id="not">Uygulama kuruluysa birkaç saniye içinde açılır.</p>
+      <div class="sep"><span>uygulaman yok mu?</span></div>
+      <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Xanaphian'ı indir</a>
+      <p class="n kc">Uygulamada <b>Bir topluluğa katıl</b> kutusuna bu bağlantıyı da yapıştırabilirsin<code>${esc(link.replace(/^https?:\/\//, ''))}</code></p>`
+    : `<h1>Davet geçersiz</h1>
+      <p class="ab">Bu davet bağlantısı geçersiz ya da süresi dolmuş. Seni davet eden kişiden yeni bir bağlantı iste.</p>
+      <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Xanaphian'ı indir</a>`;
   return `<!doctype html>
 <html lang="tr">
 <head>
@@ -111,7 +95,7 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#1e1f22">
+<meta name="theme-color" content="#0d0f14">
 <title>${esc(title)} · Xanaphian</title>
 <meta name="description" content="${esc(desc)}">
 <meta property="og:site_name" content="Xanaphian">
@@ -123,61 +107,63 @@ ${hasIcon ? `<meta property="og:image" content="${esc(iconUrl)}">\n<meta name="t
 <style>
 *{box-sizing:border-box}
 html,body{min-height:100%;margin:0}
-body{--c:${color};color:#f2f3f5;font:16px/1.4 "gg sans",Rubik,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:80px 16px 40px;position:relative;overflow-x:hidden;-webkit-font-smoothing:antialiased;background:#1e1f22}
-.bg{position:fixed;inset:0;background:${bg.css};z-index:0}
-.bgv{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;background:#0b0d12}
-.bg:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.34))}
-.logo{position:fixed;top:26px;left:34px;z-index:2;display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;letter-spacing:-.01em;color:#fff;text-decoration:none;text-shadow:0 2px 12px rgba(0,0,0,.45)}
-.logo i{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-style:normal;font-size:19px;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 45%,#000));box-shadow:0 4px 14px -4px rgba(0,0,0,.6)}
-main{position:relative;z-index:1;width:100%;max-width:480px;padding:32px;text-align:center;border-radius:8px;background:#313338;box-shadow:0 8px 30px rgba(0,0,0,.45);animation:in .45s cubic-bezier(.2,.8,.2,1) both}
-@keyframes in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){main{animation:none}}
-.ic{width:80px;height:80px;border-radius:50%;display:block;margin:0 auto 16px;object-fit:cover;background:#1e1f22}
-.tx{display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 50%,#000))}
+body{--c:${color};background:#0d0f14;color:#e9ebf1;font:16px/1.55 Rubik,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 16px;position:relative;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+body:before{content:"";position:fixed;inset:-20% -10% auto -10%;height:70vh;background:radial-gradient(60% 60% at 50% 0,color-mix(in srgb,var(--c) 38%,transparent),transparent 70%);opacity:.55;pointer-events:none}
+body:after{content:"";position:fixed;inset:auto -10% -25% -10%;height:50vh;background:radial-gradient(50% 60% at 50% 100%,rgba(91,141,239,.16),transparent 70%);pointer-events:none}
+.brand{position:relative;z-index:1;display:flex;align-items:center;gap:9px;margin-bottom:22px;font-weight:600;font-size:15px;letter-spacing:.2px;color:#cdd2de}
+.brand b{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#5b8def,#7a5cf0);color:#fff;font-size:14px}
+main{position:relative;z-index:1;width:100%;max-width:430px;background:linear-gradient(180deg,#1b1e26,#171a21);border:1px solid #2a2e39;border-radius:22px;padding:0 30px 26px;text-align:center;box-shadow:0 24px 60px -20px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.02) inset;overflow:hidden}
+.bn{height:92px;margin:0 -30px;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 35%,#101216));position:relative}
+.bn:after{content:"";position:absolute;inset:0;background:radial-gradient(120% 140% at 80% 0,rgba(255,255,255,.22),transparent 55%)}
+.ic{width:96px;height:96px;border-radius:26%;display:block;margin:-48px auto 16px;object-fit:cover;border:5px solid #1b1e26;background:#1b1e26;position:relative;box-shadow:0 8px 24px -8px rgba(0,0,0,.6)}
+.tx{display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:600;color:#fff;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 55%,#000))}
 .bad{background:#3a2a2e;color:#f0a2ac}
-.k{margin:0 0 6px;font-size:14px;color:#b5bac1}
-h1{margin:0;font-size:24px;line-height:1.25;font-weight:700;overflow-wrap:anywhere}
-.st{margin:12px 0 0;display:flex;gap:16px;justify-content:center;flex-wrap:wrap;font-size:13.5px;color:#b5bac1}
-.st span{display:inline-flex;align-items:center}
-.st i{width:9px;height:9px;border-radius:50%;background:#80848e;margin-right:6px}
-.st i.on{background:#23a559}
-.ab{margin:14px 0 0;color:#dbdee1;font-size:14.5px;overflow-wrap:anywhere}
-.btn{all:unset;box-sizing:border-box;display:block;width:100%;margin-top:10px;padding:11px 16px;border-radius:4px;text-align:center;font-size:15px;font-weight:600;cursor:pointer;color:#fff;transition:background .12s}
-.btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.pri{background:#5865f2;margin-top:24px}.pri:hover{background:#4752c4}
-.sec{background:#4e5058}.sec:hover{background:#6d6f78}
-.n{margin:14px 0 0;font-size:12.5px;color:#949ba4}
-.dl{position:relative;z-index:1;display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:6px;background:#111214;color:#fff;font-size:14px;font-weight:600;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.4);transition:background .12s}
-.dl:hover{background:#26282c}
-.dl:focus-visible{outline:2px solid #fff;outline-offset:2px}
-@media(max-width:520px){main{padding:26px 20px}.logo{left:18px;top:18px}}
+.k{margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#8f97a8}
+h1{margin:0;font-size:26px;line-height:1.22;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
+.ab{margin:10px 0 0;color:#b4bac7;font-size:14.5px;overflow-wrap:anywhere}
+.st{margin:18px 0 26px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;font-size:13.5px;color:#c3c8d4}
+.pl{display:inline-flex;align-items:center;padding:5px 12px;border-radius:999px;background:#12151b;border:1px solid #262a35}
+.st i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6c7383;margin-right:7px}
+.st i.on{background:#3fb97c;box-shadow:0 0 0 3px rgba(63,185,124,.18)}
+.b{display:block;width:100%;padding:14px 16px;border-radius:12px;background:linear-gradient(180deg,#6a98f3,#4f80e6);color:#fff;font-weight:600;font-size:15.5px;text-decoration:none;box-shadow:0 8px 20px -8px rgba(79,128,230,.7);transition:transform .12s,filter .12s}
+.b:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.b:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.b.ik{background:transparent;border:1px solid #343947;color:#e9ebf1;box-shadow:none}
+.b.ik:hover{background:#21252e;filter:none}
+main>h1+.ab,main>h1{margin-bottom:0}
+main>h1+.ab+.b,main>.ic+h1+.ab+.b{margin-top:24px}
+.n{margin:14px 0 0;font-size:13px;color:#8d94a3}
+.sep{display:flex;align-items:center;gap:12px;margin:20px 0 14px;color:#6f7686;font-size:12px}
+.sep:before,.sep:after{content:"";flex:1;height:1px;background:#262a35}
+.kc{margin-top:20px;padding-top:18px;border-top:1px solid #262a35;line-height:1.7}
+.kc b{color:#c3c8d4;font-weight:500}
+code{display:block;margin:8px auto 0;width:fit-content;max-width:100%;padding:5px 11px;border-radius:8px;background:#0f1218;border:1px solid #232733;color:#cfd4de;font:12.5px ui-monospace,Consolas,monospace;user-select:all;overflow-wrap:anywhere}
+.ft{position:relative;z-index:1;margin-top:20px;font-size:12px;color:#6f7686}
+@media(max-width:420px){main{padding:0 20px 22px}.bn{margin:0 -20px}h1{font-size:23px}}
+.pbg{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.pbs{position:fixed;inset:0;z-index:0;background:rgba(8,9,13,.45)}
 </style>
 </head>
 <body>
-<div class="bg"></div>
-${bg.video ? `<video class="bgv" src="${esc(bg.video)}" autoplay muted loop playsinline preload="auto"></video>` : ''}
-<a class="logo" href="${esc(DOWNLOAD_URL)}" rel="noopener"><i>X</i>Xanaphian</a>
+${bgLayer}
+<div class="brand"><b>X</b>Xanaphian</div>
 <main>
+      <div class="bn"></div>
+      ${icon}
       ${body}
 </main>
-<a class="dl" href="${esc(DOWNLOAD_URL)}" rel="noopener">${DL_ICON}Xanaphian'ı indir${CHEV}</a>
+<p class="ft">Xanaphian · Arkadaşlarınla sohbet et, oyna, birlikte vakit geçir</p>
 ${info ? `<script nonce="${nonce}">
 (function(){
-  var cp=document.getElementById('cp');
-  if(cp) cp.addEventListener('click',function(){
-    var o=cp.textContent;
-    try{ navigator.clipboard.writeText(cp.getAttribute('data-l')).then(function(){ cp.textContent='Kopyalandı'; setTimeout(function(){ cp.textContent=o; },1600); },function(){}); }catch(e){}
-  });
-  // uygulama kendiliğinden açılmaz (tarayıcı üstte izin çubuğu çıkarıp sayfayı örtüyordu); yalnız "Uygulamayı Aç"a basınca açılır
-  var ac=document.getElementById('ac'), not=document.getElementById('not'), t;
-  if(!ac||!not) return;
-  var first=not.textContent;
+  var not=document.getElementById('not');
+  // sayfa açılır açılmaz uygulamayı dene; kurulu değilse tarayıcı hiçbir şey yapmaz ve indirme düğmesi yerinde durur
+  var t;
   window.addEventListener('blur',function(){ clearTimeout(t); not.textContent="Xanaphian açılıyor. Katılma penceresi uygulamada seni bekliyor."; });
-  ac.addEventListener('click',function(){
-    clearTimeout(t);
-    t=setTimeout(function(){ not.textContent="Açılmadı mı? Yüklü değilse aşağıdaki düğmeyle indir."; },2500);
-  });
-  window.addEventListener('focus',function(){ clearTimeout(t); not.textContent=first; });
+  function ac(){
+    t=setTimeout(function(){ not.textContent="Xanaphian açılmadı mı? Yüklü değilse aşağıdan indir, sonra bu sayfaya dön."; },2500);
+    try{ location.href=${JSON.stringify(appLink)}; }catch(e){}
+  }
+  if(document.readyState==='complete') setTimeout(ac,100); else window.addEventListener('load',function(){ setTimeout(ac,100); });
 })();
 </script>` : ''}
 </body>
