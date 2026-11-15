@@ -29,7 +29,7 @@ import { ActivityLine, ListenAlongBar } from './profile/Activity';
 import { useUnread } from './ServerRail';
 import { cx, copyText, displayName, countOnline, memberOf } from '../lib/util';
 import { openPopout } from './AyriPencere';
-import { memberMenu } from './Moderation';
+import { memberMenu, toggleBlock } from './Moderation';
 import { insertMention } from './Members';
 import { DeviceChevron, DeviceMenu, type DeviceKind } from './DeviceMenu';
 import { can, canIn, Perm, isVoiceLike, type Channel, type Community, type Status, type VoiceMember } from '../../shared/protocol';
@@ -686,6 +686,7 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
   const custom = activeCustom(user?.profile);
   const live = useActsOf(c.dm).length > 0;
   const pinned = useStore((s) => s.settings.pinnedDms.includes(c.id));
+  const isBlocked = useStore((s) => s.settings.blocked.includes(c.dm!));
   const menu = (e: React.MouseEvent) =>
     openMenu(e, [
       { label: 'Okundu olarak işaretle', onClick: () => markCommunityRead(c.id), disabled: !unread },
@@ -694,6 +695,7 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
       { label: 'Profil', onClick: () => openModal({ type: 'profile', uid: c.dm!, cid: c.id }) },
       { label: isMutedId(c.id) ? 'Bildirimleri aç' : 'Sessize al', onClick: () => toggleMuted(c.id) },
       { sep: true },
+      { label: isBlocked ? 'Engeli kaldır' : 'Engelle', danger: !isBlocked, onClick: () => toggleBlock(c.dm!, user?.name || c.name) },
       { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
     ]);
   return (
