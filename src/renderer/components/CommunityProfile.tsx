@@ -11,6 +11,7 @@ import {
 import { PATTERN_LABEL, bannerBackground, linkBrand } from './profile/look';
 import { Banner, LinkList } from './profile/ProfileCard';
 import { ColorPick, Section, Seg } from './profile/ProfileEditor';
+import { INVITE_BG_MAX, INVITE_BG_RE } from '../../shared/davetBaglanti';
 import { cropImage, recropImage, CropPreview, type CropOpts } from './Kirpma';
 
 const commBannerOpts = (h?: number): CropOpts => ({
@@ -207,6 +208,8 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
   const [d, setD] = useState<Draft>(initial);
   const [tagInput, setTagInput] = useState('');
   const bannerFile = useRef<HTMLInputElement>(null);
+  const inviteFile = useRef<HTMLInputElement>(null);
+  const [invPrev, setInvPrev] = useState<string | null>(null);
   useEffect(() => setD(initial), [initial]);
 
   const banner: ProfileBanner = d.banner || { kind: 'gradient', a: c.color, b: '#0a1226', angle: 135 };
@@ -221,6 +224,24 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
     setD({ ...d, tags: [...d.tags, t] });
   };
   const setLinks = (links: ProfileLink[]) => setD({ ...d, links });
+
+  const pickInviteBg = (f: File) => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      const data = String(rd.result || '');
+      if (!INVITE_BG_RE.test(data)) return toast('Resim, GIF ya da mp4/webm video seç.', 'err');
+      if (data.length > INVITE_BG_MAX) return toast('Dosya çok büyük (en çok yaklaşık 4 MB). Videoyu kısaltıp küçült.', 'err');
+      cmd(c.id, { t: 'comm.update', cid: c.id, inviteBg: data } as any);
+      setInvPrev(data);
+      toast('Davet arka planı kaydedildi', 'ok');
+    };
+    rd.readAsDataURL(f);
+  };
+  const clearInviteBg = () => {
+    cmd(c.id, { t: 'comm.update', cid: c.id, inviteBg: null } as any);
+    setInvPrev(null);
+    toast('Davet arka planı kaldırıldı', 'ok');
+  };
 
   const save = () => {
     if (d.links.filter((l) => l.url.trim()).length > (draftProfile?.links?.length || 0)) toast('Geçersiz bağlantılar kaydedilmedi.', 'err');
@@ -310,6 +331,41 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
             ) : null}
           </Section>
 
+          <Section title="Davet arka planı" sub="Davet bağlantısını açan kişiler bu resmi, GIF'i ya da videoyu arka planda görür. Boş bırakırsan afiş kullanılır.">
+            <input
+              ref={inviteFile}
+              hidden
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp,image/avif,video/mp4,video/webm"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) pickInviteBg(f);
+              }}
+            />
+            {invPrev || c.inviteBgKind ? (
+              <div className="pe-ib">
+                {invPrev && invPrev.startsWith('data:video/') ? (
+                  <video src={invPrev} muted loop autoPlay playsInline style={{ width: 330, maxWidth: '100%', borderRadius: 8, display: 'block', marginBottom: 8 }} />
+                ) : invPrev ? (
+                  <img src={invPrev} alt="" style={{ width: 330, maxWidth: '100%', borderRadius: 8, display: 'block', marginBottom: 8 }} />
+                ) : (
+                  <p style={{ margin: '0 0 8px' }}>Şu an ayarlı: {c.inviteBgKind === 'video' ? 'video' : 'resim / GIF'}</p>
+                )}
+              </div>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn ghost sm" onClick={() => inviteFile.current?.click()}>
+                <ImagePlus size={14} /> {invPrev || c.inviteBgKind ? 'Başka dosya seç' : 'Resim, GIF ya da video seç'}
+              </button>
+              {(invPrev || c.inviteBgKind) && (
+                <button className="btn ghost sm" onClick={clearInviteBg}>
+                  <Trash2 size={14} /> Kaldır
+                </button>
+              )}
+            </div>
+            <small className="counter" style={{ display: 'block', marginTop: 6 }}>mp4 / webm video, GIF, resim · en çok yaklaşık 4 MB</small>
+          </Section>
           <Section title="Tanıtım" sub="Adın altındaki tek satır ve topluluğun ne olduğunu anlatan açıklama.">
             <label className="field">
               <span>Kısa tanıtım</span>

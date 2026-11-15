@@ -22,7 +22,7 @@ import { FEAT_POSTS } from '../shared/paylasim';
 import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, TAG_CHANGES_PER_DAY, formatCode, tagKey, parseTag, customCodeError, nameError } from '../shared/etiket';
 import { Ekler, type EkOptions } from './ekler';
 import { cleanAge, cleanMax, iconBytes, inviteAlive, invitePage, invitePageHeaders } from './davetSayfasi';
-import { FEAT_INVITES, MAX_INVITES, type Invite, type InviteInfo } from '../shared/davetBaglanti';
+import { FEAT_INVITES, INVITE_BG_MAX, INVITE_BG_RE, MAX_INVITES, inviteBgKind, type Invite, type InviteInfo } from '../shared/davetBaglanti';
 import { cleanAttachments, cleanImportedCommunity, cleanImportedMessage, SAFE_ID, USER_ID } from './ithal';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
 
@@ -188,7 +188,7 @@ export interface CommunityExport {
   files: { id: string; mime: string; size: number }[];
 }
 
-type StoredCommunity = Omit<Community, 'users'> & { bans?: Ban[]; audit?: AuditEntry[]; m11?: number; m112?: number; m131?: number; /** süreli / sınırlı davetler (v1.57) */ invites?: Invite[] };
+type StoredCommunity = Omit<Community, 'users'> & { /** davet sayfası arka planı (data URL) */ inviteBg?: string; bans?: Ban[]; audit?: AuditEntry[]; m11?: number; m112?: number; m131?: number; /** süreli / sınırlı davetler (v1.57) */ invites?: Invite[] };
 
 const MAX_TIMEOUT_MIN = 28 * 24 * 60;
 const LINK_RE = /(https?:\/\/|www\.)\S+/i;
@@ -399,7 +399,9 @@ export class Hub {
     const about = (c.profile?.tagline || c.description || '').trim().slice(0, 160);
     if (about) info.about = about;
     const bn = c.profile?.banner;
-    if (bn && (bn.kind !== 'image' || bn.image)) info.bg = { k: bn.kind, a: bn.a, ...(bn.b ? { b: bn.b } : {}), ...(typeof bn.angle === 'number' ? { ang: bn.angle } : {}), ...(typeof bn.x === 'number' ? { x: bn.x } : {}), ...(typeof bn.y === 'number' ? { y: bn.y } : {}), ...(typeof bn.zoom === 'number' ? { z: bn.zoom } : {}) };
+    const ibk = inviteBgKind(c.inviteBg);
+    if (ibk) info.bg = { k: ibk, a: c.color };
+    else if (bn && (bn.kind !== 'image' || bn.image)) info.bg = { k: bn.kind, a: bn.a, ...(bn.b ? { b: bn.b } : {}), ...(typeof bn.angle === 'number' ? { ang: bn.angle } : {}), ...(typeof bn.x === 'number' ? { x: bn.x } : {}), ...(typeof bn.y === 'number' ? { y: bn.y } : {}), ...(typeof bn.zoom === 'number' ? { z: bn.zoom } : {}) };
     if (r.inv?.exp) info.exp = r.inv.exp;
     if (uid && c.members.some((m) => m.userId === uid)) info.joined = true;
     return info;
@@ -427,9 +429,24 @@ export class Hub {
     if (m[3]) {
       const found = this.findInvite(code);
       const live = found && !found.c.invitesPaused ? found.c : null;
-      const img = iconBytes(m[3] === '/arkaplan' ? (live?.profile?.banner?.kind === 'image' ? live.profile.banner.image : undefined) : live?.icon);
+      let img = iconBytes(m[3] === '/arkaplan' ? (live?.profile?.banner?.kind === 'image' ? live.profile.banner.image : undefined) : live?.icon);
+      if (m[3] === '/arkaplan' && live?.inviteBg) {
+        const mm = INVITE_BG_RE.exec(live.inviteBg);
+        if (mm) img = { mime: mm[1], buf: Buffer.from(mm[2], 'base64') };
+      }
       if (!img) return void res.writeHead(404).end(), true;
-      res.writeHead(200, { 'content-type': img.mime, 'content-length': img.buf.length, 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox" }).end(img.buf);
+      const hd: Record<string, string | number> = { 'content-type': img.mime, 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff', 'accept-ranges': 'bytes', 'content-security-policy': "default-src 'none'; sandbox" };
+      // video için aralık isteği (Range) gerekir: tarayıcı döngüde başa sarar
+      const rg = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
+      if (rg && (rg[1] || rg[2])) {
+        const n = img.buf.length;
+        const from = rg[1] ? parseInt(rg[1], 10) : Math.max(0, n - parseInt(rg[2], 10));
+        const to = rg[1] && rg[2] ? Math.min(parseInt(rg[2], 10), n - 1) : n - 1;
+        if (from >= n || from > to) return void res.writeHead(416, { 'content-range': `bytes */${n}` }).end(), true;
+        res.writeHead(206, { ...hd, 'content-range': `bytes ${from}-${to}/${n}`, 'content-length': to - from + 1 }).end(img.buf.subarray(from, to + 1));
+        return true;
+      }
+      res.writeHead(200, { ...hd, 'content-length': img.buf.length }).end(img.buf);
       return true;
     }
     if (m[1] === 'invite') {
@@ -653,7 +670,7 @@ export class Hub {
     this.server = http.createServer((req, res) => this.handleHttp(req, res));
     this.wss = new WebSocketServer({
       noServer: true,
-      maxPayload: 2 * 1024 * 1024,
+      maxPayload: 8 * 1024 * 1024,
       perMessageDeflate: {
         threshold: 1024,
         // Hızlı sıkıştırma ve küçük pencere: oran neredeyse aynı (JSON), işlemci ~3 kat, bağlantı başına bellek ~2,5 kat daha az.
@@ -1059,8 +1076,10 @@ export class Hub {
   }
 
   private snapshot(c: StoredCommunity, uid?: ID, users = this.commUsers(c)): Community {
-    const { bans: _b, audit: _a, m11: _m, m112: _m2, m131: _m3, invites: _i, ...rest } = c;
+    const { bans: _b, audit: _a, m11: _m, m112: _m2, m131: _m3, invites: _i, inviteBg, ...rest } = c;
     const out: Community = { ...rest, users };
+    const ibk = inviteBgKind(inviteBg);
+    if (ibk) out.inviteBgKind = ibk;
     if (uid) {
       out.channels = c.channels.filter((ch) => this.canView(c, uid, ch));
       if (!(memberPerms(c, uid) & (Perm.CREATE_INVITE | Perm.MANAGE_COMMUNITY)) || c.invitesPaused) {
@@ -2008,6 +2027,12 @@ export class Hub {
           if (p) c.profile = p;
           else delete c.profile;
           changed.push('sunucu profili');
+        }
+        if (f.inviteBg !== undefined) {
+          if (f.inviteBg === null) delete c.inviteBg;
+          else if (typeof f.inviteBg === 'string' && f.inviteBg.length <= INVITE_BG_MAX && INVITE_BG_RE.test(f.inviteBg)) c.inviteBg = f.inviteBg;
+          else return this.send(s, { t: 'err', msg: 'Davet arka planı resim, GIF ya da kısa video (mp4/webm, en çok ~4 MB) olmalı.' });
+          changed.push('davet arka planı');
         }
         if (f.color !== undefined && /^#[0-9a-f]{6}$/i.test(f.color)) (c.color = f.color), changed.push('renk');
         if (f.icon !== undefined) {

@@ -45,7 +45,7 @@ export interface InviteInfo {
   joined?: boolean;
   exp?: number;
   /** davet sayfasının arka planı: topluluk profilindeki afişten (resim ayrı adresten sunulur) */
-  bg?: { k: 'solid' | 'gradient' | 'image'; a: string; b?: string; ang?: number; x?: number; y?: number; z?: number };
+  bg?: { k: 'solid' | 'gradient' | 'image' | 'video'; a: string; b?: string; ang?: number; x?: number; y?: number; z?: number };
 }
 
 export const INVITE_AGES: { s: number; label: string }[] = [
@@ -106,3 +106,8 @@ export function inviteLeft(exp: number, now = Date.now()): string {
   if (s >= 60) return `${Math.max(1, Math.round(s / 60))} dk`;
   return 'bir dakikadan az';
 }
+
+/** Davet sayfası arka planı (sahibinin seçtiği resim, GIF ya da kısa video): data URL olarak saklanır */
+export const INVITE_BG_MAX = 6_000_000; // data URL uzunluğu (≈ 4,4 MB dosya)
+export const INVITE_BG_RE = /^data:((?:image\/(?:png|jpeg|gif|webp|avif))|(?:video\/(?:mp4|webm)));base64,([A-Za-z0-9+/=]+)$/;
+export const inviteBgKind = (d: string | undefined): 'image' | 'video' | undefined => (d ? (d.startsWith('data:video/') ? 'video' : d.startsWith('data:image/') ? 'image' : undefined) : undefined);

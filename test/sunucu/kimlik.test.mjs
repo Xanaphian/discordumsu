@@ -126,7 +126,7 @@ describe('bozuk girdi sunucuyu düşürmez', () => {
   test('çok büyük çerçeve bağlantıyı kapatır ama sunucu ayakta kalır', async () => {
     const ws = await login(srv, 'Büyük');
     const closed = new Promise((r) => ws.once('close', r));
-    ws.send(JSON.stringify({ t: 'send', ch: 'x', nonce: 'n', content: 'a'.repeat(3 * 1024 * 1024) }));
+    ws.send(JSON.stringify({ t: 'send', ch: 'x', nonce: 'n', content: 'a'.repeat(9 * 1024 * 1024) }));
     await closed;
     const ok = await login(srv, 'Sonraki');
     assert.ok(ok.ready);
