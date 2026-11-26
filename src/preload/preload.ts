@@ -24,6 +24,8 @@ const api = {
   quit: () => ipcRenderer.send('app:quit'),
   /** v1.63.0: arayüz ilk kez çizildi; açılış ekranı kapanıp ana pencere görünsün */
   acilisHazir: () => ipcRenderer.send('acilis:hazir'),
+  /** v1.64: bilgisayarda son fare/klavye hareketinden beri geçen saniye (Boşta durumu için) */
+  systemIdle: () => ipcRenderer.invoke('sys:idle') as Promise<number>,
   relaunch: () => ipcRenderer.send('app:relaunch'),
   installClaudeDesktop: (a: { name: string; url: string; token: string }) =>
     ipcRenderer.invoke('mcp:claude-desktop', a) as Promise<{ ok: boolean; files: string[]; error?: string }>,
@@ -91,7 +93,7 @@ const api = {
   overlay: {
     state: (st: unknown) => ipcRenderer.send('ovl:state', st),
     message: (m: unknown) => ipcRenderer.send('ovl:msg', m),
-    shortcut: (acc: string) => ipcRenderer.send('ovl:shortcut', acc),
+    shortcut: (acc: string) => ipcRenderer.invoke('ovl:shortcut', acc) as Promise<boolean>,
     onState: (cb: (st: any) => void) => on('ovl:state', cb),
     onMessage: (cb: (m: any) => void) => on('ovl:msg', cb),
     onHidden: (cb: (hidden: boolean) => void) => on('ovl:hidden', cb),

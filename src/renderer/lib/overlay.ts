@@ -1,7 +1,7 @@
 // v1.27 oyun içi kaplama: ayarlar (bu bilgisayarda saklanır) ve kaplama penceresine giden durum.
 import { create } from 'zustand';
 import type { ID } from '../../shared/protocol';
-import { useStore, overlayHooks } from './store';
+import { useStore, overlayHooks, toast } from './store';
 import { useVoice } from './voice';
 import { useActs } from './activity';
 import { displayName } from './util';
@@ -60,7 +60,11 @@ export function setOverlay(patch: Partial<OverlaySettings>) {
   } catch {
     /* yer yok */
   }
-  if (patch.shortcut !== undefined) window.kovan.overlay?.shortcut(s.shortcut);
+  if (patch.shortcut !== undefined)
+    window.kovan.overlay
+      ?.shortcut(s.shortcut)
+      .then((ok) => !ok && toast(`${s.shortcut} kısayolu alınamadı; başka bir uygulama kullanıyor olabilir. Başka bir kısayol seç.`, 'err'))
+      .catch(() => {});
   push();
 }
 

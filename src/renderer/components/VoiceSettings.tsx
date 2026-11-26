@@ -99,8 +99,10 @@ function MicTest() {
         if (s.speakerId !== 'default' && 'setSinkId' in ctx) (ctx as any).setSinkId(s.speakerId).catch(() => {});
         const src = ctx.createMediaStreamSource(st);
         // denemede de seçili gürültü engelleme duyulsun
-        chain = await buildNoiseChain(ctx, noiseModeOf(useStore.getState().settings));
-        if (!alive) return;
+        const ch = await buildNoiseChain(ctx, noiseModeOf(useStore.getState().settings));
+        // deneme bu sırada durdurulduysa gürültü engelleme düğümleri boşta kalmasın
+        if (!alive) return ch.dispose();
+        chain = ch;
         src.connect(chain.input);
         const g = ctx.createGain();
         g.gain.value = useStore.getState().settings.inputVolume / 100;
@@ -124,6 +126,8 @@ function MicTest() {
         loop();
       })
       .catch(() => {
+        // deneme bu arada durdurulduysa ya da ayar değiştiyse (bağlam kapandı) hata gösterme
+        if (!alive) return;
         toast('Mikrofona erişilemedi.', 'err');
         setTesting(false);
       });
