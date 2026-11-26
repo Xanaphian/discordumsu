@@ -66,6 +66,21 @@ export class PostStore {
     }, 800);
   }
 
+  /** Kapanırken: bekleyen kayıt varsa hemen (eşzamanlı) yazar; yoksa son saniyedeki paylaşım ya da engel listesi kaybolurdu */
+  flush() {
+    if (!this.timer) return;
+    clearTimeout(this.timer);
+    this.timer = null;
+    const blocks: Record<ID, ID[]> = {};
+    for (const [k, v] of this.blocks) if (v.size) blocks[k] = [...v];
+    try {
+      fs.writeFileSync(this.file + '.tmp', JSON.stringify({ posts: this.list, blocks } satisfies PostFile));
+      fs.renameSync(this.file + '.tmp', this.file);
+    } catch {
+      /* yazılamadı */
+    }
+  }
+
   /** istemcinin engel listesi (privacy çerçevesiyle gelir) */
   setBlocks(uid: ID, list: unknown) {
     if (!Array.isArray(list)) return;

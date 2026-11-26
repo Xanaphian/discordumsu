@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { BaglantiCubugu } from './BaglantiCubugu';
 import { create } from 'zustand';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
@@ -686,6 +687,33 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   // En alttayken yeni mesaj gelince liste son mesaja kayar ama alttaki boşluğu hesaba katmaz;
   // son mesaj yazma kutusuna yapışıp kırpılıyordu. Gerçek dibe kadar in.
   const scroller = useRef<HTMLElement | null>(null);
+  // Dipteyken içerik sonradan uzarsa (bağlantı önizlemesi ya da resim geç yüklenir) liste dipte kalsın. Eskiden olduğu
+  // yerde kalıyor, son mesajlar aşağıda kalıp "Yeni mesajlar var" çıkıyordu; o sırada gelen mesaj da görünmüyordu.
+  // "Dipte mi" bilgisini yalnız kaydırma olayı değiştirir: içerik uzayınca kaydırma olayı gelmez, bilgi doğru kalır.
+  const pinned = useRef(true);
+  const onScroll = useCallback(() => {
+    const el = scroller.current;
+    if (el) pinned.current = el.scrollHeight - el.clientHeight - el.scrollTop < 80;
+  }, []);
+  const setScroller = useCallback(
+    (el: HTMLElement | Window | null) => {
+      scroller.current?.removeEventListener('scroll', onScroll);
+      scroller.current = el as HTMLElement | null;
+      pinned.current = true;
+      scroller.current?.addEventListener('scroll', onScroll, { passive: true });
+    },
+    [onScroll],
+  );
+  const detachedRef = useRef(false);
+  detachedRef.current = !!st?.detached;
+  const stickToEnd = useCallback(() => {
+    const go = () => {
+      const el = scroller.current;
+      if (el && pinned.current && !detachedRef.current) el.scrollTop = el.scrollHeight;
+    };
+    requestAnimationFrame(go);
+    setTimeout(go, 120);
+  }, []);
   const bottomRef = useRef(true);
   bottomRef.current = atBottom;
   const tailId = items.length ? items[items.length - 1].nonce || items[items.length - 1].id : '';
@@ -712,13 +740,16 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
     if (!jumpTo || jumpTo.ch !== ch.id) return;
     const idx = items.findIndex((x) => x.id === jumpTo.id);
     if (idx < 0) return;
+    // atlanan mesaja giderken "dipte kal" devreye girmesin; yerleşince gerçek konuma göre yeniden hesaplanır
+    pinned.current = false;
+    setTimeout(onScroll, 400);
     requestAnimationFrame(() => ref.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'auto' }));
     setFlash(jumpTo.id);
     // Zamanlayıcı etkinin temizliğinde iptal edilmez: jumpTo sıfırlanınca etki yeniden çalışıp vurguyu sonsuza dek bırakıyordu
     clearTimeout(flashT.current);
     flashT.current = window.setTimeout(() => setFlash(null), 1800);
     useStore.setState({ jumpTo: null });
-  }, [jumpTo, items, ch.id]);
+  }, [jumpTo, items, ch.id, onScroll]);
   useEffect(() => () => clearTimeout(flashT.current), []);
 
   const headCtx = useMemo<ListCtx>(() => ({ c, ch, loading: !!st?.loading, more: !!st?.more }), [c, ch, st?.loading, st?.more]);
@@ -752,7 +783,8 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
       <Virtuoso
         key={ch.id + ':' + (st.epoch || 0)}
         ref={ref}
-        scrollerRef={(el) => (scroller.current = el as HTMLElement | null)}
+        scrollerRef={setScroller}
+        totalListHeightChanged={stickToEnd}
         className="scroll-thin msg-scroller"
         data={items}
         firstItemIndex={BASE - st.prepended}
@@ -1659,6 +1691,7 @@ export function ChatView({ c, ch }: { c: Community; ch: Channel }) {
       }}
     >
       <ChatHeader c={c} ch={ch} />
+      <BaglantiCubugu cid={c.id} />
       {c.dm && <DmCall c={c} ch={ch} />}
       <MessageList c={c} ch={ch} />
       <Composer key={ch.id} c={c} ch={ch} />

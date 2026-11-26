@@ -80,7 +80,7 @@ spaceHooks.onFrame = (h, f: ServerFrame) => {
       live.avatars.set(f.av.sid, { ...f.av, at: performance.now() });
       setSP((s) => ({ roster: { ...s.roster, [f.av.sid]: { sid: f.av.sid, userId: f.av.userId, look: f.av.look } } }));
       live.emit({ k: 'add', sid: f.av.sid });
-      if (useStore.getState().settings.sounds) playSound('join', 0.05);
+      if (useStore.getState().settings.sounds) playSound('join', 0.35);
       return;
     case 'sp.del': {
       live.avatars.delete(f.sid);

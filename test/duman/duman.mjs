@@ -174,8 +174,9 @@ async function startApp(cid) {
     if (!finished) console.error('Uygulama beklenmedik biçimde kapandı (kod ' + c + ')\n' + log);
   });
   procs.push(p);
+  // açılış ekranı da bir index.html: yalnız asıl pencereye bağlan (yoksa kapanan açılış penceresine takılıp sınama donuyordu)
   const target = await until(
-    async () => (await (await fetch(`http://127.0.0.1:${CDP}/json`)).json()).find((t) => t.type === 'page' && /index\.html/.test(t.url)),
+    async () => (await (await fetch(`http://127.0.0.1:${CDP}/json`)).json()).find((t) => t.type === 'page' && /renderer\/index\.html/.test(t.url)),
     'uygulama penceresi açılmadı',
     40000,
   );
@@ -278,14 +279,28 @@ async function appChecks({ comm, text, voice, bots }) {
   const msgAt = (txt) =>
     page.ev(`(() => { const m = [...document.querySelectorAll('.msg')].reverse().find((m) => m.textContent.includes(${JSON.stringify(txt)})); if (!m) return null; m.scrollIntoView({ block: 'center' }); const b = m.getBoundingClientRect(); return { x: b.left + Math.min(200, b.width / 2), y: b.top + b.height / 2 }; })()`);
   let at = await until(() => msgAt('duman: uygulamadan gönderildi'), 'gönderilen mesaj bulunamadı');
-  await clickAt(at.x, at.y, 'right');
-  must(await until(() => click('.ctx-item', 'Mesajı düzenle'), 'sağ tık menüsünde "Mesajı düzenle" yok', 4000), 'düzenleme açılamadı');
+  // Liste o sırada kayabilir (yeni mesaj, önizleme yüklenmesi): yer oturduktan sonra tıkla, menü başka mesajda açıldıysa yeniden dene
+  await until(
+    async () => {
+      await sleep(250);
+      at = await msgAt('duman: uygulamadan gönderildi');
+      if (!at) return false;
+      await clickAt(at.x, at.y, 'right');
+      await sleep(150);
+      if (await click('.ctx-item', 'Mesajı düzenle')) return true;
+      await esc();
+      return false;
+    },
+    'sağ tık menüsünde "Mesajı düzenle" yok',
+    8000,
+  );
   await until(() => page.ev(`document.activeElement?.closest('.edit-box') ? true : false`), 'düzenleme kutusu açılmadı', 4000);
   await page.ev(`(() => { const t = document.activeElement; t.select(); return true; })()`);
   await page.send('Input.insertText', { text: 'duman: düzenlendi' });
   await key('Enter', 'Enter', 13);
   await until(() => page.ev(`[...document.querySelectorAll('.msg')].some((m) => m.textContent.includes('duman: düzenlendi'))`), 'düzenlenen mesaj ekranda değişmedi');
   await until(async () => bots[2].frames.some((f) => f.t === 'msg.upd' && f.m.content === 'duman: düzenlendi'), 'düzenleme diğer üyeye ulaşmadı', 4000);
+  await sleep(250);
   at = await msgAt('duman: düzenlendi');
   await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
   must(

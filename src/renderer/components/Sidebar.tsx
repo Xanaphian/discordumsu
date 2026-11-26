@@ -531,7 +531,7 @@ function NoiseButton() {
 }
 
 export function VoicePanel() {
-  const v = useVoice(useShallow((s) => ({ ch: s.ch, cid: s.cid, state: s.state, cam: s.cam, screen: s.screen })));
+  const v = useVoice(useShallow((s) => ({ ch: s.ch, cid: s.cid, state: s.state, cam: s.cam, screen: s.screen, ping: s.ping })));
   const c = useStore((s) => (v.cid ? s.communities[v.cid] : undefined));
   const in3d = useSpace((s) => !!v.ch && s.ch === v.ch && s.status !== 'idle');
   const joining3d = useSpace((s) => s.status === 'joining');
@@ -544,6 +544,11 @@ export function VoicePanel() {
         <div className="vp-info" onClick={() => selectChannel(c.id, v.ch!)}>
           <div className={cx('vp-state', v.state)}>
             <Signal size={15} /> {v.state === 'connected' ? (in3d ? '3D odadasın' : 'Ses bağlı') : 'Bağlanıyor…'}
+            {v.state === 'connected' && v.ping != null && (
+              <span className="vp-ping" title="Gecikme: sesinin karşıya ulaşıp geri dönme süresi. Düşük olması iyidir.">
+                · {v.ping} ms
+              </span>
+            )}
           </div>
           <div className="vp-where">{c.dm ? `@${useStore.getState().users[c.dm]?.name || c.name} ile arama` : `${ch?.name} / ${c.name}`}</div>
         </div>

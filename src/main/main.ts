@@ -749,14 +749,22 @@ function registerIpc() {
       /* desteklenmiyor */
     }
   });
+  const liveNotifs = new Set<Notification>();
   ipcMain.on('notify', (_e, n: { title: string; body: string; tag: string; silent?: boolean; icon?: string }) => {
     if (!Notification.isSupported() || blockNotify(_e.sender)) return;
     if (win?.isFocused()) return;
-    const notif = new Notification({ title: n.title.slice(0, 100), body: n.body.slice(0, 300), silent: !!n.silent, icon: iconPath() });
+    const notif = new Notification({ title: n.title.slice(0, 100), body: String(n.body || '').slice(0, 300), silent: !!n.silent, icon: iconPath() });
+    // Bildirim nesnesi bir yerde tutulmazsa bellek temizliğinde silinebilir; o zaman bildirime tıklamak hiçbir şey yapmaz.
+    liveNotifs.add(notif);
+    if (liveNotifs.size > 40) liveNotifs.delete(liveNotifs.values().next().value!);
+    const forget = () => liveNotifs.delete(notif);
     notif.on('click', () => {
+      forget();
       showWindow();
       win?.webContents.send('notify:click', n.tag);
     });
+    notif.on('close', forget);
+    notif.on('failed', forget);
     notif.show();
     win?.flashFrame(true);
   });

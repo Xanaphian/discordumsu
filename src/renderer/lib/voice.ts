@@ -3,9 +3,9 @@
 import { buildNoiseChain, noiseModeOf, browserNS, onNoiseFallback, dfLoaded, type NoiseChain, type NoiseMode } from './ses/gurultu';
 import { create } from 'zustand';
 import { canIn, Perm, type Channel, type Community, type ID, type VoiceMember } from '../../shared/protocol';
-import { useStore, voiceHooks, cmd, toast, request } from './store';
+import { useStore, voiceHooks, cmd, toast, request, connFor } from './store';
 import { FEAT_ICE, type IceInfo } from '../../shared/ekler';
-import { playSound } from './sound';
+import { playSound, setSoundSink } from './sound';
 import { pencere } from './gorunurluk';
 
 export interface RemoteMedia {
@@ -84,6 +84,8 @@ interface Peer {
   audio: Map<string, RemoteAudio>;
   senders: { mic?: RTCRtpSender; cam?: RTCRtpSender; scrV?: RTCRtpSender; scrA?: RTCRtpSender };
   failTimer?: ReturnType<typeof setTimeout>;
+  /** sinyaller sırayla işlenir (art arda gelen teklif/yanıt/aday iç içe girmesin) */
+  chain: Promise<void>;
 }
 
 const ICE: RTCConfiguration = {
@@ -120,6 +122,8 @@ let master: GainNode | null = null;
 let loopTimer: ReturnType<typeof setInterval> | null = null;
 const peers = new Map<ID, Peer>();
 let lastMembers = new Set<ID>();
+/** ekranını paylaşan diğer kişiler (yayın başlama / bitme sesi için) */
+let lastScreens = new Set<ID>();
 
 // ---- mikrofon hattı: ham mikrofon → giriş kazancı → kapı (VAD / bas-konuş) → gönderilen iz
 let rawMic: MediaStream | null = null;
@@ -208,6 +212,7 @@ function vadThreshold() {
 }
 
 function startLoop() {
+  if (!pingTimer) pingTimer = setInterval(measurePing, 3000);
   if (loopTimer) return;
   let tick = 0;
   loopTimer = setInterval(() => {
@@ -248,6 +253,26 @@ function startLoop() {
         break;
       }
   }, 40);
+}
+
+/** Gecikme (ms): eşlerle kurulan bağlantıların gidiş-dönüş süresinin ortalaması. Ses panelinde gösterilir. */
+let pingTimer: ReturnType<typeof setInterval> | null = null;
+async function measurePing() {
+  if (pencere.gizli && !pencere.kaplama) return;
+  const rtts: number[] = [];
+  for (const p of [...peers.values()]) {
+    if (p.pc.connectionState !== 'connected') continue;
+    try {
+      const stats = await p.pc.getStats();
+      stats.forEach((r: any) => {
+        if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded' && typeof r.currentRoundTripTime === 'number') rtts.push(r.currentRoundTripTime * 1000);
+      });
+    } catch {
+      /* bağlantı kapanmış */
+    }
+  }
+  const ping = rtts.length ? Math.round(rtts.reduce((a, b) => a + b, 0) / rtts.length) : null;
+  if (V().ch && ping !== V().ping) setV({ ping });
 }
 
 function signal(to: ID, data: unknown) {
@@ -350,7 +375,7 @@ function addLocalVideo(p: Peer) {
 
 function createPeer(sid: ID, uid: ID): Peer {
   const pc = new RTCPeerConnection(iceCfg);
-  const p: Peer = { sid, uid, pc, polite: (mySid || '') > sid, makingOffer: false, ignoreOffer: false, queue: [], streams: new Map(), audio: new Map(), senders: {} };
+  const p: Peer = { sid, uid, pc, polite: (mySid || '') > sid, makingOffer: false, ignoreOffer: false, queue: [], streams: new Map(), audio: new Map(), senders: {}, chain: Promise.resolve() };
   peers.set(sid, p);
   const mic = local?.getAudioTracks()[0];
   if (mic && local) p.senders.mic = pc.addTrack(mic, local);
@@ -557,6 +582,14 @@ voiceHooks.onYou = (h, sid) => {
 
 voiceHooks.onRoom = (h, ch, members) => {
   if (h !== host || ch !== V().ch || !mySid) return;
+  if (!members.some((m) => m.sessionId === mySid)) {
+    // Sunucu bizi odadan çıkardı (zaman aşımı, yetki değişikliği). Eskiden uygulama "Ses bağlı" görünmeye,
+    // mikrofon açık kalmaya devam ediyordu.
+    leaveVoice(true);
+    toast('Ses odasından çıkarıldın.', 'info');
+    if (ST().sounds) playSound('leave');
+    return;
+  }
   syncRoom(members);
 };
 
@@ -566,26 +599,45 @@ function syncRoom(members: VoiceMember[]) {
   for (const m of members) {
     if (m.sessionId === mySid) continue;
     const p = peers.get(m.sessionId);
-    if (p) classify(p);
-    else createPeer(m.sessionId, m.userId);
+    if (p) {
+      // eş, üye listesinden önce gelen bir sinyalle kimliği bilinmeden kurulmuş olabilir: kişiye özel ses düzeyi doğru uygulansın
+      if (p.uid !== m.userId) {
+        p.uid = m.userId;
+        applyOutput();
+      }
+      classify(p);
+    } else createPeer(m.sessionId, m.userId);
   }
   for (const sid of [...peers.keys()]) if (!ids.has(sid)) closePeer(sid);
+  const screens = new Set(members.filter((m) => m.screen && m.sessionId !== mySid).map((m) => m.sessionId));
   if (ST().sounds) {
     const joined = [...ids].some((x) => !lastMembers.has(x) && x !== mySid);
     const left = [...lastMembers].some((x) => !ids.has(x));
-    if (lastMembers.size && joined) playSound('join', 0.08);
-    else if (left) playSound('leave', 0.08);
+    // odada zaten olan biri yayın açtı / kapattı (odadan çıkan kişinin yayını için ayrıca ses çalınmaz)
+    const scrOn = [...screens].some((x) => !lastScreens.has(x) && lastMembers.has(x));
+    const scrOff = [...lastScreens].some((x) => !screens.has(x) && ids.has(x));
+    if (lastMembers.size && joined) playSound('join', 0.85);
+    else if (left) playSound('leave', 0.85);
+    else if (lastMembers.size && scrOn) playSound('screenOn', 0.85);
+    else if (scrOff) playSound('screenOff', 0.85);
   }
   lastMembers = ids;
+  lastScreens = screens;
 }
 
-voiceHooks.onSignal = async (h, from, data: any) => {
+voiceHooks.onSignal = (h, from, data: any, fromUser) => {
   if (h !== host || !V().ch || !mySid) return;
   let p = peers.get(from);
   if (!p) {
     const vm = (useStore.getState().voice[V().ch!] || []).find((m) => m.sessionId === from);
-    p = createPeer(from, vm?.userId || '');
+    p = createPeer(from, vm?.userId || fromUser || '');
   }
+  const peer = p;
+  peer.chain = peer.chain.then(() => handleSignal(peer, from, data));
+};
+
+async function handleSignal(p: Peer, from: ID, data: any) {
+  if (peers.get(from) !== p) return; // bu arada eş kapandı
   const pc = p.pc;
   try {
     if (data?.sdp) {
@@ -606,7 +658,7 @@ voiceHooks.onSignal = async (h, from, data: any) => {
   } catch {
     /* müzakere hatası */
   }
-};
+}
 
 // ---------------------------------------------------------------- mikrofon
 let micSeq = 0;
@@ -756,6 +808,7 @@ export function voiceBlocked(c: Community, ch: Channel, me: string): string | nu
   return null;
 }
 
+let joinSeq = 0;
 export async function joinVoice(cid: ID, ch: ID) {
   if (V().ch === ch) return;
   {
@@ -765,8 +818,16 @@ export async function joinVoice(cid: ID, ch: ID) {
     const why = c && chan ? voiceBlocked(c, chan, st.me.id) : null;
     if (why) return void toast(why, 'err');
   }
+  {
+    // bağlantı yokken katılma isteği sunucuya gitmez: panel "Bağlanıyor…"da asılı kalıyor, mikrofon boşuna açılıyordu
+    const st = useStore.getState();
+    const h = st.commHost[cid];
+    if (!h) return;
+    if (st.conns[h]?.status !== 'online') return void toast('Sunucuya bağlı değilsin. Bağlantı gelince yeniden dene.', 'err');
+  }
   if (V().ch) leaveVoice(true);
   rejoin = null;
+  const seq = ++joinSeq;
   const st = useStore.getState();
   host = st.commHost[cid] || null;
   if (!host) return;
@@ -778,29 +839,44 @@ export async function joinVoice(cid: ID, ch: ID) {
   spatialMode = false;
   mySid = null;
   lastMembers = new Set();
+  lastScreens = new Set();
   noiseFloor = 0.004;
   const ice = iceFor(host, cid);
+  let micErr = false;
   try {
     await openMic();
-    setV({ noMic: false });
   } catch {
+    micErr = true;
+  }
+  // bu arada ayrıldı ya da (aynı odaya bile olsa) yeni bir katılma başladı: bu deneme sessizce biter
+  if (seq !== joinSeq) return;
+  if (micErr) {
     closeMic();
-    setV({ noMic: true });
     toast('Mikrofona erişilemedi; sadece dinleyici olarak bağlandın.', 'err');
   }
-  iceCfg = await ice;
-  if (V().ch !== ch) return; // bu arada ayrıldı
+  setV({ noMic: micErr });
+  const cfg = await ice;
+  if (seq !== joinSeq || V().ch !== ch) return;
+  iceCfg = cfg;
   applyTracks();
   startLoop();
   window.kovan.inCall(true);
-  cmd(ch, { t: 'vc.join', ch, muted: V().muted || !local, deaf: V().deaf });
+  if (!cmd(ch, { t: 'vc.join', ch, muted: V().muted || !local, deaf: V().deaf })) return leaveVoice(true);
   if (st.settings.sounds) playSound('join');
+  // Sunucu katılmayı onaylamazsa (oda dolmuş, yetki kalkmış, yanıt gelmemiş) "Bağlanıyor…"da kalma
+  setTimeout(() => {
+    if (seq !== joinSeq || V().ch !== ch || V().state !== 'connecting') return;
+    leaveVoice(true);
+    toast('Ses odasına bağlanılamadı. Yeniden dene.', 'err');
+  }, 10_000);
 }
 
 export function leaveVoice(silent = false) {
   const ch = V().ch;
   if (!ch) return;
-  cmd(ch, { t: 'vc.leave' });
+  joinSeq++;
+  // bağlantı zaten koptuysa "bağlı değil" uyarısı çıkarmadan geç (sunucu oturum kapanınca odadan kendisi düşürür)
+  connFor(ch)?.send({ t: 'vc.leave' });
   for (const sid of [...peers.keys()]) closePeer(sid);
   closeMic();
   // Maksimum gürültü engellemenin modeli (~100 MB) yalnız ses bağlamı kapatılınca bırakılır; sesten çıkınca kapat
@@ -815,12 +891,14 @@ export function leaveVoice(silent = false) {
   host = null;
   if (loopTimer) clearInterval(loopTimer);
   loopTimer = null;
+  if (pingTimer) clearInterval(pingTimer);
+  pingTimer = null;
   spatialMode = false;
   screenGate = null;
   lastPos.clear();
   sleepAudio();
   window.kovan.inCall(false);
-  setV({ ch: null, cid: null, state: 'idle', speaking: {}, media: {}, cam: null, screen: null, screenLabel: null });
+  setV({ ch: null, cid: null, state: 'idle', speaking: {}, media: {}, cam: null, screen: null, screenLabel: null, ping: null });
   if (!silent && ST().sounds) playSound('leave');
 }
 
@@ -833,12 +911,17 @@ export function toggleMute() {
   if (ST().sounds) playSound(V().muted ? 'mute' : 'unmute');
 }
 
+/** sağırlaştırmadan önce mikrofon zaten kapalı mıydı (sesi geri açınca mikrofon kendiliğinden açılmasın) */
+let mutedBeforeDeaf = false;
 export function toggleDeaf() {
-  const { deaf } = V();
-  setV({ deaf: !deaf, muted: !deaf ? true : false });
+  const { deaf, muted } = V();
+  if (!deaf) {
+    mutedBeforeDeaf = muted;
+    setV({ deaf: true, muted: true });
+  } else setV({ deaf: false, muted: mutedBeforeDeaf });
   applyTracks();
   pushState();
-  if (ST().sounds) playSound(V().deaf ? 'mute' : 'unmute');
+  if (ST().sounds) playSound(V().deaf ? 'deafen' : 'undeafen');
 }
 
 function pushState() {
@@ -887,7 +970,7 @@ export async function startCamera() {
     setV({ cam });
     pushState(); // önce akış kimliği duyurulsun
     for (const p of peers.values()) addLocalVideo(p);
-    if (s.sounds) playSound('unmute', 0.06);
+    if (s.sounds) playSound('camOn');
   } catch (e) {
     toast((e as Error)?.name === 'NotFoundError' ? 'Kamera bulunamadı.' : 'Kameraya erişilemedi.', 'err');
   } finally {
@@ -910,6 +993,7 @@ export function stopCamera() {
   cam.getTracks().forEach((t) => t.stop());
   setV({ cam: null });
   pushState();
+  if (V().ch && ST().sounds) playSound('camOff');
 }
 
 export const toggleCamera = () => (V().cam ? stopCamera() : startCamera());
@@ -941,7 +1025,7 @@ export async function startScreen(o: ScreenOpts) {
     setV({ screen: scr, screenLabel: screenLabelOf(o.res, o.fps) });
     pushState();
     for (const p of peers.values()) addLocalVideo(p);
-    if (ST().sounds) playSound('join', 0.06);
+    if (ST().sounds) playSound('screenOn');
   } catch (e) {
     await window.kovan.capture.select(null);
     if ((e as Error)?.name !== 'NotAllowedError') toast('Ekran paylaşımı başlatılamadı.', 'err');
@@ -966,7 +1050,7 @@ export function stopScreen(silent = false) {
   screenCfg = null;
   setV({ screen: null, screenLabel: null });
   pushState();
-  if (!silent && ST().sounds) playSound('leave', 0.06);
+  if (!silent && ST().sounds) playSound('screenOff');
 }
 
 // ---------------------------------------------------------------- ayarlar ve tuşlar
@@ -981,6 +1065,7 @@ useStore.subscribe((s, prev) => {
   if (s.settings === prev.settings) return;
   const a = s.settings, b = prev.settings;
   if (a.outputVolume !== b.outputVolume || a.speakerId !== b.speakerId || a.userVolumes !== b.userVolumes) applyOutput();
+  if (a.speakerId !== b.speakerId) setSoundSink(a.speakerId);
   if (a.inputVolume !== b.inputVolume && inGain && actx) inGain.gain.setTargetAtTime(a.inputVolume / 100, actx.currentTime, 0.02);
   const na = noiseModeOf(a), nb = noiseModeOf(b);
   if (a.micId !== b.micId || browserNS(na) !== browserNS(nb) || a.echoCancellation !== b.echoCancellation || a.autoGainControl !== b.autoGainControl) restartMic();
@@ -1044,5 +1129,14 @@ useStore.subscribe((s, prev) => {
     toast('Ses bağlantısı koptu. Bağlantı gelince odaya geri döneceksin.', 'err');
     leaveVoice(true);
     rejoin = back;
+    return;
+  }
+  // Topluluktan çıkarıldın / ayrıldın ya da ses kanalı silindi: oda artık yok, seste asılı kalma
+  if (s.communities !== prev.communities) {
+    const c = s.communities[V().cid!];
+    if (!c || !c.channels.some((x) => x.id === V().ch)) {
+      leaveVoice(true);
+      if (c) toast('Bulunduğun ses odası kapatıldı.', 'info');
+    }
   }
 });
