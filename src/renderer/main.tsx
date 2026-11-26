@@ -57,9 +57,21 @@ const fontsReady = Promise.race([
   new Promise((r) => setTimeout(r, 1200)),
 ]).catch(() => {});
 
+// v1.63.0: ilk çizim ekrana gelince ana süreç açılış ekranını kapatıp pencereyi gösterir
+function IlkCizim() {
+  React.useEffect(() => {
+    if (IS_POPOUT) return;
+    booting.then(() => requestAnimationFrame(() => window.kovan.acilisHazir?.()));
+  }, []);
+  return null;
+}
+
 fontsReady.then(() => {
   createRoot(document.getElementById('root')!).render(
-    <HataSiniri name="uygulama" full>{IS_POPOUT ? <PopoutRoot /> : <App />}</HataSiniri>,
+    <HataSiniri name="uygulama" full>
+      {IS_POPOUT ? <PopoutRoot /> : <App />}
+      <IlkCizim />
+    </HataSiniri>,
   );
   return booting;
 });

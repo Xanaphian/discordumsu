@@ -1,0 +1,7 @@
+<!-- YER TUTUCU LOGO (açılış ekranı). Asıl logo gelince bu dosyayı silip yerine acilis-logo.png (ya da .webp/.svg) koyman yeterli. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <polygon points="20,84 20,28 34,14 34,70" fill="#0ac8b9"/>
+  <polygon points="34,14 66,62 66,86 34,38" fill="#7cefe3"/>
+  <polygon points="66,86 66,30 80,16 80,72" fill="#079c90"/>
+  <polyline points="34,14 34,38 66,86" fill="none" stroke="#e9fffc" stroke-opacity=".55" stroke-width="1.2"/>
+</svg>

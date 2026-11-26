@@ -7,6 +7,7 @@ import { hasGame, launchGame } from './oyunAc';
 import { initActivity, configureActivity, getActivity, runningApps, stopActivity, type ActivityConfig } from './activity';
 import { spotifyConnect, spotifyDisconnect, spotifyStatus, spotifyPlay } from './spotify';
 import { Updater } from './updater';
+import { acilisAc, acilisAcik, acilisDurum, acilisKapat } from './acilis';
 import { lolState, lolInvite, lolAccept, steamJoin } from './gamejoin';
 import { initEkstralar, blockNotify, isPopout } from './ekstralar';
 import { initOverlay, destroyOverlay } from './overlay';
@@ -263,6 +264,12 @@ function restoreBounds() {
   return visible ? { x: b.x, y: b.y, width: b.width, height: b.height } : { width: b.width, height: b.height };
 }
 
+/** v1.63.0: arayüz ilk çizimini bitirince çağrılır (açılış ekranı kapanır, ana pencere görünür) */
+let anaHazir: (() => void) | null = null;
+ipcMain.on('acilis:hazir', (e) => {
+  if (win && e.sender === win.webContents) anaHazir?.();
+});
+
 function createWindow() {
   const theme = (config.settings.theme as string) || 'dark';
   win = new BrowserWindow({
@@ -286,10 +293,32 @@ function createWindow() {
       webviewTag: true, // site odaları
     },
   });
-  if (config.bounds?.maximized) win.maximize();
-  win.once('ready-to-show', () => {
-    if (!process.argv.includes('--hidden')) win?.show();
-  });
+  // v1.63.0: pencere, arayüz ilk kez çizilip açılış ekranı kapanınca gösterilir.
+  // maximize() gizli pencereyi de gösterdiği için büyütme gösterme anına bırakıldı.
+  const buyuk = !!config.bounds?.maximized;
+  const gizli = process.argv.includes('--hidden');
+  const w = win;
+  let gosterildi = false;
+  const goster = () => {
+    if (gosterildi || w.isDestroyed()) return;
+    gosterildi = true;
+    acilisKapat(() => {
+      if (w.isDestroyed()) return;
+      if (buyuk) w.maximize();
+      w.show();
+    });
+  };
+  if (gizli) {
+    if (buyuk) w.once('show', () => w.maximize());
+  } else {
+    anaHazir = goster;
+    acilisDurum('Arayüz yükleniyor');
+    w.once('ready-to-show', () => {
+      acilisDurum('Hazırlanıyor');
+      // arayüz "hazırım" demezse (ör. bir hata) yine de en geç 5 sn sonra açılsın
+      setTimeout(goster, acilisAcik() ? 5000 : 0);
+    });
+  }
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
@@ -351,6 +380,7 @@ function overlayFor(theme: string) {
 function showWindow() {
   if (!win) return createWindow();
   if (win.isMinimized()) win.restore();
+  acilisKapat();
   win.show();
   win.focus();
 }
@@ -531,6 +561,8 @@ app.on('web-contents-created', (_e, wc) => {
 });
 
 app.whenReady().then(async () => {
+  // v1.63.0: açılış ekranı her şeyden önce görünsün (gizli başlatmada gösterilmez)
+  if (!process.argv.includes('--hidden')) acilisAc(app.getVersion(), iconPath());
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
     cb(['media', 'display-capture', 'notifications', 'clipboard-sanitized-write', 'fullscreen'].includes(permission));
   });
@@ -601,6 +633,11 @@ app.whenReady().then(async () => {
   initTemplateFetch();
   createTray();
   updater = new Updater(() => win, isDev);
+  updater.dinle = (u) => {
+    if (u.state === 'checking') acilisDurum('Güncellemeler denetleniyor');
+    else if (u.state === 'none') acilisDurum('Her şey güncel');
+    else if (u.state === 'available') acilisDurum(`Yeni sürüm var: v${u.version}`);
+  };
   updater.start();
   handleArgv(process.argv);
 });
