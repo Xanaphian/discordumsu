@@ -303,7 +303,11 @@ function CropDialog({ job }: { job: Job }) {
       const step = 0.02 / z;
       let used = true;
       if (e.key === 'Escape') job.done(null);
-      else if (e.key === 'Enter') applyRef.current();
+      else if (e.key === 'Enter') {
+        // odak bir düğmedeyse (Vazgeç gibi) Enter o düğmeye aittir
+        if ((e.target as HTMLElement | null)?.closest?.('button')) used = false;
+        else applyRef.current();
+      }
       else if (e.key === 'ArrowLeft') setC((p) => ({ ...p, x: p.x - step }));
       else if (e.key === 'ArrowRight') setC((p) => ({ ...p, x: p.x + step }));
       else if (e.key === 'ArrowUp') setC((p) => ({ ...p, y: p.y - step }));

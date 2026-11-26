@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Hash, Volume2, Megaphone, Box, Globe, Copy, Check, ImagePlus, LoaderCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
 import { InvitePreview, InviteShare } from './DavetBaglantisi';
 import {
-  useStore, openModal, escBusy, createCommunity, joinByInvite, makeInvite, homeHost, confirmDialog, updateSettings, inviteHostOptions, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
+  useStore, openModal, closeConfirm, escBusy, createCommunity, joinByInvite, makeInvite, homeHost, confirmDialog, updateSettings, inviteHostOptions, cmd, toast, selectChannel, selectCommunity, request, jumpToMessage, Modal as ModalT,
 } from '../lib/store';
 import { CommunityIcon, Avatar } from './Common';
 import { cx, COLORS, resizeImage, copyText, fmtTime, displayName } from '../lib/util';
@@ -85,12 +85,12 @@ export function Modal({ children, onClose, className, wide }: { children: React.
 
 const close = () => openModal(null);
 
-function ModalHead({ title, sub }: { title: string; sub?: string }) {
+function ModalHead({ title, sub, onClose = close }: { title: string; sub?: string; onClose?: () => void }) {
   return (
     <div className="modal-head">
       <h2>{title}</h2>
       {sub && <p>{sub}</p>}
-      <button className="modal-x icon-btn" onClick={close} aria-label="Kapat">
+      <button className="modal-x icon-btn" onClick={onClose} aria-label="Kapat">
         <X size={20} />
       </button>
     </div>
@@ -456,22 +456,33 @@ function CategoryModal({ cid, catId }: { cid: string; catId?: string }) {
   );
 }
 
+// Onay kutusu açık pencerenin (ayarlar, davet vb.) üstünde durur; kapanınca alttaki pencere olduğu gibi kalır
 function ConfirmModal({ m }: { m: Extract<ModalT, { type: 'confirm' }> }) {
+  useEffect(() => {
+    // Esc yalnız onay kutusunu kapatsın: alttaki pencerenin dinleyicisine ulaşmadan yakalanır
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || escBusy()) return;
+      e.stopImmediatePropagation();
+      closeConfirm();
+    };
+    document.addEventListener('keydown', k, true);
+    return () => document.removeEventListener('keydown', k, true);
+  }, []);
   return (
-    <Modal onClose={close} className="confirm">
-      <ModalHead title={m.title} />
+    <Modal onClose={closeConfirm} className="confirm">
+      <ModalHead title={m.title} onClose={closeConfirm} />
       <div className="modal-body">
         <p className="confirm-body">{m.body}</p>
       </div>
       <div className="modal-foot">
-        <button className="btn ghost" onClick={close}>
+        <button className="btn ghost" onClick={closeConfirm}>
           {m.cancelText || 'Vazgeç'}
         </button>
         <button
           autoFocus
           className={cx('btn', m.danger ? 'danger' : 'primary')}
           onClick={() => {
-            close();
+            closeConfirm();
             m.onConfirm();
           }}
         >
@@ -609,7 +620,16 @@ function SearchModal({ cid, q: initial }: { cid: string; q?: string }) {
 
 export function Modals() {
   const m = useStore((s) => s.modal);
-  if (!m) return null;
+  const c = useStore((s) => s.confirm);
+  return (
+    <>
+      {m && <OpenModal m={m} />}
+      {c && <ConfirmModal m={c} />}
+    </>
+  );
+}
+
+function OpenModal({ m }: { m: ModalT }) {
   switch (m.type) {
     case 'createCommunity':
       return <CreateCommunityModal />;
@@ -630,7 +650,7 @@ export function Modals() {
     case 'createCategory':
       return <CategoryModal cid={m.cid} catId={m.catId} />;
     case 'confirm':
-      return <ConfirmModal m={m} />;
+      return null; // onay kutusu kendi yuvasında (store.confirm) çizilir
     case 'image':
       return <ResimGoruntuleyici src={m.src} name={m.name} />;
     case 'forward':

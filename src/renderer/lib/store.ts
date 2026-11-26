@@ -366,6 +366,8 @@ export interface State {
   current: ID | 'home';
   chanByComm: Record<ID, ID>;
   modal: Modal | null;
+  // onay kutusu ayrı yuvada durur: açık pencerenin (ayarlar vb.) üstüne gelir, onu kapatmaz
+  confirm: Extract<Modal, { type: 'confirm' }> | null;
   menu: { x: number; y: number; items: MenuItem[] } | null;
   popout: { uid: ID; cid?: ID; x: number; y: number } | null;
   replyTo: Record<ID, ID | undefined>;
@@ -414,6 +416,7 @@ export const useStore = create<State>(() => ({
   current: 'home',
   chanByComm: {},
   modal: null,
+  confirm: null,
   menu: null,
   popout: null,
   replyTo: {},
@@ -835,7 +838,7 @@ export async function openDm(uid: ID) {
     localStorage.setItem('kovan.dmHidden', JSON.stringify(hidden));
   }
   if (st.communities[cid]) {
-    set({ modal: null, popout: null, menu: null });
+    set({ modal: null, confirm: null, popout: null, menu: null });
     return selectCommunity(cid);
   }
   // önce arkadaşlığın tutulduğu kovan, yoksa ortak topluluğun kovanı
@@ -845,7 +848,7 @@ export async function openDm(uid: ID) {
   try {
     const r = await conns.get(host)!.request<{ data: DmInfo }>({ t: 'dm.open', to: uid, rid: '' });
     if (r?.data) upsertDm(host, r.data);
-    set({ modal: null, popout: null, menu: null });
+    set({ modal: null, confirm: null, popout: null, menu: null });
     selectCommunity(cid);
   } catch (e: any) {
     toast(oldHubMsg(e) || e?.message || 'Özel mesaj açılamadı.', 'err');
@@ -1468,13 +1471,21 @@ export function discardMessage(m: CMessage) {
   });
 }
 
-export const editMessage = (ch: ID, id: ID, content: string) => connFor(ch)?.send({ t: 'edit', ch, id, content });
-export const deleteMessage = (ch: ID, id: ID) => connFor(ch)?.send({ t: 'del', ch, id });
-export const pinMessage = (ch: ID, id: ID, on: boolean) => connFor(ch)?.send({ t: 'pin', ch, id, on });
+// Bağlantı yokken sessizce kaybolmasın: gönderilemediyse uyarı çıkar, false döner
+function sendOrWarn(ch: ID, f: ClientFrame): boolean {
+  if (connFor(ch)?.send(f)) return true;
+  toast('Sunucuya bağlı değil, işlem yapılamadı. Bağlantı gelince yeniden dene.', 'err');
+  return false;
+}
+export const editMessage = (ch: ID, id: ID, content: string) => sendOrWarn(ch, { t: 'edit', ch, id, content });
+export const deleteMessage = (ch: ID, id: ID) => sendOrWarn(ch, { t: 'del', ch, id });
+export const pinMessage = (ch: ID, id: ID, on: boolean) => sendOrWarn(ch, { t: 'pin', ch, id, on });
 
 export function toggleReaction(m: Message, e: string) {
   const me = S().me.id;
   const on = !m.reactions?.[e]?.includes(me);
+  // bağlantı yokken tepki ekranda kalıp sunucuya hiç gitmiyordu
+  if (connFor(m.channelId)?.status !== 'online') return toast('Sunucuya bağlı değil, tepki eklenemedi.', 'err');
   // iyimser güncelleme
   set((s) => {
     const ch = s.chans[m.channelId];
@@ -1887,11 +1898,16 @@ export function openMenu(e: { clientX: number; clientY: number; preventDefault?:
 }
 
 export function openModal(m: Modal | null) {
-  set({ modal: m, menu: null });
+  if (m?.type === 'confirm') return set({ confirm: m, menu: null });
+  set({ modal: m, confirm: null, menu: null });
 }
 
 export function confirmDialog(title: string, body: string, onConfirm: () => void, confirmText = 'Onayla', danger = true) {
-  openModal({ type: 'confirm', title, body, onConfirm, confirmText, danger });
+  set({ confirm: { type: 'confirm', title, body, onConfirm, confirmText, danger }, menu: null });
+}
+
+export function closeConfirm() {
+  set({ confirm: null });
 }
 
 // Esc önce açık menüyü, kişi kartını, emoji seçiciyi ya da sürüklemeyi kapatır; pencere ikinci basışta kapanır
