@@ -54,9 +54,18 @@ else {
   // güncelleyicinin indireceği latest.yml bizimkiyle aynı mı
   const yml = assets.get('latest.yml');
   if (yml) {
-    const r = await fetch(yml.browser_download_url, { headers: { 'user-agent': 'xanaphian-sinama' } });
-    const remote = r.ok ? await r.text() : '';
-    if (remote.trim() !== local.trim()) errors.push('GitHub\'daki latest.yml derlenenle aynı değil.');
+    // v1.64: indirme bağlantısı yüklemeden hemen sonra kısa süre hata/eski içerik verebiliyor (v1.63.1'de böyle yanlış alarm verdi):
+    // birkaç kez dene, her seferinde neyin geldiğini yaz
+    let remote = '';
+    let durum = '';
+    for (let i = 0; i < 5; i++) {
+      const r = await fetch(yml.browser_download_url, { headers: { 'user-agent': 'xanaphian-sinama' } }).catch((e) => ({ ok: false, status: String(e) }));
+      remote = r.ok ? await r.text() : '';
+      durum = `HTTP ${r.status}, ${remote.length} bayt`;
+      if (remote.replace(/\r\n/g, '\n').trim() === local.replace(/\r\n/g, '\n').trim()) break;
+      await sleep(5000);
+    }
+    if (remote.replace(/\r\n/g, '\n').trim() !== local.replace(/\r\n/g, '\n').trim()) errors.push(`GitHub'daki latest.yml derlenenle aynı değil (${durum}).`);
   }
 }
 

@@ -386,7 +386,7 @@ export interface State {
 }
 
 const conns = new Map<string, HostConn>();
-let readSaver: () => void = () => {};
+let readSaver: (() => void) & { flush?: () => void } = () => {};
 
 const loadRead = (): Record<ID, ID> => {
   try {
@@ -473,6 +473,13 @@ export function toast(text: string, kind: Toast['kind'] = 'info') {
 }
 
 const persistSettings = debounce((settings: Settings) => window.kovan.setConfig({ settings }), 400);
+
+/** v1.64: bekleyen kayıtları hemen yaz. Uygulamadan çıkmadan, yeniden başlatmadan ya da güncellemeyi kurmadan önce çağrılır;
+ * yoksa son 0,4 sn içinde değiştirilen ayar (ör. pil dostu mod açılıp hemen "Yeniden başlat") kaybolabiliyordu. */
+export function flushSaves() {
+  persistSettings.flush();
+  readSaver.flush?.();
+}
 
 export function updateSettings(patch: Partial<Settings>) {
   const settings = { ...S().settings, ...patch };
@@ -578,6 +585,7 @@ export async function boot() {
     }
   });
   window.addEventListener('blur', () => set({ focused: false }));
+  window.addEventListener('beforeunload', flushSaves);
   window.addEventListener('online', () => conns.forEach((c) => c.nudge()));
   // Bilgisayar uykudan uyanınca zamanlayıcılar toplu çalışır: araya uzun bir boşluk girdiyse bağlantılar büyük olasılıkla ölüdür, hemen yokla
   let lastTick = Date.now();
@@ -606,6 +614,12 @@ export async function boot() {
   if (!IS_POPOUT) {
     for (const ev of ['mousemove', 'keydown', 'mousedown']) window.addEventListener(ev, debounce(activity, 1000), { passive: true });
     activity();
+    // v1.64: bilgisayarın genelindeki hareket de sayılır. Eskiden yalnız bu penceredeki fare/klavye sayılıyordu;
+    // oyun oynarken ya da başka pencerede çalışırken 10 dakika sonra yanlışlıkla "Boşta" görünüyordun.
+    setInterval(async () => {
+      const idle = await window.kovan.systemIdle?.().catch(() => -1);
+      if (idle !== undefined && idle >= 0 && idle < 60) activity();
+    }, 30_000);
   }
 
   if (S().onboarded) connectAll(cfg.hosts || []);
@@ -1429,7 +1443,11 @@ export async function loadHistory(ch: ID, before?: ID) {
       } else {
         // bekleyen ve "Gönderilemedi" mesajları ('~' ile başlar) korunur; bu arada sunucuya ulaşmış olanlar ayıklanır
         const known = new Set((prev?.items || []).filter((x) => !x.id.startsWith('~')).map((x) => x.id));
-        items = [...r.msgs, ...undelivered(prev?.items || [], r.msgs, known)];
+        // v1.64: sayfa yolda iken canlı gelen mesajlar (sunucu sayfayı onlardan önce hazırladıysa) kaybolmasın.
+        // Duman sınamasında ara sıra "karşıdan gelen mesaj görünmedi" hatasının nedeni buydu.
+        const tail = r.msgs[r.msgs.length - 1]?.id;
+        const live = prev?.items.filter((x) => !x.id.startsWith('~') && (!tail || x.id > tail) && !r.msgs.some((y) => y.id === x.id)) || [];
+        items = [...r.msgs, ...live, ...undelivered(prev?.items || [], [...r.msgs, ...live], known)];
       }
       // epoch ve detached korunur: eski bir mesaja atladıktan sonra yukarı kaydırınca liste sona fırlıyordu
       const chans = { ...s.chans, [ch]: { items, more: r.more, loaded: true, loading: false, prepended, epoch: prev?.epoch, detached: before ? prev?.detached : undefined } };
@@ -1810,7 +1828,7 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
     saveHosts();
     await waitOnline(h);
     const r = await conn.request<{ data: ID }>({ t: 'join', code }).catch((e) => {
-      if (h === homeHost() && !prefix?.includes('.')) throw new Error(e?.message === 'Zaman aşımı' ? 'Sunucu yanıt vermedi.' : 'Bu davet kodu geçersiz ya da süresi dolmuş.');
+      if (h === homeHost() && !prefix?.includes('.')) throw new Error(e?.message === 'Zaman aşımı' ? 'Sunucu yanıt vermedi.' : 'Bu davet geçersiz ya da süresi dolmuş.');
       throw e;
     });
     selectCommunity(r.data);
@@ -1885,7 +1903,7 @@ export async function joinByInvite(code: string): Promise<ID> {
   const short = parseShortInvite(code);
   if (short) return joinShort(short.host, short.code, short.prefix);
   const d = decodeInvite(code);
-  if (!d) throw new Error('Davet kodu okunamadı.');
+  if (!d) throw new Error('Davet okunamadı.');
   const s = S();
   if (s.communities[d.c]) {
     selectCommunity(d.c);

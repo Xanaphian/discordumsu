@@ -2,7 +2,7 @@ import React from 'react';
 import { Download, RefreshCw, RotateCw, CircleAlert, LoaderCircle, Palette } from 'lucide-react';
 import { ThemeQuick } from './Appearance';
 import { cx } from '../lib/util';
-import { useStore, toast, openModal } from '../lib/store';
+import { useStore, toast, openModal, flushSaves } from '../lib/store';
 import { StreamerBadge } from './YayinciModu';
 import { Tooltip, CommunityIcon } from './Common';
 import { fmtSize } from '../lib/util';
@@ -27,7 +27,7 @@ export function UpdateButton() {
       );
     case 'ready':
       return (
-        <button className="upd-btn ready" onClick={() => window.kovan.update.install()}>
+        <button className="upd-btn ready" onClick={() => (flushSaves(), window.kovan.update.install())}>
           <RotateCw size={14} /> Yeniden başlat ve yükle <b>v{u.version}</b>
         </button>
       );

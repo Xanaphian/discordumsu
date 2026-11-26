@@ -4,13 +4,27 @@ import {
   User, AtSign, MessageSquare, Phone, StickyNote, Pencil, PenLine, Shield, Clock, LogOut, Ban, Copy, Settings, Trash2,
   CheckCheck, BellOff, Bell, UserPlus, UserMinus, UserCheck, UserX, VolumeX, Volume2, Reply, Pin, PinOff, Bookmark, BookmarkMinus,
   ExternalLink, LogIn, Headphones, Music, Tv, Link, Hash, Eye, EyeOff, Lock, FolderPlus, Plus, Mail, Flag, Smile, Users,
-  ImageDown, Share2, Undo2, Box, SlidersHorizontal, DoorOpen,
+  ImageDown, Share2, Undo2, Box, SlidersHorizontal, DoorOpen, Forward, Bot, ScrollText, ChartColumn, IdCard, Image, RotateCw, X, Globe,
 } from 'lucide-react';
 
 type Rule = [RegExp, React.ComponentType<{ size?: number }>];
 
 // Sıra önemli: daha özel kalıplar önce
 const RULES: Rule[] = [
+  // v1.64: simgesiz kalan öğeler (başlık menüsü, kendi menün, mesaj ve özel mesaj menüleri)
+  [/sunucu profili/, IdCard],
+  [/istatistik/, ChartColumn],
+  [/denetim kayd/, ScrollText],
+  [/^botlar/, Bot],
+  [/afiş/, Image],
+  [/özel durum/, Smile],
+  [/tekrar dene/, RotateCw],
+  [/sohbeti kapat/, X],
+  [/yeniden adlandır/, PenLine],
+  [/takibi bırak/, EyeOff],
+  [/^takip et/, Eye],
+  [/sayfaya git/, Globe],
+  [/sonra$|^bu akşam|^yarın/, Clock],
   [/zaman aşımını kaldır/, Undo2],
   [/zaman aşımı/, Clock],
   [/yasağı kaldır/, Undo2],
@@ -26,6 +40,7 @@ const RULES: Rule[] = [
   [/^profili düzenle/, Pencil],
   [/^profil/, User],
   [/^bahset/, AtSign],
+  [/^ilet/, Forward],
   [/^mesaj$|mesaj gönder/, MessageSquare],
   [/^ara$|sesli ara|görüntülü ara/, Phone],
   [/not ekle|^not$/, StickyNote],

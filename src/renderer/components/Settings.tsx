@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleCheck, Mic } from 'lucide-react';
 import {
-  useStore, openModal, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT, escBusy,
+  useStore, openModal, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT, escBusy, flushSaves, setHomeTab,
 } from '../lib/store';
 import { VoiceTab } from './VoiceSettings';
 import { Avatar, CommunityIcon, Toggle, Logo, STATUS_LABEL } from './Common';
@@ -189,7 +189,7 @@ function UpdatesTab() {
           <div className="uc-title">Xanaphian v{info?.version}</div>
           <div className="uc-sub">
             {u.state === 'checking' && 'Güncellemeler denetleniyor…'}
-            {u.state === 'none' && 'Xanaphian güncel.'}
+            {u.state === 'none' && `Xanaphian güncel. Son denetim: ${new Date(u.checkedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`}
             {u.state === 'available' && `Yeni sürüm hazır: v${u.version}${u.size ? ` (${fmtSize(u.size)})` : ''}`}
             {u.state === 'downloading' && `v${u.version} indiriliyor… %${Math.floor(u.percent)} · ${fmtSize(u.bps)}/sn`}
             {u.state === 'ready' && `v${u.version} indirildi. Yeniden başlatınca yüklenecek.`}
@@ -209,7 +209,7 @@ function UpdatesTab() {
               <Download size={16} /> Güncelle
             </button>
           ) : u.state === 'ready' ? (
-            <button className="btn success" onClick={() => window.kovan.update.install()}>
+            <button className="btn success" onClick={() => (flushSaves(), window.kovan.update.install())}>
               <RotateCw size={16} /> Yeniden başlat
             </button>
           ) : (
@@ -226,8 +226,13 @@ function UpdatesTab() {
         </>
       )}
       <p className="note">
-        Güncellemeler GitHub üzerinden yayınlanır. Yeni sürüm çıktığında üst çubukta <b>Güncelle</b> düğmesi belirir; bir kez tıklayınca indirilir, ikinci tıklamada uygulama yeniden başlayıp kendini günceller. Verilerin ve toplulukların korunur.
+        Güncellemeler GitHub üzerinden yayınlanır. Yeni sürüm çıktığında üst çubukta <b>Güncelle</b> düğmesi belirir; bir kez tıklayınca indirilir, ikinci tıklamada uygulama yeniden başlayıp kendini günceller. İndirdiğin güncelleme, yeniden başlatmadan uygulamadan çıkarsan da kurulur. Verilerin ve toplulukların korunur.
       </p>
+      <div className="btn-row">
+        <button className="btn ghost sm" onClick={() => (close(), setHomeTab('news'))}>
+          Tüm sürüm notlarını gör
+        </button>
+      </div>
       <div className="info-card">
         <div className="ic-row">
           <span>Electron</span>
@@ -268,7 +273,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       footer={
         <>
           <div className="sn-sep" />
-          <button className="sn-item danger" onClick={() => confirmDialog('Xanaphian kapatılsın mı?', 'Uygulama tamamen kapanır; yeniden açana kadar mesaj bildirimi almazsın.', () => window.kovan.quit(), 'Kapat')}>
+          <button className="sn-item danger" onClick={() => confirmDialog('Xanaphian kapatılsın mı?', 'Uygulama tamamen kapanır; yeniden açana kadar mesaj bildirimi almazsın.', () => (flushSaves(), window.kovan.quit()), 'Kapat')}>
             Uygulamadan çık
           </button>
           <div className="sn-version">Xanaphian v{version}</div>

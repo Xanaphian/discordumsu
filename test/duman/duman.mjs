@@ -271,7 +271,14 @@ async function appChecks({ comm, text, voice, bots }) {
   await key('Enter', 'Enter', 13);
   await until(() => page.ev(`[...document.querySelectorAll('.msg')].some((m) => m.textContent.includes('duman: uygulamadan gönderildi'))`), 'gönderilen mesaj listede görünmedi');
   bots[2].send(JSON.stringify({ t: 'send', ch: text[0].id, nonce: 'canli', content: 'duman: karşıdan geldi' }));
-  await until(() => page.ev(`[...document.querySelectorAll('.msg')].some((m) => m.textContent.includes('duman: karşıdan geldi'))`), 'karşıdan gelen mesaj görünmedi');
+  await until(() => page.ev(`[...document.querySelectorAll('.msg')].some((m) => m.textContent.includes('duman: karşıdan geldi'))`), 'karşıdan gelen mesaj görünmedi').catch(async (e) => {
+    // hata olursa nedenini anlamak için durumu yaz (ekranda ne var, sahte kişiye sunucudan ne döndü)
+    const ekranda = await page.ev(`[...document.querySelectorAll('.msg')].slice(-4).map((m) => m.textContent.slice(0, 80)).join(' | ')`).catch(() => '?');
+    console.error('Ekrandaki son mesajlar: ' + ekranda);
+    console.error('Kaydırma: ' + (await page.ev(`(() => { const e = document.querySelector('.msg-scroller'); return e ? 'alta uzaklık ' + Math.round(e.scrollHeight - e.clientHeight - e.scrollTop) + ' px, şimdiye dön düğmesi: ' + (document.querySelector('.jump-present')?.textContent || 'yok') : 'liste yok'; })()`).catch(() => '?')));
+    console.error('Sahte kişinin son aldıkları: ' + JSON.stringify(bots[2].frames.slice(-5).map((f) => ({ t: f.t, error: f.error, ch: f.m?.channelId, c: f.m?.content }))));
+    throw e;
+  });
   await healthy('mesajlaşma');
   step('uygulama: mesaj gönderme ve alma');
 

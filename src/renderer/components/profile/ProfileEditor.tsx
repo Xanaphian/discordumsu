@@ -248,7 +248,7 @@ export function ProfileEditor() {
               <div className="pe-tiles">
                 {EFFECTS.map((f) => (
                   <button key={f} className={cx('pe-tile', (x.effect || 'none') === f && 'on')} onClick={() => setX({ effect: f })}>
-                    <span className="pe-fx-ic">{{ none: '—', sparkle: '✦', bees: '🐝', snow: '❄', aurora: '🌌', hearts: '♥' }[f]}</span>
+                    <span className="pe-fx-ic">{{ none: '—', sparkle: '✦', bees: '✺', snow: '❄', aurora: '≋', hearts: '♥' }[f]}</span>
                     {EFFECT_LABEL[f]}
                   </button>
                 ))}

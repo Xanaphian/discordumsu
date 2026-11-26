@@ -1,5 +1,4 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BaglantiCubugu } from './BaglantiCubugu';
 import { create } from 'zustand';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import {
@@ -24,8 +23,9 @@ import {
 } from '../lib/store';
 import { activeCustom } from '../../shared/profile';
 import { DmCall } from './Media';
+import { BaglantiCubugu } from './BaglantiCubugu';
 import { useVoice, joinVoice, toggleCamera } from '../lib/voice';
-import { Avatar, Tooltip, STATUS_LABEL } from './Common';
+import { Avatar, Tooltip, STATUS_LABEL, BioText } from './Common';
 import { NameText } from './profile/ProfileCard';
 import { EmojiPicker, type PickerMedia } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
@@ -399,9 +399,11 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
             ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
             { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
             ...(canManage ? [{ label: m.pinned ? 'Sabitlemeyi kaldır' : 'Mesajı sabitle', onClick: () => pinMessage(m.channelId, m.id, !m.pinned) }] : []),
-            ...(!card ? [{ label: 'İlet…', onClick: () => openModal({ type: 'forward', cid: c.id, chId: m.channelId, id: m.id }) }] : []),
+            ...(!card ? [{ label: 'İlet', onClick: () => openModal({ type: 'forward', cid: c.id, chId: m.channelId, id: m.id }) }] : []),
             copy,
             { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
+            // v1.64: Gelişmiş > Geliştirici modu "mesaj menülerine kimlik kopyalama ekler" diyordu ama eklemiyordu
+            ...(useStore.getState().settings.devMode ? [{ label: 'Mesaj kimliğini kopyala', onClick: () => copyText(m.id) }] : []),
             ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
           ];
     openMenu(e, [...top, ...(rest.length ? [{ label: 'Kişi seçenekleri', sub: rest }] : []), { sep: true }, ...actions]);
@@ -687,46 +689,42 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   // En alttayken yeni mesaj gelince liste son mesaja kayar ama alttaki boşluğu hesaba katmaz;
   // son mesaj yazma kutusuna yapışıp kırpılıyordu. Gerçek dibe kadar in.
   const scroller = useRef<HTMLElement | null>(null);
-  // Dipteyken içerik sonradan uzarsa (bağlantı önizlemesi ya da resim geç yüklenir) liste dipte kalsın. Eskiden olduğu
-  // yerde kalıyor, son mesajlar aşağıda kalıp "Yeni mesajlar var" çıkıyordu; o sırada gelen mesaj da görünmüyordu.
-  // "Dipte mi" bilgisini yalnız kaydırma olayı değiştirir: içerik uzayınca kaydırma olayı gelmez, bilgi doğru kalır.
-  const pinned = useRef(true);
-  const onScroll = useCallback(() => {
-    const el = scroller.current;
-    if (el) pinned.current = el.scrollHeight - el.clientHeight - el.scrollTop < 80;
-  }, []);
-  const setScroller = useCallback(
-    (el: HTMLElement | Window | null) => {
-      scroller.current?.removeEventListener('scroll', onScroll);
-      scroller.current = el as HTMLElement | null;
-      pinned.current = true;
-      scroller.current?.addEventListener('scroll', onScroll, { passive: true });
-    },
-    [onScroll],
-  );
-  const detachedRef = useRef(false);
-  detachedRef.current = !!st?.detached;
-  const stickToEnd = useCallback(() => {
-    const go = () => {
-      const el = scroller.current;
-      if (el && pinned.current && !detachedRef.current) el.scrollTop = el.scrollHeight;
-    };
-    requestAnimationFrame(go);
-    setTimeout(go, 120);
-  }, []);
   const bottomRef = useRef(true);
   bottomRef.current = atBottom;
   const tailId = items.length ? items[items.length - 1].nonce || items[items.length - 1].id : '';
   const [behind, setBehind] = useState(false); // yukarıdayken yeni mesaj geldi mi
+  // v1.64.1: en alttaysan, kendin yukarı kaydırana kadar en altta kal. Yukarıdaki bir mesajın bağlantı önizlemesi ya da
+  // görseli sonradan yüklenip uzayınca liste seni yukarı itiyor, ardından gelen yeni mesaj görünmüyordu.
+  const stick = useRef(true);
+  useEffect(() => {
+    if (atBottom) stick.current = true;
+  }, [atBottom]);
+  useEffect(() => {
+    stick.current = true;
+  }, [ch.id]);
+  const userScrollsUp = (e: React.WheelEvent | React.KeyboardEvent | React.PointerEvent) => {
+    if ('deltaY' in e) {
+      if (e.deltaY < 0) stick.current = false;
+    } else if ('key' in e) {
+      if (e.key === 'PageUp' || e.key === 'ArrowUp' || e.key === 'Home') stick.current = false;
+    } else if (e.target === scroller.current) stick.current = false; // kaydırma çubuğu tutuldu
+  };
+  const pin = useCallback(() => {
+    const el = scroller.current;
+    if (stick.current && el && !useStore.getState().chans[ch.id]?.detached) el.scrollTop = el.scrollHeight;
+  }, [ch.id]);
   useEffect(() => {
     if (!tailId) return;
-    if (!bottomRef.current) {
+    // v1.65: kendi gönderdiğin mesajda, yukarıda olsan da en alta inilir
+    const last = items[items.length - 1];
+    if (last?.pending && last.authorId === me && !st?.detached) stick.current = true;
+    if (!bottomRef.current && !stick.current) {
       setBehind(true);
       return;
     }
     const toEnd = () => {
       const el = scroller.current;
-      if (el && el.scrollHeight - el.clientHeight - el.scrollTop < 200) el.scrollTop = el.scrollHeight;
+      if (el && (stick.current || el.scrollHeight - el.clientHeight - el.scrollTop < 200)) el.scrollTop = el.scrollHeight;
     };
     const t1 = setTimeout(toEnd, 60);
     const t2 = setTimeout(toEnd, 260);
@@ -740,16 +738,14 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
     if (!jumpTo || jumpTo.ch !== ch.id) return;
     const idx = items.findIndex((x) => x.id === jumpTo.id);
     if (idx < 0) return;
-    // atlanan mesaja giderken "dipte kal" devreye girmesin; yerleşince gerçek konuma göre yeniden hesaplanır
-    pinned.current = false;
-    setTimeout(onScroll, 400);
+    stick.current = false; // eski bir mesaja atlandı: önizleme yüklenince dibe geri çekme
     requestAnimationFrame(() => ref.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'auto' }));
     setFlash(jumpTo.id);
     // Zamanlayıcı etkinin temizliğinde iptal edilmez: jumpTo sıfırlanınca etki yeniden çalışıp vurguyu sonsuza dek bırakıyordu
     clearTimeout(flashT.current);
     flashT.current = window.setTimeout(() => setFlash(null), 1800);
     useStore.setState({ jumpTo: null });
-  }, [jumpTo, items, ch.id, onScroll]);
+  }, [jumpTo, items, ch.id]);
   useEffect(() => () => clearTimeout(flashT.current), []);
 
   const headCtx = useMemo<ListCtx>(() => ({ c, ch, loading: !!st?.loading, more: !!st?.more }), [c, ch, st?.loading, st?.more]);
@@ -778,13 +774,12 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const detachedOrBehind = st.detached || (lastId && items.length && items[items.length - 1].id < lastId && !items[items.length - 1].id.startsWith('~'));
 
   return (
-    <div className="msg-list">
+    <div className="msg-list" onWheel={userScrollsUp} onKeyDown={userScrollsUp} onPointerDown={userScrollsUp}>
       {catchUp && <CatchUp key={ch.id + readAtOpen} c={c} ch={ch} data={catchUp} />}
       <Virtuoso
         key={ch.id + ':' + (st.epoch || 0)}
         ref={ref}
-        scrollerRef={setScroller}
-        totalListHeightChanged={stickToEnd}
+        scrollerRef={(el) => (scroller.current = el as HTMLElement | null)}
         className="scroll-thin msg-scroller"
         data={items}
         firstItemIndex={BASE - st.prepended}
@@ -793,6 +788,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
         followOutput={(bottom) => (bottom ? 'auto' : false)}
         atBottomStateChange={setAtBottom}
         atBottomThreshold={80}
+        totalListHeightChanged={pin}
         startReached={startReached}
         increaseViewportBy={{ top: 600, bottom: 400 }}
         computeItemKey={(_i, m) => m.nonce || m.id}
@@ -958,6 +954,18 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [plusOpen, setPlusOpen] = useState(false);
+  // + menüsü Esc ile kapanır (yakalama aşamasında: aynı basış kanalı okundu saymasın, yanıtı iptal etmesin)
+  useEffect(() => {
+    if (!plusOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPlusOpen(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [plusOpen]);
   const [dlg, setDlg] = useState<null | 'lfg' | 'poll' | 'sched'>(null);
   const [fmtOpen, setFmtOpen] = useState(false);
   const rec = useRecorder((f) => addFiles([f]));
@@ -1583,6 +1591,38 @@ function DmHeader({ c, ch, pins, setPins }: { c: Community; ch: Channel; pins: b
   );
 }
 
+/** Kanal konusunun tamamı: başlıkta tek satıra sığmayan konu tıklanınca burada açılır */
+function TopicPop({ name, topic, onClose }: { name: string; topic: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (ref.current?.contains(t) || t?.closest('.ch-topic')) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('mousedown', onDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('mousedown', onDown, true);
+    };
+  }, [onClose]);
+  return (
+    <div className="topic-pop" ref={ref} role="dialog" aria-label="Kanal konusu">
+      <div className="topic-pop-head">#{name} konusu</div>
+      <div className="topic-pop-body">
+        <BioText text={topic} />
+      </div>
+    </div>
+  );
+}
+
 export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const membersOpen = useStore((s) => s.settings.membersOpen);
   const chMuted = useStore((s) => s.settings.mutedIds.includes(ch.id));
@@ -1590,6 +1630,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const editCh = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const [pins, setPins] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  const [topicOpen, setTopicOpen] = useState(false);
   const [q, setQ] = useState('');
   // başka kanala geçince arama yazısı ve açık pencereler (sabitlenenler, kaydedilenler) önceki kanaldan kalmasın
   useEffect(() => {
@@ -1601,13 +1642,14 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   return (
     <div className="chat-header">
       <span className="ch-head-icon">{ch.type === 'announce' ? <Megaphone size={22} /> : <Hash size={22} />}</span>
-      <h2>{ch.name}</h2>
+      <h2 title={ch.name}>{ch.name}</h2>
       {ch.topic && (
         <>
           <span className="head-sep" />
-          <span className="ch-topic" title={ch.topic}>
+          <button className="ch-topic" onClick={() => setTopicOpen((v) => !v)} aria-expanded={topicOpen} title="Konunun tamamını göster">
             {ch.topic}
-          </span>
+          </button>
+          {topicOpen && <TopicPop name={ch.name} topic={ch.topic} onClose={() => setTopicOpen(false)} />}
         </>
       )}
       <div className="head-actions">
@@ -1617,7 +1659,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
             onClick={(e) =>
               openMenu(e, [
                 { label: chMuted ? 'Kanalın sesini aç' : 'Kanalı sessize al', onClick: () => toggleMuted(ch.id) },
-                { label: 'Bildirim ayarları…', onClick: () => openModal({ type: 'notify', cid: c.id, chId: ch.id }) },
+                { label: 'Bildirim ayarları', onClick: () => openModal({ type: 'notify', cid: c.id, chId: ch.id }) },
               ])
             }
             aria-label="Bildirimler"

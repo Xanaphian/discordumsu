@@ -90,7 +90,7 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
           };
         }),
         { sep: true },
-        { label: 'Rolleri yönet…', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) },
+        { label: 'Rolleri yönet', onClick: () => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' }) },
       ],
     });
   }
@@ -131,7 +131,7 @@ export async function callUser(uid: string) {
 async function inviteTo(uid: string, cid: string, name: string) {
   const code = makeInvite(cid);
   const comm = useStore.getState().communities[cid];
-  if (!code) return toast('Bu topluluk için davet kodu oluşturulamadı.', 'err');
+  if (!code) return toast('Bu topluluk için davet oluşturulamadı.', 'err');
   await openDm(uid);
   const st = useStore.getState();
   const ch = st.communities[st.current]?.dm === uid ? st.chanByComm[st.current] : undefined;
@@ -190,7 +190,7 @@ export function ModerateModal({ cid, uid, action }: { cid: string; uid: string; 
           <Avatar user={u} size={40} />
           <div>
             <b>{name}</b>
-            <span>{u?.name}</span>
+            <span>{u ? (u.tag ? `${u.name}#${u.tag}` : u.name) : ''}</span>
           </div>
         </div>
         {action === 'nick' && (
@@ -224,7 +224,7 @@ export function ModerateModal({ cid, uid, action }: { cid: string; uid: string; 
             </select>
           </div>
         )}
-        {action === 'kick' && <p className="note">{name} davet koduyla tekrar katılabilir.</p>}
+        {action === 'kick' && <p className="note">{name} yeni bir davetle tekrar katılabilir.</p>}
         {action !== 'nick' && (
           <label className="field">
             <span>Sebep (isteğe bağlı, denetim kaydında görünür)</span>
