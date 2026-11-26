@@ -692,15 +692,35 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   bottomRef.current = atBottom;
   const tailId = items.length ? items[items.length - 1].nonce || items[items.length - 1].id : '';
   const [behind, setBehind] = useState(false); // yukarıdayken yeni mesaj geldi mi
+  // v1.64.1: en alttaysan, kendin yukarı kaydırana kadar en altta kal. Yukarıdaki bir mesajın bağlantı önizlemesi ya da
+  // görseli sonradan yüklenip uzayınca liste seni yukarı itiyor, ardından gelen yeni mesaj görünmüyordu.
+  const stick = useRef(true);
+  useEffect(() => {
+    if (atBottom) stick.current = true;
+  }, [atBottom]);
+  useEffect(() => {
+    stick.current = true;
+  }, [ch.id]);
+  const userScrollsUp = (e: React.WheelEvent | React.KeyboardEvent | React.PointerEvent) => {
+    if ('deltaY' in e) {
+      if (e.deltaY < 0) stick.current = false;
+    } else if ('key' in e) {
+      if (e.key === 'PageUp' || e.key === 'ArrowUp' || e.key === 'Home') stick.current = false;
+    } else if (e.target === scroller.current) stick.current = false; // kaydırma çubuğu tutuldu
+  };
+  const pin = useCallback(() => {
+    const el = scroller.current;
+    if (stick.current && el && !useStore.getState().chans[ch.id]?.detached) el.scrollTop = el.scrollHeight;
+  }, [ch.id]);
   useEffect(() => {
     if (!tailId) return;
-    if (!bottomRef.current) {
+    if (!bottomRef.current && !stick.current) {
       setBehind(true);
       return;
     }
     const toEnd = () => {
       const el = scroller.current;
-      if (el && el.scrollHeight - el.clientHeight - el.scrollTop < 200) el.scrollTop = el.scrollHeight;
+      if (el && (stick.current || el.scrollHeight - el.clientHeight - el.scrollTop < 200)) el.scrollTop = el.scrollHeight;
     };
     const t1 = setTimeout(toEnd, 60);
     const t2 = setTimeout(toEnd, 260);
@@ -714,6 +734,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
     if (!jumpTo || jumpTo.ch !== ch.id) return;
     const idx = items.findIndex((x) => x.id === jumpTo.id);
     if (idx < 0) return;
+    stick.current = false; // eski bir mesaja atlandı: önizleme yüklenince dibe geri çekme
     requestAnimationFrame(() => ref.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'auto' }));
     setFlash(jumpTo.id);
     // Zamanlayıcı etkinin temizliğinde iptal edilmez: jumpTo sıfırlanınca etki yeniden çalışıp vurguyu sonsuza dek bırakıyordu
@@ -749,7 +770,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
   const detachedOrBehind = st.detached || (lastId && items.length && items[items.length - 1].id < lastId && !items[items.length - 1].id.startsWith('~'));
 
   return (
-    <div className="msg-list">
+    <div className="msg-list" onWheel={userScrollsUp} onKeyDown={userScrollsUp} onPointerDown={userScrollsUp}>
       {catchUp && <CatchUp key={ch.id + readAtOpen} c={c} ch={ch} data={catchUp} />}
       <Virtuoso
         key={ch.id + ':' + (st.epoch || 0)}
@@ -763,6 +784,7 @@ export function MessageList({ c, ch }: { c: Community; ch: Channel }) {
         followOutput={(bottom) => (bottom ? 'auto' : false)}
         atBottomStateChange={setAtBottom}
         atBottomThreshold={80}
+        totalListHeightChanged={pin}
         startReached={startReached}
         increaseViewportBy={{ top: 600, bottom: 400 }}
         computeItemKey={(_i, m) => m.nonce || m.id}

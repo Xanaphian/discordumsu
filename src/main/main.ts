@@ -734,6 +734,9 @@ function registerIpc() {
   ipcMain.handle('mcp:claude-desktop', (_e, a: { name: string; url: string; token: string }) => installClaudeDesktop(a));
   ipcMain.handle('cfg:get', () => publicConfig());
   ipcMain.handle('sys:idle', () => {
+    // Yalnız Windows ve macOS: Linux'ta bu çağrı D-Bus üzerinden ekran koruyucuya sorup ana süreci saniyelerce
+    // kilitleyebiliyor (otomatik sınamada uygulama donuyordu). -1 = bilinmiyor, arayüz yalnız pencere hareketine bakar.
+    if (process.platform !== 'win32' && process.platform !== 'darwin') return -1;
     try {
       return powerMonitor.getSystemIdleTime();
     } catch {
