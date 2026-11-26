@@ -11,6 +11,7 @@ files:
 asar: true
 asarUnpack:
   - dist/main/mcp-bridge.js
+  - dist/main/acilis-ekrani/**
 compression: normal
 electronLanguages:
   - tr

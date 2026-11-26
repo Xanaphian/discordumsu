@@ -6,6 +6,6 @@ await build({ ...common, entryPoints: ['src/main/main.ts'], outfile: 'dist/main/
 await build({ ...common, entryPoints: ['src/preload/preload.ts'], outfile: 'dist/main/preload.js', format: 'cjs', external: ['electron'] });
 await build({ ...common, entryPoints: ['src/main/mcp-bridge.ts'], outfile: 'dist/main/mcp-bridge.js', format: 'cjs' });
 fs.copyFileSync('build/icon.png', 'dist/main/icon.png');
-// v1.63.0: açılış ekranı logosu (build/acilis-logo.png | .webp | .svg)
-for (const f of fs.readdirSync('build')) if (f.startsWith('acilis-logo.')) fs.copyFileSync(`build/${f}`, `dist/main/${f}`);
+// açılış ekranı sayfası ve videosu (src/main/acilis-ekrani)
+fs.cpSync('src/main/acilis-ekrani', 'dist/main/acilis-ekrani', { recursive: true });
 console.log('main + preload derlendi');
