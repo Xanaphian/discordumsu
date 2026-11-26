@@ -268,6 +268,38 @@ export function SiteView({ c, ch }: { c: Community; ch: Channel }) {
     };
   }, [ch.id, home]);
 
+  // site odası açıkken tam ekran gren dokusu ve kenar kararması çizilmez (styles/performans.css):
+  // karışım katmanı site her kaydığında bütün pencereyi yeniden harmanlatıp kasmaya yol açıyordu
+  useEffect(() => {
+    document.documentElement.classList.add('site-acik');
+    return () => document.documentElement.classList.remove('site-acik');
+  }, []);
+
+  // gezinme tuşları: geri / ileri / odanın ana sayfası / yenile
+  const step = (dir: -1 | 1) => {
+    const el = wv.current;
+    if (!el || !ready.current) return;
+    stopFollow();
+    expect.current = null;
+    setErr(null);
+    try {
+      if (dir < 0) el.goBack();
+      else el.goForward();
+    } catch {
+      /* görünüm henüz hazır değil */
+    }
+  };
+  const reload = () => {
+    const el = wv.current;
+    if (!el || !ready.current) return;
+    try {
+      if (loading) el.stop();
+      else (setErr(null), el.reload());
+    } catch {
+      /* */
+    }
+  };
+
   // sohbetten gelen bağlantı
   useEffect(() => {
     if (!pending) return;
@@ -312,6 +344,31 @@ export function SiteView({ c, ch }: { c: Community; ch: Channel }) {
             </button>
           </div>
         )}
+        <div className="site-gezin">
+          <div className="site-nav">
+            <Tooltip text="Geri" side="bottom">
+              <button className="icon-btn" disabled={!nav.back} onClick={() => step(-1)} aria-label="Geri">
+                <ArrowLeft size={17} />
+              </button>
+            </Tooltip>
+            <Tooltip text="İleri" side="bottom">
+              <button className="icon-btn" disabled={!nav.fwd} onClick={() => step(1)} aria-label="İleri">
+                <ArrowRight size={17} />
+              </button>
+            </Tooltip>
+            <Tooltip text="Odanın ana sayfasına dön" side="bottom">
+              <button className="icon-btn" onClick={() => go(home)} aria-label="Ana sayfa">
+                <Home size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip text={loading ? 'Yüklemeyi durdur' : 'Yenile'} side="bottom">
+              <button className="icon-btn" onClick={reload} aria-label={loading ? 'Yüklemeyi durdur' : 'Yenile'}>
+                {loading ? <X size={16} /> : <RotateCw size={15} />}
+              </button>
+            </Tooltip>
+          </div>
+          <span className="site-gezin-ad">{pageLabel(url || home, title)}</span>
+        </div>
         <div className="site-frame" ref={holder}>
           {err && (
             <div className="site-error">

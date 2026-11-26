@@ -4639,6 +4639,30 @@ input[type='range'] {
   opacity: 0.35;
   pointer-events: none;
 }
+/* site odasının sol üstündeki ince gezinme şeridi: geri, ileri, ana sayfa, yenile ve bakılan sayfanın adı */
+.site-gezin {
+  flex: none;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 6px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.site-gezin .icon-btn {
+  width: 30px;
+  height: 30px;
+}
+.site-gezin-ad {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-2);
+}
 .site-addr {
   flex: 1;
   min-width: 160px;
