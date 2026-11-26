@@ -15,7 +15,7 @@ Kullanıcının Claude kullanım hakkı sınırlı. Bu yüzden:
   - `main.ts` pencere, IPC kayıtları · `hub.ts` yerleşik sunucu ("kovan", port 47820: topluluklar, mesajlar, yetkiler, WebSocket, REST, MCP)
   - `bots.ts` botlar ve yapay zekâ botu · `mcp-bridge.ts` Claude Desktop stdio köprüsü
   - `activity.ts` oyun/müzik etkinliği · `spotify.ts` Spotify hesabı (PKCE, Client ID gömülü, redirect `http://127.0.0.1:47833/spotify`) · `retrofy.ts`
-  - `acilis.ts` açılış ekranı (ad/renk sabitleri en üstte; logo `build/acilis-logo.png|webp|svg`, şimdilik yer tutucu svg)
+  - `acilis.ts` açılış ekranı penceresi; sayfa ve Enes'in logo videosu `src/main/acilis-ekrani/` (index.html, acilis.mp4, ilk-kare.webp; kurulumda asar dışında)
   - `updater.ts` GitHub Releases güncellemesi · `overlay.ts` oyun içi kaplama · `davetSayfasi.ts` davet bağlantıları
 - `src/preload/preload.ts` — `window.kovan` köprüsü (ana süreç ↔ arayüz). Yeni IPC = main.ts + preload.ts + renderer tarafı.
 - `src/shared/` — iki tarafın ortak türleri; `protocol.ts` mesaj/olay biçimleri.

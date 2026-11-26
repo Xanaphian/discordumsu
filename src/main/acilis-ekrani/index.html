@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Açılış</title>
+<style>
+  /* Açılış ekranı. Görüntü: acilis.mp4 (döngülü logo videosu), ilk-kare.webp (video yüklenene kadar duran ilk kare). */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1325; cursor: default; user-select: none; -webkit-app-region: drag; }
+  body { animation: gir .25s ease-out both; }
+  @keyframes gir { from { opacity: 0 } }
+  /* video kenarları zeminle aynı renkte; logo pencere kenarına yapışmasın diye biraz küçük ve ortada */
+  video { position: absolute; left: 7%; top: 2%; width: 86%; height: auto; display: block; }
+  .alt {
+    position: absolute; left: 26px; right: 26px; bottom: 18px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    font: 12px/1 "Segoe UI", system-ui, sans-serif; color: #7d8aa6; letter-spacing: .01em;
+  }
+  #v { color: #4e5a74; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<video src="acilis.mp4" poster="ilk-kare.webp" autoplay muted loop playsinline disablepictureinpicture></video>
+<div class="alt"><span id="d">Başlatılıyor…</span><span id="v"></span></div>
+<script>
+  var s = new URLSearchParams(location.search).get('v');
+  if (s) document.getElementById('v').textContent = 'v' + s;
+  window.durum = function (t) { document.getElementById('d').textContent = t + '…'; };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) document.querySelector('video').removeAttribute('autoplay');
+</script>
+</body>
+</html>
