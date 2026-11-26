@@ -1266,3 +1266,27 @@
   font-size: 12.5px;
   font-weight: 650;
 }
+
+/* Sunucu profili: davet arka planı önizlemesi */
+.pe-ib img,
+.pe-ib video {
+  display: block;
+  width: 330px;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.pe-ib p {
+  margin: 0 0 8px;
+}
+.pe-ib-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pe-ib-note {
+  display: block;
+  margin-top: 6px;
+}

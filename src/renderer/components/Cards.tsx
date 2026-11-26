@@ -455,6 +455,7 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
   const [count, setCount] = useState(live?.size || 4);
   const [n, setN] = useState('');
   const [own, setOwn] = useState<number | null>(null);
+  const ddVer = useDdVersion();
 
   useEffect(() => {
     if (live?.key !== 'lol') return;
@@ -553,15 +554,22 @@ export function LfgCreator({ ch, onClose }: { ch: ID; onClose: () => void }) {
             {info.members.map((x, i) => {
               const [gn, tag] = x.n.split('#');
               const keys = [x.r, x.r2].filter((p): p is string => !!p && !!LOL_POS[p]);
-            const pos = keys.map((p) => LOL_POS[p]);
+              const pos = keys.map((p) => LOL_POS[p]);
               return (
                 <div key={i} className="lfg-lm">
-                  <span className="bn-ini">{(gn || '?').slice(0, 1).toLocaleUpperCase('tr')}</span>
+                  {x.i && ddVer ? (
+                    <img className="bn-lolicon" src={`https://ddragon.leagueoflegends.com/cdn/${ddVer}/img/profileicon/${x.i}.png`} alt="" draggable={false} />
+                  ) : (
+                    <span className="bn-ini">{(gn || '?').slice(0, 1).toLocaleUpperCase('tr')}</span>
+                  )}
                   <span className="lfg-lm-name">
                     <b>{gn}</b>
                     <small>{tag ? '#' + tag : ''}</small>
                   </span>
-                  <span className={cx('bn-pos', !pos.length && 'none')}>{pos.length ? pos.join(' · ') : info.roles ? 'Rol seçmedi' : 'Lobide'}</span>
+                  <span className={cx('bn-pos', !pos.length && 'none')}>
+                    {keys[0] && <PosIcon k={keys[0]} />}
+                    {pos.length ? pos.join(' · ') : info.roles ? 'Rol seçmedi' : 'Lobide'}
+                  </span>
                   {x.lead && <span className="lfg-lead">Lider</span>}
                 </div>
               );

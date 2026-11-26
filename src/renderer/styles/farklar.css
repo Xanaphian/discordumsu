@@ -1890,3 +1890,10 @@
 .pos-ico {
   flex: none;
 }
+/* ilan hazırlama penceresindeki lobi satırı: simge baş harf rozetiyle aynı boyda */
+.lfg-lm .bn-lolicon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  box-shadow: 0 0 0 1px #c8aa6e, 0 0 0 3px #010a13, 0 0 0 4px #785a28;
+}
