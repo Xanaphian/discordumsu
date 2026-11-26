@@ -42,8 +42,13 @@ export function fmtSize(n: number) {
 export function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toLocaleUpperCase('tr');
-  return (parts[0][0] + parts[1][0]).toLocaleUpperCase('tr');
+  // Kod noktasına göre böl: emoji gibi çift birimli karakterler ortadan kesilip bozuk kutu (�) çıkarmasın
+  const head = (s: string, n = 1) => Array.from(s).slice(0, n).join('');
+  // Baş harf için harf ya da rakamla başlayan sözcükler ("Ece 🌙✨" → "EC", "Ali Veli" → "AV")
+  const words = parts.filter((p) => /^[\p{L}\p{N}]/u.test(p));
+  if (words.length >= 2) return (head(words[0]) + head(words[1])).toLocaleUpperCase('tr');
+  if (words.length === 1) return head(words[0], 2).toLocaleUpperCase('tr');
+  return head(parts[0]);
 }
 
 // Üye arama dizini: büyük topluluklarda her satır/mesaj için listeyi baştan taramamak için.

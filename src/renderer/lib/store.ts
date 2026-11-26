@@ -1714,7 +1714,7 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
     saveHosts();
     await waitOnline(h);
     const r = await conn.request<{ data: ID }>({ t: 'join', code }).catch((e) => {
-      if (h === homeHost() && !prefix?.includes('.')) throw new Error(e?.message === 'Zaman aşımı' ? 'Sunucu yanıt vermedi.' : 'Bu davet kodu geçersiz ya da süresi dolmuş.');
+      if (h === homeHost() && !prefix?.includes('.')) throw new Error(e?.message === 'Zaman aşımı' ? 'Sunucu yanıt vermedi.' : 'Bu davet geçersiz ya da süresi dolmuş.');
       throw e;
     });
     selectCommunity(r.data);
@@ -1789,7 +1789,7 @@ export async function joinByInvite(code: string): Promise<ID> {
   const short = parseShortInvite(code);
   if (short) return joinShort(short.host, short.code, short.prefix);
   const d = decodeInvite(code);
-  if (!d) throw new Error('Davet kodu okunamadı.');
+  if (!d) throw new Error('Davet okunamadı.');
   const s = S();
   if (s.communities[d.c]) {
     selectCommunity(d.c);

@@ -38,7 +38,7 @@ export function JoinGuardTab({ c }: { c: Community }) {
     <>
       <h1>Katılma Koruması</h1>
       <p className="note">
-        Toplu saldırılara (baskın) ve yeni açılmış sahte hesaplara karşı. Kurallar topluluğun sunucusunda uygulanır, davet kodu elden ele geçse de
+        Toplu saldırılara (baskın) ve yeni açılmış sahte hesaplara karşı. Kurallar topluluğun sunucusunda uygulanır, davet bağlantısı elden ele geçse de
         aşılamaz.
       </p>
       {locked ? (
@@ -65,7 +65,7 @@ export function JoinGuardTab({ c }: { c: Community }) {
                 ? cap([g.minAgeH ? `en az ${fmtHours(g.minAgeH)} önce açılmış hesaplar katılabilir` : '', g.perMin ? `dakikada en çok ${g.perMin} katılım` : '']
                     .filter(Boolean)
                     .join(', ') + '.')
-                : 'Davet kodunu bilen herkes hemen katılabilir.'}
+                : 'Davet bağlantısı olan herkes hemen katılabilir.'}
             </span>
           </div>
         </div>
@@ -218,7 +218,7 @@ export function ExploreView() {
           <h1>
             <Compass size={24} /> Toplulukları keşfet
           </h1>
-          <p>Herkese açık topluluklar. Davet kodu gerekmez, beğendiğine tek tıkla katıl.</p>
+          <p>Herkese açık topluluklar. Davet gerekmez, beğendiğine tek tıkla katıl.</p>
         </div>
         <label className="ex-search">
           <Search size={16} />
@@ -226,9 +226,11 @@ export function ExploreView() {
         </label>
       </header>
       <nav className="ex-cats">
-        <button className={cx('ex-chip', cat === 'all' && 'on')} onClick={() => setCat('all')}>
-          Hepsi <span>{items?.length || 0}</span>
-        </button>
+        {!!items?.length && (
+          <button className={cx('ex-chip', cat === 'all' && 'on')} onClick={() => setCat('all')}>
+            Hepsi <span>{items.length}</span>
+          </button>
+        )}
         {EXPLORE_CATS.filter((x) => counts[x.id]).map((x) => (
           <button key={x.id} className={cx('ex-chip', cat === x.id && 'on')} onClick={() => setCat(x.id)}>
             {x.label} <span>{counts[x.id]}</span>
@@ -273,8 +275,8 @@ export function ListingTab({ c }: { c: Community }) {
   return (
     <>
       <h1>Keşfet</h1>
-      <p className="note">Listelenen topluluklar herkesin görebildiği Keşfet sayfasında çıkar ve davet kodu olmadan katılınabilir. Katılma koruması yine geçerlidir.</p>
-      <Row title="Keşfette listele" sub={on ? 'Topluluğun şu an Keşfet sayfasında görünüyor.' : 'Kapalıyken yalnız davet koduyla katılınır.'}>
+      <p className="note">Listelenen topluluklar herkesin görebildiği Keşfet sayfasında çıkar ve davet olmadan katılınabilir. Katılma koruması yine geçerlidir.</p>
+      <Row title="Keşfette listele" sub={on ? 'Topluluğun şu an Keşfet sayfasında görünüyor.' : 'Kapalıyken yalnız davetle katılınır.'}>
         <Toggle value={on} onChange={(v) => set(v ? { cat, at: Date.now() } : null)} />
       </Row>
       <Row title="Kategori" sub="Keşfet'te hangi başlık altında görünsün.">

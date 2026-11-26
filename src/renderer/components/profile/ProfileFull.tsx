@@ -10,10 +10,10 @@ import {
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
 import { idTime } from '../../../shared/protocol';
 import { fullTabs, type FullTab } from '../../../shared/profile';
-import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
+import { Avatar, STATUS_LABEL, Tooltip, BioText } from '../Common';
 import { useStore, openModal, toast, selectCommunity, openDm, mutualFriends } from '../../lib/store';
 import { useVoice, joinVoice } from '../../lib/voice';
-import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
+import { cx, displayName, fmtDay, memberRoles, copyText, roleColor, initials } from '../../lib/util';
 import { bannerBackground, cardTheme, imgFrameStyle } from './look';
 import { ActivityCards, AccountList, PrivateNote, RecentList } from './Activity';
 import { useActsOf } from '../../lib/activity';
@@ -444,7 +444,7 @@ export function ProfileFull({
                 {user?.bio && (
                   <section className="xp-block">
                     <Label>Hakkında</Label>
-                    <div className="pc-bio xp-bio">{user.bio}</div>
+                    <div className="pc-bio xp-bio"><BioText text={user.bio} /></div>
                   </section>
                 )}
                 {p?.activity && (
@@ -536,7 +536,7 @@ export function ProfileFull({
                       }}
                     >
                       <span className="pc-mutual-ic xp-comm-ic" style={{ background: m.color }}>
-                        {m.icon ? <img src={m.icon} alt="" /> : m.name.slice(0, 2).toLocaleUpperCase('tr')}
+                        {m.icon ? <img src={m.icon} alt="" /> : initials(m.name)}
                       </span>
                       <span className="xp-person-t">
                         <b>{m.name}</b>

@@ -7,9 +7,9 @@ import {
 import type { Community, Status, UserPublic } from '../../../shared/protocol';
 import { idTime } from '../../../shared/protocol';
 import { BANNER_H, activeCustom, type ActivityKind, type CardEffect, type ProfileExtra } from '../../../shared/profile';
-import { Avatar, STATUS_LABEL, Tooltip } from '../Common';
+import { Avatar, STATUS_LABEL, Tooltip, BioText } from '../Common';
 import { useStore, openModal, toast, selectCommunity, openDm, addFriend, acceptFriend } from '../../lib/store';
-import { cx, displayName, fmtDay, memberRoles, copyText, roleColor } from '../../lib/util';
+import { cx, displayName, fmtDay, memberRoles, copyText, roleColor, initials } from '../../lib/util';
 import { BannerPic } from '../Kirpma';
 import { ACTIVITY_LABEL, bannerBackground, bannerClass, cardTheme, imgFrameStyle, linkBrand, linkTitle, nameStyle } from './look';
 import { ActivityCards, AccountList, PrivateNote, RecentList, VoiceStatus } from './Activity';
@@ -70,7 +70,7 @@ export const CardFx = memo(function CardFx({ effect }: { effect?: CardEffect }) 
           key={p.i}
           style={{ left: p.x + '%', top: p.y + '%', animationDelay: -p.d + 's', animationDuration: p.t + 's', ['--s' as any]: p.s }}
         >
-          {effect === 'bees' ? '🐝' : effect === 'hearts' ? '♥' : effect === 'sparkle' ? '✦' : ''}
+          {effect === 'hearts' ? '♥' : effect === 'sparkle' ? '✦' : ''}
         </i>
       ))}
     </div>
@@ -221,13 +221,13 @@ export function FriendButton({ uid }: { uid: string }) {
     );
   if (f?.state === 'out')
     return (
-      <span className="btn sm ghost pc-friend wait">
+      <span className="btn sm ghost pc-friend wide wait">
         <Check size={14} /> İstek gönderildi
       </span>
     );
   if (f?.state === 'in')
     return (
-      <button className="btn sm ghost pc-friend" onClick={() => acceptFriend(uid)}>
+      <button className="btn sm ghost pc-friend wide" onClick={() => acceptFriend(uid)}>
         <UserCheck size={14} /> İsteği kabul et
       </button>
     );
@@ -266,7 +266,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
       {user?.bio && (
         <section className="pc-sec">
           <h4>Hakkında</h4>
-          <div className="pc-bio">{user.bio}</div>
+          <div className="pc-bio"><BioText text={user.bio} /></div>
         </section>
       )}
       <VoiceStatus uid={uid} />
@@ -464,7 +464,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
                     }}
                   >
                     <span className="pc-mutual-ic" style={{ background: m.color }}>
-                      {m.icon ? <img src={m.icon} alt="" /> : m.name.slice(0, 2).toLocaleUpperCase('tr')}
+                      {m.icon ? <img src={m.icon} alt="" /> : initials(m.name)}
                     </span>
                     <span>{m.name}</span>
                     <em>{m.members.length} üye</em>

@@ -24,7 +24,7 @@ import {
 import { activeCustom } from '../../shared/profile';
 import { DmCall } from './Media';
 import { useVoice, joinVoice, toggleCamera } from '../lib/voice';
-import { Avatar, Tooltip, STATUS_LABEL } from './Common';
+import { Avatar, Tooltip, STATUS_LABEL, BioText } from './Common';
 import { NameText } from './profile/ProfileCard';
 import { EmojiPicker, type PickerMedia } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
@@ -398,7 +398,7 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
             ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
             { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
             ...(canManage ? [{ label: m.pinned ? 'Sabitlemeyi kaldır' : 'Mesajı sabitle', onClick: () => pinMessage(m.channelId, m.id, !m.pinned) }] : []),
-            ...(!card ? [{ label: 'İlet…', onClick: () => openModal({ type: 'forward', cid: c.id, chId: m.channelId, id: m.id }) }] : []),
+            ...(!card ? [{ label: 'İlet', onClick: () => openModal({ type: 'forward', cid: c.id, chId: m.channelId, id: m.id }) }] : []),
             copy,
             { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
             ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
@@ -926,6 +926,18 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [plusOpen, setPlusOpen] = useState(false);
+  // + menüsü Esc ile kapanır (yakalama aşamasında: aynı basış kanalı okundu saymasın, yanıtı iptal etmesin)
+  useEffect(() => {
+    if (!plusOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPlusOpen(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [plusOpen]);
   const [dlg, setDlg] = useState<null | 'lfg' | 'poll' | 'sched'>(null);
   const [fmtOpen, setFmtOpen] = useState(false);
   const rec = useRecorder((f) => addFiles([f]));
@@ -1551,6 +1563,38 @@ function DmHeader({ c, ch, pins, setPins }: { c: Community; ch: Channel; pins: b
   );
 }
 
+/** Kanal konusunun tamamı: başlıkta tek satıra sığmayan konu tıklanınca burada açılır */
+function TopicPop({ name, topic, onClose }: { name: string; topic: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (ref.current?.contains(t) || t?.closest('.ch-topic')) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('mousedown', onDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('mousedown', onDown, true);
+    };
+  }, [onClose]);
+  return (
+    <div className="topic-pop" ref={ref} role="dialog" aria-label="Kanal konusu">
+      <div className="topic-pop-head">#{name} konusu</div>
+      <div className="topic-pop-body">
+        <BioText text={topic} />
+      </div>
+    </div>
+  );
+}
+
 export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const membersOpen = useStore((s) => s.settings.membersOpen);
   const chMuted = useStore((s) => s.settings.mutedIds.includes(ch.id));
@@ -1558,6 +1602,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   const editCh = canIn(c, me, ch, Perm.MANAGE_CHANNELS);
   const [pins, setPins] = useState(false);
   const [savedOpen, setSavedOpen] = useState(false);
+  const [topicOpen, setTopicOpen] = useState(false);
   const [q, setQ] = useState('');
   // başka kanala geçince arama yazısı ve açık pencereler (sabitlenenler, kaydedilenler) önceki kanaldan kalmasın
   useEffect(() => {
@@ -1569,13 +1614,14 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
   return (
     <div className="chat-header">
       <span className="ch-head-icon">{ch.type === 'announce' ? <Megaphone size={22} /> : <Hash size={22} />}</span>
-      <h2>{ch.name}</h2>
+      <h2 title={ch.name}>{ch.name}</h2>
       {ch.topic && (
         <>
           <span className="head-sep" />
-          <span className="ch-topic" title={ch.topic}>
+          <button className="ch-topic" onClick={() => setTopicOpen((v) => !v)} aria-expanded={topicOpen} title="Konunun tamamını göster">
             {ch.topic}
-          </span>
+          </button>
+          {topicOpen && <TopicPop name={ch.name} topic={ch.topic} onClose={() => setTopicOpen(false)} />}
         </>
       )}
       <div className="head-actions">
@@ -1585,7 +1631,7 @@ export function ChatHeader({ c, ch }: { c: Community; ch: Channel }) {
             onClick={(e) =>
               openMenu(e, [
                 { label: chMuted ? 'Kanalın sesini aç' : 'Kanalı sessize al', onClick: () => toggleMuted(ch.id) },
-                { label: 'Bildirim ayarları…', onClick: () => openModal({ type: 'notify', cid: c.id, chId: ch.id }) },
+                { label: 'Bildirim ayarları', onClick: () => openModal({ type: 'notify', cid: c.id, chId: ch.id }) },
               ])
             }
             aria-label="Bildirimler"

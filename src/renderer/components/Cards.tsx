@@ -424,6 +424,18 @@ export function CardView({ m, card, c, me }: { m: Message; card: Card; c: Commun
 // ---------------------------------------------------------------------------
 // Kurulum pencereleri
 function Dialog({ title, sub, onClose, children, foot, className, style }: { title: string; sub?: string; onClose: () => void; children: React.ReactNode; foot: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  // Esc ile kapanır (öteki pencereler gibi)
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      e.stopPropagation();
+      closeRef.current();
+    };
+    document.addEventListener('keydown', k, true);
+    return () => document.removeEventListener('keydown', k, true);
+  }, []);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={cx('modal xdialog', className)} style={style}>
