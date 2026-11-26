@@ -22,6 +22,8 @@ const api = {
   badge: (count: number) => ipcRenderer.send('badge', count),
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
   quit: () => ipcRenderer.send('app:quit'),
+  /** v1.63.0: arayüz ilk kez çizildi; açılış ekranı kapanıp ana pencere görünsün */
+  acilisHazir: () => ipcRenderer.send('acilis:hazir'),
   relaunch: () => ipcRenderer.send('app:relaunch'),
   installClaudeDesktop: (a: { name: string; url: string; token: string }) =>
     ipcRenderer.invoke('mcp:claude-desktop', a) as Promise<{ ok: boolean; files: string[]; error?: string }>,

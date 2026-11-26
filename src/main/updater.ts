@@ -26,9 +26,13 @@ export class Updater {
 
   constructor(private getWin: () => BrowserWindow | null, private dev: boolean) {}
 
+  /** v1.63.0: durum değişince haber verilir (açılış ekranı yazısı için) */
+  dinle?: (s: UpdateState) => void;
+
   private set(s: UpdateState) {
     this.state = s;
     this.getWin()?.webContents.send('upd:status', s);
+    this.dinle?.(s);
   }
 
   start() {
