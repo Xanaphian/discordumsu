@@ -1393,7 +1393,11 @@ export async function loadHistory(ch: ID, before?: ID) {
         prepended += older.length;
       } else {
         const pend = prev?.items.filter((x) => x.pending) || [];
-        items = [...r.msgs, ...pend];
+        // v1.64: sayfa yolda iken canlı gelen mesajlar (sunucu sayfayı onlardan önce hazırladıysa) kaybolmasın.
+        // Duman sınamasında ara sıra "karşıdan gelen mesaj görünmedi" hatasının nedeni buydu.
+        const tail = r.msgs[r.msgs.length - 1]?.id;
+        const live = prev?.items.filter((x) => !x.pending && !x.failed && (!tail || x.id > tail) && !r.msgs.some((y) => y.id === x.id)) || [];
+        items = [...r.msgs, ...live, ...pend];
       }
       // epoch ve detached korunur: eski bir mesaja atladıktan sonra yukarı kaydırınca liste sona fırlıyordu
       const chans = { ...s.chans, [ch]: { items, more: r.more, loaded: true, loading: false, prepended, epoch: prev?.epoch, detached: before ? prev?.detached : undefined } };
