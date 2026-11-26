@@ -131,7 +131,7 @@ function useShortcuts() {
         toggleDeaf();
         return;
       }
-      if (mod && e.shiftKey && k === 'n' && !st.modal) {
+      if (mod && e.shiftKey && k === 'n' && !st.modal && !st.confirm) {
         e.preventDefault();
         openModal({ type: 'createCommunity' });
         return;
@@ -165,7 +165,7 @@ function useShortcuts() {
         return;
       }
       // sohbet ekranındaki kısayollar (pencere açıkken çalışmaz)
-      const chat = !st.modal && document.querySelector('.content .chat .msg-scroller');
+      const chat = !st.modal && !st.confirm && document.querySelector('.content .chat .msg-scroller');
       if (chat && mod && !e.altKey) {
         if (k === 'f' && !e.shiftKey) {
           const box = document.querySelector<HTMLInputElement>('.content .search-box input');
@@ -205,7 +205,7 @@ function useShortcuts() {
       }
       // herhangi bir yerde yazmaya başlayınca mesaj kutusuna odaklan
       if (st.settings.inputMode === 'ptt' && e.code === st.settings.pttKey && useVoice.getState().ch) return; // bas-konuş tuşu
-      if (!st.modal && !mod && !e.altKey && e.key.length === 1 && !typing && !(e.key === ' ' && tag === 'button')) {
+      if (!st.modal && !st.confirm && !mod && !e.altKey && e.key.length === 1 && !typing && !(e.key === ' ' && tag === 'button')) {
         const ta = document.getElementById('composer-input') as HTMLTextAreaElement | null;
         ta?.focus();
       }
@@ -298,7 +298,7 @@ export function App() {
           </div>
         </div>
       )}
-      <HataSiniri name="pencere" silent onError={close({ modal: null })}>
+      <HataSiniri name="pencere" silent onError={close({ modal: null, confirm: null })}>
         <Modals />
       </HataSiniri>
       <ContextMenu />

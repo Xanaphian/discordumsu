@@ -87,10 +87,10 @@ export function MemberList({ c }: { c: Community }) {
   const blocked = useMemo(() => new Set(blockedList), [blockedList]);
   const groups = useMemo(() => {
     const hoisted = c.roles.filter((r) => r.hoist && r.id !== c.id).sort((a, b) => b.position - a.position);
-    const g = new Map<string, { title: string; list: { uid: string; name: string; status: Status; color: string }[] }>();
-    for (const r of hoisted) g.set(r.id, { title: r.name, list: [] });
-    g.set('online', { title: 'Çevrimiçi', list: [] });
-    g.set('offline', { title: 'Çevrimdışı', list: [] });
+    const g = new Map<string, { id: string; title: string; list: { uid: string; name: string; status: Status; color: string }[] }>();
+    for (const r of hoisted) g.set(r.id, { id: r.id, title: r.name, list: [] });
+    g.set('online', { id: 'online', title: 'Çevrimiçi', list: [] });
+    g.set('offline', { id: 'offline', title: 'Çevrimdışı', list: [] });
     for (const m of c.members) {
       let status: Status = m.userId === me ? (myStatus === 'invisible' ? 'offline' : myStatus) : presence[m.userId] || 'offline';
       if (m.userId === 'kovan-asistan') status = 'online';
@@ -115,7 +115,7 @@ export function MemberList({ c }: { c: Community }) {
         </button>
       )}
       {groups.map((g) => (
-        <div key={g.title} className="member-group">
+        <div key={g.id} className="member-group">
           <div className="member-group-title">
             {g.title} — {g.list.length}
           </div>

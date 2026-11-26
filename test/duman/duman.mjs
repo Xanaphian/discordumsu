@@ -372,6 +372,30 @@ async function appChecks({ comm, text, voice, bots }) {
   await sleep(200);
   step('uygulama: kişi kartı');
 
+  // ayarlar içinden açılan onay kutusu ayar penceresini kapatmamalı
+  must(await click('.icon-btn', 'Ayarlar'), 'ayarlar düğmesi yok');
+  await until(() => count('.settings'), 'ayarlar açılmadı');
+  must(await click('.sn-item', 'Gelişmiş'), 'Gelişmiş sekmesi yok');
+  await sleep(300);
+  must(await click('button', 'Tercihleri sıfırla'), 'Tercihleri sıfırla düğmesi yok');
+  await until(() => count('.modal.confirm'), 'onay kutusu açılmadı');
+  must(await count('.settings'), 'onay kutusu açılınca ayarlar kapandı');
+  // DUMAN_GORUNTU=1: bu ekranın görüntüsü de kaydedilir (test/duman/cikti)
+  if (process.env.DUMAN_GORUNTU) {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 0, height: 0, deviceScaleFactor: 2, mobile: false });
+    await sleep(400);
+    await shot('ayarlarda-onay-kutusu.png');
+    await page.send('Emulation.clearDeviceMetricsOverride');
+  }
+  await esc();
+  await sleep(300);
+  must(!(await count('.modal.confirm')), 'Esc onay kutusunu kapatmadı');
+  must(await count('.settings'), 'Esc onay kutusuyla birlikte ayarları da kapattı');
+  await healthy('ayarlarda onay kutusu');
+  await esc();
+  await until(async () => !(await count('.settings')), 'ayarlar Esc ile kapanmadı');
+  step('uygulama: ayarlarda onay kutusu');
+
   await monkey();
 }
 

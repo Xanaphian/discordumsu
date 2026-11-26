@@ -1,5 +1,5 @@
 // Yetki tanımları ve kanal / kategori izin düzenleyicisi
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, X, Slash, Plus, Search, Lock, Shield, Users } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { Avatar, Toggle } from './Common';
@@ -114,12 +114,15 @@ export function OverwriteEditor({ c, list, onChange, scope, canEdit }: { c: Comm
     return rows;
   }, [c, list, users]);
 
+  // seçili satır listeden çıktıysa (kaydedince boş satırlar düşer) @herkes'e dön
+  useEffect(() => {
+    if (sel !== c.id && !list.some((o) => o.id === sel)) setSel(c.id);
+  }, [list, sel, c.id]);
+
   const cur = list.find((o) => o.id === sel) || { id: sel, type: (c.roles.some((r) => r.id === sel) ? 'role' : 'member') as Overwrite['type'], allow: 0, deny: 0 };
 
-  const write = (o: Overwrite) => {
-    const rest = list.filter((x) => x.id !== o.id);
-    onChange(o.allow || o.deny || o.id === c.id ? [...rest, o] : rest);
-  };
+  // Boşalan satır listede kalır (kaldırmak için satırdaki düğme var): son ayar silinince seçili rol/kişi ortadan kaybolmasın
+  const write = (o: Overwrite) => onChange(list.some((x) => x.id === o.id) ? list.map((x) => (x.id === o.id ? o : x)) : [...list, o]);
   const setBit = (bit: number, v: -1 | 0 | 1) => {
     const o = { ...cur, allow: cur.allow & ~bit, deny: cur.deny & ~bit };
     if (v === 1) o.allow |= bit;

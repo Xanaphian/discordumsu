@@ -18,7 +18,7 @@ import { SavedPopover, ScheduledStrip } from './Later';
 import { useLater, toggleSaved, isSaved } from '../lib/later';
 import {
   useStore, CMessage, loadHistory, sendMessage, editMessage, deleteMessage, pinMessage, toggleReaction, sendTyping, openMenu,
-  openModal, confirmDialog, retryMessage, discardMessage, markRead, uploadFile, hostHttp, toast, updateSettings, request, jumpToMessage,
+  openModal, confirmDialog, retryMessage, discardMessage, type MenuItem, markRead, uploadFile, hostHttp, toast, updateSettings, request, jumpToMessage,
   selectChannel, jumpToPresent, plainText, copyableText, toggleMuted, addFriend, acceptFriend, readBeforeOpen,
 } from '../lib/store';
 import { activeCustom } from '../../shared/profile';
@@ -199,7 +199,8 @@ function EditBox({ m, onDone }: { m: Message; onDone: () => void }) {
       confirmDialog('Mesaj silinsin mi?', 'Boş mesaj kaydedilemez. Silmek ister misin?', () => deleteMessage(m.channelId, m.id), 'Sil');
       return;
     }
-    if (t !== m.content) editMessage(m.channelId, m.id, t);
+    // bağlantı yoksa kutu açık kalır: yazılan düzeltme kaybolmasın
+    if (t !== m.content && !editMessage(m.channelId, m.id, t)) return;
     onDone();
   };
   return (
@@ -386,20 +387,23 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
     const cut = person.findIndex((x) => x.sep);
     const top = cut < 0 ? person : person.slice(0, cut);
     const rest = (cut < 0 ? [] : person.slice(cut + 1)).filter((x, i, a) => !(x.sep && (i === 0 || a[i - 1].sep || i === a.length - 1)));
-    openMenu(e, [
-      ...top,
-      ...(rest.length ? [{ label: 'Kişi seçenekleri', sub: rest }] : []),
-      { sep: true },
-      { emojis: QUICK_REACTIONS, onEmoji: (x: string) => toggleReaction(m, x) },
-      { label: 'Yanıtla', onClick: reply },
-      ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
-      { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
-      ...(canManage ? [{ label: m.pinned ? 'Sabitlemeyi kaldır' : 'Mesajı sabitle', onClick: () => pinMessage(m.channelId, m.id, !m.pinned) }] : []),
-      ...(!card && !m.pending && !m.failed ? [{ label: 'İlet…', onClick: () => openModal({ type: 'forward', cid: c.id, chId: m.channelId, id: m.id }) }] : []),
-      { label: 'Metni kopyala', onClick: () => copyText(copyableText(m.content, c)) },
-      { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
-      ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
-    ]);
+    const copy = { label: 'Metni kopyala', onClick: () => copyText(copyableText(m.content, c)) };
+    // henüz sunucuya ulaşmamış mesaj yanıtlanamaz, düzenlenemez, sabitlenemez: yalnız kopyalanır ya da yeniden denenir
+    const actions: MenuItem[] =
+      m.pending || m.failed
+        ? [copy, ...(m.failed ? [{ label: 'Tekrar dene', onClick: () => retryMessage(m) }, { label: 'Sil', danger: true, onClick: () => discardMessage(m) }] : [])]
+        : [
+            { emojis: QUICK_REACTIONS, onEmoji: (x: string) => toggleReaction(m, x) },
+            { label: 'Yanıtla', onClick: reply },
+            ...(mine && !card ? [{ label: 'Mesajı düzenle', onClick: startEdit }] : []),
+            { label: saved ? 'Kaydedilenlerden çıkar' : 'Mesajı kaydet', onClick: () => toggleSaved(c.id, m) },
+            ...(canManage ? [{ label: m.pinned ? 'Sabitlemeyi kaldır' : 'Mesajı sabitle', onClick: () => pinMessage(m.channelId, m.id, !m.pinned) }] : []),
+            ...(!card ? [{ label: 'İlet…', onClick: () => openModal({ type: 'forward', cid: c.id, chId: m.channelId, id: m.id }) }] : []),
+            copy,
+            { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
+            ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
+          ];
+    openMenu(e, [...top, ...(rest.length ? [{ label: 'Kişi seçenekleri', sub: rest }] : []), { sep: true }, ...actions]);
   };
 
   if (m.kind === 'join' && !showJoin) return newDay ? <DayDivider ts={m.ts} /> : null;
@@ -912,6 +916,10 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   const enterToSend = useStore((s) => s.settings.enterToSend);
   const [value, setValue] = useState(() => drafts.get(ch.id) || '');
   const [files, setFiles] = useState<PendingFile[]>([]);
+  // kanal değişince ya da sohbet kapanınca gönderilmemiş dosya önizlemeleri bellekte kalmasın
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  useEffect(() => () => filesRef.current.forEach((f) => f.preview && URL.revokeObjectURL(f.preview)), []);
   const [uploading, setUploading] = useState(false);
   const [sug, setSug] = useState<Suggest | null>(null);
   const [sel, setSel] = useState(0);
@@ -965,9 +973,9 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
 
   const addFiles = (list: File[]) => {
     if (!canAttach) return toast('Bu kanalda dosya gönderme yetkin yok.', 'err');
-    const next = list.slice(0, 10 - files.length).map((file) => ({ id: Math.random().toString(36).slice(2), file, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined }));
     const tooBig = list.find((f) => f.size > 25 * 1024 * 1024);
     if (tooBig) return toast(`"${tooBig.name}" çok büyük (en fazla 25 MB).`, 'err');
+    const next = list.slice(0, 10 - files.length).map((file) => ({ id: Math.random().toString(36).slice(2), file, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined }));
     setFiles((f) => [...f, ...next]);
   };
 
