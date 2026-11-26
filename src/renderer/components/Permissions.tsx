@@ -22,7 +22,7 @@ export const PERM_GROUPS: { title: string; perms: PermDef[] }[] = [
       { bit: Perm.MANAGE_ROLES, label: 'Rolleri yönet', sub: 'Kendi en yüksek rolünün altındaki rolleri oluşturur, düzenler ve üyelere verir. Kanal izinlerini değiştirir.' },
       { bit: Perm.MANAGE_COMMUNITY, label: 'Topluluğu yönet', sub: 'Ad, simge, açıklama, otomatik moderasyon ve davet ayarlarını değiştirir.' },
       { bit: Perm.VIEW_AUDIT_LOG, label: 'Denetim kaydını görüntüle', sub: 'Toplulukta kimin hangi yönetim işlemini yaptığını görür.' },
-      { bit: Perm.CREATE_INVITE, label: 'Davet oluştur', sub: 'Davet kodunu görür ve paylaşır.' },
+      { bit: Perm.CREATE_INVITE, label: 'Davet oluştur', sub: 'Davet bağlantısını görür ve paylaşır.' },
     ],
   },
   {

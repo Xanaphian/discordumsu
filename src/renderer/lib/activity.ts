@@ -412,9 +412,9 @@ async function playAlong(a: LiveActivity, first: boolean) {
     openModal({
       type: 'confirm',
       title: 'Spotify bağlı değil',
-      body: "Spotify'ınızın bağlanması için sizi Ayarlar > Etkinlik sayfasına yönlendiriyorum.",
-      confirmText: 'Tamam',
-      cancelText: 'İptal',
+      body: 'Beraber dinlemek için Spotify hesabını bağlaman gerekiyor. Ayarlar → Etkinlik sayfasını açayım mı?',
+      confirmText: 'Ayarları aç',
+      cancelText: 'Vazgeç',
       danger: false,
       onConfirm: () => openModal({ type: 'settings', tab: 'activity' }),
     });

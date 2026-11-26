@@ -1,0 +1,212 @@
+/* v1.64 arayüz ince ayarları: en küçük pencere, uzun adlar ve küçük tutarsızlıklar.
+   En son yüklenir; öncekileri yeniden yazmak yerine üzerine yazar. */
+
+/* Kısa pencerelerde (Kategori oluştur gibi) alt bölüm ayrı renkte bir bant gibi duruyordu */
+[data-style='destan'] .modal-foot {
+  background: transparent;
+}
+
+/* Pencere gövdesindeki not satırı: tarayıcının kendi paragraf boşluğu, alanlar arası boşluğun üstüne biniyordu */
+.modal-body > p.note {
+  margin: 0;
+}
+
+/* Profil kartı: "Mesaj gönder" + "İsteği kabul et" yan yana sığmayınca kartın dışına taşıyordu */
+.pc-actions {
+  flex-wrap: wrap;
+}
+.pc-actions .pc-friend.wide {
+  flex: 1 1 auto;
+}
+
+/* Tam profil ve profil stüdyosu: en küçük pencerede (940×560) pencerenin altından taşıyordu */
+.pcard.xp2 {
+  height: min(720px, calc(100vh - 80px));
+}
+.xs {
+  height: min(760px, calc(100vh - 80px));
+}
+
+/* Arkadaşlar başlığı: dar pencerede "Arkadaş ekle" düğmesi yarım görünüyordu */
+@media (max-width: 1040px) {
+  .fr-bar .head-sep {
+    display: none;
+  }
+  .fr-tabs {
+    gap: 2px;
+  }
+  .fr-tab {
+    padding: 0 8px;
+  }
+}
+
+/* Ses odası, Baloncuklar: sığmayan baloncuklar üstten kesilmesin (ortalamak yerine baştan diz ve kaydır) */
+.sd-bubbles {
+  align-content: safe center;
+}
+/* Dar pencerede görünüm seçme düğmesi, aramayı kapat düğmesinin üstüne biniyordu */
+@media (max-width: 1100px) {
+  .voice-view.sd-on .vv-controls {
+    padding-right: 64px;
+  }
+}
+
+/* Anket: uzun seçenek satırdan taşmasın, satır yazıyla birlikte uzasın */
+.poll-opt {
+  height: auto;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+/* İstatistik kutuları: alt satır iki satıra bölününce sola yaslanıyordu */
+.st-tile {
+  text-align: center;
+}
+
+/* At / yasakla / zaman aşımı pencerelerindeki kişi kutusu: avatarın baş harfleri yukarı kayıyordu
+   (".mod-target div" kuralı avatarın iç kutularını da etkiliyordu), uzun adlar kutudan taşıyordu */
+.mod-target {
+  margin-bottom: 0;
+}
+.mod-target .av-clip {
+  display: block;
+}
+.mod-target .avatar-fallback {
+  display: grid;
+}
+.mod-target > div:last-child {
+  min-width: 0;
+}
+.mod-target > div:last-child > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hakkında yazısındaki bağlantılar */
+.pc-bio a {
+  color: var(--pcx, var(--accent));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* Topluluk ayarları, Genel Bakış: "Açıklama" kutusu ile "Renk" başlığı birbirine yapışıktı */
+.settings-content > .field + .field {
+  margin-top: 14px;
+}
+
+/* Ana Sayfa paylaşım kutusu: dar pencerede alt satıra düşen Paylaş düğmesi sağa yaslansın */
+.ps-compose-bar .ps-send {
+  margin-left: auto;
+}
+
+/* Profilim sekmeleri: dar pencerede alt yazılar "Ad, fotoğraf,…" diye kesiliyordu; yalnız başlık kalsın */
+@media (max-width: 1100px) {
+  .pe-tabs small {
+    display: none;
+  }
+}
+
+/* Kart efekti "Arılar" artık "Ateş böcekleri": uçuşan sıcak ışık noktaları (arı/kovan teması kalmasın) */
+.fx-bees i {
+  width: calc(4px + 2px * var(--s));
+  height: calc(4px + 2px * var(--s));
+  border-radius: 50%;
+  background: #ffe9a8;
+  box-shadow: 0 0 6px 2px rgba(255, 214, 110, 0.75), 0 0 16px 5px rgba(255, 190, 70, 0.35);
+}
+.fx-bees i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #fff;
+  animation: fx-firefly 2.6s ease-in-out infinite;
+  animation-delay: inherit;
+}
+@keyframes fx-firefly {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* Kanal konusu: tıklanınca tamamı açılır */
+.chat-header {
+  position: relative;
+}
+button.ch-topic {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+button.ch-topic:hover,
+button.ch-topic[aria-expanded='true'] {
+  color: var(--text-2);
+}
+.topic-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 14px;
+  z-index: 40;
+  width: min(520px, calc(100% - 28px));
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 12px 14px 14px;
+  background: var(--bg-float, var(--bg-elev));
+  border: 1px solid color-mix(in srgb, var(--orn, var(--accent)) 26%, transparent);
+  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.7);
+  user-select: text;
+}
+.topic-pop-head {
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.topic-pop-body {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.topic-pop-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Çok uzun kanal adı başlığı tek başına doldurup konuyu sıfır genişliğe itiyordu:
+   ad en çok yarıya kadar uzar ve üç noktayla kesilir, konuya her zaman yer kalır. */
+.chat-header > h2 {
+  min-width: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-header > button.ch-topic {
+  min-width: 72px;
+}
+.chat-header > .head-actions {
+  flex-shrink: 0;
+}
+
+/* Takım kur penceresi: iki satıra düşen oyun adı ortalı kalsın, "Kapalı" yazıları aynı hizada dursun */
+.lfg-game {
+  text-align: center;
+}
+.lfg-game small {
+  margin-top: auto;
+}

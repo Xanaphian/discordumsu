@@ -129,3 +129,21 @@ export function CustomColor({ value, onChange, presets, disabled, fallback = '#9
     </label>
   );
 }
+
+/** Hakkında yazısı: içindeki bağlantılar tıklanır; art arda bırakılan boş satırlar tek boş satıra iner */
+export function BioText({ text }: { text: string }) {
+  const parts = text.trim().replace(/\n{3,}/g, '\n\n').split(/(https?:\/\/[^\s<>]+)/g);
+  return (
+    <>
+      {parts.map((p, i) =>
+        i % 2 ? (
+          <a key={i} href={p} target="_blank" rel="noreferrer noopener">
+            {p}
+          </a>
+        ) : (
+          <React.Fragment key={i}>{p}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}

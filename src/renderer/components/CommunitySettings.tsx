@@ -536,7 +536,7 @@ function BansTab({ c }: { c: Community }) {
   return (
     <>
       <h1>Yasaklar</h1>
-      <p className="note">Yasaklanan kişiler davet koduyla bile geri katılamaz. Yasağı kaldırınca tekrar davetle katılabilirler.</p>
+      <p className="note">Yasaklanan kişiler davet bağlantısıyla bile geri katılamaz. Yasağı kaldırınca tekrar davetle katılabilirler.</p>
       <div className="input-icon">
         <Search size={15} />
         <input placeholder="Yasaklı kişi ara" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -556,7 +556,7 @@ function BansTab({ c }: { c: Community }) {
             <button
               className="btn ghost sm"
               onClick={() =>
-                confirmDialog(`${b.name} kişisinin yasağı kaldırılsın mı?`, 'Davet koduyla tekrar katılabilir.', () => {
+                confirmDialog(`${b.name} kişisinin yasağı kaldırılsın mı?`, 'Davetle tekrar katılabilir.', () => {
                   cmd(c.id, { t: 'member.unban', cid: c.id, userId: b.userId });
                   setTimeout(reload, 300);
                 }, 'Yasağı kaldır', false)
@@ -574,7 +574,7 @@ function BansTab({ c }: { c: Community }) {
 
 const AUDIT_LABEL: Record<string, string> = {
   'comm.update': 'topluluğu güncelledi',
-  'invite.reset': 'davet kodunu yeniledi',
+  'invite.reset': 'davet bağlantısını yeniledi',
   'invite.del': 'bir daveti sildi',
   'chan.create': 'kanal oluşturdu',
   'chan.update': 'kanalı düzenledi',
@@ -822,11 +822,11 @@ function InvitesTab({ c, manage }: { c: Community; manage: boolean }) {
       )}
       {manage && (
         <>
-          <Row title="Davetleri durdur" sub="Açıkken kimse davet koduyla katılamaz; mevcut üyeler etkilenmez. Baskın ya da spam anında işe yarar.">
+          <Row title="Davetleri durdur" sub="Açıkken kimse davetle katılamaz; mevcut üyeler etkilenmez. Baskın ya da spam anında işe yarar.">
             <Toggle value={!!c.invitesPaused} onChange={(v) => cmd(cid, { t: 'comm.update', cid, invitesPaused: v })} />
           </Row>
-          <button className="btn ghost sm" onClick={() => (cmd(cid, { t: 'comm.invite.reset', cid }), toast('Davet kodu yenilendi; eski kodlar artık çalışmaz.', 'ok'))}>
-            <RefreshCw size={14} /> Kodu yenile
+          <button className="btn ghost sm" onClick={() => (cmd(cid, { t: 'comm.invite.reset', cid }), toast('Davet bağlantısı yenilendi; eski bağlantılar artık çalışmaz.', 'ok'))}>
+            <RefreshCw size={14} /> Bağlantıyı yenile
           </button>
         </>
       )}

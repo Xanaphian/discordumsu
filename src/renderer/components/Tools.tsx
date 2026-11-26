@@ -58,7 +58,7 @@ function ToolHeader({ c, ch, children }: { c: Community; ch: Channel; children?:
             onClick={(e) =>
               openMenu(e, [
                 { label: chMuted ? 'Kanalın sesini aç' : 'Kanalı sessize al', onClick: () => toggleMuted(ch.id) },
-                { label: 'Bildirim ayarları…', onClick: () => openModal({ type: 'notify', cid: c.id, chId: ch.id }) },
+                { label: 'Bildirim ayarları', onClick: () => openModal({ type: 'notify', cid: c.id, chId: ch.id }) },
               ])
             }
             aria-label="Bildirimler"

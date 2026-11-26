@@ -127,7 +127,7 @@ function CreateCommunityModal() {
     );
   return (
     <Modal onClose={close}>
-      <ModalHead title="Topluluğunu oluştur" sub="Topluluk sunucuda durur; bilgisayarın kapalıyken de arkadaşların sohbet edebilir. Arkadaşların davet koduyla katılır." />
+      <ModalHead title="Topluluğunu oluştur" sub="Topluluk sunucuda durur; bilgisayarın kapalıyken de arkadaşların sohbet edebilir. Arkadaşların davet bağlantısıyla katılır." />
       <div className="modal-body center">
         <button className="icon-upload hex" onClick={() => file.current?.click()}>
           {icon ? <CommunityIcon c={{ name, icon, color }} size={84} /> : <div className="icon-upload-empty" style={{ background: color }}><ImagePlus size={26} /><span>YÜKLE</span></div>}

@@ -50,7 +50,7 @@ function ago(ts: number) {
 
 const TIPS = [
   { t: `${modKey}+K`, d: 'Hızlı geçiş: yazmaya başla, her kanala ve kişiye iki tuşla git.' },
-  { t: 'Davet kodu', d: "Topluluk adına tıkla, Davet et'i seç ve kodu arkadaşına gönder." },
+  { t: 'Davet bağlantısı', d: "Topluluk adına tıkla, Davet et'i seç ve bağlantıyı arkadaşına gönder." },
   { t: 'Tek tuşla güncelleme', d: 'Yeni sürüm çıkınca üst çubukta Güncelle düğmesi belirir.' },
   { t: 'Sağ tık', d: 'Bir kişiye sağ tıklayıp tam profilini, ortak arkadaşlarınızı ve notunu görebilirsin.' },
   { t: 'Takım kur', d: 'Oyun açıkken yazma kutusundaki + menüsünden takım ilanı ver, arkadaşların tek tıkla katılsın.' },

@@ -27,7 +27,7 @@ export const NAME_FONT_LABEL: Record<NameFont, string> = { default: 'Standart', 
 export const EFFECT_LABEL: Record<CardEffect, string> = {
   none: 'Yok',
   sparkle: 'Işıltılar',
-  bees: 'Arılar',
+  bees: 'Ateş böcekleri', // kimliği 'bees' kaldı: eski profiller bozulmasın
   snow: 'Kar',
   aurora: 'Kutup ışığı',
   hearts: 'Kalpler',

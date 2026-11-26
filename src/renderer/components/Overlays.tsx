@@ -256,7 +256,7 @@ export function UserPopout() {
                 openMenu(e, [
                   ...avail.map((r) => ({ label: (r.icon ? r.icon + ' ' : '') + r.name, onClick: () => cmd(c.id, { t: 'member.update', cid: c.id, userId: p.uid, roles: [...member.roles, r.id] }) })),
                   ...(avail.length ? [{ sep: true }] : [{ label: 'Verilebilecek rol yok', disabled: true }]),
-                  { label: 'Rolleri yönet…', onClick: () => (close(), openModal({ type: 'commSettings', cid: c.id, tab: 'roles' })) },
+                  { label: 'Rolleri yönet', onClick: () => (close(), openModal({ type: 'commSettings', cid: c.id, tab: 'roles' })) },
                 ]);
               }}
             >

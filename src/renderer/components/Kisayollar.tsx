@@ -69,7 +69,7 @@ export function ShortcutsModal() {
         {groups.length ? <ShortcutList groups={groups} /> : <div className="empty-note">Eşleşen kısayol yok.</div>}
       </div>
       <div className="ks-foot">
-        Sustur ve sağırlaştır için oyundayken de çalışan tuşları <button className="link" onClick={() => openModal({ type: 'settings', tab: 'app' })}>Ayarlar › Uygulama ve Kısayollar</button> bölümünden atayabilirsin. <span className="ks-foot-k"><kbd>{modKey}+/</kbd> aç / kapat</span>
+        Sustur ve sağırlaştır için oyundayken de çalışan tuşları <button className="link" onClick={() => openModal({ type: 'settings', tab: 'app' })}>Ayarlar → Uygulama ve Kısayollar</button> bölümünden atayabilirsin. <span className="ks-foot-k"><kbd>{modKey}+/</kbd> aç / kapat</span>
       </div>
     </div>
   );

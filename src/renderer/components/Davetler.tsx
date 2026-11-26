@@ -71,7 +71,10 @@ export function PlayInviteView({ m, card, c, me }: { m: Message; card: PlayCard;
       </div>
       {vc && !closed && !mine && (
         <div className="xcard-note inv-note">
-          <Volume2 size={14} /> {name} şu an <b>{vc.name}</b> odasında; katılınca oraya geçersin.
+          <Volume2 size={14} />
+          <span>
+            {name} şu an <b>{vc.name}</b> odasında; katılınca oraya geçersin.
+          </span>
         </div>
       )}
       <div className="xcard-foot">

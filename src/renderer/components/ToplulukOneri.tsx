@@ -132,7 +132,7 @@ export function CommunitiesView() {
               <b>{err ? 'Öneriler yüklenemedi' : n ? 'Aramana uyan topluluk yok' : 'Şimdilik önerecek yeni bir topluluk yok'}</b>
               <span>
                 {err ||
-                  'Topluluk sahipleri Topluluk ayarları > Keşfet bölümünden topluluklarını listeleyince burada görünür. Kendi topluluğunu da listeleyebilirsin.'}
+                  'Topluluk sahipleri Topluluk ayarları → Keşfet bölümünden topluluklarını listeleyince burada görünür. Kendi topluluğunu da listeleyebilirsin.'}
               </span>
             </div>
           )}
