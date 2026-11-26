@@ -23,6 +23,7 @@ import {
 } from '../lib/store';
 import { activeCustom } from '../../shared/profile';
 import { DmCall } from './Media';
+import { BaglantiCubugu } from './BaglantiCubugu';
 import { useVoice, joinVoice, toggleCamera } from '../lib/voice';
 import { Avatar, Tooltip, STATUS_LABEL, BioText } from './Common';
 import { NameText } from './profile/ProfileCard';
@@ -1732,6 +1733,7 @@ export function ChatView({ c, ch }: { c: Community; ch: Channel }) {
       }}
     >
       <ChatHeader c={c} ch={ch} />
+      <BaglantiCubugu cid={c.id} />
       {c.dm && <DmCall c={c} ch={ch} />}
       <MessageList c={c} ch={ch} />
       <Composer key={ch.id} c={c} ch={ch} />

@@ -765,6 +765,12 @@ code {
 .vp-state.connected {
   color: var(--green);
 }
+.vp-ping {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
 .vp-where {
   font-size: 12px;
   color: var(--text-3);

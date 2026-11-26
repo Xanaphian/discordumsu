@@ -245,7 +245,8 @@ export const DEFAULT_SETTINGS: Settings = {
   lookRev: 4,
 };
 
-export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string };
+/** after: gönderildiği anda kanalda bilinen son mesaj (bağlantı koptuysa mesajın sunucuya ulaşıp ulaşmadığını anlamak için) */
+export type CMessage = Message & { pending?: boolean; failed?: boolean; nonce?: string; after?: ID };
 
 export interface ChanState {
   items: CMessage[];
@@ -501,7 +502,27 @@ function ensureConn(host: string, local = false): HostConn {
   if (c) return c;
   const home = host === homeHost();
   c = new HostConn(host, hello, onFrame, (h, status, error) => {
-    set((s) => ({ conns: { ...s.conns, [h]: { ...(s.conns[h] || { host: h, local, home }), status, error } } }));
+    let dropped = false;
+    set((s) => {
+      const conns = { ...s.conns, [h]: { ...(s.conns[h] || { host: h, local, home }), status, error } };
+      if (s.conns[h]?.status !== 'online' || status === 'online') return { conns };
+      // Bağlantı koptu: bu sunucunun ses odalarındaki kişiler ve "yazıyor" göstergeleri artık bilinmiyor.
+      // Eskiden bağlantı gelene kadar odalarda eski kişiler görünmeye devam ediyordu.
+      dropped = true;
+      const mine = (ch: ID) => {
+        const cid = s.chanComm[ch];
+        return !!cid && s.commHost[cid] === h;
+      };
+      const voice = { ...s.voice };
+      for (const ch of Object.keys(voice)) if (mine(ch)) delete voice[ch];
+      const typing = { ...s.typing };
+      for (const ch of Object.keys(typing)) if (mine(ch)) delete typing[ch];
+      return { conns, voice, typing };
+    });
+    if (dropped) {
+      const r = S().ringing;
+      if (r && S().commHost[r.cid] === h) stopRing();
+    }
   });
   conns.set(host, c);
   set((s) => ({ conns: { ...s.conns, [host]: { host, status: 'connecting', local, home } } }));
@@ -555,6 +576,8 @@ export async function boot() {
   });
   window.addEventListener('focus', () => {
     set({ focused: true });
+    // pencereye dönünce kopuk bağlantı yeniden bağlanma sırasını beklemesin
+    conns.forEach((c) => c.status === 'offline' && c.nudge());
     const st = S();
     if (st.current !== 'home') {
       const ch = st.chanByComm[st.current];
@@ -564,6 +587,13 @@ export async function boot() {
   window.addEventListener('blur', () => set({ focused: false }));
   window.addEventListener('beforeunload', flushSaves);
   window.addEventListener('online', () => conns.forEach((c) => c.nudge()));
+  // Bilgisayar uykudan uyanınca zamanlayıcılar toplu çalışır: araya uzun bir boşluk girdiyse bağlantılar büyük olasılıkla ölüdür, hemen yokla
+  let lastTick = Date.now();
+  setInterval(() => {
+    const now = Date.now();
+    if (now - lastTick > 20_000) conns.forEach((c) => c.nudge());
+    lastTick = now;
+  }, 5000);
   // boşta durumu: 10 dk hareketsizlikte "boşta"
   let idleTimer: ReturnType<typeof setTimeout>;
   let autoIdle = false;
@@ -617,7 +647,14 @@ export async function finishOnboarding(p: { name: string; color: string; avatar?
 function upsertCommunity(host: string, c: Community, lastIds?: Record<ID, ID>) {
   set((s) => {
     const chanComm = { ...s.chanComm };
-    for (const [ch, cid] of Object.entries(chanComm)) if (cid === c.id) delete chanComm[ch];
+    const live = new Set(c.channels.map((x) => x.id));
+    // silinen ses odasının üye kaydı kalmasın (üye listesinde "Sesli aramada" takılı kalıyordu)
+    let voice = s.voice;
+    for (const [ch, cid] of Object.entries(chanComm))
+      if (cid === c.id) {
+        delete chanComm[ch];
+        if (!live.has(ch) && voice[ch]) voice = omit(voice, ch);
+      }
     for (const ch of c.channels) chanComm[ch.id] = c.id;
     const users = { ...s.users, ...c.users };
     const settings = s.settings.railOrder.includes(c.id) ? s.settings : { ...s.settings, railOrder: [...s.settings.railOrder, c.id] };
@@ -633,6 +670,7 @@ function upsertCommunity(host: string, c: Community, lastIds?: Record<ID, ID>) {
       communities: { ...s.communities, [c.id]: c },
       commHost: { ...s.commHost, [c.id]: host },
       chanComm,
+      voice,
       users,
       settings,
       chanByComm,
@@ -651,16 +689,19 @@ function removeCommunity(cid: ID) {
     const chanComm = { ...s.chanComm };
     // ayrılınan topluluğun bahsetmeleri rozet sayısında kalmasın
     let mentions = s.mentions;
+    let voice = s.voice;
     if (c)
       for (const ch of c.channels) {
         delete chanComm[ch.id];
         if (mentions[ch.id]) mentions = omit(mentions, ch.id);
+        if (voice[ch.id]) voice = omit(voice, ch.id);
       }
     return {
       communities,
       commHost,
       chanComm,
       mentions,
+      voice,
       current: s.current === cid ? 'home' : s.current,
       settings: { ...s.settings, railOrder: s.settings.railOrder.filter((x) => x !== cid) },
     };
@@ -932,7 +973,7 @@ export function sortedChannels(c: Community) {
 function mentionsMe(m: Message, c: Community | undefined): boolean {
   const me = S().me.id;
   if (m.content.includes(`<@${me}>`)) return true;
-  if (/@(everyone|here)\b/.test(m.content) && c && !S().settings.suppressEveryone.includes(c.id)) return true;
+  if (/@(everyone|here|herkes)\b/.test(m.content) && c && !S().settings.suppressEveryone.includes(c.id)) return true;
   if (c && m.content.includes('<@&')) {
     const mine = c.members.find((x) => x.userId === me)?.roles || [];
     if (mine.some((r) => m.content.includes(`<@&${r}>`))) return true;
@@ -1013,17 +1054,22 @@ function onFrame(host: string, f: ServerFrame) {
       });
       for (const d of dms) {
         upsertDm(host, d);
-        if (S().chans[d.ch]?.loaded) refreshChannel(d.ch);
+        if (S().chans[d.ch]?.loaded) queueRefresh(d.ch);
         // kapalıyken gelen özel mesajlar: en az bir okunmamış say (sol listede ve rozette görünsün)
         const st = S();
         if (d.lastId && d.lastId > (st.read[d.ch] || '') && !st.mentions[d.ch] && !isViewing(d.ch)) set((s) => ({ mentions: { ...s.mentions, [d.ch]: 1 } }));
       }
       updateBadge();
-      // açık kanalların eksik mesajlarını tazele
+      // açık kanalların eksik mesajlarını tazele (ekrandaki kanal önce; diğerleri sırayla, sunucunun hız sınırına takılmadan)
+      {
+        const st = S();
+        const shown = st.current !== 'home' ? st.chanByComm[st.current] : undefined;
+        if (shown && st.commHost[st.chanComm[shown]] === host && st.chans[shown]?.loaded) queueRefresh(shown, true);
+      }
       for (const c of f.communities)
         for (const ch of c.channels) {
           const st = S().chans[ch.id];
-          if (st?.loaded) refreshChannel(ch.id);
+          if (st?.loaded) queueRefresh(ch.id);
         }
       // ekrandaki kanal bağlantı koptuğu için hiç yüklenememişse (boş iskelette kalmışsa) şimdi yükle
       {
@@ -1156,6 +1202,7 @@ function onFrame(host: string, f: ServerFrame) {
       });
       return;
     case 'typing':
+      if (S().settings.blocked.includes(f.uid)) return; // engellenen kişinin "yazıyor" göstergesi çıkmaz
       set((s) => ({ typing: { ...s.typing, [f.ch]: { ...(s.typing[f.ch] || {}), [f.uid]: Date.now() + 8000 } } }));
       return;
     case 'presence':
@@ -1185,7 +1232,7 @@ function onFrame(host: string, f: ServerFrame) {
       voiceHooks.onYou?.(host, f.sessionId);
       return;
     case 'vc.signal':
-      voiceHooks.onSignal?.(host, f.from, f.data);
+      voiceHooks.onSignal?.(host, f.from, f.data, f.fromUser);
       return;
     case 'sp.snap':
     case 'sp.add':
@@ -1246,7 +1293,7 @@ function callWatch(c: Community, ch: ID, before: VoiceMember[], now: VoiceMember
     if (S().me.status === 'dnd') return;
     stopRing();
     set({ ringing: { cid: c.id, ch, from: peer } });
-    const ring = () => S().settings.sounds && playSound('ring', 0.16);
+    const ring = () => S().settings.sounds && playSound('ring');
     ring();
     ringTimer = setInterval(ring, 2400);
     ringStop = setTimeout(stopRing, 45_000);
@@ -1268,6 +1315,8 @@ export const actHooks: {
   onReady?: (host: string, f: Extract<ServerFrame, { t: 'ready' }>) => void;
   onPresence?: (f: Extract<ServerFrame, { t: 'presence' }>) => void;
 } = {};
+/** Kopuk bağlantıları beklemeden hemen yeniden dener (bağlantı uyarısındaki "Şimdi dene") */
+export const reconnectNow = () => conns.forEach((c) => c.nudge());
 /** Tüm bağlı sunuculara çerçeve gönderir */
 export const sendAll = (f: ClientFrame) => conns.forEach((c) => c.send(f));
 export const sendHost = (host: string, f: ClientFrame) => conns.get(host)?.send(f);
@@ -1275,7 +1324,7 @@ export const sendHost = (host: string, f: ClientFrame) => conns.get(host)?.send(
 export const voiceHooks: {
   onRoom?: (host: string, ch: ID, members: VoiceMember[]) => void;
   onYou?: (host: string, sid: ID) => void;
-  onSignal?: (host: string, from: ID, data: any) => void;
+  onSignal?: (host: string, from: ID, data: any, fromUser?: ID) => void;
 } = {};
 
 const omit = <T extends object>(o: T, k: string): T => {
@@ -1392,12 +1441,13 @@ export async function loadHistory(ch: ID, before?: ID) {
         items = [...older, ...prev.items];
         prepended += older.length;
       } else {
-        const pend = prev?.items.filter((x) => x.pending) || [];
+        // bekleyen ve "Gönderilemedi" mesajları ('~' ile başlar) korunur; bu arada sunucuya ulaşmış olanlar ayıklanır
+        const known = new Set((prev?.items || []).filter((x) => !x.id.startsWith('~')).map((x) => x.id));
         // v1.64: sayfa yolda iken canlı gelen mesajlar (sunucu sayfayı onlardan önce hazırladıysa) kaybolmasın.
         // Duman sınamasında ara sıra "karşıdan gelen mesaj görünmedi" hatasının nedeni buydu.
         const tail = r.msgs[r.msgs.length - 1]?.id;
-        const live = prev?.items.filter((x) => !x.pending && !x.failed && (!tail || x.id > tail) && !r.msgs.some((y) => y.id === x.id)) || [];
-        items = [...r.msgs, ...live, ...pend];
+        const live = prev?.items.filter((x) => !x.id.startsWith('~') && (!tail || x.id > tail) && !r.msgs.some((y) => y.id === x.id)) || [];
+        items = [...r.msgs, ...live, ...undelivered(prev?.items || [], [...r.msgs, ...live], known)];
       }
       // epoch ve detached korunur: eski bir mesaja atladıktan sonra yukarı kaydırınca liste sona fırlıyordu
       const chans = { ...s.chans, [ch]: { items, more: r.more, loaded: true, loading: false, prepended, epoch: prev?.epoch, detached: before ? prev?.detached : undefined } };
@@ -1423,6 +1473,46 @@ export async function loadHistory(ch: ID, before?: ID) {
 }
 const retried = new Set<ID>();
 
+/**
+ * Yerel ('~') mesajlardan sunucuya ulaşmamış olanlar. Bağlantı tam gönderim anında koptuysa mesaj sunucuya ulaşmış
+ * ama onayı gelmemiş olabilir: sunucudan gelen listede, gönderimden sonra yazılmış aynı içerikli kendi mesajımız varsa
+ * yerel kopya düşürülür (yoksa "Gönderilemedi" görünüp tekrar denenince mesaj iki kez giderdi).
+ */
+function undelivered(items: CMessage[], server: Message[], known: Set<ID>): CMessage[] {
+  const locals = items.filter((x) => x.id.startsWith('~'));
+  if (!locals.length) return locals;
+  const me = S().me.id;
+  const fresh = server.filter((m) => m.authorId === me && !known.has(m.id));
+  return locals.filter((l) => {
+    const i = fresh.findIndex((m) => m.id > (l.after || '') && m.content === l.content && (m.attachments?.length || 0) === (l.attachments?.length || 0));
+    if (i < 0) return true;
+    fresh.splice(i, 1);
+    return false;
+  });
+}
+
+// Yeniden bağlanınca açılmış bütün kanallar aynı anda tazelenirse (onlarca istek) sunucunun hız sınırına takılıyordu:
+// istekler sırayla, aralarında kısa bir boşlukla gönderilir.
+const refreshQ: ID[] = [];
+let refreshing = false;
+function queueRefresh(ch: ID, first = false) {
+  if (refreshQ.includes(ch)) return;
+  if (first) refreshQ.unshift(ch);
+  else refreshQ.push(ch);
+  if (refreshing) return;
+  refreshing = true;
+  (async () => {
+    try {
+      while (refreshQ.length) {
+        await refreshChannel(refreshQ.shift()!);
+        if (refreshQ.length) await new Promise((r) => setTimeout(r, 160));
+      }
+    } finally {
+      refreshing = false;
+    }
+  })();
+}
+
 /** Yeniden bağlanınca kaçırılan mesajları tamamla */
 async function refreshChannel(ch: ID) {
   const conn = connFor(ch);
@@ -1432,9 +1522,9 @@ async function refreshChannel(ch: ID) {
     set((s) => {
       const prev = s.chans[ch];
       if (!prev) return {};
-      // "Gönderilemedi" mesajları ('~' ile başlar) burada tutulur; eskiden yeniden bağlanınca sessizce siliniyor, yazı kayboluyordu
-      const failed = prev.items.filter((x) => !x.pending && x.id.startsWith('~'));
-      const map = new Map(prev.items.filter((x) => !x.pending && !x.id.startsWith('~')).map((x) => [x.id, x]));
+      // Yerel mesajlar ('~' ile başlar: bekleyen ve "Gönderilemedi") burada tutulur; eskiden yeniden bağlanınca sessizce siliniyor, yazı kayboluyordu
+      const map = new Map(prev.items.filter((x) => !x.id.startsWith('~')).map((x) => [x.id, x]));
+      const failed = undelivered(prev.items, r.msgs, new Set(map.keys()));
       const first = r.msgs[0]?.id;
       // en son sayfayla örtüşmüyorsa listeyi sıfırla
       if (first && !map.has(first) && prev.items.length && prev.items[prev.items.length - 1].id > first) {
@@ -1461,7 +1551,7 @@ export function sendMessage(ch: ID, content: string, attachments?: Attachment[],
   const s = S();
   const replyTo = reply === undefined ? s.replyTo[ch] : reply || undefined;
   const nonce = makeId();
-  const local: CMessage = { id: '~' + nonce, channelId: ch, authorId: s.me.id, content, ts: Date.now(), nonce, pending: true, replyTo, attachments };
+  const local: CMessage = { id: '~' + nonce, channelId: ch, authorId: s.me.id, content, ts: Date.now(), nonce, pending: true, replyTo, attachments, after: s.lastIds[ch] || '' };
   set((x) => {
     // Kanal bu oturumda hiç açılmadıysa "yüklendi" sayma; yoksa açılınca geçmişi gelmez, yalnız bu mesaj görünür
     const st = x.chans[ch] || { items: [], more: true, loaded: false, loading: false, prepended: 0 };
@@ -1470,6 +1560,12 @@ export function sendMessage(ch: ID, content: string, attachments?: Attachment[],
   const ok = conn?.send({ t: 'send', ch, nonce, content, replyTo, attachments });
   if (!ok) {
     setTimeout(() => onFrame(conn?.host || '', { t: 'err', msg: 'Gönderilemedi: sunucuya bağlı değilsin.', nonce }), 50);
+  } else {
+    // Sunucudan onay gelmezse (bağlantı tam o anda koptu, sunucu yanıt vermedi) mesaj sonsuza dek "gönderiliyor"da kalmasın
+    setTimeout(() => {
+      const stuck = S().chans[ch]?.items.some((x) => x.nonce === nonce && x.pending);
+      if (stuck) onFrame(conn!.host, { t: 'err', msg: 'Mesaj gönderilemedi: sunucudan yanıt gelmedi. Mesajın üstündeki "Tekrar dene" ile yeniden gönderebilirsin.', nonce });
+    }, 15_000);
   }
   lastTyping = 0;
 }
@@ -1852,7 +1948,8 @@ function waitOnline(host: string, timeout = 8000) {
 }
 
 export function leaveCommunity(cid: ID) {
-  cmd(cid, { t: 'comm.leave', cid });
+  // bağlantı yokken istek sunucuya gitmez: topluluk ekrandan kalkıp sonra geri geliyordu
+  if (!cmd(cid, { t: 'comm.leave', cid })) return;
   removeCommunity(cid);
 }
 
@@ -1947,8 +2044,21 @@ export function jumpToMessage(cid: ID, ch: ID, id: ID) {
   const st = S().chans[ch];
   if (!st?.items.some((x) => x.id === id)) {
     const conn = connFor(ch);
-    conn?.request<{ msgs: Message[]; more: boolean }>({ t: 'hist', ch, around: id, rid: '' }).then((r) => {
-      set((s) => ({ chans: { ...s.chans, [ch]: { items: r.msgs, more: r.more, loaded: true, loading: false, prepended: 0, epoch: (s.chans[ch]?.epoch || 0) + 1, detached: true } }, jumpTo: { ch, id, at: Date.now() } }));
-    });
+    if (!conn) return;
+    conn
+      .request<{ msgs: Message[]; more: boolean }>({ t: 'hist', ch, around: id, rid: '' })
+      .then((r) => {
+        if (!r.msgs.some((x) => x.id === id)) toast('Bu mesaj artık yok (silinmiş olabilir).', 'info');
+        set((s) => {
+          // Gelen sayfa kanalın en yeni mesajını da içeriyorsa liste "eski mesajlar" kipine geçmez:
+          // yoksa kısa kanallarda yeni gelen mesajlar görünmüyor, "Eski mesajları görüntülüyorsun" çubuğu takılı kalıyordu.
+          const last = s.lastIds[ch];
+          const tail = r.msgs[r.msgs.length - 1]?.id;
+          const detached = !!last && (!tail || tail < last);
+          const locals = detached ? [] : (s.chans[ch]?.items || []).filter((x) => x.id.startsWith('~'));
+          return { chans: { ...s.chans, [ch]: { items: [...r.msgs, ...locals], more: r.more, loaded: true, loading: false, prepended: 0, epoch: (s.chans[ch]?.epoch || 0) + 1, detached } }, jumpTo: { ch, id, at: Date.now() } };
+        });
+      })
+      .catch(() => toast('Mesaja gidilemedi: sunucu yanıt vermedi.', 'err'));
   } else set({ jumpTo: { ch, id, at: Date.now() } });
 }

@@ -11,7 +11,7 @@ import {
   Attachment, Category, Channel, ChannelType, ClientFrame, Community, ID, Member, Message, Perm, PROTOCOL_VERSION,
   Role, ServerFrame, Status, UserPublic, VoiceMember, can, makeId, isVoiceLike, SpaceAvatar, Booth, AvatarLook, AVATAR_MODELS, cleanRoom3d,
   ALL_PERMS, DEFAULT_EVERYONE, CHANNEL_PERMS, AuditEntry, AutoMod, Ban, Overwrite, canEditRole, channelPerms, memberPerms, outranks,
-  hasFreeName, isToolChannel, toolEditPerm, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode, SHORT_CODE_RE,
+  hasFreeName, isToolChannel, toolEditPerm, isTimedOut, type CommunityStats, type ToolType, cleanSiteUrl, DEFAULT_SITE_URL, WebViewer, siteHost, makeShortCode, SHORT_CODE_RE,
   DmInfo, isDmChannel, dmChannelId, dmPeerOf, FriendInfo, SELF_ROLE_FORBIDDEN, cleanChannelImage, cleanChannelBanner,
 } from '../shared/protocol';
 import { sanitizeProfile, sanitizeCommunityProfile, sanitizeActivities, BIO_MAX, type LiveActivity } from '../shared/profile';
@@ -38,6 +38,8 @@ const safeEq = (a: string, b: string) => {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
 const own = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+/** Renk yalnız '#rrggbb' biçiminde bir yazı olabilir (dizi ya da nesne gönderilip başkalarının ekranı bozulamasın) */
+const isHex = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 const clampStr = (s: unknown, max: number) => (typeof s === 'string' ? s.slice(0, max) : '');
 const cleanName = (s: unknown, max = 32) => clampStr(s, 200).replace(/[\u0000-\u001f]/g, '').trim().slice(0, max);
 const channelSlug = (s: unknown) =>
@@ -245,7 +247,7 @@ const TOOL_NAMES: Record<ToolType, string> = { ideas: 'Öneri panosu', tasks: 'G
 const HATS = ['none', 'antenna', 'crown', 'cap', 'wizard', 'halo', 'headphones'] as const;
 function cleanLook(l: Partial<AvatarLook> | undefined): AvatarLook {
   return {
-    color: typeof l?.color === 'string' && /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : '#f5a524',
+    color: isHex(l?.color) ? l.color : '#f5a524',
     hat: HATS.includes(l?.hat as any) ? (l!.hat as AvatarLook['hat']) : 'antenna',
     ...(AVATAR_MODELS.includes(l?.model as any) ? { model: l!.model } : {}),
   };
@@ -260,6 +262,10 @@ export class Hub {
   private chanToComm = new Map<ID, ID>();
   private logs = new Map<ID, ChannelLog>();
   private sessions = new Set<Session>();
+  /** oturum kimliği -> oturum (ses sinyali her çerçevede bütün oturumları taramasın) */
+  private bySid = new Map<ID, Session>();
+  /** yavaş mod: 'kanal:kullanıcı' -> son gönderim anı (oturuma değil kişiye bağlı; yeniden bağlanarak atlatılamaz) */
+  private slowLast = new Map<string, number>();
   private userSessions = new Map<ID, Set<Session>>();
   /** kullanıcıların anlık etkinlikleri (oyun, müzik, yayın); bellekte tutulur */
   private acts = new Map<ID, LiveActivity[]>();
@@ -737,6 +743,7 @@ export class Hub {
     this.saveTimers.clear();
     this.bots.flush();
     this.ek?.flush();
+    this.posts?.flush();
     for (const s of this.sessions) s.ws.close(1001);
     this.server?.close();
   }
@@ -807,16 +814,32 @@ export class Hub {
           /* varsayılan */
         }
         const safeInline = /^(image\/(png|jpeg|gif|webp|avif)|video\/(mp4|webm)|audio\/(mpeg|ogg|wav|webm))$/.test(mime);
-        res.writeHead(200, {
+        const hd: Record<string, string | number> = {
           'content-type': safeInline ? mime : 'application/octet-stream',
-          'content-length': st.size,
           'cache-control': 'public, max-age=31536000, immutable',
           'x-content-type-options': 'nosniff',
+          'accept-ranges': 'bytes',
           // dosya doğrudan açılırsa içindeki hiçbir şey çalışmasın
           'content-security-policy': "default-src 'none'; sandbox",
           ...(safeInline ? {} : { 'content-disposition': 'attachment' }),
-        });
-        fs.createReadStream(file).pipe(res);
+        };
+        const pipe = (stream: fs.ReadStream) => {
+          stream.on('error', () => res.destroy());
+          res.on('close', () => stream.destroy());
+          stream.pipe(res);
+        };
+        // aralık isteği (Range): video ve seste ileri-geri sarma bununla çalışır
+        const rg = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));
+        if (rg && (rg[1] || rg[2]) && st.size > 0) {
+          const n = st.size;
+          const from = rg[1] ? parseInt(rg[1], 10) : Math.max(0, n - parseInt(rg[2], 10));
+          const to = rg[1] && rg[2] ? Math.min(parseInt(rg[2], 10), n - 1) : n - 1;
+          if (from >= n || from > to) return void res.writeHead(416, { 'content-range': `bytes */${n}` }).end();
+          res.writeHead(206, { ...hd, 'content-range': `bytes ${from}-${to}/${n}`, 'content-length': to - from + 1 });
+          return pipe(fs.createReadStream(file, { start: from, end: to }));
+        }
+        res.writeHead(200, { ...hd, 'content-length': st.size });
+        pipe(fs.createReadStream(file));
       });
       return;
     }
@@ -908,16 +931,28 @@ export class Hub {
       const file = path.join(this.dir, 'files', id);
       const out = fs.createWriteStream(file);
       let size = 0;
+      let done = false;
+      // yarıda kesilen ya da sınırı aşan yükleme: yarım dosya diskte kalmasın
+      const drop = () => {
+        if (done) return;
+        done = true;
+        out.destroy();
+        fs.unlink(file, () => {});
+      };
       req.on('data', (chunk: Buffer) => {
         size += chunk.length;
         if (size > MAX_UPLOAD) {
+          drop();
+          if (!res.headersSent) res.writeHead(413, { connection: 'close' }).end();
           req.destroy();
-          out.destroy();
-          fs.unlink(file, () => {});
         }
       });
+      req.on('aborted', drop);
+      req.on('error', drop);
       req.pipe(out);
       out.on('finish', () => {
+        if (done) return;
+        done = true;
         const rawMime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
         const mime = /^[\w.+-]{1,60}\/[\w.+-]{1,60}$/.test(rawMime) ? rawMime : 'application/octet-stream';
         fs.writeFileSync(file + '.mime', mime);
@@ -936,7 +971,10 @@ export class Hub {
         }
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(att));
       });
-      out.on('error', () => res.writeHead(500).end());
+      out.on('error', () => {
+        drop();
+        if (!res.headersSent) res.writeHead(500).end();
+      });
       return;
     }
     res.writeHead(404).end();
@@ -985,6 +1023,7 @@ export class Hub {
       lastSend: {},
     };
     this.sessions.add(s);
+    this.bySid.set(s.sid, s);
     // kimliğini bildirmeyen bağlantı açık tutulmaz
     const authTimer = setTimeout(() => {
       if (!s.userId) ws.close(4000, 'auth-timeout');
@@ -1015,7 +1054,11 @@ export class Hub {
         // basit hız sınırı: 40 çerçeve / 5 sn
         s.bucket = Math.min(40, s.bucket + ((now - s.bucketTs) / 5000) * 40);
         s.bucketTs = now;
-        if (s.bucket < 1) return this.send(s, { t: 'err', msg: 'Çok hızlı gidiyorsun, biraz yavaşla.' });
+        if (s.bucket < 1) {
+          // bekleyen mesaj (nonce) ya da istek (rid) yanıtsız kalmasın: istemci "gönderilemedi" diyebilsin
+          const x = f as { rid?: unknown; nonce?: unknown };
+          return this.send(s, { t: 'err', msg: 'Çok hızlı gidiyorsun, biraz yavaşla.', ...(typeof x.rid === 'string' ? { rid: x.rid.slice(0, 40) } : {}), ...(typeof x.nonce === 'string' ? { nonce: x.nonce.slice(0, 40) } : {}) });
+        }
         s.bucket -= 1;
       }
       try {
@@ -1035,6 +1078,7 @@ export class Hub {
 
   private onClose(s: Session) {
     this.sessions.delete(s);
+    this.bySid.delete(s.sid);
     if (s.voice) this.leaveVoice(s);
     if (s.space) this.leaveSpace(s);
     if (s.web) this.leaveWeb(s);
@@ -1230,10 +1274,50 @@ export class Hub {
   /** Üyeyi topluluktan çıkarır ve oturumlarına bildirir */
   private evict(c: StoredCommunity, userId: ID) {
     c.members = c.members.filter((m) => m.userId !== userId);
+    this.dropFromRooms(c, userId);
+    for (const x of this.userSessions.get(userId) || []) this.send(x, { t: 'comm.del', cid: c.id });
+  }
+
+  /** Kişinin bu topluluktaki ses, 3D ve site odası oturumlarını kapatır (atılma, ayrılma, zaman aşımı) */
+  private dropFromRooms(c: StoredCommunity, userId: ID, voiceOnly = false) {
     for (const x of this.userSessions.get(userId) || []) {
       if (x.voice && this.chanToComm.get(x.voice.ch) === c.id) this.leaveVoice(x);
       if (x.space && this.chanToComm.get(x.space) === c.id) this.leaveSpace(x);
-      this.send(x, { t: 'comm.del', cid: c.id });
+      if (!voiceOnly && x.web && this.chanToComm.get(x.web) === c.id) this.leaveWeb(x);
+    }
+  }
+
+  /** Silinen kanalların odalarını kapatır: içeridekiler oda kaydından düşer (istemci kanalın gittiğini topluluk güncellemesinden öğrenir) */
+  private closeRooms(chIds: Set<ID>) {
+    for (const x of this.sessions) {
+      if (x.voice && chIds.has(x.voice.ch)) x.voice = null;
+      if (x.space && chIds.has(x.space)) x.space = null;
+      if (x.web && chIds.has(x.web)) x.web = null;
+    }
+    for (const ch of chIds) {
+      this.voiceRooms.delete(ch);
+      this.spaceRooms.delete(ch);
+      this.booths.delete(ch);
+      this.webRooms.delete(ch);
+    }
+  }
+
+  /** Ses odasının güncel üye listesini kanalı görebilenlere (özel aramada iki tarafa) duyurur.
+   *  Gizli bir ses kanalında kimin olduğu, kanalı göremeyen üyelere gönderilmez. */
+  private pushVoice(ch: ID) {
+    const room = this.voiceRooms.get(ch);
+    const f: ServerFrame = { t: 'vc', ch, members: room ? [...room.values()] : [] };
+    if (isDmChannel(ch)) return this.dmBroadcast(ch, f);
+    const cid = this.chanToComm.get(ch);
+    const c = cid && this.comms.get(cid);
+    if (!c) return;
+    const channel = c.channels.find((x) => x.id === ch);
+    if (!channel) return this.broadcast(c, f);
+    this.broadcastChan(c, channel, f);
+    // izni sonradan kapanmış ama hâlâ odada olan biri de listeyi almaya devam eder
+    if (room) for (const sid of room.keys()) {
+      const x = this.bySid.get(sid);
+      if (x?.userId && !this.canView(c, x.userId, channel)) this.send(x, f);
     }
   }
 
@@ -1295,8 +1379,10 @@ export class Hub {
       Object.assign(lastIds, this.lastIdsFor(c, uid));
       for (const ch of c.channels) {
         const room = this.voiceRooms.get(ch.id);
-        if (room && room.size) voice[ch.id] = [...room.values()];
         const wr = this.webRooms.get(ch.id);
+        if (!(room && room.size) && !(wr && wr.size)) continue;
+        if (!this.canView(c, uid, ch)) continue;
+        if (room && room.size) voice[ch.id] = [...room.values()];
         if (wr && wr.size) web[ch.id] = [...wr.values()];
       }
     }
@@ -1433,6 +1519,8 @@ export class Hub {
     this.data.friends ||= {};
     const r = this.data.friends[key];
     if (r?.ok) return null;
+    // engelleyen ya da engellenen kişiye yeni istek gitmez (bana gelmiş bir isteği kabul etmek serbest)
+    if (!direct && !(r && r.from === b) && this.posts.blockedEither(a, b)) return 'Bu kişiye arkadaşlık isteği gönderilemiyor.';
     if (!direct && !byTag && !r && !this.shareCommunity(a, b)) return 'Ortak bir topluluğunuz yok. Arkadaşlık isteğini onun etiketiyle (ad#kod) gönder.';
     if (direct || (r && r.from === b)) this.data.friends[key] = { from: r?.from || a, ok: true, ts: Date.now() };
     else this.data.friends[key] = { from: a, ok: false, ts: Date.now() };
@@ -1692,7 +1780,7 @@ export class Hub {
         s.lastSend[ch] = Date.now();
         const content = clampStr(f.content, MAX_CONTENT).trim();
         const atts = cleanAttachments(f.attachments);
-        if (!content && !atts.length) return true;
+        if (!content && !atts.length) return this.send(s, { t: 'err', msg: 'Boş mesaj gönderilemez.', nonce: f.nonce }), true;
         const m: Message = { id: makeId(), channelId: ch, authorId: uid, content, ts: Date.now() };
         if (f.replyTo && L.byId.has(f.replyTo)) m.replyTo = f.replyTo;
         if (atts.length) m.attachments = atts;
@@ -1705,7 +1793,7 @@ export class Hub {
       case 'edit': {
         const m = L.byId.get(f.id);
         const content = clampStr(f.content, MAX_CONTENT).trim();
-        if (!m || m.authorId !== uid || (!content && !m.attachments?.length)) return true;
+        if (!m || m.kind || m.authorId !== uid || (!content && !m.attachments?.length)) return true;
         m.content = content;
         m.editedTs = Date.now();
         L.update(m);
@@ -1754,7 +1842,8 @@ export class Hub {
         this.send(s, { t: 'pins', rid: f.rid, ch, msgs: L.list.filter((m) => m.pinned).slice(-50).reverse() });
         return true;
       case 'typing':
-        this.dmBroadcast(ch, { t: 'typing', ch, uid }, s);
+        // engellenen (ya da artık yazamayan) kişinin "yazıyor" bilgisi karşıya gitmez
+        if (this.canMessage(uid, peer)) this.dmBroadcast(ch, { t: 'typing', ch, uid }, s);
         return true;
     }
     return true;
@@ -1828,7 +1917,8 @@ export class Hub {
       }
       case 'send': {
         const r = this.commOfChannel(s, f.ch);
-        if (!r || isVoiceLike(r.channel.type)) return;
+        // kanal silinmiş ya da artık görünmüyor: mesaj "gönderiliyor"da asılı kalmasın
+        if (!r || isVoiceLike(r.channel.type)) return this.send(s, { t: 'err', msg: 'Bu kanala mesaj gönderilemiyor (kanal silinmiş ya da erişimin kalkmış olabilir).', nonce: f.nonce });
         const cp = channelPerms(r.c, uid, r.channel);
         const mem = r.c.members.find((m) => m.userId === uid);
         if (!(cp & Perm.SEND_MESSAGES)) {
@@ -1842,19 +1932,22 @@ export class Hub {
         }
         let content = clampStr(f.content, MAX_CONTENT).trim();
         const atts = cleanAttachments(f.attachments);
-        if (!content && !atts.length) return;
+        if (!content && !atts.length) return this.send(s, { t: 'err', msg: 'Boş mesaj gönderilemez.', nonce: f.nonce });
         if (atts.length && !(cp & Perm.ATTACH_FILES)) return this.send(s, { t: 'err', msg: 'Bu kanalda dosya gönderme yetkin yok.', nonce: f.nonce });
         if (!(cp & Perm.MANAGE_MESSAGES)) {
           if (r.channel.slowmode) {
-            const last = s.lastSend[f.ch] || 0;
-            if (Date.now() - last < r.channel.slowmode * 1000)
-              return this.send(s, { t: 'err', msg: `Yavaş mod açık: ${r.channel.slowmode} sn bekle.`, nonce: f.nonce });
+            const left = r.channel.slowmode * 1000 - (Date.now() - (this.slowLast.get(f.ch + ':' + uid) || 0));
+            if (left > 0) return this.send(s, { t: 'err', msg: `Yavaş mod açık: ${Math.ceil(left / 1000)} sn bekle.`, nonce: f.nonce });
           }
           const am = this.automodCheck(r.c, uid, content, true);
           if (am) return this.send(s, { t: 'err', msg: am, nonce: f.nonce });
         }
         content = this.sanitizeMentions(r.c, content, cp);
         s.lastSend[f.ch] = Date.now();
+        if (r.channel.slowmode) {
+          this.slowLast.set(f.ch + ':' + uid, Date.now());
+          if (this.slowLast.size > 50_000) for (const [k, t] of this.slowLast) if (Date.now() - t > 21_600_000) this.slowLast.delete(k);
+        }
         const m: Message = { id: makeId(), channelId: f.ch, authorId: uid, content, ts: Date.now() };
         if (f.replyTo && this.log(f.ch).byId.has(f.replyTo)) m.replyTo = f.replyTo;
         if (atts.length) m.attachments = atts;
@@ -1867,8 +1960,9 @@ export class Hub {
       case 'edit': {
         const r = this.commOfChannel(s, f.ch);
         const m = r && this.log(f.ch).byId.get(f.id);
-        if (!r || !m) return;
+        if (!r || !m || m.kind) return; // sistem mesajı (katılma vb.) düzenlenemez
         let content = clampStr(f.content, MAX_CONTENT).trim();
+        if (isTimedOut(r.c.members.find((x) => x.userId === uid)) && !can(r.c, uid, Perm.ADMIN)) return this.send(s, { t: 'err', msg: 'Zaman aşımındayken mesaj düzenleyemezsin.' });
         if (m.authorId !== uid) {
           // araç kanallarında pano öğesi (xn:<tür>) başkası tarafından da güncellenebilir: görev taşıma, öneri durumu…
           const t = r.channel.type;
@@ -1970,7 +2064,7 @@ export class Hub {
       }
       case 'typing': {
         const r = this.commOfChannel(s, f.ch);
-        if (r) this.broadcastChan(r.c, r.channel, { t: 'typing', ch: f.ch, uid }, s);
+        if (r && channelPerms(r.c, uid, r.channel) & Perm.SEND_MESSAGES) this.broadcastChan(r.c, r.channel, { t: 'typing', ch: f.ch, uid }, s);
         return;
       }
       case 'presence': {
@@ -2039,7 +2133,7 @@ export class Hub {
           else return this.send(s, { t: 'err', msg: 'Davet arka planı resim, GIF ya da kısa video (mp4/webm, en çok ~4 MB) olmalı.' });
           changed.push('davet arka planı');
         }
-        if (f.color !== undefined && /^#[0-9a-f]{6}$/i.test(f.color)) (c.color = f.color), changed.push('renk');
+        if (f.color !== undefined && isHex(f.color)) (c.color = f.color), changed.push('renk');
         if (f.icon !== undefined) {
           if (f.icon === null) delete c.icon;
           else if (typeof f.icon === 'string' && f.icon.startsWith('data:image/') && f.icon.length < 400_000) c.icon = f.icon;
@@ -2149,6 +2243,7 @@ export class Hub {
         const c = this.comms.get(f.cid);
         if (!c || c.ownerId !== uid) return;
         this.broadcast(c, { t: 'comm.del', cid: c.id });
+        this.closeRooms(new Set(c.channels.map((x) => x.id)));
         this.comms.delete(c.id);
         this.data.communities = this.data.communities.filter((x) => x !== c.id);
         for (const ch of c.channels) {
@@ -2164,8 +2259,8 @@ export class Hub {
       case 'comm.leave': {
         const c = this.commFor(s, f.cid);
         if (!c || c.ownerId === uid) return;
-        c.members = c.members.filter((m) => m.userId !== uid);
-        for (const x of this.userSessions.get(uid) || []) this.send(x, { t: 'comm.del', cid: c.id });
+        // ayrılan kişi o topluluğun ses / 3D / site odalarında kalmasın (eskiden seste görünmeye ve duyulmaya devam ediyordu)
+        this.evict(c, uid);
         this.pushComm(c);
         return;
       }
@@ -2313,8 +2408,7 @@ export class Hub {
         if (!ch) return;
         c.channels = c.channels.filter((x) => x.id !== f.id);
         if (c.systemChannelId === f.id) c.systemChannelId = null;
-        for (const x of this.sessions) if (x.web === f.id) x.web = null;
-        this.webRooms.delete(f.id);
+        this.closeRooms(new Set([f.id]));
         this.chanToComm.delete(f.id);
         this.logs.delete(f.id);
         fsp.unlink(path.join(this.dir, 'messages', f.id + '.ndjson')).catch(() => {});
@@ -2372,7 +2466,7 @@ export class Hub {
         const r: Role = {
           id: makeId(),
           name: cleanName(f.name, 32) || 'yeni rol',
-          color: /^#[0-9a-f]{6}$/i.test(f.color) ? f.color : '',
+          color: isHex(f.color) ? f.color : '',
           perms: (Number(f.perms) & ALL_PERMS) & ap,
           hoist: !!f.hoist,
           position: 1,
@@ -2399,7 +2493,7 @@ export class Hub {
           if (n !== r.name) changed.push(`ad: ${r.name} → ${n}`);
           r.name = n;
         }
-        if (f.color !== undefined) (r.color = /^#[0-9a-f]{6}$/i.test(f.color) ? f.color : ''), changed.push('renk');
+        if (f.color !== undefined) (r.color = isHex(f.color) ? f.color : ''), changed.push('renk');
         if (f.perms !== undefined) {
           const next = Number(f.perms) & ALL_PERMS;
           const diff = next ^ r.perms;
@@ -2571,6 +2665,8 @@ export class Hub {
         const min = Math.max(0, Math.min(MAX_TIMEOUT_MIN, Math.floor(Number(f.minutes) || 0)));
         if (min) m.timeoutUntil = Date.now() + min * 60000;
         else delete m.timeoutUntil;
+        // zaman aşımına alınan kişi ses odasında konuşmaya devam etmesin
+        if (min) this.dropFromRooms(c, f.userId, true);
         const reason = clampStr(f.reason, 200).trim();
         this.audit(c, uid, 'member.timeout', this.userName(c, f.userId), [min ? `${min} dk` : 'kaldırıldı', reason].filter(Boolean).join(' · '));
         this.pushComm(c);
@@ -2670,7 +2766,7 @@ export class Hub {
         let room = this.webRooms.get(f.ch);
         if (!room) this.webRooms.set(f.ch, (room = new Map()));
         room.set(s.sid, { userId: uid, sessionId: s.sid, url, title: cleanName(f.title, 120) });
-        this.broadcast(r.c, { t: 'web', ch: f.ch, viewers: [...room.values()] });
+        this.broadcastChan(r.c, r.channel, { t: 'web', ch: f.ch, viewers: [...room.values()] });
         return;
       }
       case 'web.leave':
@@ -2687,7 +2783,7 @@ export class Hub {
           room.set(s.sid, { userId: uid, muted: !!f.muted, deaf: !!f.deaf, sessionId: s.sid });
           this.dmTouch(f.ch, '');
           this.send(s, { t: 'vc.you', sessionId: s.sid });
-          this.dmBroadcast(f.ch, { t: 'vc', ch: f.ch, members: [...room.values()] });
+          this.pushVoice(f.ch);
           return;
         }
         const r = this.commOfChannel(s, f.ch);
@@ -2702,7 +2798,7 @@ export class Hub {
         if (!room) this.voiceRooms.set(f.ch, (room = new Map()));
         room.set(s.sid, { userId: uid, muted, deaf: !!f.deaf, sessionId: s.sid });
         this.send(s, { t: 'vc.you', sessionId: s.sid });
-        this.broadcast(r.c, { t: 'vc', ch: f.ch, members: [...room.values()] });
+        this.pushVoice(f.ch);
         return;
       }
       case 'vc.leave':
@@ -2721,22 +2817,15 @@ export class Hub {
         vm.screen = typeof f.screen === 'string' ? clampStr(f.screen, 24) : null;
         const sid = (v: unknown) => (typeof v === 'string' && /^[\w{}-]{1,64}$/.test(v) ? v : undefined);
         vm.streams = f.streams ? { mic: sid(f.streams.mic), cam: sid(f.streams.cam), screen: sid(f.streams.screen) } : undefined;
-        if (isDmChannel(s.voice.ch)) return this.dmBroadcast(s.voice.ch, { t: 'vc', ch: s.voice.ch, members: [...room.values()] });
-        const cid = this.chanToComm.get(s.voice.ch);
-        const c = cid && this.comms.get(cid);
-        if (c) this.broadcast(c, { t: 'vc', ch: s.voice.ch, members: [...room.values()] });
+        this.pushVoice(s.voice.ch);
         return;
       }
       case 'vc.signal': {
         if (!s.voice) return;
         const room = this.voiceRooms.get(s.voice.ch);
-        if (!room?.has(f.to)) return;
-        for (const x of this.sessions) {
-          if (x.sid === f.to) {
-            this.send(x, { t: 'vc.signal', from: s.sid, fromUser: uid, data: f.data });
-            break;
-          }
-        }
+        if (typeof f.to !== 'string' || !room?.has(f.to) || !room.has(s.sid)) return;
+        const x = this.bySid.get(f.to);
+        if (x) this.send(x, { t: 'vc.signal', from: s.sid, fromUser: uid, data: f.data });
         return;
       }
     }
@@ -2881,7 +2970,8 @@ export class Hub {
     if (!room.size) this.webRooms.delete(ch);
     const cid = this.chanToComm.get(ch);
     const c = cid && this.comms.get(cid);
-    if (c) this.broadcast(c, { t: 'web', ch, viewers: [...room.values()] });
+    const channel = c && c.channels.find((x) => x.id === ch);
+    if (c && channel) this.broadcastChan(c, channel, { t: 'web', ch, viewers: [...room.values()] });
   }
 
   private leaveVoice(s: Session) {
@@ -2893,17 +2983,14 @@ export class Hub {
     if (!room) return;
     room.delete(s.sid);
     if (!room.size) this.voiceRooms.delete(ch);
-    if (isDmChannel(ch)) return this.dmBroadcast(ch, { t: 'vc', ch, members: [...room.values()] });
-    const cid = this.chanToComm.get(ch);
-    const c = cid && this.comms.get(cid);
-    if (c) this.broadcast(c, { t: 'vc', ch, members: room ? [...room.values()] : [] });
+    this.pushVoice(ch);
   }
 
   private sanitizeUser(u: UserPublic, id: ID): UserPublic {
     const out: UserPublic = {
       id,
       name: cleanName(u?.name, 32) || 'Arı',
-      color: /^#[0-9a-f]{6}$/i.test(u?.color) ? u.color : '#f5a524',
+      color: isHex(u?.color) ? u.color : '#f5a524',
     };
     if (typeof u?.avatar === 'string' && u.avatar.startsWith('data:image/') && u.avatar.length < 200_000) out.avatar = u.avatar;
     if (u?.bio) out.bio = clampStr(u.bio, BIO_MAX);
@@ -2996,7 +3083,7 @@ export class Hub {
         const role: Role = {
           id: makeId(),
           name: cleanName(r?.name, 32) || 'rol',
-          color: typeof r?.color === 'string' && /^#[0-9a-f]{6}$/i.test(r.color) ? r.color : '',
+          color: isHex(r?.color) ? r.color : '',
           perms: (Number(r?.perms) | 0) & ALL_PERMS,
           hoist: !!r?.hoist,
           position: i + 1,
@@ -3061,7 +3148,7 @@ export class Hub {
     const c: StoredCommunity = {
       id,
       name,
-      color: /^#[0-9a-f]{6}$/i.test(color) ? color : '#f5a524',
+      color: isHex(color) ? color : '#f5a524',
       ownerId,
       createdAt: Date.now(),
       roles,
@@ -3073,7 +3160,7 @@ export class Hub {
       pv: 2,
       joinMessages: true,
     };
-    if (icon && icon.startsWith('data:image/') && icon.length < 400_000) c.icon = icon;
+    if (typeof icon === 'string' && icon.startsWith('data:image/') && icon.length < 400_000) c.icon = icon;
     this.comms.set(id, c);
     this.data.communities.push(id);
     for (const ch of channels) this.chanToComm.set(ch.id, id);
@@ -3132,11 +3219,14 @@ export class Hub {
       },
       history: (ch) => msgs(ch).list,
       post: (c, ch, authorId, content, replyTo) => {
-        const m: Message = { id: makeId(), channelId: ch, authorId, content: clampStr(content, MAX_CONTENT), ts: Date.now() };
+        const channel = c.channels.find((x) => x.id === ch);
+        // botlar da yetkisi yoksa @everyone / bahsedilemeyen rol etiketleyemez (yerleşik Asistan hariç)
+        let text = clampStr(content, MAX_CONTENT);
+        if (channel && authorId !== BOT_ID) text = this.sanitizeMentions(c, text, channelPerms(c, authorId, channel));
+        const m: Message = { id: makeId(), channelId: ch, authorId, content: text, ts: Date.now() };
         if (replyTo && msgs(ch).byId.has(replyTo)) m.replyTo = replyTo;
         msgs(ch).add(m);
         toChan(c, ch, { t: 'msg', m });
-        const channel = c.channels.find((x) => x.id === ch);
         if (channel) this.bots.onMessage(c, channel, m);
         return m;
       },

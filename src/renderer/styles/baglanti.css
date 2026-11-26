@@ -1,0 +1,26 @@
+/* Sohbetin üstündeki bağlantı uyarısı (components/BaglantiCubugu.tsx) */
+.baglanti-cubugu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--yellow);
+  background: color-mix(in srgb, var(--yellow) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--yellow) 30%, transparent);
+  flex: none;
+}
+.baglanti-cubugu span {
+  flex: 1;
+  min-width: 0;
+}
+.baglanti-cubugu svg {
+  flex: none;
+}
+.baglanti-cubugu .btn {
+  flex: none;
+}
+html:is([data-theme='kagit'], [data-theme='tozpembe'], [data-theme='bej']) .baglanti-cubugu {
+  color: #7a5200;
+}
