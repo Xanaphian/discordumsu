@@ -1,5 +1,5 @@
 import React from 'react';
-import { useStore, updateSettings, openModal, type Settings } from '../lib/store';
+import { useStore, updateSettings, openModal, flushSaves, type Settings } from '../lib/store';
 import { CustomColor, Toggle } from './Common';
 import { Check } from 'lucide-react';
 import { cx } from '../lib/util';
@@ -172,7 +172,7 @@ export function AppearanceTab() {
       {!!s.powerSaver !== !!info?.powerSaver && (
         <div className="pil-not">
           <span>Ekran kartı ayarı uygulama yeniden başlayınca değişir.</span>
-          <button className="btn primary sm" onClick={() => window.kovan.relaunch()}>
+          <button className="btn primary sm" onClick={() => (flushSaves(), window.kovan.relaunch())}>
             Yeniden başlat
           </button>
         </div>

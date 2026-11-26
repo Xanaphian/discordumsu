@@ -129,10 +129,22 @@ export function copyText(s: string) {
 
 export function debounce<T extends (...a: any[]) => void>(fn: T, ms: number) {
   let t: ReturnType<typeof setTimeout> | undefined;
-  return (...a: Parameters<T>) => {
+  let last: Parameters<T> | null = null;
+  const run = (...a: Parameters<T>) => {
     if (t) clearTimeout(t);
-    t = setTimeout(() => fn(...a), ms);
+    last = a;
+    t = setTimeout(() => ((t = undefined), (last = null), fn(...a)), ms);
   };
+  /** bekleyen çağrı varsa hemen çalıştır (uygulama kapanırken son değişiklik kaybolmasın) */
+  run.flush = () => {
+    if (!t || !last) return;
+    clearTimeout(t);
+    t = undefined;
+    const a = last;
+    last = null;
+    fn(...a);
+  };
+  return run;
 }
 
 export const isMac = navigator.platform.startsWith('Mac');

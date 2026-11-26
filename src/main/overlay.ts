@@ -118,10 +118,11 @@ export function initOverlay(getMain: () => BrowserWindow | null, isDev: boolean)
   ipcMain.on('ovl:msg', (_e, m: unknown) => {
     if (ovl && !ovl.isDestroyed() && ovl.isVisible() && ready) ovl.webContents.send('ovl:msg', m);
   });
-  ipcMain.on('ovl:shortcut', (_e, acc: string) => {
+  // v1.64: kısayol alınamazsa (başka bir uygulama kullanıyorsa) arayüze false döner, kullanıcıya söylenir
+  ipcMain.handle('ovl:shortcut', (_e, acc: string) => {
     if (shortcut) globalShortcut.unregister(shortcut);
     shortcut = '';
-    if (!acc) return;
+    if (!acc || typeof acc !== 'string') return true;
     try {
       if (
         globalShortcut.register(acc, () => {
@@ -134,6 +135,7 @@ export function initOverlay(getMain: () => BrowserWindow | null, isDev: boolean)
     } catch {
       /* geçersiz kısayol */
     }
+    return !!shortcut;
   });
   screen.on('display-metrics-changed', () => place());
 }

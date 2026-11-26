@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, session, screen, desktopCapturer, powerSaveBlocker, safeStorage, net } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, shell, session, screen, desktopCapturer, powerSaveBlocker, safeStorage, net, powerMonitor } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -43,6 +43,8 @@ if (!app.requestSingleInstanceLock()) {
 
 let pendingCapture: { id: string; audio: boolean } | null = null;
 let powerBlock: number | null = null;
+/** tepsi menüsünden "Güncellemeleri denetle" seçildi (sonuç bildirimle söylenir) */
+let tepsidenDenetim = false;
 
 // ---------- genel bas-konuş (oyun içindeyken bile çalışır) ----------
 let hook: any = null;
@@ -393,7 +395,13 @@ function createTray() {
     Menu.buildFromTemplate([
       { label: 'Xanaphian\'ı aç', click: showWindow },
       { type: 'separator' },
-      { label: 'Güncellemeleri denetle', click: () => updater?.check(true) },
+      {
+        label: 'Güncellemeleri denetle',
+        click: () => {
+          tepsidenDenetim = true;
+          updater?.check(true);
+        },
+      },
       { label: 'Çıkış', click: () => ((quitting = true), app.quit()) },
     ]),
   );
@@ -563,6 +571,20 @@ app.on('web-contents-created', (_e, wc) => {
 app.whenReady().then(async () => {
   // v1.63.0: açılış ekranı her şeyden önce görünsün (gizli başlatmada gösterilmez)
   if (!process.argv.includes('--hidden')) acilisAc(app.getVersion(), iconPath());
+  // v1.64: "Bilgisayar açılınca başlat" anahtarı Windows'taki gerçek durumu göstersin
+  // (ör. Görev Yöneticisi > Başlangıç'tan kapatıldıysa ayarlarda hâlâ açık görünmesin)
+  if (!isDev && process.platform === 'win32' && config.settings.openAtLogin !== undefined) {
+    try {
+      const li = app.getLoginItemSettings({ args: ['--hidden'] });
+      const gercek = li.executableWillLaunchAtLogin ?? li.openAtLogin;
+      if (!!config.settings.openAtLogin !== gercek) {
+        config.settings = { ...config.settings, openAtLogin: gercek };
+        saveConfig();
+      }
+    } catch {
+      /* okunamadı: kayıtlı ayar kalsın */
+    }
+  }
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
     cb(['media', 'display-capture', 'notifications', 'clipboard-sanitized-write', 'fullscreen'].includes(permission));
   });
@@ -637,6 +659,16 @@ app.whenReady().then(async () => {
     if (u.state === 'checking') acilisDurum('Güncellemeler denetleniyor');
     else if (u.state === 'none') acilisDurum('Her şey güncel');
     else if (u.state === 'available') acilisDurum(`Yeni sürüm var: v${u.version}`);
+    // v1.64: tepsi menüsünden denetlenince pencere kapalıysa sonuç bildirimle söylenir (eskiden hiçbir şey görünmüyordu)
+    if (tepsidenDenetim && (u.state === 'none' || u.state === 'available' || u.state === 'error')) {
+      tepsidenDenetim = false;
+      if (win?.isVisible() || !Notification.isSupported()) return;
+      const body =
+        u.state === 'none' ? 'En son sürümü kullanıyorsun.' : u.state === 'available' ? `Yeni sürüm hazır: v${u.version}. Yüklemek için tıkla.` : `Denetlenemedi: ${u.message}`;
+      const n = new Notification({ title: 'Xanaphian güncellemesi', body, icon: iconPath() });
+      n.on('click', () => showWindow());
+      n.show();
+    }
   };
   updater.start();
   handleArgv(process.argv);
@@ -701,6 +733,13 @@ function registerIpc() {
   }));
   ipcMain.handle('mcp:claude-desktop', (_e, a: { name: string; url: string; token: string }) => installClaudeDesktop(a));
   ipcMain.handle('cfg:get', () => publicConfig());
+  ipcMain.handle('sys:idle', () => {
+    try {
+      return powerMonitor.getSystemIdleTime();
+    } catch {
+      return -1;
+    }
+  });
   // eşzamanlı: bağlantı açılırken kimlik çerçevesi hemen gönderilir
   ipcMain.on('cfg:host-secret', (e, host: unknown) => {
     e.returnValue = hostSecret(host);

@@ -4,7 +4,7 @@ import {
   User, AtSign, MessageSquare, Phone, StickyNote, Pencil, PenLine, Shield, Clock, LogOut, Ban, Copy, Settings, Trash2,
   CheckCheck, BellOff, Bell, UserPlus, UserMinus, UserCheck, UserX, VolumeX, Volume2, Reply, Pin, PinOff, Bookmark, BookmarkMinus,
   ExternalLink, LogIn, Headphones, Music, Tv, Link, Hash, Eye, EyeOff, Lock, FolderPlus, Plus, Mail, Flag, Smile, Users,
-  ImageDown, Share2, Undo2, Box, SlidersHorizontal, DoorOpen,
+  ImageDown, Share2, Undo2, Box, SlidersHorizontal, DoorOpen, Forward,
 } from 'lucide-react';
 
 type Rule = [RegExp, React.ComponentType<{ size?: number }>];
@@ -26,6 +26,7 @@ const RULES: Rule[] = [
   [/^profili düzenle/, Pencil],
   [/^profil/, User],
   [/^bahset/, AtSign],
+  [/^ilet/, Forward],
   [/^mesaj$|mesaj gönder/, MessageSquare],
   [/^ara$|sesli ara|görüntülü ara/, Phone],
   [/not ekle|^not$/, StickyNote],
