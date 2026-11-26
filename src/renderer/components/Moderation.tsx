@@ -30,7 +30,8 @@ export function memberMenu(c: Community, me: string, uid: string, opts: { noProf
   if (self) {
     items.push({ label: 'Profili düzenle', onClick: () => openModal({ type: 'settings', tab: 'profile' }) });
   } else if (human) {
-    items.push({ label: 'Mesaj', onClick: () => openDm(uid) });
+    // özel mesaj satırının menüsünde "Mesaj" gereksiz: zaten o sohbetin üstündesin
+    if (!opts.dm) items.push({ label: 'Mesaj', onClick: () => openDm(uid) });
     items.push({ label: 'Ara', onClick: () => callUser(uid) });
     items.push({ label: 'Not ekle', onClick: pop });
   }

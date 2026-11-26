@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, Trash2, ImagePlus, Link as LinkIcon, UserPlus, Pencil, CalendarDays, Users, ScrollText, Crown, Crop } from 'lucide-react';
-import { useStore, cmd, openModal, toast } from '../lib/store';
+import { useStore, cmd, hostHttp, openModal, toast } from '../lib/store';
 import { Avatar, CommunityIcon } from './Common';
 import { cx, fmtDay, displayName, countOnline } from '../lib/util';
 import { can, Perm, type Community } from '../../shared/protocol';
@@ -11,7 +11,7 @@ import {
 import { PATTERN_LABEL, bannerBackground, linkBrand } from './profile/look';
 import { Banner, LinkList } from './profile/ProfileCard';
 import { ColorPick, Section, Seg } from './profile/ProfileEditor';
-import { INVITE_BG_MAX, INVITE_BG_RE } from '../../shared/davetBaglanti';
+import { INVITE_BG_MAX, INVITE_BG_RE, inviteBgKind } from '../../shared/davetBaglanti';
 import { cropImage, recropImage, CropPreview, type CropOpts } from './Kirpma';
 
 const commBannerOpts = (h?: number): CropOpts => ({
@@ -209,13 +209,25 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
   const [tagInput, setTagInput] = useState('');
   const bannerFile = useRef<HTMLInputElement>(null);
   const inviteFile = useRef<HTMLInputElement>(null);
-  const [invPrev, setInvPrev] = useState<string | null>(null);
+  // davet arka planı taslağı: undefined = dokunulmadı, null = kaldırılacak, metin = yeni dosya (Kaydet'e basınca gider)
+  const [inv, setInv] = useState<string | null | undefined>(undefined);
+  // bu oturumda kaydedilen son durum (sunucunun yanıtını beklemeden önizleme doğru kalsın)
+  const [invSaved, setInvSaved] = useState<string | null | undefined>(undefined);
+  const [invErr, setInvErr] = useState(false);
+  const invBust = useRef(Date.now());
   useEffect(() => setD(initial), [initial]);
 
   const banner: ProfileBanner = d.banner || { kind: 'gradient', a: c.color, b: '#0a1226', angle: 135 };
   const setBanner = (patch: Partial<ProfileBanner>) => setD({ ...d, banner: { ...banner, ...patch } });
   const draftProfile = toProfile(d);
-  const dirty = JSON.stringify(draftProfile || null) !== JSON.stringify(toProfile(initial) || null) || d.description.trim() !== initial.description.trim();
+  const dirty = JSON.stringify(draftProfile || null) !== JSON.stringify(toProfile(initial) || null) || d.description.trim() !== initial.description.trim() || inv !== undefined;
+
+  // gösterilecek davet arka planı: önce taslak, sonra bu oturumda kaydedilen, en son sunucudaki
+  const invLocal = inv !== undefined ? inv : invSaved;
+  const invKind = invLocal === undefined ? c.inviteBgKind : invLocal ? inviteBgKind(invLocal) : undefined;
+  const invBase = hostHttp(c.id);
+  const invSrc = invLocal !== undefined ? invLocal || '' : invBase && c.inviteCode && !c.invitesPaused && !invErr ? `${invBase}/davet/${c.inviteCode}/arkaplan?v=${invBust.current}` : '';
+  const invStored = invSaved !== undefined ? !!invSaved : !!c.inviteBgKind;
 
   const addTag = () => {
     const t = tagInput.trim().slice(0, 20);
@@ -231,23 +243,23 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
       const data = String(rd.result || '');
       if (!INVITE_BG_RE.test(data)) return toast('Resim, GIF ya da mp4/webm video seç.', 'err');
       if (data.length > INVITE_BG_MAX) return toast('Dosya çok büyük (en çok yaklaşık 4 MB). Videoyu kısaltıp küçült.', 'err');
-      cmd(c.id, { t: 'comm.update', cid: c.id, inviteBg: data } as any);
-      setInvPrev(data);
-      toast('Davet arka planı kaydedildi', 'ok');
+      setInv(data);
     };
     rd.readAsDataURL(f);
   };
-  const clearInviteBg = () => {
-    cmd(c.id, { t: 'comm.update', cid: c.id, inviteBg: null } as any);
-    setInvPrev(null);
-    toast('Davet arka planı kaldırıldı', 'ok');
-  };
+  // kayıtlı bir arka plan varsa kaldırma taslağa yazılır; yalnız yeni seçilen dosya varsa seçim geri alınır
+  const clearInviteBg = () => setInv(invStored ? null : undefined);
 
   const save = () => {
     if (d.links.filter((l) => l.url.trim()).length > (draftProfile?.links?.length || 0)) toast('Geçersiz bağlantılar kaydedilmedi.', 'err');
     const f: any = { t: 'comm.update', cid: c.id, profile: draftProfile ?? null };
     if (d.description.trim() !== initial.description.trim()) f.description = d.description.trim();
-    cmd(c.id, f);
+    if (inv !== undefined) f.inviteBg = inv;
+    if (!cmd(c.id, f)) return;
+    if (inv !== undefined) {
+      setInvSaved(inv);
+      setInv(undefined);
+    }
     toast('Sunucu profili kaydedildi', 'ok');
   };
 
@@ -331,7 +343,7 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
             ) : null}
           </Section>
 
-          <Section title="Davet arka planı" sub="Davet bağlantısını açan kişiler bu resmi, GIF'i ya da videoyu arka planda görür. Boş bırakırsan afiş kullanılır.">
+          <Section title="Davet arka planı" sub="Davet bağlantısını açan kişiler bu resmi, GIF'i ya da videoyu kartın arkasında görür. Boş bırakırsan sayfa sade koyu kalır.">
             <input
               ref={inviteFile}
               hidden
@@ -343,28 +355,28 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
                 if (f) pickInviteBg(f);
               }}
             />
-            {invPrev || c.inviteBgKind ? (
+            {invKind ? (
               <div className="pe-ib">
-                {invPrev && invPrev.startsWith('data:video/') ? (
-                  <video src={invPrev} muted loop autoPlay playsInline style={{ width: 330, maxWidth: '100%', borderRadius: 8, display: 'block', marginBottom: 8 }} />
-                ) : invPrev ? (
-                  <img src={invPrev} alt="" style={{ width: 330, maxWidth: '100%', borderRadius: 8, display: 'block', marginBottom: 8 }} />
+                {!invSrc ? (
+                  <p>Şu an ayarlı: {invKind === 'video' ? 'video' : 'resim / GIF'}</p>
+                ) : invKind === 'video' ? (
+                  <video src={invSrc} muted loop autoPlay playsInline onError={() => invLocal === undefined && setInvErr(true)} />
                 ) : (
-                  <p style={{ margin: '0 0 8px' }}>Şu an ayarlı: {c.inviteBgKind === 'video' ? 'video' : 'resim / GIF'}</p>
+                  <img src={invSrc} alt="" draggable={false} onError={() => invLocal === undefined && setInvErr(true)} />
                 )}
               </div>
             ) : null}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div className="pe-ib-btns">
               <button className="btn ghost sm" onClick={() => inviteFile.current?.click()}>
-                <ImagePlus size={14} /> {invPrev || c.inviteBgKind ? 'Başka dosya seç' : 'Resim, GIF ya da video seç'}
+                <ImagePlus size={14} /> {invKind ? 'Başka dosya seç' : 'Resim, GIF ya da video seç'}
               </button>
-              {(invPrev || c.inviteBgKind) && (
+              {invKind && (
                 <button className="btn ghost sm" onClick={clearInviteBg}>
                   <Trash2 size={14} /> Kaldır
                 </button>
               )}
             </div>
-            <small className="counter" style={{ display: 'block', marginTop: 6 }}>mp4 / webm video, GIF, resim · en çok yaklaşık 4 MB</small>
+            <small className="counter pe-ib-note">mp4 / webm video, GIF, resim · en çok yaklaşık 4 MB</small>
           </Section>
           <Section title="Tanıtım" sub="Adın altındaki tek satır ve topluluğun ne olduğunu anlatan açıklama.">
             <label className="field">
@@ -449,7 +461,7 @@ export function CommunityProfileEditor({ c }: { c: Community }) {
       {dirty && (
         <div className="save-bar">
           <span>Kaydedilmemiş değişikliklerin var</span>
-          <button className="btn ghost sm" onClick={() => setD(initial)}>
+          <button className="btn ghost sm" onClick={() => (setD(initial), setInv(undefined))}>
             Geri al
           </button>
           <button className="btn success sm" onClick={save}>

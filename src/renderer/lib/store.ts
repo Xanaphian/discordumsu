@@ -1533,9 +1533,12 @@ export function sendTyping(ch: ID) {
   connFor(ch)?.send({ t: 'typing', ch });
 }
 
-export function cmd(cidOrCh: ID, f: ClientFrame) {
+/** Gönderildiyse true; bağlantı yoksa uyarı çıkarır ve false döner */
+export function cmd(cidOrCh: ID, f: ClientFrame): boolean {
   const c = connFor(cidOrCh);
-  if (!c?.send(f)) toast('Sunucuya bağlı değil.', 'err');
+  if (c?.send(f)) return true;
+  toast('Sunucuya bağlı değil.', 'err');
+  return false;
 }
 
 export function request<T = any>(cidOrCh: ID, f: ClientFrame): Promise<T> {

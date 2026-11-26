@@ -30,3 +30,11 @@ html.pencere-gizli *::after {
   animation-play-state: paused !important;
   transition: none !important;
 }
+
+/* v1.62.0: site odası açıkken tam ekran gren dokusu ve kenar kararması çizilmez. Doku bir karışım katmanı (mix-blend-mode);
+   site her kaydığında ya da içinde bir şey oynadığında bütün pencereyi yeniden harmanlatıyor, site de dokunun altında kalıyordu. */
+html.site-acik body::after,
+html.site-acik body::before {
+  display: none !important;
+}
+

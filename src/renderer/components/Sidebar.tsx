@@ -694,9 +694,10 @@ function DmRow({ c, active, unread, mentions }: { c: Community; active: boolean;
       { label: 'Profil', onClick: () => openModal({ type: 'profile', uid: c.dm!, cid: c.id }) },
       { label: isMutedId(c.id) ? 'Bildirimleri aç' : 'Sessize al', onClick: () => toggleMuted(c.id) },
       { sep: true },
-      { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
+      // kişi seçenekleri (Ara, Not ekle, davet, arkadaşlık, engelle, kopyala); not kartı tıklanan yerde açılır
+      ...memberMenu(c, useStore.getState().me.id, c.dm!, { noProfile: true, dm: true, at: { x: e.clientX, y: e.clientY } }),
       { sep: true },
-      ...memberMenu(c, useStore.getState().me.id, c.dm!, { noProfile: true, dm: true }),
+      { label: 'Sohbeti kapat', onClick: () => closeDm(c.id) },
     ]);
   return (
     <div className={cx('ch-row dm-row', active && 'active', unread && 'unread', pinned && 'pinned')} onClick={() => selectCommunity(c.id)} onContextMenu={menu} role="button" tabIndex={0}>
