@@ -52,25 +52,38 @@ export class Updater {
     const { autoUpdater } = require('electron-updater') as typeof import('electron-updater');
     this.au = autoUpdater;
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = false;
+    // v1.64: indirilmiş güncelleme, "Yeniden başlat"a basılmadan uygulamadan çıkılsa da kurulur (Discord'daki gibi)
+    autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.allowPrerelease = false;
     autoUpdater.on('checking-for-update', () => this.set({ state: 'checking', manual: this.manual }));
     autoUpdater.on('update-available', (info) => {
       this.version = info.version;
       this.notes = typeof info.releaseNotes === 'string' ? stripHtml(info.releaseNotes) : undefined;
       const size = info.files?.reduce((a, f) => a + (f.size || 0), 0);
-      this.set({ state: 'available', version: info.version, notes: this.notes, size });
+      this.found = { version: info.version, notes: this.notes, size };
+      this.set({ state: 'available', ...this.found });
     });
-    autoUpdater.on('update-not-available', () => this.set({ state: 'none', manual: this.manual, checkedAt: Date.now() }));
+    autoUpdater.on('update-not-available', () => {
+      this.found = null;
+      this.set({ state: 'none', manual: this.manual, checkedAt: Date.now() });
+    });
     autoUpdater.on('download-progress', (p) =>
       this.set({ state: 'downloading', version: this.version, percent: p.percent, bps: p.bytesPerSecond, transferred: p.transferred, total: p.total }),
     );
     autoUpdater.on('update-downloaded', (info) => this.set({ state: 'ready', version: info.version, notes: this.notes }));
-    autoUpdater.on('error', (err) => {
-      // indirme/denetim hatası: arayüz tekrar denemeyi önerir
-      this.set({ state: 'error', message: friendly(err?.message || String(err)), manual: this.manual });
-    });
+    autoUpdater.on('error', (err) => this.fail(err?.message || String(err)));
     return autoUpdater;
+  }
+
+  /** son bulunan sürüm (arka plandaki denetim hata verirse "Güncelle" düğmesi kaybolmasın diye) */
+  private found: { version: string; notes?: string; size?: number } | null = null;
+
+  /** indirme/denetim hatası: arayüz tekrar denemeyi önerir */
+  private fail(raw: string) {
+    // arka plandaki 30 dakikalık denetim (ör. internet kısa süre gittiği için) hata verdiyse daha önce bulunan
+    // güncellemeyi göstermeye devam et; kullanıcı kendisi denetlediyse ya da indirirken olduysa hatayı söyle
+    if (!this.manual && this.found && this.state.state !== 'downloading') return this.set({ state: 'available', ...this.found });
+    this.set({ state: 'error', message: friendly(raw), manual: this.manual });
   }
 
   async check(manual: boolean) {
@@ -80,17 +93,19 @@ export class Updater {
     try {
       await this.updater().checkForUpdates();
     } catch (e) {
-      this.set({ state: 'error', message: friendly((e as Error).message), manual });
+      this.fail((e as Error).message);
     }
   }
 
   async download() {
     if (this.dev || this.state.state !== 'available') return;
+    // indirme hatası her zaman görünsün (arka plan denetiminin "sessiz" işareti burada geçerli değil)
+    this.manual = true;
     this.set({ state: 'downloading', version: this.version, percent: 0, bps: 0, transferred: 0, total: 0 });
     try {
       await this.updater().downloadUpdate();
     } catch (e) {
-      this.set({ state: 'error', message: friendly((e as Error).message), manual: true });
+      this.fail((e as Error).message);
     }
   }
 

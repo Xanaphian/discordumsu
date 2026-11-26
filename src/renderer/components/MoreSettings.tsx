@@ -180,6 +180,7 @@ export function AdvancedTab() {
               emojiConvert: d.emojiConvert,
               showJoinMessages: d.showJoinMessages,
               inlineMedia: d.inlineMedia,
+              showLinkPreviews: d.showLinkPreviews,
               showRoleIcons: d.showRoleIcons,
               enterToSend: d.enterToSend,
               sounds: d.sounds,

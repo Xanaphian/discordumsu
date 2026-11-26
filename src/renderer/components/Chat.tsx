@@ -401,6 +401,8 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
             ...(!card ? [{ label: 'İlet', onClick: () => openModal({ type: 'forward', cid: c.id, chId: m.channelId, id: m.id }) }] : []),
             copy,
             { label: 'Mesaj bağlantısını kopyala', onClick: () => copyText(`${m.channelId}/${m.id}`) },
+            // v1.64: Gelişmiş > Geliştirici modu "mesaj menülerine kimlik kopyalama ekler" diyordu ama eklemiyordu
+            ...(useStore.getState().settings.devMode ? [{ label: 'Mesaj kimliğini kopyala', onClick: () => copyText(m.id) }] : []),
             ...(mine || canManage ? [{ sep: true }, { label: 'Mesajı sil', danger: true, onClick: () => del() }] : []),
           ];
     openMenu(e, [...top, ...(rest.length ? [{ label: 'Kişi seçenekleri', sub: rest }] : []), { sep: true }, ...actions]);

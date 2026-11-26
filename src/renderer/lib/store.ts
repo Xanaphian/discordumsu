@@ -385,7 +385,7 @@ export interface State {
 }
 
 const conns = new Map<string, HostConn>();
-let readSaver: () => void = () => {};
+let readSaver: (() => void) & { flush?: () => void } = () => {};
 
 const loadRead = (): Record<ID, ID> => {
   try {
@@ -473,6 +473,13 @@ export function toast(text: string, kind: Toast['kind'] = 'info') {
 
 const persistSettings = debounce((settings: Settings) => window.kovan.setConfig({ settings }), 400);
 
+/** v1.64: bekleyen kayıtları hemen yaz. Uygulamadan çıkmadan, yeniden başlatmadan ya da güncellemeyi kurmadan önce çağrılır;
+ * yoksa son 0,4 sn içinde değiştirilen ayar (ör. pil dostu mod açılıp hemen "Yeniden başlat") kaybolabiliyordu. */
+export function flushSaves() {
+  persistSettings.flush();
+  readSaver.flush?.();
+}
+
 export function updateSettings(patch: Partial<Settings>) {
   const settings = { ...S().settings, ...patch };
   set({ settings });
@@ -555,6 +562,7 @@ export async function boot() {
     }
   });
   window.addEventListener('blur', () => set({ focused: false }));
+  window.addEventListener('beforeunload', flushSaves);
   window.addEventListener('online', () => conns.forEach((c) => c.nudge()));
   // boşta durumu: 10 dk hareketsizlikte "boşta"
   let idleTimer: ReturnType<typeof setTimeout>;
@@ -576,6 +584,12 @@ export async function boot() {
   if (!IS_POPOUT) {
     for (const ev of ['mousemove', 'keydown', 'mousedown']) window.addEventListener(ev, debounce(activity, 1000), { passive: true });
     activity();
+    // v1.64: bilgisayarın genelindeki hareket de sayılır. Eskiden yalnız bu penceredeki fare/klavye sayılıyordu;
+    // oyun oynarken ya da başka pencerede çalışırken 10 dakika sonra yanlışlıkla "Boşta" görünüyordun.
+    setInterval(async () => {
+      const idle = await window.kovan.systemIdle?.().catch(() => -1);
+      if (idle !== undefined && idle >= 0 && idle < 60) activity();
+    }, 30_000);
   }
 
   if (S().onboarded) connectAll(cfg.hosts || []);
@@ -1379,7 +1393,11 @@ export async function loadHistory(ch: ID, before?: ID) {
         prepended += older.length;
       } else {
         const pend = prev?.items.filter((x) => x.pending) || [];
-        items = [...r.msgs, ...pend];
+        // v1.64: sayfa yolda iken canlı gelen mesajlar (sunucu sayfayı onlardan önce hazırladıysa) kaybolmasın.
+        // Duman sınamasında ara sıra "karşıdan gelen mesaj görünmedi" hatasının nedeni buydu.
+        const tail = r.msgs[r.msgs.length - 1]?.id;
+        const live = prev?.items.filter((x) => !x.pending && !x.failed && (!tail || x.id > tail) && !r.msgs.some((y) => y.id === x.id)) || [];
+        items = [...r.msgs, ...live, ...pend];
       }
       // epoch ve detached korunur: eski bir mesaja atladıktan sonra yukarı kaydırınca liste sona fırlıyordu
       const chans = { ...s.chans, [ch]: { items, more: r.more, loaded: true, loading: false, prepended, epoch: prev?.epoch, detached: before ? prev?.detached : undefined } };
