@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore, openModal, selectChannel, sortedChannels, selectCommunity, markRead, markCommunityRead, updateSettings, toast } from './lib/store';
 import { startGlobalKeys, handleGlobalKeysLocally, applyZoom, stepZoom } from './lib/kisayollar';
 import { modKey } from './lib/util';
@@ -12,6 +12,7 @@ import { Modals } from './components/Modals';
 import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
 import { CropHost } from './components/Kirpma';
 import { HomeView, Onboarding } from './components/Views';
+import { GirisEkrani } from './components/Giris';
 import { VoiceView, IncomingCall } from './components/Media';
 import { SpaceView } from './components/SpaceView';
 import { useSpace } from './lib/space';
@@ -258,6 +259,8 @@ function Main() {
 export function App() {
   const booted = useStore((s) => s.booted);
   const onboarded = useStore((s) => s.onboarded);
+  // v1.68 ilk açılışta giriş ekranı; "Yeni hesap oluştur" ile tanışma ekranına geçilir
+  const [yeniHesap, setYeniHesap] = useState(false);
   useTheme();
   useShortcuts();
   usePopoutReturn();
@@ -282,7 +285,7 @@ export function App() {
         <TitleBar />
       </HataSiniri>
       {!onboarded ? (
-        <Onboarding />
+        yeniHesap ? <Onboarding onBack={() => setYeniHesap(false)} /> : <GirisEkrani onYeniHesap={() => setYeniHesap(true)} />
       ) : (
         <div className="shell">
           <HataSiniri name="topluluk listesi">

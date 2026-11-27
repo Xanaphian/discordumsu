@@ -237,7 +237,7 @@ button.ch-topic[aria-expanded='true'] {
   height: 56%;
 }
 
-/* Bağlantı kopukken üye listesi (v1.67.2): durumlar bayat olabilir */
+/* Bağlantı kopukken üye listesi (v1.68.1): durumlar bayat olabilir */
 .members.bayat .member-group {
   opacity: 0.55;
 }
