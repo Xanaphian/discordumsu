@@ -1,5 +1,5 @@
 // v1.68 giriş ekranı: solda e-posta / kullanıcı adı + şifre (ve "Şifremi unuttum"), sağda telefonla okutulacak QR kodu.
-// Ayarlar > Gizlilik ve Güvenlik'teki "Giriş bilgileri" bölümü de burada (e-posta, kullanıcı adı, şifre belirleme; çıkış).
+// Ayarlar > Hesabım'daki "Giriş bilgileri" bölümü de burada (e-posta, kullanıcı adı, şifre belirleme; çıkış).
 import React, { useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { ArrowLeft, Eye, EyeOff, RefreshCw, Smartphone } from 'lucide-react';
@@ -272,7 +272,7 @@ export async function kayitTamamla() {
       const msg = (e as Error).message || '';
       // bağlantı sorunu değilse yeniden denemenin anlamı yok
       if (!/bağlı değil|Zaman aşımı|koptu/i.test(msg) || i === 2) {
-        toast('E-posta ve şifre hesaba bağlanamadı: ' + msg + " Ayarlar → Gizlilik ve Güvenlik'ten yeniden deneyebilirsin.", 'err');
+        toast('E-posta ve şifre hesaba bağlanamadı: ' + msg + " Ayarlar → Hesabım'dan yeniden deneyebilirsin.", 'err');
         return;
       }
       await new Promise((r) => setTimeout(r, 2000));
@@ -487,7 +487,7 @@ export async function cikisYap() {
   confirmDialog(
     misafirMi ? 'Misafir hesaptan çıkılsın mı?' : 'Bu hesaba geri dönemeyebilirsin',
     (misafirMi ? 'Bu bir misafir hesap; ' : 'Bu hesabın e-postası ve şifresi yok; ') +
-      "çıkış yaparsan bir daha bu hesaba giremezsin (adın, arkadaşların ve toplulukların bu hesapla kalır). Kalıcı yapmak için önce Ayarlar → Gizlilik ve Güvenlik → Giriş bilgileri'nden e-postanı doğrula.",
+      "çıkış yaparsan bir daha bu hesaba giremezsin (adın, arkadaşların ve toplulukların bu hesapla kalır). Kalıcı yapmak için önce Ayarlar → Hesabım → Giriş bilgileri'nden e-postanı doğrula.",
     cik,
     'Yine de çık',
     true,
@@ -495,7 +495,7 @@ export async function cikisYap() {
 }
 
 // ---------------------------------------------------------------------------
-// Ayarlar > Gizlilik ve Güvenlik > Giriş bilgileri
+// Ayarlar > Hesabım > Giriş bilgileri
 
 export function GirisBilgileri() {
   const online = useStore((x) => (x.conns, girisSupported()));
@@ -527,6 +527,17 @@ export function GirisBilgileri() {
     d.setGonderildi('');
     setAcik(true);
   };
+  // v1.71 Ayarlar > Hesabım'daki Düzenle düğmeleri bu formu açar
+  const acRef = React.useRef(ac);
+  acRef.current = ac;
+  useEffect(() => {
+    const f = () => {
+      acRef.current();
+      requestAnimationFrame(() => document.querySelector('.gr-ayar-form')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    };
+    window.addEventListener('xan:giris-ac', f);
+    return () => window.removeEventListener('xan:giris-ac', f);
+  }, []);
   const yeniEposta = epostaDuzelt(email) !== (me?.email || '');
   const dogrulandi = !yeniEposta || bilet?.email === epostaDuzelt(email);
   const kaydet = async () => {
@@ -539,6 +550,7 @@ export function GirisBilgileri() {
     try {
       const r = await homeData<HesapGirisi>({ t: 'auth.set', email: epostaDuzelt(email), username: kullaniciAdiDuzelt(ad), ...(yeniEposta && bilet ? { bilet: bilet.b } : {}), ...(sifre ? { password: sifre } : {}), ...(me?.hasPassword ? { current: simdiki } : {}) });
       setMe(r);
+      window.dispatchEvent(new CustomEvent('xan:giris', { detail: r }));
       setAcik(false);
       if (yeniEposta) useStore.setState((x) => ({ me: { ...x.me, misafir: false } }));
       toast(me?.hasPassword ? 'Giriş bilgilerin güncellendi.' : 'Artık e-posta ya da kullanıcı adınla giriş yapabilirsin.', 'ok');

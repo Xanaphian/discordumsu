@@ -46,6 +46,7 @@ import './styles/klavye.css';
 import './styles/davet-baglantisi.css';
 import './styles/ince-ayar.css';
 import './styles/giris.css';
+import './styles/ayarlar.css';
 
 hataDinle();
 

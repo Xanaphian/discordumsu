@@ -1,0 +1,441 @@
+/* v1.71 Ayarlar ekranının yeni düzeni (AyarlarDuzen.tsx). Yalnız kullanıcı ayarlarında (.ayar-yeni);
+   topluluk ve kanal ayarları eski kabuğu kullanır. Renkler tema değişkenlerinden gelir. */
+
+.settings.ayar-yeni {
+  --an-vurgu: var(--orn, var(--accent));
+}
+
+/* ---------- sol menü ---------- */
+.settings.ayar-yeni .settings-nav {
+  flex: 0 0 272px;
+}
+.settings.ayar-yeni .settings-nav-inner {
+  padding: 18px 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* kimlik: avatar + ad + profilini düzenle */
+.ayar-yeni .an-kim {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease, ease);
+}
+.ayar-yeni .an-kim:hover {
+  border-color: color-mix(in srgb, var(--an-vurgu) 45%, var(--line));
+}
+.ayar-yeni .an-kim-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.ayar-yeni .an-kim-txt b {
+  font-size: 14.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ayar-yeni .an-kim-txt span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.ayar-yeni .an-kim:hover .an-kim-txt span {
+  color: var(--an-vurgu);
+}
+
+/* arama */
+.ayar-yeni .an-ara {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: var(--text-3);
+}
+.ayar-yeni .an-ara:focus-within {
+  border-color: color-mix(in srgb, var(--an-vurgu) 60%, transparent);
+  color: var(--text-2);
+}
+.ayar-yeni .an-ara input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  padding: 0;
+  box-shadow: none;
+}
+.ayar-yeni .an-ara input::placeholder {
+  color: var(--text-4);
+}
+.ayar-yeni .an-ara-sil {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+/* grup başlığı */
+.ayar-yeni .an-grup {
+  margin: 14px 10px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+/* kategori */
+.ayar-yeni .an-kat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.ayar-yeni .an-kat:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ayar-yeni .an-ikon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--bg-elev);
+  color: var(--text-3);
+  transition: background 0.15s, color 0.15s;
+}
+.ayar-yeni .an-kat.an-on {
+  background: var(--bg-active);
+  color: var(--text);
+  font-weight: 650;
+}
+.ayar-yeni .an-kat.an-on .an-ikon {
+  background: var(--an-vurgu);
+  color: var(--accent-ink, #fff);
+}
+.ayar-yeni .an-cikis {
+  color: var(--red);
+}
+.ayar-yeni .an-cikis .an-ikon {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+.ayar-yeni .an-cikis:hover {
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+}
+
+/* seçili kategorinin bölümleri */
+.ayar-yeni .an-alt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: 3px 0 6px 20px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line-2);
+}
+.ayar-yeni .an-alt-item {
+  position: relative;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ayar-yeni .an-alt-item:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+/* seçili bölüm: çizgi üstünde küçük eşkenar dörtgen */
+.ayar-yeni .an-alt-item.an-on {
+  color: var(--text);
+  font-weight: 600;
+  overflow: visible;
+}
+.ayar-yeni .an-alt-item.an-on::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  background: var(--an-vurgu);
+  transform: rotate(45deg);
+}
+
+/* arama sonuçları */
+.ayar-yeni .an-sonuc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+.ayar-yeni .an-sonuc .an-kat {
+  min-height: 44px;
+}
+.ayar-yeni .an-sonuc-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.ayar-yeni .an-sonuc-txt span {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ayar-yeni .an-bos {
+  padding: 14px 10px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.ayar-yeni .sn-sep {
+  margin: 12px 8px;
+}
+.ayar-yeni .sn-version {
+  padding: 8px 10px 0;
+}
+
+/* ---------- sağ taraf ---------- */
+.settings.ayar-yeni .settings-main {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+.ayar-yeni .an-iz {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-chat) 92%, transparent);
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+  color: var(--text-3);
+}
+.ayar-yeni .an-iz b {
+  color: var(--text);
+  font-weight: 600;
+}
+.ayar-yeni .an-iz i {
+  font-style: normal;
+  color: var(--text-4);
+}
+.settings.ayar-yeni .settings-content {
+  width: 100%;
+  max-width: 820px;
+  padding-top: 30px;
+}
+.settings.ayar-yeni .settings-content:has(.pe) {
+  max-width: 1200px;
+}
+.settings.ayar-yeni .settings-close {
+  top: 54px;
+}
+
+/* bölüm başlıkları: küçük büyük harf yerine okunur başlık + üstte ayırıcı */
+.settings.ayar-yeni .settings-content > h3,
+.settings.ayar-yeni .settings-content > .pe h3,
+.settings.ayar-yeni .settings-content section > h3 {
+  scroll-margin-top: 64px;
+}
+.settings.ayar-yeni .settings-content > h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 34px 0 12px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+.settings.ayar-yeni .settings-content > h1 + h3,
+.settings.ayar-yeni .settings-content > h3:first-child {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: 0;
+}
+.settings.ayar-yeni .settings-content > h3::before {
+  content: '';
+  flex: none;
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--an-vurgu);
+}
+.settings.ayar-yeni .settings-content h3 {
+  scroll-margin-top: 64px;
+}
+
+/* aramadan gelince bulunan satır kısa süre parlar */
+.ayar-yeni .ayar-vurgu {
+  animation: an-vurgu 1.8s ease-out;
+  border-radius: 8px;
+}
+@keyframes an-vurgu {
+  0%,
+  35% {
+    background: color-mix(in srgb, var(--an-vurgu) 18%, transparent);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--an-vurgu) 18%, transparent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/* ---------- Hesabım: bilgi satırları ---------- */
+.ayar-yeni .an-kart {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+  overflow: hidden;
+}
+.ayar-yeni .an-satir {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 58px;
+  padding: 10px 16px;
+}
+.ayar-yeni .an-satir + .an-satir {
+  border-top: 1px solid var(--line);
+}
+.ayar-yeni .an-satir-ad {
+  flex: 0 0 150px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.ayar-yeni .an-satir-deger {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.ayar-yeni .an-duzenle {
+  flex: none;
+  min-width: 86px;
+}
+.ayar-yeni .an-soluk {
+  color: var(--text-3);
+}
+.ayar-yeni .an-goster {
+  border: 0;
+  padding: 0;
+  margin-left: 6px;
+  background: none;
+  color: var(--an-vurgu);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ayar-yeni .an-goster:hover {
+  text-decoration: underline;
+}
+.ayar-yeni .an-durum {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.ayar-yeni .an-durum::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+.ayar-yeni .an-durum.iyi::before {
+  background: var(--green);
+}
+.ayar-yeni .an-durum.uyari::before {
+  background: var(--yellow);
+}
+
+/* telefon: alt bölümler ve iz çubuğu yok, satırlar alt alta */
+html.mobil .settings.ayar-yeni .an-kat {
+  min-height: 48px;
+  font-size: 15.5px;
+}
+html.mobil .ayar-yeni .an-satir {
+  flex-wrap: wrap;
+}
+html.mobil .ayar-yeni .an-satir-ad {
+  flex-basis: 100%;
+}
+
+/* menü uzayınca öğeler sıkışmasın (arama kutusu inceliyordu) */
+.settings.ayar-yeni .settings-nav-inner > * {
+  flex-shrink: 0;
+}
+/* başlıktan önceki son satırda çift çizgi olmasın */
+.settings.ayar-yeni .settings-content .set-row:has(+ h3) {
+  border-bottom: 0;
+}
+/* açık temalarda panel geçişi saydam bitiyordu, arkadaki sohbet seçiliyordu: altına düz zemin */
+.settings.ayar-yeni {
+  background-color: var(--bg-chat) !important;
+}
