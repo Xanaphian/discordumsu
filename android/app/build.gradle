@@ -7,6 +7,7 @@ def (vMaj, vMin, vPat) = pkg.version.tokenize('.').collect { it.replaceAll('[^0-
 def appVersionCode = vMaj * 10000 + vMin * 100 + vPat
 // İmza: GitHub'daki gizli ANDROID_KEYSTORE_* değerlerinden (bkz. .github/workflows/mobil.yml). Yoksa hata ayıklama anahtarı.
 def ksFile = System.getenv('ANDROID_KEYSTORE_FILE')
+def hasKs = ksFile != null && new File(ksFile).exists()
 
 android {
     namespace = "com.xanaphian.app"
@@ -25,7 +26,7 @@ android {
         }
     }
     signingConfigs {
-        if (ksFile && file(ksFile).exists()) {
+        if (hasKs) {
             release {
                 storeFile file(ksFile)
                 storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
@@ -36,7 +37,7 @@ android {
     }
     buildTypes {
         release {
-            signingConfig (ksFile && file(ksFile).exists()) ? signingConfigs.release : signingConfigs.debug
+            signingConfig = hasKs ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
