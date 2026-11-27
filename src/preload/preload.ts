@@ -21,6 +21,16 @@ const api = {
     done: (host: string) => ipcRenderer.sendSync('rekey:done', host) as boolean,
     assume: (host: string) => ipcRenderer.sendSync('rekey:assume', host) as boolean,
   },
+  /** v1.68 giriş ekranı (ayrıntı: main.ts giris:*). Başarılı girişten sonra arayüz yeniden yüklenmeli. */
+  giris: {
+    login: (server: string, login: string, password: string) => ipcRenderer.invoke('giris:login', server, login, password) as Promise<{ ok: boolean; error?: string }>,
+    qrNew: (server: string) => ipcRenderer.invoke('giris:qr-new', server) as Promise<{ ok: boolean; k?: string; ms?: number; error?: string }>,
+    qrPoll: (k: string) =>
+      ipcRenderer.invoke('giris:qr-poll', k) as Promise<{ state: 'bekliyor' | 'okundu' | 'red' | 'bitti' | 'yok' | 'ok'; user?: { name: string; color: string; avatar?: string } }>,
+    forgot: (server: string, email: string) => ipcRenderer.invoke('giris:forgot', server, email) as Promise<{ ok: boolean; error?: string }>,
+    reset: (server: string, email: string, code: string, password: string) => ipcRenderer.invoke('giris:reset', server, email, code, password) as Promise<{ ok: boolean; error?: string }>,
+    logout: () => ipcRenderer.invoke('giris:logout') as Promise<boolean>,
+  },
   pendingInvite: () => ipcRenderer.invoke('app:pending-invite') as Promise<string | null>,
   /** Bilgisayardaki topluluğu merkezi sunucuya taşır */
   migrate: (cid: string, server: string) => ipcRenderer.invoke('hub:migrate', cid, server) as Promise<{ ok: boolean; error?: string; files?: number; failed?: number }>,

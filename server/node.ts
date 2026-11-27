@@ -16,6 +16,7 @@ import path from 'node:path';
 import { Hub } from '../src/main/hub';
 import { fetchPublic } from './guvenli-getir';
 import { parseLinkMeta } from '../src/shared/onizleme';
+import { smtpGonderici } from './eposta';
 
 const env = process.env;
 const port = Number(env.KOVAN_PORT) || 47900;
@@ -33,6 +34,13 @@ const hub = new Hub(dataDir, {
     admins: list(env.KOVAN_ADMINS),
     turn: turnUrls.length && env.KOVAN_TURN_SECRET ? { urls: turnUrls, secret: env.KOVAN_TURN_SECRET } : undefined,
     upload: { mbPerHour: num(env.KOVAN_UPLOAD_MB_HOUR), perTenMin: num(env.KOVAN_UPLOAD_PER_10MIN), minFreeMb: num(env.KOVAN_MIN_FREE_MB) },
+  },
+  // v1.68 şifre sıfırlama e-postası: SMTP ayarı .env'de yoksa "Şifremi unuttum" kapalı kalır
+  giris: {
+    mail:
+      env.KOVAN_SMTP_HOST && env.KOVAN_SMTP_USER && env.KOVAN_SMTP_PASS
+        ? smtpGonderici({ host: env.KOVAN_SMTP_HOST, port: Number(env.KOVAN_SMTP_PORT) || 465, user: env.KOVAN_SMTP_USER, pass: env.KOVAN_SMTP_PASS, from: env.KOVAN_SMTP_FROM || env.KOVAN_SMTP_USER })
+        : undefined,
   },
 });
 

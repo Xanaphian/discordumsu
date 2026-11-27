@@ -18,7 +18,7 @@ export function HomeView() {
   return tab === 'home' ? <HomeStart /> : tab === 'communities' ? <CommunitiesView /> : tab === 'news' ? <SonEklenenler /> : <FriendsView />;
 }
 
-export function Onboarding() {
+export function Onboarding({ onBack }: { onBack?: () => void } = {}) {
   const me = useStore((s) => s.me);
   const [name, setName] = useState('');
   const [color, setColor] = useState(me.color);
@@ -48,6 +48,11 @@ export function Onboarding() {
             <button className="btn primary lg" onClick={() => setStep(1)}>
               Başlayalım <ArrowRight size={18} />
             </button>
+            {onBack && (
+              <button className="gr-link ob-geri" onClick={onBack}>
+                Zaten hesabım var, giriş yap
+              </button>
+            )}
           </>
         ) : (
           <>
