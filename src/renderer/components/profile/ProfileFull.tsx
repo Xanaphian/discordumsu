@@ -23,7 +23,7 @@ import {
 import { focusProfileSection } from './ProfileEditor';
 
 /** Kişinin bulunduğu ses odası: odadakiler ve katıl düğmesi */
-function VoiceRoomCard({ uid, onClose }: { uid: string; onClose?: () => void }) {
+export function VoiceRoomCard({ uid, onClose }: { uid: string; onClose?: () => void }) {
   const myCh = useVoice((v) => v.ch);
   // seçici düz yazı döndürür (her çağrıda yeni nesne sonsuz yeniden çizime yol açar)
   const key = useStore((s) => {

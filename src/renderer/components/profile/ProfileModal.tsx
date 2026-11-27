@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Status } from '../../../shared/protocol';
-import { X, Smile, MoreHorizontal } from 'lucide-react';
-import { useStore, openModal, updateProfile, meAsUser, toast, openMenu, openDm, type MenuItem } from '../../lib/store';
+import { X, Smile } from 'lucide-react';
+import { useStore, openModal, updateProfile, meAsUser, toast, openDm, type MenuItem } from '../../lib/store';
 import { IS_MOBILE } from '../../lib/mobil';
 import { memberMenu } from '../Moderation';
 import { copyText } from '../../lib/util';
@@ -9,6 +9,7 @@ import { EmojiPicker } from '../Overlays';
 import { cx } from '../../lib/util';
 import { activeCustom } from '../../../shared/profile';
 import { ProfileFull } from './ProfileFull';
+import { MobilProfil } from './MobilProfil';
 import { ProfilStudyo } from './ProfilStudyo';
 
 const close = () => openModal(null);
@@ -48,15 +49,17 @@ export function ProfileModal({ uid, cid }: { uid: string; cid?: string }) {
   const isMe = uid === me.id;
   const u = isMe ? meAsUser(me) : users[uid] || c?.users[uid];
   const status = isMe ? (me.status === 'invisible' ? 'offline' : me.status) : uid === 'kovan-asistan' ? 'online' : presence[uid] || 'offline';
+  // v1.68 telefonda Discord'un telefon uygulamasına yakın, alttan açılan profil
+  if (IS_MOBILE)
+    return (
+      <Backdrop className="mp-modal">
+        <MobilProfil key={uid} uid={uid} user={u} status={status} c={c} isMe={isMe} onClose={close} menu={() => profileMenu(uid, u?.name || '', c)} />
+      </Backdrop>
+    );
   if (isMe) return <StudioModal status={status} />;
   return (
     <Backdrop className="pc-modal wide">
       <ProfileFull key={uid} uid={uid} user={u} status={status} c={c} isMe={isMe} onClose={close} />
-      {IS_MOBILE && (
-        <button className="icon-btn mob-pr-more" aria-label="Diğer seçenekler" onClick={(e) => openMenu(e, profileMenu(uid, u?.name || '', c))}>
-          <MoreHorizontal size={22} />
-        </button>
-      )}
     </Backdrop>
   );
 }
