@@ -936,7 +936,9 @@ export class Hub {
         if (why) return void res.writeHead(429, { 'content-type': 'application/json' }).end(JSON.stringify({ error: why }));
         this.ek.uploadCount(uid, len);
       }
-      const id = makeId();
+      // Dosya adresi oturumsuz açılabildiği için kimlik tahmin edilemez olmalı: zaman + 96 bit güvenli rastgele (38 karakter).
+      // Eskiden yalnız zaman + 5 karakterdi; yükleme anını bilen biri başkasının (ör. özel mesajdaki) dosyasını deneyerek bulabilirdi.
+      const id = makeId() + crypto.randomBytes(12).toString('hex');
       const file = path.join(this.dir, 'files', id);
       const out = fs.createWriteStream(file);
       let size = 0;
@@ -1453,6 +1455,8 @@ export class Hub {
   private dmAllowed(uid: ID, ch: ID): ID | null {
     const peer = dmPeerOf(ch, uid);
     if (!peer || peer === uid || peer === BOT_ID || !this.data.users[peer] || this.bots.isBot(peer)) return null;
+    // yalnız asıl biçim (d_<küçük>_<büyük>): ters yazılmış kimlikle aynı iki kişi arasında ikinci, gizli bir sohbet açılamasın
+    if (ch !== dmChannelId(uid, peer)) return null;
     if (this.data.dms && ch in this.data.dms) return peer;
     return this.canMessage(uid, peer) ? peer : null;
   }
@@ -1776,6 +1780,8 @@ export class Hub {
     const peer = this.dmAllowed(uid, ch);
     if (!peer) {
       if (f.t === 'hist') this.send(s, { t: 'hist', rid: f.rid, ch, msgs: [], more: false });
+      // gönderilen mesaj "gönderiliyor"da asılı kalmasın
+      else if (f.t === 'send') this.send(s, { t: 'err', msg: 'Bu sohbete mesaj gönderilemiyor.', nonce: f.nonce });
       return true;
     }
     const L = this.log(ch);
@@ -1819,7 +1825,8 @@ export class Hub {
       case 'react': {
         const m = L.byId.get(f.id);
         const e = clampStr(f.e, 32);
-        if (!m || !e) return true;
+        // engellenen (ya da artık yazamayan) kişi eski sohbete tepki bırakıp karşı tarafı rahatsız edemez; tepkisini geri alabilir
+        if (!m || !e || (f.on && !this.canMessage(uid, peer))) return true;
         m.reactions ||= {};
         const arr = m.reactions[e] || [];
         if (f.on) {
@@ -1836,7 +1843,7 @@ export class Hub {
       }
       case 'pin': {
         const m = L.byId.get(f.id);
-        if (!m) return true;
+        if (!m || !this.canMessage(uid, peer)) return true;
         m.pinned = !!f.on;
         L.update(m);
         this.dmBroadcast(ch, { t: 'msg.upd', m });
