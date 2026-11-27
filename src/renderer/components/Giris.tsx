@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { ArrowLeft, Eye, EyeOff, RefreshCw, Smartphone } from 'lucide-react';
-import { useStore, homeHost, homeData, girisSupported, toast, confirmDialog } from '../lib/store';
+import { useStore, homeHost, homeData, girisSupported, toast, confirmDialog, finishOnboarding } from '../lib/store';
 import { Avatar, Logo } from './Common';
 import { QR_ONEK, epostaHatasi, kullaniciAdiHatasi, sifreHatasi, kullaniciAdiDuzelt, epostaDuzelt, type HesapGirisi } from '../../shared/giris';
 
@@ -253,6 +253,11 @@ function UnuttumFormu({ onGeri }: { onGeri: () => void }) {
 /** İlk açılışta (ya da çıkış yapınca) görünen giriş ekranı */
 export function GirisEkrani({ onYeniHesap }: { onYeniHesap: () => void }) {
   const [unuttum, setUnuttum] = useState(false);
+  // v1.68 misafir girişi: ad sormadan "Misafir1234" adıyla hemen başlar
+  const misafir = () => {
+    const me = useStore.getState().me;
+    void finishOnboarding({ name: 'Misafir' + String(Math.floor(1000 + Math.random() * 9000)), color: me.color });
+  };
   return (
     <div className="onboarding gr-ekran">
       <div className="gr-kart">
@@ -268,6 +273,10 @@ export function GirisEkrani({ onYeniHesap }: { onYeniHesap: () => void }) {
               Yeni hesap oluştur
             </button>
           </div>
+          <button className="btn ghost gr-misafir" onClick={misafir}>
+            Misafir olarak devam et
+          </button>
+          <p className="gr-not">Misafir hesabı yalnız bu bilgisayarda açılır. Sonra Ayarlar'dan e-posta ve şifre belirleyip kalıcı hesaba çevirebilirsin.</p>
         </div>
         <div className="gr-ayrac" aria-hidden>
           <span>ya da</span>

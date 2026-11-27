@@ -263,3 +263,11 @@
   justify-content: flex-end;
   gap: 8px;
 }
+.gr-misafir {
+  margin-top: 14px;
+  width: 100%;
+  justify-content: center;
+}
+.gr-misafir + .gr-not {
+  margin-top: 8px;
+}
