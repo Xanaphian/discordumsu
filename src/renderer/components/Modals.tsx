@@ -100,7 +100,8 @@ function ModalHead({ title, sub, onClose = close }: { title: string; sub?: strin
 function CreateCommunityModal() {
   const me = useStore((s) => s.me);
   const [name, setName] = useState(`${me.name} topluluğu`);
-  const [color, setColor] = useState(COLORS[Math.floor(Math.random() * 6)]);
+  // eski Kovan sarısı (ilk renk) varsayılan gelmesin
+  const [color, setColor] = useState(COLORS[1 + Math.floor(Math.random() * 5)]);
   const [icon, setIcon] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [fromTpl, setFromTpl] = useState(false);
@@ -437,7 +438,7 @@ function CategoryModal({ cid, catId }: { cid: string; catId?: string }) {
   };
   return (
     <Modal onClose={close}>
-      <ModalHead title={catId ? 'Kategoriyi yeniden adlandır' : 'Kategori oluştur'} />
+      <ModalHead title={catId ? 'Kategoriyi düzenle' : 'Kategori oluştur'} />
       <div className="modal-body">
         <label className="field">
           <span>Kategori adı</span>
