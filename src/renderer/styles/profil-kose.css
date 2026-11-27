@@ -1,0 +1,14 @@
+/* v1.71.1 tam profil: dış pencerenin kare köşesi (açık temalarda beyaz çizgiyle) kartın yuvarlak
+   köşesinin dışında görünüyordu; pencere artık görünmez, yalnız kart çizilir.
+   Afiş daha alçak; köşesi kartın köşesiyle aynı eğride (iç içe iki farklı köşe görünmez). */
+html .modal.pc-modal,
+html[data-style] .modal.pc-modal {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.pcard.xp2 .xp-banner {
+  max-height: 190px;
+  border-radius: 9px;
+}
