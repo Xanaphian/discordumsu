@@ -331,3 +331,48 @@ html.mobil .sd-picker-btn span {
 html.mobil .vv-warn {
   max-width: calc(100% - 100px);
 }
+
+/* ---------- profil: alttan açılan tam ekran sayfa, sağ üstte ⋯ menüsü ---------- */
+html.mobil .modal.pc-modal {
+  position: relative;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin-top: 8px !important;
+  max-height: calc(100% - 8px) !important;
+  height: calc(100% - 8px) !important;
+  animation: mob-sheet 0.22s ease-out;
+}
+html.mobil .modal.pc-modal > .pcard {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  border-radius: 18px 18px 0 0 !important;
+}
+@keyframes mob-sheet {
+  from {
+    transform: translateY(60px);
+    opacity: 0.3;
+  }
+}
+html.mobil .mob-pr-more {
+  position: absolute;
+  z-index: 20;
+  top: 22px;
+  right: 70px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.45) !important;
+  color: #fff !important;
+}
+html.mobil .pc-modal .xp-close {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.45) !important;
+  color: #fff !important;
+}

@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Status } from '../../../shared/protocol';
-import { X, Smile } from 'lucide-react';
-import { useStore, openModal, updateProfile, meAsUser, toast } from '../../lib/store';
+import { X, Smile, MoreHorizontal } from 'lucide-react';
+import { useStore, openModal, updateProfile, meAsUser, toast, openMenu, openDm, type MenuItem } from '../../lib/store';
+import { IS_MOBILE } from '../../lib/mobil';
+import { memberMenu } from '../Moderation';
+import { copyText } from '../../lib/util';
 import { EmojiPicker } from '../Overlays';
 import { cx } from '../../lib/util';
 import { activeCustom } from '../../../shared/profile';
@@ -49,8 +52,25 @@ export function ProfileModal({ uid, cid }: { uid: string; cid?: string }) {
   return (
     <Backdrop className="pc-modal wide">
       <ProfileFull key={uid} uid={uid} user={u} status={status} c={c} isMe={isMe} onClose={close} />
+      {IS_MOBILE && (
+        <button className="icon-btn mob-pr-more" aria-label="Diğer seçenekler" onClick={(e) => openMenu(e, profileMenu(uid, u?.name || '', c))}>
+          <MoreHorizontal size={22} />
+        </button>
+      )}
     </Backdrop>
   );
+}
+
+/** v1.68 telefonda profilin sağ üstündeki ⋯ menüsü: toplulukta üye menüsü, değilse kısa liste */
+function profileMenu(uid: string, name: string, c?: import('../../../shared/protocol').Community): MenuItem[] {
+  const me = useStore.getState().me.id;
+  if (c && !c.dm && c.members.some((m) => m.userId === uid)) return memberMenu(c, me, uid, { noProfile: true });
+  return [
+    { label: 'Mesaj gönder', onClick: () => (close(), openDm(uid)) },
+    { sep: true },
+    { label: 'Kullanıcı adını kopyala', onClick: () => copyText(name) },
+    { label: 'Kullanıcı kimliğini kopyala', onClick: () => copyText(uid) },
+  ];
 }
 
 const DURATIONS: [string, number | null][] = [
