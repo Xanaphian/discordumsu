@@ -309,12 +309,14 @@ async function loginWithPassword(login: string, password: string, server = OFFIC
     const r = await fetch(server.replace(/\/+$/, '') + '/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login: login.trim(), password }) });
     const j = await r.json().catch(() => ({}));
     if (r.status === 404) return { ok: false, error: 'Sunucu şifreyle girişi henüz desteklemiyor.' };
+    const u = (j.user && typeof j.user === 'object' ? j.user : j) as { name?: string; color?: string; avatar?: string; bio?: string; profile?: unknown };
     if (!r.ok || !j.id || !j.secret) return { ok: false, error: j.msg || j.error || (r.status === 401 ? 'Kullanıcı adı ya da şifre yanlış.' : r.status === 429 ? 'Çok fazla deneme. Biraz bekle.' : `Sunucu hatası (${r.status}).`) };
     config = {
-      profile: { id: String(j.id), secret: String(j.secret), name: String(j.name || ''), color: j.color || config.profile.color, avatar: j.avatar, status: 'online' },
+      // sunucudaki profil olduğu gibi alınır: ilk hello'da boş adla sunucudakini ezmesin
+      profile: { id: String(j.id), secret: String(j.secret), name: String(u.name || ''), color: u.color || config.profile.color, avatar: u.avatar, bio: u.bio, extra: u.profile, status: 'online' },
       hosts: [],
       settings: { membersOpen: false },
-      onboarded: !!j.name,
+      onboarded: !!u.name,
       secretScope: 1,
       trustedHosts: [],
     };
