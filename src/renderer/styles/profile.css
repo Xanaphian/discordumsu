@@ -842,6 +842,14 @@
   height: 36px;
   border-radius: 9px;
 }
+.pe-tiles.fx {
+  /* 6 efekt tek satırda eşit dursun; dar pencerede 3+3 */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(64px, calc((100% - 40px) / 6)), 1fr));
+}
+.pe-tiles.fx .pe-tile {
+  min-width: 0;
+}
 .pe-tiles.names .pe-tile {
   min-width: 116px;
 }
