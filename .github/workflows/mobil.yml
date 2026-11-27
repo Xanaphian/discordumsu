@@ -1,0 +1,150 @@
+name: Telefon uygulaması
+
+# v1.68 Android (APK) ve iPhone derlemesi. Arayüz masaüstüyle aynı React kodu (npm run build:mobil + Capacitor).
+#  - PR'da: ikisinin de derlendiği denetlenir (yayınlamaz).
+#  - "Sürüm yayınla" iş akışından çağrılınca (yayinla: true): APK, sürümün GitHub Releases sayfasına eklenir;
+#    Apple gizlileri tanımlıysa iPhone sürümü TestFlight'a (App Store Connect) yüklenir.
+#
+# Gerekli gizliler (Settings > Secrets and variables > Actions):
+#   Android: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD
+#     Yoksa APK geçici bir anahtarla imzalanır: kurulur ama bir sonraki sürüm üstüne güncellenemez.
+#   iPhone:  APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (App Store Connect API anahtarı, "Admin")
+#     Yoksa yalnız derlenip denetlenir, yüklenmez.
+on:
+  pull_request:
+    paths:
+      - 'src/renderer/**'
+      - 'src/shared/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'capacitor.config.ts'
+      - 'vite.mobil.config.mts'
+      - 'package.json'
+      - '.github/workflows/mobil.yml'
+  workflow_call:
+    inputs:
+      yayinla:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      yayinla:
+        description: 'APK sürüme eklensin ve iPhone sürümü TestFlight a yüklensin'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobil-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      - name: Arayüzü derle
+        run: npm run build:mobil && npx cap sync android
+      - name: İmza anahtarı
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/xanaphian.jks"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/xanaphian.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 tanımlı değil: APK geçici anahtarla imzalanıyor (sonraki sürüm üstüne kurulamaz)."
+          fi
+      - name: APK derle
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      - name: APK'yı adlandır
+        id: apk
+        run: |
+          V=$(node -p "require('./package.json').version")
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/Xanaphian-$V.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk out/Xanaphian.apk
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xanaphian-android
+          path: out/Xanaphian-*.apk
+          retention-days: 14
+      - name: Sürüme ekle
+        if: inputs.yayinla
+        run: gh release upload "v${{ steps.apk.outputs.v }}" out/Xanaphian.apk "out/Xanaphian-${{ steps.apk.outputs.v }}.apk" --clobber
+
+  ios:
+    name: iPhone
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Arayüzü derle
+        run: npm run build:mobil && npx cap sync ios
+      - name: Sürüm numarası
+        id: ver
+        run: |
+          V=$(node -p "require('./package.json').version")
+          IFS=. read -r A B C <<< "$V"
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          echo "build=$((A*10000 + B*100 + C)).${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+      - name: Derlenebildiğini denetle (imzasız, simülatör)
+        if: env.ASC_KEY_P8 == '' || !inputs.yayinla
+        working-directory: ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
+            MARKETING_VERSION=${{ steps.ver.outputs.v }} CURRENT_PROJECT_VERSION=${{ steps.ver.outputs.build }} build | tail -n 30
+          if [ -z "$ASC_KEY_P8" ]; then echo "::notice::Apple gizlileri tanımlı değil: iPhone sürümü yalnız derlendi, TestFlight'a yüklenmedi."; fi
+      - name: Arşivle ve TestFlight'a yükle
+        if: env.ASC_KEY_P8 != '' && inputs.yayinla
+        working-directory: ios/App
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" > "$KEY"
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Xanaphian.xcarchive" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION=${{ steps.ver.outputs.v }} CURRENT_PROJECT_VERSION=${{ steps.ver.outputs.build }} $AUTH archive | tail -n 30
+          cat > "$RUNNER_TEMP/export.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Xanaphian.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/export" $AUTH
+          echo "::notice::iPhone sürümü ${{ steps.ver.outputs.v }} TestFlight'a yüklendi (Apple'ın işlemesi 10-30 dk sürer)."

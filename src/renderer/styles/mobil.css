@@ -1,0 +1,339 @@
+/* v1.68 telefon düzeni. Yalnız telefon uygulamasında yüklenir (mobil/giris.tsx) ve hepsi html.mobil altında.
+   Dar ekranda Discord'un telefon uygulaması gibi: ya topluluklar + kanal listesi ya da açık kanal tam ekran. */
+
+html.mobil,
+html.mobil body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+html.mobil {
+  --tb-h: 0px;
+  --mob-top: env(safe-area-inset-top, 0px);
+  --mob-bottom: env(safe-area-inset-bottom, 0px);
+}
+html.mobil .app {
+  height: var(--mob-h, 100dvh);
+  padding-top: var(--mob-top);
+  padding-bottom: var(--mob-bottom);
+  box-sizing: border-box;
+}
+/* pencere çubuğu yok (küçült/kapat düğmeleri telefonda anlamsız) */
+html.mobil .titlebar {
+  display: none !important;
+}
+/* fareyle sürükleme yok; dokunurken metin seçilmesin (mesaj metni hariç) */
+html.mobil .rail-v,
+html.mobil .sidebar,
+html.mobil .chat-header,
+html.mobil button {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* ---------- iki ekran: liste / içerik ---------- */
+html.mobil .shell {
+  position: relative;
+  overflow: hidden;
+  gap: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+html.mobil .shell.mob-liste > .content {
+  display: none !important;
+}
+html.mobil .shell.mob-icerik > .rail-v,
+html.mobil .shell.mob-icerik > .sidebar {
+  display: none !important;
+}
+html.mobil .shell > .sidebar {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0;
+  margin: 0 !important;
+  border-radius: 14px 0 0 0 !important;
+  border-right: 0 !important;
+}
+html.mobil .shell > .rail-v {
+  width: 68px !important;
+  flex: none !important;
+  margin: 0 !important;
+}
+html.mobil .shell > .content {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+}
+
+/* ---------- geri düğmesi: içeriğin başlığının solunda ---------- */
+html.mobil .mob-back {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  color: var(--text-1);
+  background: none;
+  border: 0;
+}
+html.mobil .mob-back-badge {
+  position: absolute;
+  top: 6px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--red, #f2555a);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+html.mobil .content .chat-header {
+  padding-left: 44px !important;
+  min-height: 50px;
+  height: auto;
+  gap: 4px;
+}
+/* başlıkta yer dar: kanal konusu ve ikincil düğmeler gizlenir */
+html.mobil .content .chat-header .topic,
+html.mobil .content .chat-header .ch-topic,
+html.mobil .content .chat-header .divider,
+html.mobil .content .chat-header .search-box {
+  display: none !important;
+}
+html.mobil .content .chat-header .icon-btn {
+  width: 38px;
+  height: 38px;
+}
+
+/* ---------- üye listesi / DM profili: sağdan açılan çekmece ---------- */
+html.mobil .content .members {
+  display: block !important;
+  overflow-y: auto;
+  position: absolute !important;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(86vw, 320px) !important;
+  margin: 0 !important;
+  border-radius: 14px 0 0 14px !important;
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.45);
+  animation: mob-in-right 0.18s ease-out;
+}
+html.mobil .mob-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 39;
+  background: rgba(0, 0, 0, 0.45);
+  animation: mob-fade 0.18s ease-out;
+}
+@keyframes mob-in-right {
+  from {
+    transform: translateX(40px);
+    opacity: 0.4;
+  }
+}
+@keyframes mob-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- sohbet ---------- */
+html.mobil .composer textarea,
+html.mobil .composer input,
+html.mobil input,
+html.mobil textarea,
+html.mobil select {
+  font-size: 16px !important; /* iOS 16px altında yazarken sayfayı yakınlaştırıyor */
+}
+html.mobil .msg-scroller {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---------- pencereler (ayarlar, oluşturma, profil): tam ekran ---------- */
+html.mobil .modal-backdrop {
+  padding: var(--mob-top) 0 var(--mob-bottom) !important;
+  align-items: stretch !important;
+}
+html.mobil .modal-backdrop > .modal:not(.confirm) {
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+html.mobil .modal-backdrop > .confirm {
+  width: calc(100% - 32px) !important;
+  margin: auto !important;
+}
+html.mobil .settings {
+  inset: var(--mob-top) 0 var(--mob-bottom) 0 !important;
+  height: auto !important;
+}
+html.mobil .settings-mob-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 14px 14px;
+  font-size: 19px;
+}
+html.mobil .settings-mob-head button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  color: var(--text-2);
+}
+html.mobil .settings.mob-nav .settings-main,
+html.mobil .settings.mob-page .settings-nav {
+  display: none !important;
+}
+html.mobil .settings .settings-nav {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  justify-content: flex-start !important;
+}
+html.mobil .settings .settings-nav-inner {
+  width: 100% !important;
+  padding: 12px 12px 24px !important;
+}
+html.mobil .settings .sn-item {
+  padding: 13px 14px !important;
+  font-size: 15.5px !important;
+}
+html.mobil .settings .settings-main {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  display: block !important;
+  overflow-y: auto;
+}
+html.mobil .settings .settings-content {
+  padding: 8px 16px 40px !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+html.mobil .settings-mob-back {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  width: 100%;
+  padding: 14px 16px 12px 12px;
+  text-align: left;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-1);
+  background: var(--bg-chat);
+  border: 0;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+html.mobil .settings .settings-close {
+  position: fixed !important;
+  top: calc(var(--mob-top) + 4px) !important;
+  right: 8px !important;
+  z-index: 6;
+}
+html.mobil .settings .settings-close span {
+  display: none;
+}
+html.mobil .set-row {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ---------- menüler ve kartlar ekrandan taşmasın ---------- */
+html.mobil .ctx-menu {
+  max-width: calc(100vw - 16px);
+}
+html.mobil .ctx-menu button,
+html.mobil .ctx-menu .ctx-item {
+  min-height: 40px;
+}
+html.mobil .pcard,
+html.mobil .popout {
+  max-width: calc(100vw - 16px) !important;
+}
+
+/* ---------- açılış ekranı ---------- */
+html.mobil .onboarding .ob-card {
+  width: calc(100% - 28px) !important;
+  max-width: 440px;
+  padding: 28px 20px !important;
+}
+html.mobil .ob-pair-btn {
+  margin-top: 10px;
+}
+.ob-pair-code {
+  letter-spacing: 3px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+.ob-pair-err {
+  color: var(--red, #f2555a) !important;
+}
+
+/* ---------- telefonda olmayan özellikler ---------- */
+html.mobil .rail-v .rail-download,
+html.mobil [aria-label='Ekranını paylaş'],
+html.mobil [aria-label='Ekran paylaş'],
+html.mobil [aria-label='Ayrı pencerede aç'] {
+  display: none !important;
+}
+
+/* hover yok: üzerine gelince çıkan mesaj düğmeleri dokununca görünür */
+@media (hover: none) {
+  html.mobil .msg:not(:hover) .msg-actions {
+    display: none;
+  }
+}
+
+/* ipuçları (fareyle üzerine gelince) dokunmatikte takılı kalıyor */
+html.mobil .tip {
+  display: none !important;
+}
+
+/* ---------- ses odası ---------- */
+html.mobil .vv-controls {
+  gap: 10px !important;
+  padding: 10px 12px calc(12px + var(--mob-bottom)) !important;
+  flex-wrap: nowrap;
+  justify-content: center;
+}
+html.mobil .vv-btn {
+  width: 50px !important;
+  height: 50px !important;
+  flex: none;
+}
+/* düzen seçici: düğmelerin üstünde, sağda küçük */
+html.mobil .sd-picker {
+  top: -46px !important;
+  right: 12px !important;
+  transform: none !important;
+}
+/* 3D oda klavye/fareyle gezilir; telefonda gizli */
+html.mobil .vv-3d,
+html.mobil [aria-label='3D oda'],
+html.mobil .sd-picker-btn span {
+  display: none !important;
+}
+html.mobil .vv-warn {
+  max-width: calc(100% - 100px);
+}

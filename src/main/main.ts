@@ -740,6 +740,37 @@ function registerIpc() {
     }
   });
 
+  // ---- v1.68 telefonu bağla ----
+  // Hesabın kimliği ve anahtarı resmî sunucuda 10 dakikalık, tek kullanımlık bir koda bağlanır; telefon kodu yazınca aynı hesapla açılır.
+  // Anahtar arayüze hiç verilmez: istek buradan gider. Yalnız resmî (ya da KOVAN_SERVER ile seçilmiş) sunucuya gönderilir.
+  ipcMain.handle('pair:offer', async (_e, server: unknown) => {
+    try {
+      const h = normHost(typeof server === 'string' ? server.slice(0, 300) : '');
+      const env = normHost(process.env.KOVAN_SERVER);
+      if (!h || (h !== normHost(OFFICIAL_SERVER) && h !== env) || !/^https?:\/\//.test(h)) throw new Error('Telefon yalnız resmî sunucu üzerinden bağlanabilir.');
+      const blob = JSON.stringify({
+        v: 1,
+        profile: config.profile,
+        oldSecrets: config.oldSecrets,
+        keyGen: config.keyGen,
+        trustedHosts: config.trustedHosts,
+        hosts: config.hosts,
+        settings: config.settings,
+      });
+      if (blob.length > 60_000) throw new Error('Profil bilgisi çok büyük (profil resmi çok büyük olabilir).');
+      const r = await fetch(String(server).replace(/\/+$/, '') + '/pair/offer', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-kovan-user': config.profile.id, 'x-kovan-secret': hostSecret(server) },
+        body: JSON.stringify({ blob }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { code?: string; exp?: number; error?: string };
+      if (!r.ok || !j.code) throw new Error(j.error || (r.status === 404 ? 'Sunucu bu özelliği henüz desteklemiyor.' : r.status === 401 ? 'Sunucu seni tanımadı.' : `Sunucu hatası (${r.status}).`));
+      return { ok: true, code: j.code, exp: j.exp };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  });
+
   ipcMain.handle('app:info', () => ({
     version: app.getVersion(),
     platform: process.platform,
