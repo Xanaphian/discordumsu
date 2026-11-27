@@ -623,7 +623,7 @@ export function UserPanel() {
     <div className="user-panel">
       <Banner user={me} profile={me.extra} className="up-banner" align="end" />
       <button className="up-me" onClick={statusMenu}>
-        <Avatar user={me} size={34} status={me.status === 'invisible' ? 'offline' : me.status} />
+        <Avatar user={me} size={42} status={me.status === 'invisible' ? 'offline' : me.status} />
         <div className="up-text">
           <NameText profile={me.extra} className="up-name">
             {me.name}
@@ -641,6 +641,7 @@ export function UserPanel() {
           </div>
         </div>
       </button>
+      <div className="up-controls">
       <div className={cx('up-dev', devMenu?.kind === 'mic' && 'open')}>
         <Tooltip text={muted ? 'Sesi aç' : 'Sustur'} side="top">
           <button className={cx('icon-btn', muted && 'danger-on')} onClick={toggleMute} aria-label="Mikrofon">
@@ -663,6 +664,7 @@ export function UserPanel() {
           <Settings size={18} />
         </button>
       </Tooltip>
+      </div>
     </div>
   );
 }

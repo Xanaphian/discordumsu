@@ -364,6 +364,8 @@ function createWindow() {
     saveConfig();
   };
   win.on('resize', persist);
+  win.on('resize', () => scheduleOverlayMatch(500));
+  win.on('show', () => scheduleOverlayMatch(300));
   win.on('move', persist);
   // çökme koruması: görüntü işlemi çökerse sayfayı yeniden yükle (döngüye girmesin)
   let crashes: number[] = [];
@@ -402,6 +404,55 @@ const themeBg = (theme: string) => THEME_BG[theme] || THEME_BG.destan;
 function overlayFor(theme: string) {
   const t = theme in THEME_BAR ? theme : 'destan';
   return { color: THEME_BAR[t], symbolColor: THEME_SYM[t], height: 46 };
+}
+
+// v1.71: pencere düğmeleri bölgesinin rengi sayfadaki üst çubuğun gerçek renginden ölçülür.
+// Üst çubuk temaya göre degrade/parıltı taşıdığı için sabit renk tabloları her temada uymuyordu.
+let overlayTheme = 'destan';
+let overlayTimer: ReturnType<typeof setTimeout> | null = null;
+function hex2(n: number) {
+  return Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+}
+async function matchOverlay() {
+  const w = win;
+  if (!w || w.isDestroyed() || !w.isVisible() || w.isMinimized()) return;
+  const [cw] = w.getContentSize();
+  // düğmelerin hemen solundaki ince şerit ölçülür: göz düğmeyi oradaki renkle karşılaştırır
+  const seam = await w.webContents
+    .executeJavaScript('(()=>{const o=navigator.windowControlsOverlay;if(!o||!o.visible)return 0;const r=o.getTitlebarAreaRect();return r.x+r.width})()')
+    .catch(() => 0);
+  const edge = typeof seam === 'number' && seam > 40 && seam <= cw ? seam : cw - 140;
+  const rect = { x: Math.max(0, Math.round(edge) - 10), y: 4, width: 8, height: 36 };
+  const img = await w.webContents.capturePage(rect);
+  if (img.isEmpty()) return;
+  const { width, height } = img.getSize();
+  const px = img.toBitmap(); // BGRA
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      b += px[i];
+      g += px[i + 1];
+      r += px[i + 2];
+      n++;
+    }
+  if (!n) return;
+  r /= n;
+  g /= n;
+  b /= n;
+  const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 140;
+  const sym = THEME_SYM[overlayTheme] || (light ? '#2a2a30' : '#e4e6ee');
+  if (w.isDestroyed()) return;
+  w.setTitleBarOverlay({ color: '#' + hex2(r) + hex2(g) + hex2(b), symbolColor: sym, height: 46 });
+}
+function scheduleOverlayMatch(ms = 400) {
+  if (overlayTimer) clearTimeout(overlayTimer);
+  overlayTimer = setTimeout(() => {
+    overlayTimer = null;
+    matchOverlay().catch(() => {
+      /* desteklenmiyor */
+    });
+  }, ms);
 }
 
 function showWindow() {
@@ -966,8 +1017,10 @@ function registerIpc() {
   });
   ipcMain.on('win:overlay', (_e, theme: string) => {
     try {
+      overlayTheme = theme;
       win?.setTitleBarOverlay(overlayFor(theme));
       win?.setBackgroundColor(themeBg(theme));
+      scheduleOverlayMatch();
     } catch {
       /* desteklenmiyor */
     }
