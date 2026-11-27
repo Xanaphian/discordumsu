@@ -63,3 +63,11 @@ jobs:
         name: Güncelleme düğmesi bu sürümü görüyor mu
         shell: bash
         run: node test/surum/yayin-dogrula.mjs "${{ steps.ver.outputs.v }}"
+
+  # v1.68 telefon uygulaması: Windows sürümü yayınlandıktan sonra APK aynı sürüme eklenir, iPhone sürümü TestFlight'a gider
+  mobil:
+    needs: windows
+    uses: ./.github/workflows/mobil.yml
+    with:
+      yayinla: true
+    secrets: inherit

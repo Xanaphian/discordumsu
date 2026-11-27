@@ -8,6 +8,7 @@ files:
   - dist/**/*
   - package.json
   - "!**/*.map"
+  - "!dist/mobil/**"
 asar: true
 asarUnpack:
   - dist/main/mcp-bridge.js

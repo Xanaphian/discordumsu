@@ -5,6 +5,7 @@ import qrcode from 'qrcode-generator';
 import { ArrowLeft, Eye, EyeOff, RefreshCw, Smartphone } from 'lucide-react';
 import { useStore, homeHost, homeData, girisSupported, toast, confirmDialog, finishOnboarding } from '../lib/store';
 import { Avatar, Logo } from './Common';
+import { IS_MOBILE } from '../lib/mobil';
 import { QR_ONEK, epostaHatasi, kullaniciAdiHatasi, sifreHatasi, kullaniciAdiDuzelt, epostaDuzelt, type HesapGirisi } from '../../shared/giris';
 
 const yenidenYukle = () => window.location.reload();
@@ -276,12 +277,17 @@ export function GirisEkrani({ onYeniHesap }: { onYeniHesap: () => void }) {
           <button className="btn ghost gr-misafir" onClick={misafir}>
             Misafir olarak devam et
           </button>
-          <p className="gr-not">Misafir hesabı yalnız bu bilgisayarda açılır. Sonra Ayarlar'dan e-posta ve şifre belirleyip kalıcı hesaba çevirebilirsin.</p>
+          <p className="gr-not">Misafir hesabı yalnız bu {IS_MOBILE ? 'telefonda' : 'bilgisayarda'} açılır. Sonra Ayarlar'dan e-posta ve şifre belirleyip kalıcı hesaba çevirebilirsin.</p>
         </div>
-        <div className="gr-ayrac" aria-hidden>
-          <span>ya da</span>
-        </div>
-        <QrPaneli />
+        {/* telefonda QR gösterilmez: telefon QR'ı okutan taraftır */}
+        {!IS_MOBILE && (
+          <>
+            <div className="gr-ayrac" aria-hidden>
+              <span>ya da</span>
+            </div>
+            <QrPaneli />
+          </>
+        )}
       </div>
     </div>
   );

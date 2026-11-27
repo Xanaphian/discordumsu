@@ -26,6 +26,8 @@ import { ToolView } from './components/Tools';
 import { startOverlay } from './lib/overlay';
 import { ExploreView, startCommunityWatch } from './components/ToplulukAraclari';
 import { HataSiniri } from './components/HataSiniri';
+import { IS_MOBILE, useMobil } from './lib/mobil';
+import { MobilGeri, MobilPerde } from './components/Mobil';
 
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
@@ -245,12 +247,14 @@ function Main() {
     return (
       <>
         <ChatView c={c} ch={ch} />
+        {membersOpen && IS_MOBILE && <MobilPerde />}
         {membersOpen && <DmProfile c={c} />}
       </>
     );
   return (
     <>
       {isVoiceLike(ch.type) ? in3d ? <SpaceView c={c} ch={ch} /> : <VoiceView c={c} ch={ch} /> : ch.type === 'site' ? <SiteView c={c} ch={ch} /> : isToolChannel(ch.type) ? <ToolView key={ch.id} c={c} ch={ch} /> : <ChatView c={c} ch={ch} />}
+      {membersOpen && IS_MOBILE && !isVoiceLike(ch.type) && ch.type !== 'site' && !isToolChannel(ch.type) && <MobilPerde />}
       {membersOpen && !isVoiceLike(ch.type) && ch.type !== 'site' && !isToolChannel(ch.type) && <MemberList c={c} />}
     </>
   );
@@ -266,6 +270,7 @@ export function App() {
   usePopoutReturn();
   const where = useStore((s) => s.current);
   const whereCh = useStore((s) => (s.current !== 'home' ? s.chanByComm[s.current] : ''));
+  const mobPanel = useMobil((s) => s.panel);
   useEffect(() => {
     if (!booted) return;
     startOverlay();
@@ -287,7 +292,7 @@ export function App() {
       {!onboarded ? (
         yeniHesap ? <Onboarding onBack={() => setYeniHesap(false)} /> : <GirisEkrani onYeniHesap={() => setYeniHesap(true)} />
       ) : (
-        <div className="shell">
+        <div className={IS_MOBILE ? `shell mob-${mobPanel}` : 'shell'}>
           <HataSiniri name="topluluk listesi">
             <ServerRail />
           </HataSiniri>
@@ -295,6 +300,7 @@ export function App() {
             <Sidebar />
           </HataSiniri>
           <div className="content">
+            {IS_MOBILE && <MobilGeri />}
             <HataSiniri name="içerik" resetKey={where + ':' + (whereCh || '')}>
               <Main />
             </HataSiniri>

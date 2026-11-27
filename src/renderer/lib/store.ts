@@ -1,4 +1,5 @@
 import type { NoiseMode } from './ses/gurultu';
+import { mobilIcerik } from './mobil';
 import { create } from 'zustand';
 import {
   type AvatarLook,
@@ -1387,10 +1388,12 @@ function updateBadge() {
 // gezinme
 export function setHomeTab(tab: State['homeTab']) {
   set({ homeTab: tab, current: 'home' });
+  mobilIcerik();
 }
 
 export function selectCommunity(cid: ID | 'home') {
   set({ current: cid, editing: null });
+  if (cid !== 'home' && S().communities[cid]?.dm) mobilIcerik();
   if (cid !== 'home') {
     const ch = S().chanByComm[cid];
     if (ch) openChannel(ch);
@@ -1400,6 +1403,7 @@ export function selectCommunity(cid: ID | 'home') {
 export function selectChannel(cid: ID, ch: ID) {
   set((s) => ({ current: cid, chanByComm: { ...s.chanByComm, [cid]: ch }, editing: null }));
   openChannel(ch);
+  mobilIcerik();
 }
 
 /** kanal açılmadan hemen önceki okunma noktası ("YENİ" çizgisi ve "Sen yokken" özeti için) */

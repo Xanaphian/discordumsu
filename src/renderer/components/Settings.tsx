@@ -25,17 +25,28 @@ export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: strin
     document.addEventListener('keydown', k);
     return () => document.removeEventListener('keydown', k);
   }, []);
+  // v1.68 telefonda önce yalnız liste görünür; bir başlığa basınca o sayfa açılır, ‹ ile listeye dönülür
+  const [mobPage, setMobPage] = useState(false);
+  const mobile = !!window.kovan.mobile;
   let lastGroup = '';
   return (
-    <div className="settings">
+    <div className={cx('settings', mobile && (mobPage ? 'mob-page' : 'mob-nav'))}>
       <nav className="settings-nav scroll-thin">
         <div className="settings-nav-inner">
+          {mobile && (
+            <div className="settings-mob-head">
+              <b>Ayarlar</b>
+              <button onClick={close} aria-label="Kapat">
+                <X size={22} />
+              </button>
+            </div>
+          )}
           {nav.map((n) => {
             const head = n.group && n.group !== lastGroup ? ((lastGroup = n.group), <div key={'g' + n.group} className="sn-group">{n.group}</div>) : null;
             return (
               <React.Fragment key={n.id}>
                 {head}
-                <button className={cx('sn-item', tab === n.id && 'on', n.danger && 'danger')} onClick={() => setTab(n.id)}>
+                <button className={cx('sn-item', tab === n.id && 'on', n.danger && 'danger')} onClick={() => (setTab(n.id), setMobPage(true))}>
                   {n.label}
                 </button>
               </React.Fragment>
@@ -45,6 +56,11 @@ export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: strin
         </div>
       </nav>
       <main className="settings-main scroll-thin">
+        {mobile && (
+          <button className="settings-mob-back" onClick={() => setMobPage(false)}>
+            ‹ {nav.find((n) => n.id === tab)?.label || 'Ayarlar'}
+          </button>
+        )}
         <div className="settings-content">{children}</div>
         <button className="settings-close" onClick={close} aria-label="Kapat">
           <X size={20} />
@@ -249,7 +265,8 @@ function UpdatesTab() {
 
 export function UserSettings({ tab: initial }: { tab?: string }) {
   const [tab, setTab] = useState(initial || 'profile');
-  const nav = [
+  const mobile = !!window.kovan.mobile;
+  const all = [
     { id: 'profile', label: 'Profilim', group: 'Kullanıcı Ayarları' },
     { id: 'activity', label: 'Etkinlik', group: 'Kullanıcı Ayarları' },
     { id: 'connection', label: 'Bağlantı', group: 'Kullanıcı Ayarları' },
@@ -264,6 +281,8 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
     { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama Ayarları' },
     { id: 'updates', label: 'Güncellemeler', group: 'Xanaphian' },
   ];
+  // telefonda olmayanlar: oyun/müzik etkinliği okuma, yayıncı modu, oyun içi kaplama, klavye kısayolları
+  const nav = mobile ? all.filter((n) => !['activity', 'streamer', 'overlay', 'app'].includes(n.id)) : all;
   const version = useStore((x) => x.info?.version);
   return (
     <Shell
@@ -273,9 +292,9 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       footer={
         <>
           <div className="sn-sep" />
-          <button className="sn-item danger" onClick={() => confirmDialog('Xanaphian kapatılsın mı?', 'Uygulama tamamen kapanır; yeniden açana kadar mesaj bildirimi almazsın.', () => (flushSaves(), window.kovan.quit()), 'Kapat')}>
+          {!mobile && <button className="sn-item danger" onClick={() => confirmDialog('Xanaphian kapatılsın mı?', 'Uygulama tamamen kapanır; yeniden açana kadar mesaj bildirimi almazsın.', () => (flushSaves(), window.kovan.quit()), 'Kapat')}>
             Uygulamadan çık
-          </button>
+          </button>}
           <div className="sn-version">Xanaphian v{version}</div>
         </>
       }

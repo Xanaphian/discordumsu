@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { IS_MOBILE } from '../lib/mobil';
 import { Check, ChevronRight, CircleCheck, CircleAlert, Info, Plus, X, MoreHorizontal, Clock } from 'lucide-react';
 import { useStore, MenuItem, openModal, openMenu, cmd, recentEmoji, rememberEmoji, meAsUser } from '../lib/store';
 import { ProfileCard } from './profile/ProfileCard';
@@ -224,7 +225,13 @@ export function UserPopout() {
     return { x, y };
   }, [p]);
   const pos = useFit(ref, anchor.x + 12, anchor.y - 40, [p]);
-  if (!p) return null;
+  // v1.68 telefonda küçük kart yerine profil doğrudan tam ekran açılır (Discord'un telefon uygulamasındaki gibi)
+  useEffect(() => {
+    if (!IS_MOBILE || !p) return;
+    useStore.setState({ popout: null });
+    openModal({ type: 'profile', uid: p.uid, cid: p.cid });
+  }, [p]);
+  if (!p || IS_MOBILE) return null;
   const isMe = p.uid === me.id;
   const u = isMe ? meAsUser(me) : users[p.uid] || c?.users[p.uid];
   const status = isMe ? (me.status === 'invisible' ? 'offline' : me.status) : p.uid === 'kovan-asistan' ? 'online' : presence[p.uid] || 'offline';
