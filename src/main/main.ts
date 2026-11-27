@@ -857,6 +857,15 @@ function registerIpc() {
     if (r.code === 200 && girisUygula(r.body)) return { ok: true };
     return { ok: false, error: String(r.body.msg || `Şifre sıfırlanamadı (${r.code}).`) };
   });
+  // v1.70 e-posta doğrulama: kod gönder, kodu doğrula (bilet döner; kayıt ve e-posta bağlama bunu ister)
+  ipcMain.handle('giris:kod', async (_e, server: unknown, email: unknown) => {
+    const r = await girisIstek(server, '/auth/kod', { email: String(email || '').slice(0, 300) });
+    return r.code === 200 ? { ok: true } : { ok: false, error: String(r.body.msg || `Kod gönderilemedi (${r.code}).`) };
+  });
+  ipcMain.handle('giris:kod-dogrula', async (_e, server: unknown, email: unknown, code: unknown) => {
+    const r = await girisIstek(server, '/auth/kod/dogrula', { email: String(email || '').slice(0, 300), code: String(code || '').slice(0, 12) });
+    return r.code === 200 && typeof r.body.bilet === 'string' ? { ok: true, bilet: r.body.bilet as string } : { ok: false, error: String(r.body.msg || `Kod doğrulanamadı (${r.code}).`) };
+  });
   // Çıkış: bu bilgisayardaki hesap saklanır, yerine boş (yeni) bir hesap açılır ve giriş ekranı görünür
   ipcMain.handle('giris:logout', () => {
     if (config.profile.name) {

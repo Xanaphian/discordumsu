@@ -168,6 +168,8 @@ interface StoredUser {
   since?: number;
   /** v1.50 kendi seçtiği etiket kodunu değiştirdiği anlar (sıklık sınırı için) */
   tagChanges?: number[];
+  /** v1.70 misafir: sunucuda yeni açılmış, e-postası henüz kodla doğrulanmamış hesap (kısıtlı) */
+  misafir?: boolean;
 }
 
 interface HubData {
@@ -249,6 +251,9 @@ interface Session {
 }
 
 export const BOT_ID = 'kovan-asistan';
+/** v1.70 misafir hesabın yapamadıkları (bkz. StoredUser.misafir) */
+const MISAFIR_YASAK = new Set<string>(['comm.create', 'friend.req', 'friend.tag', 'post.create', 'bot.create']);
+const MISAFIR_MSG = 'Misafir hesaplar bunu yapamaz. Ayarlar → Gizlilik ve Güvenlik → Giriş bilgileri\'nden e-postanı doğrulayıp hesabını kalıcı yap.';
 /** Araç kanallarının adı boş bırakılınca kullanılan adlar */
 const TOOL_NAMES: Record<ToolType, string> = { ideas: 'Öneri panosu', tasks: 'Görev panosu', events: 'Etkinlikler', wall: 'Ortak duvar' };
 
@@ -380,6 +385,13 @@ export class Hub {
           pub: (uid) => (own(this.data.users, uid) ? this.data.users[uid].pub : undefined),
           cihazKapat: (uid, h) => {
             for (const x of [...(this.userSessions.get(uid) || [])]) if (x.dev === h) x.ws.close(4001, 'auth');
+          },
+          dogrulandi: (uid) => {
+            const u = own(this.data.users, uid) ? this.data.users[uid] : undefined;
+            if (u?.misafir) {
+              delete u.misafir;
+              this.saveHub();
+            }
           },
         },
         this.girisOpts,
@@ -951,6 +963,7 @@ export class Hub {
       const uid = String(req.headers['x-kovan-user'] || '');
       const secret = String(req.headers['x-kovan-secret'] || '');
       if (!this.checkUser(uid, secret)) return void res.writeHead(401).end();
+      if (this.data.users[uid]?.misafir) return void res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: MISAFIR_MSG }));
       const len = Number(req.headers['content-length'] || 0);
       if (!len || len > MAX_UPLOAD) return void res.writeHead(413).end();
       if (this.serverMode) {
@@ -1446,6 +1459,7 @@ export class Hub {
       v: PROTOCOL_VERSION,
       feats: [FEAT_POSTS, FEAT_TAGS, FEAT_INVITES, FEAT_REKEY, ...(this.giris ? [FEAT_GIRIS] : []), ...(this.linkMeta ? [FEAT_LINKMETA] : []), ...this.ek.feats(uid)],
       tag: this.data.users[uid]?.pub.tag,
+      ...(this.data.users[uid]?.misafir ? { misafir: true } : {}),
     });
   }
 
@@ -1912,6 +1926,9 @@ export class Hub {
     if (f.t === 'hello') return this.onHello(s, f);
     if (!s.userId) return this.send(s, { t: 'err', msg: 'Önce kimlik doğrulaması gerekli.' });
     const uid = s.userId;
+    // v1.70 misafir kısıtları: topluluk kurma, arkadaş ekleme, paylaşım ve bot yönetimi e-posta doğrulanınca açılır
+    if (this.data.users[uid]?.misafir && MISAFIR_YASAK.has(f.t))
+      return this.send(s, { t: 'err', rid: (f as { rid?: string }).rid, msg: MISAFIR_MSG });
     if (f.t.startsWith('bot.')) return this.bots.handleFrame(uid, f as Extract<ClientFrame, { t: `bot.${string}` }>, (x) => this.send(s, x));
     if (this.handleFriend(s, uid, f) || this.handleDm(s, uid, f)) return;
     if (this.posts.handle(uid, f, (x) => this.send(s, x))) return;
@@ -3149,7 +3166,14 @@ export class Hub {
     const pub = existing?.pub.bot ? existing.pub : this.sanitizeUser(f.user, id);
     if (!pub.bot && !this.bots.isBot(id)) this.assignTag(id, pub, existing?.pub.tag);
     const changed = !existing || JSON.stringify(existing.pub) !== JSON.stringify(pub);
-    this.data.users[id] = { ...existing, pub, secretHash: dev ? existing!.secretHash : sha(secret), since: existing ? existing.since || 1 : Date.now() };
+    this.data.users[id] = {
+      ...existing,
+      pub,
+      secretHash: dev ? existing!.secretHash : sha(secret),
+      since: existing ? existing.since || 1 : Date.now(),
+      // v1.70: merkezi sunucuda yeni açılan hesap, e-postasını kodla doğrulayana kadar misafirdir
+      ...(!existing && this.giris && this.girisOpts.misafir !== false && !pub.bot ? { misafir: true } : {}),
+    };
     if (changed || !existing?.since) this.saveHub();
     s.userId = id;
     s.status = ['online', 'idle', 'dnd', 'invisible'].includes(f.status) ? f.status : 'online';

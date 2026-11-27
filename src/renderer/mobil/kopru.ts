@@ -395,6 +395,15 @@ const giris = {
     save();
     return true;
   },
+  // v1.70 e-posta doğrulama (masaüstündeki giris:kod / giris:kod-dogrula ile aynı)
+  kod: async (server: string, email: string) => {
+    const r = await girisIstek(server, '/auth/kod', { email: String(email || '').slice(0, 300) });
+    return r.code === 200 ? { ok: true } : { ok: false, error: String(r.body.msg || `Kod gönderilemedi (${r.code}).`) };
+  },
+  kodDogrula: async (server: string, email: string, code: string) => {
+    const r = await girisIstek(server, '/auth/kod/dogrula', { email: String(email || '').slice(0, 300), code: String(code || '').slice(0, 12) });
+    return r.code === 200 && typeof r.body.bilet === 'string' ? { ok: true, bilet: r.body.bilet as string } : { ok: false, error: String(r.body.msg || `Kod doğrulanamadı (${r.code}).`) };
+  },
 };
 api.giris = giris;
 

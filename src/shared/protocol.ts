@@ -455,7 +455,7 @@ export type ClientFrame =
   | { t: 'rekey'; secret: string; rid: string }
   /** v1.68 hesap girişi (shared/giris.ts): durum (ok.data = HesapGirisi), e-posta/kullanıcı adı/şifre belirleme, diğer cihazlardan çıkma */
   | { t: 'auth.me'; rid: string }
-  | { t: 'auth.set'; email?: string; username?: string; password?: string; current?: string; rid: string }
+  | { t: 'auth.set'; email?: string; username?: string; password?: string; current?: string; bilet?: string; rid: string }
   | { t: 'auth.out'; rid: string }
   /** v1.68 QR ile giriş: telefon bilgisayardaki kodu okutur (ok.data = { device, at }), sonra onaylar ya da vazgeçer */
   | { t: 'qr.scan'; k: string; rid: string }
@@ -473,7 +473,7 @@ export type ClientFrame =
 
 // ---- Sunucu -> İstemci ----
 export type ServerFrame =
-  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; acts?: Record<ID, LiveActivity[]>; v: number; feats?: string[]; tag?: string }
+  | { t: 'ready'; hubId: ID; hubName: string; me: ID; communities: Community[]; presence: Record<ID, Status>; lastIds: Record<ID, ID>; voice: Record<ID, VoiceMember[]>; web?: Record<ID, WebViewer[]>; dms?: DmInfo[]; friends?: FriendInfo[]; acts?: Record<ID, LiveActivity[]>; v: number; feats?: string[]; tag?: string; misafir?: boolean }
   | { t: 'dm'; dm: DmInfo }
   | { t: 'post'; p: PostView }
   | { t: 'post.upd'; id: ID; likes: number; replies: number; liked: boolean }

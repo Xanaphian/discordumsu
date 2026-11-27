@@ -1,22 +1,40 @@
 // v1.68 hesap girişi: e-posta / kullanıcı adı + şifre, cihaz anahtarı, QR ile giriş, hız sınırı, şifre değişince çıkış.
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { connect, person, sleep, startServer } from '../ortak/sunucu.mjs';
 
 let srv;
-before(async () => (srv = await startServer()));
-after(() => srv?.stop());
+const POSTA = path.join(os.tmpdir(), 'kovan-posta-' + process.pid + '.jsonl');
+before(async () => (srv = await startServer({ KOVAN_EPOSTA_DOSYA: POSTA, KOVAN_MISAFIR: 'acik' })));
+after(() => (srv?.stop(), fs.rmSync(POSTA, { force: true })));
+
+/** sınama sunucusunun "gönderdiği" son e-postadaki 6 haneli kod */
+function sonKod(email) {
+  const satirlar = fs.existsSync(POSTA) ? fs.readFileSync(POSTA, 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : [];
+  const m = satirlar.filter((x) => x.to === email).pop();
+  return m && /\b(\d{6})\b/.exec(m.text)[1];
+}
 
 const post = async (p, body) => {
   const r = await fetch(srv.url + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   return { code: r.status, body: await r.json().catch(() => ({})) };
 };
 let n = 0;
+async function dogrula(email) {
+  assert.equal((await post('/auth/kod', { email })).code, 200);
+  const r = await post('/auth/kod/dogrula', { email, code: sonKod(email) });
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  return r.body.bilet;
+}
 async function kayitli(sifre = 'Gizli-sifre-1') {
   const p = person('Giriş');
   const ws = await connect(srv, p);
   const k = 'kisi' + Date.now().toString(36) + ++n;
-  const r = await ws.req({ t: 'auth.set', email: `${k}@ornek.com`, username: k, password: sifre });
+  const bilet = await dogrula(`${k}@ornek.com`);
+  const r = await ws.req({ t: 'auth.set', email: `${k}@ornek.com`, username: k, password: sifre, bilet });
   assert.equal(r.t, 'ok', r.msg);
   return { p, ws, email: `${k}@ornek.com`, user: k, sifre };
 }
@@ -67,9 +85,9 @@ describe('şifreyle giriş', () => {
   test('alınmış e-posta / kullanıcı adı ve zayıf şifre reddedilir; değiştirmek için şu anki şifre gerekir', async () => {
     const h = await kayitli();
     const p2 = await connect(srv, person('İkinci'));
-    assert.match((await p2.req({ t: 'auth.set', email: h.email, username: 'baskaad' + n, password: 'Gizli-sifre-1' })).msg, /e-posta/);
-    assert.match((await p2.req({ t: 'auth.set', email: 'x' + n + '@ornek.com', username: h.user, password: 'Gizli-sifre-1' })).msg, /alınmış/);
-    assert.match((await p2.req({ t: 'auth.set', email: 'y' + n + '@ornek.com', username: 'yeniad' + n, password: '12345678' })).msg, /kolay/);
+    assert.equal((await post('/auth/kod', { email: h.email })).code, 409);
+    assert.match((await p2.req({ t: 'auth.set', email: 'x' + n + '@ornek.com', username: h.user, password: 'Gizli-sifre-1', bilet: await dogrula('x' + n + '@ornek.com') })).msg, /alınmış/);
+    assert.match((await p2.req({ t: 'auth.set', email: 'y' + n + '@ornek.com', username: 'yeniad' + n, password: '12345678', bilet: await dogrula('y' + n + '@ornek.com') })).msg, /kolay/);
     assert.match((await h.ws.req({ t: 'auth.set', password: 'Yeni-sifre-22' })).msg, /yanlış/);
     assert.equal((await h.ws.req({ t: 'auth.set', password: 'Yeni-sifre-22', current: h.sifre })).t, 'ok');
     assert.equal((await post('/auth/login', { login: h.user, password: h.sifre })).code, 401);
@@ -154,9 +172,49 @@ describe('QR ile giriş', () => {
     tel.close();
   });
 
-  test('şifre sıfırlama e-postası ayarı yoksa açık bir hata döner', async () => {
-    const r = await post('/auth/unuttum', { email: 'biri@ornek.com' });
-    assert.equal(r.code, 503);
-    assert.match(r.body.msg, /henüz/);
+  test('şifremi unuttum: e-postadaki kodla yeni şifre belirlenir ve giriş yapılır', async () => {
+    const h = await kayitli();
+    assert.equal((await post('/auth/unuttum', { email: h.email })).code, 200);
+    assert.equal((await post('/auth/sifirla', { email: h.email, code: '000000', password: 'Yepyeni-sifre-4' })).code, 400);
+    const r = await post('/auth/sifirla', { email: h.email, code: sonKod(h.email), password: 'Yepyeni-sifre-4' });
+    assert.equal(r.code, 200, JSON.stringify(r.body));
+    assert.equal(r.body.id, h.p.user.id);
+    assert.equal((await post('/auth/login', { login: h.email, password: 'Yepyeni-sifre-4' })).code, 200);
+    h.ws.close();
+  });
+});
+
+describe('e-posta doğrulama ve misafir', () => {
+  test('e-posta kodla doğrulanmadan bağlanamaz; yanlış kod 5 denemeden sonra geçersiz olur', async () => {
+    const ws = await connect(srv, person('Doğrulamasız'));
+    const email = 'dogrulamasiz' + ++n + '@ornek.com';
+    assert.match((await ws.req({ t: 'auth.set', email, password: 'Gizli-sifre-1' })).msg, /doğrula/);
+    assert.match((await ws.req({ t: 'auth.set', email, password: 'Gizli-sifre-1', bilet: 'uydurma' })).msg, /doğrula/);
+    await post('/auth/kod', { email });
+    for (let i = 0; i < 5; i++) assert.equal((await post('/auth/kod/dogrula', { email, code: '00000' + i })).code, 400);
+    assert.match((await post('/auth/kod/dogrula', { email, code: sonKod(email) })).body.msg, /süresi/);
+    // başka bir e-postanın bileti işe yaramaz
+    const baska = await dogrula('baska' + n + '@ornek.com');
+    assert.match((await ws.req({ t: 'auth.set', email, password: 'Gizli-sifre-1', bilet: baska })).msg, /doğrula/);
+    ws.close();
+  });
+
+  test('yeni hesap misafirdir: topluluk kuramaz, arkadaş ekleyemez, dosya yükleyemez; e-postası doğrulanınca kısıt kalkar', async () => {
+    const p = person('Misafir');
+    const ws = await connect(srv, p);
+    assert.equal(ws.ready.misafir, true);
+    assert.match((await ws.req({ t: 'comm.create', name: 'Deneme', color: '#6cb6ff' })).msg, /Misafir/);
+    assert.match((await ws.req({ t: 'friend.tag', tag: 'biri#ABC' })).msg, /Misafir/);
+    const up = await fetch(srv.url + '/upload', { method: 'POST', headers: { 'x-kovan-user': p.user.id, 'x-kovan-secret': p.secret, 'content-type': 'image/png' }, body: Buffer.alloc(10) });
+    assert.equal(up.status, 403);
+    const email = 'misafir' + ++n + '@ornek.com';
+    assert.equal((await ws.req({ t: 'auth.set', email, password: 'Gizli-sifre-1', bilet: await dogrula(email) })).t, 'ok');
+    assert.equal((await ws.req({ t: 'comm.create', name: 'Deneme', color: '#6cb6ff' })).t, 'ok');
+    ws.close();
+    const yeniden = await connect(srv, p);
+    assert.ok(!yeniden.ready.misafir);
+    // kullanıcı adı belirlemeden yalnız e-postayla girilir
+    assert.equal((await post('/auth/login', { login: email, password: 'Gizli-sifre-1' })).code, 200);
+    yeniden.close();
   });
 });
