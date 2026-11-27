@@ -245,7 +245,7 @@ export function ProfileEditor() {
             {x.theme && <ToneEditor value={x.theme} onChange={(theme) => setX({ theme })} />}
             <div className="field">
               <span>Kart efekti</span>
-              <div className="pe-tiles">
+              <div className="pe-tiles fx">
                 {EFFECTS.map((f) => (
                   <button key={f} className={cx('pe-tile', (x.effect || 'none') === f && 'on')} onClick={() => setX({ effect: f })}>
                     <span className="pe-fx-ic">{{ none: '—', sparkle: '✦', bees: '✺', snow: '❄', aurora: '≋', hearts: '♥' }[f]}</span>

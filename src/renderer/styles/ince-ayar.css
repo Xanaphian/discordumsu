@@ -236,3 +236,18 @@ button.ch-topic[aria-expanded='true'] {
   width: 56%;
   height: 56%;
 }
+
+/* Bağlantı kopukken üye listesi (v1.68.1): durumlar bayat olabilir */
+.members.bayat .member-group {
+  opacity: 0.55;
+}
+.members-bayat {
+  margin: 8px 10px 4px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.4;
+}

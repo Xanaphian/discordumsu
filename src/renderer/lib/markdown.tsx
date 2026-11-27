@@ -41,6 +41,10 @@ type Rule = { re: RegExp; render: (m: RegExpExecArray, ctx: MdCtx, key: number) 
 // Dengeli ayraçlar adresin parçasıdır: https://tr.wikipedia.org/wiki/Ankara_(il) sondaki ")" ile birlikte bağlantı olur
 const URL_BODY = String.raw`https?:\/\/(?:\([^\s<()]*\)|[^\s<()])*(?:\([^\s<()]*\)|[^\s<.,:;"'()\]!?*_~|>])`;
 const URL_RE = new RegExp('^' + URL_BODY);
+// "www.ornek.com" gibi başında https:// olmayan adresler de bağlantı olur (Discord'daki gibi)
+const WWW_BODY = String.raw`www\.[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+(?:[/?#](?:\([^\s<()]*\)|[^\s<()])*(?:\([^\s<()]*\)|[^\s<.,:;"'()\]!?*_~|>]))?`;
+const WWW_RE = new RegExp('^' + WWW_BODY, 'u');
+const WWW_BEFORE = /[\p{L}\p{N}._\/@:-]/u;
 
 function Spoiler({ children }: { children: ReactNode }) {
   const [clicked, setOpen] = useState(false);
@@ -133,7 +137,7 @@ const inlineRules: Rule[] = [
   { re: /^@(everyone|here|herkes)\b/, render: (m, _c, k) => <span key={k} className="md-mention me">@{m[1]}</span> },
 ];
 
-const SPECIAL = /[\\`*_~|[h<@]/;
+const SPECIAL = /[\\`*_~|[hw<@]/;
 const WORD_CH = /[\p{L}\p{N}]/u;
 
 export function inline(src: string, ctx: MdCtx): ReactNode[] {
@@ -158,6 +162,18 @@ export function inline(src: string, ctx: MdCtx): ReactNode[] {
     if (rest[0] === 'h' && !rest.startsWith('http')) {
       buf += 'h';
       i++;
+      continue;
+    }
+    if (rest[0] === 'w') {
+      const m = rest.startsWith('www.') && (i === 0 || !WWW_BEFORE.test(src[i - 1])) ? WWW_RE.exec(rest) : null;
+      if (m) {
+        if (buf) out.push(buf), (buf = '');
+        out.push(<Link key={key++} href={'https://' + m[0]}>{m[0]}</Link>);
+        i += m[0].length;
+      } else {
+        buf += 'w';
+        i++;
+      }
       continue;
     }
     // Kelime ortasındaki alt çizgi biçim değildir: snake_case, xX_ad_Xx gibi yazılar eğik/altı çizili olmasın
@@ -309,6 +325,9 @@ export function renderMarkdown(src: string, ctx: MdCtx): ReactNode[] {
 }
 
 export function firstUrl(s: string): string | null {
-  const m = new RegExp(URL_BODY).exec(s.replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, ''));
+  const t = s.replace(/```[\s\S]*?```/g, '').replace(/`[^`]*`/g, '');
+  const m = new RegExp(URL_BODY).exec(t);
+  const w = new RegExp(String.raw`(?<![\p{L}\p{N}._/@:-])` + WWW_BODY, 'u').exec(t);
+  if (w && (!m || w.index < m.index)) return 'https://' + w[0];
   return m ? m[0] : null;
 }

@@ -85,6 +85,11 @@ export function MemberList({ c }: { c: Community }) {
   const showIcons = useStore((s) => s.settings.showRoleIcons);
   const blockedList = useStore((s) => s.settings.blocked);
   const blocked = useMemo(() => new Set(blockedList), [blockedList]);
+  // bağlantı kopukken gelen durum güncellemeleri kaçar: liste soluk görünür, "bayat olabilir" denir
+  const down = useStore((s) => {
+    const st = s.conns[s.commHost[c.id]]?.status;
+    return !!st && st !== 'online';
+  });
   const groups = useMemo(() => {
     const hoisted = c.roles.filter((r) => r.hoist && r.id !== c.id).sort((a, b) => b.position - a.position);
     const g = new Map<string, { id: string; title: string; list: { uid: string; name: string; status: Status; color: string }[] }>();
@@ -108,7 +113,8 @@ export function MemberList({ c }: { c: Community }) {
 
   const manageRoles = can(c, me, Perm.MANAGE_ROLES);
   return (
-    <aside className="members scroll-thin">
+    <aside className={cx('members scroll-thin', down && 'bayat')}>
+      {down && <div className="members-bayat">Bağlantı yok: çevrimiçi durumları güncel olmayabilir.</div>}
       {manageRoles && (
         <button className="members-roles-btn" onClick={() => openModal({ type: 'commSettings', cid: c.id, tab: 'roles' })}>
           <Shield size={14} /> Rolleri yönet
