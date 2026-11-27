@@ -53,7 +53,8 @@ function Spoiler({ children }: { children: ReactNode }) {
   );
 }
 
-function Link({ href, children }: { href: string; children: ReactNode }) {
+/** `masked`: [yazı](adres) biçimi. Görünen yazı başka bir adres gibi durabilir (oltalama), o yüzden asıl adres her zaman sorulur. */
+function Link({ href, children, masked }: { href: string; children: ReactNode; masked?: boolean }) {
   return (
     <a
       className="md-link"
@@ -64,7 +65,9 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
         // davet bağlantısı tarayıcıya gitmez: katılma penceresi açılır
         if (isInviteLink(href)) return openModal({ type: 'join', code: href });
         if (openInSiteRoom(href)) return;
-        if (useStore.getState().settings.confirmLinks)
+        if (masked)
+          confirmDialog('Bağlantı açılsın mı?', `Bu bağlantının yazısı ile gittiği adres farklı. Tarayıcında gerçekte şu adres açılacak:\n${href}`, () => window.kovan.openExternal(href), 'Aç', false);
+        else if (useStore.getState().settings.confirmLinks)
           confirmDialog('Bağlantı açılsın mı?', `Tarayıcında şu adres açılacak:\n${href}`, () => window.kovan.openExternal(href), 'Aç', false);
         else window.kovan.openExternal(href);
       }}
@@ -86,7 +89,7 @@ const inlineRules: Rule[] = [
   {
     re: /^\[([^\]\n]{1,200})\]\((https?:\/\/[^\s)]+)\)/,
     render: (m, c, k) => (
-      <Link key={k} href={m[2]}>
+      <Link key={k} href={m[2]} masked={m[1].trim() !== m[2]}>
         {inline(m[1], c)}
       </Link>
     ),

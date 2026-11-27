@@ -88,6 +88,19 @@ describe('giriş ve kayıt', () => {
     assert.equal(g.headers.get('x-content-type-options'), 'nosniff');
   });
 
+  test('yüklenen dosyanın adresi tahmin edilemez (uzun, rastgele kimlik)', async () => {
+    const p = person('Rastgele');
+    (await connect(srv, p)).close();
+    const ids = [];
+    for (let i = 0; i < 2; i++) {
+      const r = await fetch(srv.url + '/upload', { method: 'POST', headers: { 'content-type': 'text/plain', 'x-kovan-user': p.user.id, 'x-kovan-secret': p.secret }, body: 'x' + i });
+      ids.push((await r.json()).id);
+    }
+    for (const id of ids) assert.match(id, /^[a-z0-9]{38}$/);
+    // aynı anda yüklenen iki dosyanın zamandan sonraki kısmı tamamen farklıdır
+    assert.notEqual(ids[0].slice(9), ids[1].slice(9));
+  });
+
   test('dosya adresinde klasör dışına çıkılamaz', async () => {
     for (const bad of ['/f/..%2F..%2Fhub.json/x', '/f/../hub.json', '/f/%2e%2e/hub.json']) {
       const r = await fetch(srv.url + bad);

@@ -206,4 +206,28 @@ describe('özel mesaj', () => {
     x.out({ t: 'privacy', dms: 'all', blocked: [] });
     await x.sync();
   });
+
+  test('engellenen kişi eski sohbete tepki bırakamaz, mesaj sabitleyemez', async () => {
+    const d = await a.req({ t: 'dm.open', to: b.who.user.id });
+    const r = await send(b, d.data.ch, 'tepki denemesi');
+    b.out({ t: 'privacy', dms: 'all', blocked: [a.who.user.id] });
+    await b.sync();
+    a.out({ t: 'react', ch: d.data.ch, id: r.m.id, e: '👍', on: true });
+    a.out({ t: 'pin', ch: d.data.ch, id: r.m.id, on: true });
+    await a.sync();
+    const m = (await hist(b, d.data.ch)).find((x1) => x1.id === r.m.id);
+    assert.ok(!m.reactions?.['👍'], 'engellenen kişinin tepkisi kaydedildi');
+    assert.ok(!m.pinned, 'engellenen kişi mesaj sabitledi');
+    b.out({ t: 'privacy', dms: 'all', blocked: [] });
+    await b.sync();
+  });
+
+  test('ters yazılmış özel mesaj kimliğiyle ikinci bir gizli sohbet açılamaz', async () => {
+    const d = await a.req({ t: 'dm.open', to: b.who.user.id });
+    const [, p1, p2] = /^d_(.+)_(.+)$/.exec(d.data.ch);
+    const rev = `d_${p2}_${p1}`;
+    const r = await send(a, rev, 'gizli');
+    assert.notEqual(r.t, 'msg', 'ters kimlikli kanala mesaj gitti');
+    assert.deepEqual(await hist(a, rev), []);
+  });
 });

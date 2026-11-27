@@ -505,10 +505,12 @@ export type ServerFrame =
 export const PROTOCOL_VERSION = 1;
 export const DEFAULT_PORT = 47820;
 
-/** Zamana göre sıralanabilir kimlik (ts base36 9 hane + 5 hane rastgele) */
+/** Zamana göre sıralanabilir kimlik (ts base36 9 hane + 5 hane rastgele).
+ *  Rastgele kısım güvenli üreteçten gelir: Math.random'ın sırası, görülen birkaç kimlikten çözülüp sonrakiler tahmin edilebiliyordu. */
 export function makeId(ts = Date.now()): ID {
-  const r = Math.floor(Math.random() * 36 ** 5).toString(36).padStart(5, '0');
-  return ts.toString(36).padStart(9, '0') + r;
+  const c = (globalThis as { crypto?: { getRandomValues?: (a: Uint32Array) => Uint32Array } }).crypto;
+  const n = c?.getRandomValues ? c.getRandomValues(new Uint32Array(1))[0] % 36 ** 5 : Math.floor(Math.random() * 36 ** 5);
+  return ts.toString(36).padStart(9, '0') + n.toString(36).padStart(5, '0');
 }
 
 export function idTime(id: ID): number {
