@@ -7,7 +7,7 @@ import { Browser } from '@capacitor/browser';
 import { App as CapApp } from '@capacitor/app';
 import type { KovanApi } from '../../preload/preload';
 import { makeId } from '../../shared/protocol';
-import { OFFICIAL_SERVER, isLoopbackHost, normHost, normPairCode } from '../../shared/guvenlik';
+import { OFFICIAL_SERVER, isLoopbackHost, normHost } from '../../shared/guvenlik';
 import { hmacSha256Hex } from './sha256';
 
 declare const __APP_VERSION__: string;
@@ -234,7 +234,6 @@ const api: Record<string, any> = {
       return true;
     },
   },
-  pairOffer: async () => ({ ok: false, error: 'Telefonu bilgisayardaki uygulamadan bağla.' }),
   pendingInvite: async () => {
     const p = pendingInvite;
     pendingInvite = null;
@@ -297,45 +296,11 @@ const api: Record<string, any> = {
   },
 };
 
-api.mobile = { platform: Capacitor.getPlatform(), claimPair: claimPairCode, login: loginWithPassword, onBack: onBackButton };
+api.mobile = { platform: Capacitor.getPlatform(), login: loginWithPassword, onBack: onBackButton };
 (window as any).kovan = api;
 document.documentElement.classList.add('mobil', 'mobil-' + Capacitor.getPlatform());
 // açılıştan biraz sonra sessizce güncelleme denetimi
 setTimeout(() => void checkUpdate(false).then(() => upd.state === 'none' && setUpd({ state: 'idle' })), 8000);
-
-/** Telefon bilgisayardaki hesabı kullansın: kodla resmî sunucudan hesap bilgisini alır ve yerine koyar */
-async function claimPairCode(code: string, server = OFFICIAL_SERVER): Promise<{ ok: boolean; error?: string }> {
-  const c = normPairCode(code);
-  if (c.length < 6) return { ok: false, error: 'Kodu eksiksiz yaz.' };
-  try {
-    const r = await fetch(server.replace(/\/+$/, '') + '/pair/claim?code=' + encodeURIComponent(c), { method: 'POST' });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.blob) return { ok: false, error: j.error || (r.status === 404 ? 'Kod bulunamadı ya da süresi doldu.' : `Sunucu hatası (${r.status}).`) };
-    const b = JSON.parse(j.blob);
-    if (!b?.profile?.id || !b.profile.secret) return { ok: false, error: 'Hesap bilgisi okunamadı.' };
-    const settings = { ...(b.settings || {}), membersOpen: false };
-    config = {
-      profile: b.profile,
-      hosts: Array.isArray(b.hosts) ? b.hosts : [],
-      settings,
-      onboarded: !!b.profile.name,
-      secretScope: 1,
-      oldSecrets: Array.isArray(b.oldSecrets) ? b.oldSecrets : undefined,
-      keyGen: b.keyGen && typeof b.keyGen === 'object' ? b.keyGen : undefined,
-      trustedHosts: Array.isArray(b.trustedHosts) ? b.trustedHosts : [],
-    };
-    save();
-    // okunmuş mesaj kayıtları eski (geçici) hesabındı
-    try {
-      localStorage.removeItem('kovan.read');
-    } catch {
-      /* yok */
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, error: 'Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.' };
-  }
-}
 
 /** E-posta / kullanıcı adı + şifreyle giriş: sunucu bu cihaza özel bir anahtar verir (asıl anahtar telefona gelmez) */
 async function loginWithPassword(login: string, password: string, server = OFFICIAL_SERVER): Promise<{ ok: boolean; error?: string }> {
@@ -343,7 +308,7 @@ async function loginWithPassword(login: string, password: string, server = OFFIC
   try {
     const r = await fetch(server.replace(/\/+$/, '') + '/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login: login.trim(), password }) });
     const j = await r.json().catch(() => ({}));
-    if (r.status === 404) return { ok: false, error: 'Sunucu şifreyle girişi henüz desteklemiyor. Bilgisayardan kodla bağlanabilirsin.' };
+    if (r.status === 404) return { ok: false, error: 'Sunucu şifreyle girişi henüz desteklemiyor.' };
     if (!r.ok || !j.id || !j.secret) return { ok: false, error: j.msg || j.error || (r.status === 401 ? 'Kullanıcı adı ya da şifre yanlış.' : r.status === 429 ? 'Çok fazla deneme. Biraz bekle.' : `Sunucu hatası (${r.status}).`) };
     config = {
       profile: { id: String(j.id), secret: String(j.secret), name: String(j.name || ''), color: j.color || config.profile.color, avatar: j.avatar, status: 'online' },

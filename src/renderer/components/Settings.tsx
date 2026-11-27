@@ -18,7 +18,6 @@ import { ChatTab, PrivacyTab, AdvancedTab, NotifyExtras } from './MoreSettings';
 import { StreamerTab } from './YayinciModu';
 import { OverlayTab } from './Kaplama';
 import { ShortcutSettings } from './Kisayollar';
-import { PhoneTab } from './TelefonBagla';
 
 export function Shell({ nav, tab, setTab, children, footer }: { nav: { id: string; label: string; group?: string; danger?: boolean }[]; tab: string; setTab: (t: string) => void; children: React.ReactNode; footer?: React.ReactNode }) {
   useEffect(() => {
@@ -269,7 +268,6 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
   const mobile = !!window.kovan.mobile;
   const all = [
     { id: 'profile', label: 'Profilim', group: 'Kullanıcı Ayarları' },
-    { id: 'phone', label: 'Telefonu bağla', group: 'Kullanıcı Ayarları' },
     { id: 'activity', label: 'Etkinlik', group: 'Kullanıcı Ayarları' },
     { id: 'connection', label: 'Bağlantı', group: 'Kullanıcı Ayarları' },
     { id: 'privacy', label: 'Gizlilik ve Güvenlik', group: 'Kullanıcı Ayarları' },
@@ -284,7 +282,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
     { id: 'updates', label: 'Güncellemeler', group: 'Xanaphian' },
   ];
   // telefonda olmayanlar: oyun/müzik etkinliği okuma, yayıncı modu, oyun içi kaplama, klavye kısayolları
-  const nav = mobile ? all.filter((n) => !['phone', 'activity', 'streamer', 'overlay', 'app'].includes(n.id)) : all;
+  const nav = mobile ? all.filter((n) => !['activity', 'streamer', 'overlay', 'app'].includes(n.id)) : all;
   const version = useStore((x) => x.info?.version);
   return (
     <Shell
@@ -302,7 +300,6 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       }
     >
       {tab === 'profile' && <ProfileTab />}
-      {tab === 'phone' && <PhoneTab />}
       {tab === 'activity' && <ActivityTab />}
       {tab === 'appearance' && <AppearanceTab />}
       {tab === 'notifications' && <NotificationsTab />}

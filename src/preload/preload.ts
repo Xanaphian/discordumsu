@@ -21,8 +21,6 @@ const api = {
     done: (host: string) => ipcRenderer.sendSync('rekey:done', host) as boolean,
     assume: (host: string) => ipcRenderer.sendSync('rekey:assume', host) as boolean,
   },
-  /** v1.68 telefonu bağla: hesabı 10 dakikalık tek kullanımlık koda bağlar */
-  pairOffer: (server: string) => ipcRenderer.invoke('pair:offer', server) as Promise<{ ok: boolean; code?: string; exp?: number; error?: string }>,
   pendingInvite: () => ipcRenderer.invoke('app:pending-invite') as Promise<string | null>,
   /** Bilgisayardaki topluluğu merkezi sunucuya taşır */
   migrate: (cid: string, server: string) => ipcRenderer.invoke('hub:migrate', cid, server) as Promise<{ ok: boolean; error?: string; files?: number; failed?: number }>,

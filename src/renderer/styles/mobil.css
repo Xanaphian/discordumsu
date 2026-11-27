@@ -280,12 +280,6 @@ html.mobil .onboarding .ob-card {
 html.mobil .ob-pair-btn {
   margin-top: 10px;
 }
-.ob-pair-code {
-  letter-spacing: 3px;
-  font-weight: 700;
-  text-align: center;
-  text-transform: uppercase;
-}
 .ob-pair-err {
   color: var(--red, #f2555a) !important;
 }

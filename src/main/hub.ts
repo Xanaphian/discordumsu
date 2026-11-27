@@ -24,7 +24,7 @@ import { Ekler, type EkOptions } from './ekler';
 import { RUBIK } from './rubikYazi';
 import { cleanAge, cleanMax, iconBytes, inviteAlive, invitePage, invitePageHeaders } from './davetSayfasi';
 import { FEAT_LINKMETA, type LinkMeta } from '../shared/onizleme';
-import { FEAT_REKEY, FEAT_PAIR, PAIR_ALPHABET, PAIR_LEN, normPairCode } from '../shared/guvenlik';
+import { FEAT_REKEY } from '../shared/guvenlik';
 import { FEAT_INVITES, INVITE_BG_MAX, INVITE_BG_RE, MAX_INVITES, inviteBgKind, type Invite, type InviteInfo } from '../shared/davetBaglanti';
 import { cleanAttachments, cleanImportedCommunity, cleanImportedMessage, SAFE_ID, USER_ID } from './ithal';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
@@ -277,10 +277,6 @@ export class Hub {
   /** etiketle arama sınırı: kullanıcı -> son denemelerin anları */
   private tagTries = new Map<ID, number[]>();
   private rekeyTries = new Map<ID, number[]>();
-  /** v1.68 telefon eşleştirme: kod -> hesap bilgisi (yalnız bellekte, 10 dk, tek kullanımlık) */
-  private pairs = new Map<string, { blob: string; uid: ID; exp: number }>();
-  /** kod deneme sınırı: adres -> son denemelerin anları */
-  private pairTries = new Map<string, number[]>();
   private spaceRooms = new Map<ID, Map<ID, { s: Session; av: SpaceAvatar }>>();
   private booths = new Map<ID, Booth[]>();
   private webRooms = new Map<ID, Map<ID, WebViewer>>();
@@ -810,62 +806,6 @@ export class Hub {
     }
     if (this.bots.handleHttp(req, res, url)) return;
     if (this.handleInviteHttp(req, res, url)) return;
-    if (req.method === 'POST' && url.pathname === '/pair/offer') {
-      // v1.68 telefonu bağla: bilgisayar hesabın bilgisini (kimlik + anahtar) 10 dakikalık, tek kullanımlık bir koda bağlar.
-      // Anahtar uygulamanın ana sürecinden doğrudan buraya gelir; arayüz görmez. Kod yalnız bellekte tutulur.
-      const uid = String(req.headers['x-kovan-user'] || '');
-      if (!this.checkUser(uid, String(req.headers['x-kovan-secret'] || ''))) return void res.writeHead(401).end();
-      const json = { 'content-type': 'application/json', 'cache-control': 'no-store' };
-      const len = Number(req.headers['content-length'] || 0);
-      if (!len) return void res.writeHead(411).end();
-      if (len > 64_000) return void res.writeHead(413).end();
-      const chunks: Buffer[] = [];
-      let size = 0;
-      req.on('data', (c: Buffer) => {
-        size += c.length;
-        if (size > 64_000) return void req.destroy();
-        chunks.push(c);
-      });
-      req.on('end', () => {
-        let blob = '';
-        try {
-          blob = String(JSON.parse(Buffer.concat(chunks).toString('utf8'))?.blob || '');
-        } catch {
-          /* aşağıda reddedilir */
-        }
-        if (!blob || blob.length > 60_000) return void res.writeHead(400, json).end(JSON.stringify({ error: 'Hesap bilgisi geçersiz.' }));
-        const now = Date.now();
-        for (const [k, v] of this.pairs) if (v.exp < now || v.uid === uid) this.pairs.delete(k);
-        if (this.pairs.size > 5000) return void res.writeHead(429, json).end(JSON.stringify({ error: 'Sunucu şu an meşgul, biraz sonra yeniden dene.' }));
-        let code = '';
-        do code = Array.from(crypto.randomBytes(PAIR_LEN), (x) => PAIR_ALPHABET[x % PAIR_ALPHABET.length]).join('');
-        while (this.pairs.has(code));
-        const exp = now + 10 * 60_000;
-        this.pairs.set(code, { blob, uid, exp });
-        res.writeHead(200, json).end(JSON.stringify({ code, exp }));
-      });
-      return;
-    }
-    if (req.method === 'POST' && url.pathname === '/pair/claim') {
-      // v1.68 telefonda "Bilgisayardaki hesabımı kullan": kod bir kez geçerli; aynı adresten 10 dakikada en çok 12 deneme
-      const ip = this.clientIp(req) || req.socket.remoteAddress || '?';
-      const now = Date.now();
-      const tries = (this.pairTries.get(ip) || []).filter((t) => now - t < 600_000);
-      const json = { 'content-type': 'application/json', 'cache-control': 'no-store' };
-      if (tries.length >= 12) return void res.writeHead(429, json).end(JSON.stringify({ error: 'Çok fazla deneme. 10 dakika sonra yeniden dene.' }));
-      tries.push(now);
-      this.pairTries.set(ip, tries);
-      if (this.pairTries.size > 20_000) for (const [k, v] of this.pairTries) if (now - v[v.length - 1] > 600_000) this.pairTries.delete(k);
-      const code = normPairCode(url.searchParams.get('code'));
-      const p = this.pairs.get(code);
-      if (!p || p.exp < now) {
-        if (p) this.pairs.delete(code);
-        return void res.writeHead(404, json).end(JSON.stringify({ error: 'Kod bulunamadı ya da süresi doldu.' }));
-      }
-      this.pairs.delete(code);
-      res.writeHead(200, json).end(JSON.stringify({ blob: p.blob }));
-      return;
-    }
     if (req.method === 'GET' && url.pathname === '/info') {
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ app: 'kovan', hubId: this.data.hubId, v: PROTOCOL_VERSION }));
       return;
@@ -1481,7 +1421,7 @@ export class Hub {
       friends: this.friendsFor(uid),
       acts,
       v: PROTOCOL_VERSION,
-      feats: [FEAT_POSTS, FEAT_TAGS, FEAT_INVITES, FEAT_REKEY, FEAT_PAIR, ...(this.linkMeta ? [FEAT_LINKMETA] : []), ...this.ek.feats(uid)],
+      feats: [FEAT_POSTS, FEAT_TAGS, FEAT_INVITES, FEAT_REKEY, ...(this.linkMeta ? [FEAT_LINKMETA] : []), ...this.ek.feats(uid)],
       tag: this.data.users[uid]?.pub.tag,
     });
   }
