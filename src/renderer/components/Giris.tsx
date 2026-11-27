@@ -473,6 +473,27 @@ export function GirisEkrani({ onYeniHesap }: { onYeniHesap: () => void }) {
   );
 }
 
+/** v1.70.1 hesaptan çıkış (Ayarlar'ın en altındaki "Çıkış yap"). Şifresi olmayan (misafir) hesapta geri dönülemeyeceği uyarılır. */
+export async function cikisYap() {
+  const misafirMi = !!useStore.getState().me.misafir;
+  const bilgi = girisSupported() ? await homeData<HesapGirisi>({ t: 'auth.me' }).catch(() => null) : null;
+  const sifreli = !!bilgi?.hasPassword;
+  const cik = async () => {
+    await window.kovan.giris.logout();
+    yenidenYukle();
+  };
+  if (sifreli)
+    return confirmDialog('Çıkış yapılsın mı?', 'Giriş ekranına dönersin. Yeniden girmek için e-postan ve şifren ya da telefonundaki QR kodu yeterli.', cik, 'Çıkış yap', true);
+  confirmDialog(
+    misafirMi ? 'Misafir hesaptan çıkılsın mı?' : 'Bu hesaba geri dönemeyebilirsin',
+    (misafirMi ? 'Bu bir misafir hesap; ' : 'Bu hesabın e-postası ve şifresi yok; ') +
+      "çıkış yaparsan bir daha bu hesaba giremezsin (adın, arkadaşların ve toplulukların bu hesapla kalır). Kalıcı yapmak için önce Ayarlar → Gizlilik ve Güvenlik → Giriş bilgileri'nden e-postanı doğrula.",
+    cik,
+    'Yine de çık',
+    true,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Ayarlar > Gizlilik ve Güvenlik > Giriş bilgileri
 
