@@ -12,7 +12,7 @@ import { Modals } from './components/Modals';
 import { ContextMenu, Toasts, UserPopout } from './components/Overlays';
 import { CropHost } from './components/Kirpma';
 import { HomeView, Onboarding } from './components/Views';
-import { GirisEkrani } from './components/Giris';
+import { GirisEkrani, kayitTamamla } from './components/Giris';
 import { VoiceView, IncomingCall } from './components/Media';
 import { SpaceView } from './components/SpaceView';
 import { useSpace } from './lib/space';
@@ -290,7 +290,7 @@ export function App() {
         <TitleBar />
       </HataSiniri>
       {!onboarded ? (
-        yeniHesap ? <Onboarding onBack={() => setYeniHesap(false)} /> : <GirisEkrani onYeniHesap={() => setYeniHesap(true)} />
+        yeniHesap ? <Onboarding baslangic={1} onFinish={kayitTamamla} onBack={() => setYeniHesap(false)} /> : <GirisEkrani onYeniHesap={() => setYeniHesap(true)} />
       ) : (
         <div className={IS_MOBILE ? `shell mob-${mobPanel}` : 'shell'}>
           <HataSiniri name="topluluk listesi">

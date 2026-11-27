@@ -13,6 +13,7 @@
 //   KOVAN_IMPORT_MB topluluk taşıma paketinin en büyük boyutu, MB (varsayılan 64)
 import crypto from 'node:crypto';
 import path from 'node:path';
+import fs from 'node:fs';
 import { Hub } from '../src/main/hub';
 import { fetchPublic } from './guvenli-getir';
 import { parseLinkMeta } from '../src/shared/onizleme';
@@ -37,10 +38,15 @@ const hub = new Hub(dataDir, {
   },
   // v1.68 şifre sıfırlama e-postası: SMTP ayarı .env'de yoksa "Şifremi unuttum" kapalı kalır
   giris: {
+    // sınamalarda misafir kısıtı kapatılabilir (sahte kişiler e-posta doğrulayamaz)
+    misafir: env.KOVAN_MISAFIR !== 'kapali',
     mail:
       env.KOVAN_SMTP_HOST && env.KOVAN_SMTP_USER && env.KOVAN_SMTP_PASS
         ? smtpGonderici({ host: env.KOVAN_SMTP_HOST, port: Number(env.KOVAN_SMTP_PORT) || 465, user: env.KOVAN_SMTP_USER, pass: env.KOVAN_SMTP_PASS, from: env.KOVAN_SMTP_FROM || env.KOVAN_SMTP_USER })
-        : undefined,
+        : env.KOVAN_EPOSTA_DOSYA
+          ? // yalnız sınamalar için: e-posta gönderilmez, dosyaya satır olarak yazılır
+            async (to: string, subject: string, text: string) => void fs.appendFileSync(env.KOVAN_EPOSTA_DOSYA!, JSON.stringify({ to, subject, text }) + '\n')
+          : undefined,
   },
 });
 

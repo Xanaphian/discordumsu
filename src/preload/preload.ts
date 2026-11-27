@@ -30,6 +30,9 @@ const api = {
     forgot: (server: string, email: string) => ipcRenderer.invoke('giris:forgot', server, email) as Promise<{ ok: boolean; error?: string }>,
     reset: (server: string, email: string, code: string, password: string) => ipcRenderer.invoke('giris:reset', server, email, code, password) as Promise<{ ok: boolean; error?: string }>,
     logout: () => ipcRenderer.invoke('giris:logout') as Promise<boolean>,
+    /** v1.70 e-posta doğrulama kodu gönder / doğrula (doğrulanınca bilet döner) */
+    kod: (server: string, email: string) => ipcRenderer.invoke('giris:kod', server, email) as Promise<{ ok: boolean; error?: string }>,
+    kodDogrula: (server: string, email: string, code: string) => ipcRenderer.invoke('giris:kod-dogrula', server, email, code) as Promise<{ ok: boolean; bilet?: string; error?: string }>,
   },
   pendingInvite: () => ipcRenderer.invoke('app:pending-invite') as Promise<string | null>,
   /** Bilgisayardaki topluluğu merkezi sunucuya taşır */

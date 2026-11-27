@@ -3,19 +3,25 @@
 
 const kacir = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-export function sifirlamaEpostasi(ad: string, kod: string, dakika = 15): { subject: string; text: string; html: string } {
-  const a = ad.trim() || 'merhaba';
-  const subject = `${kod} – Xanaphian şifre sıfırlama kodun`;
+/** 'sifirla': şifre sıfırlama, 'dogrula': yeni hesap / e-posta bağlama doğrulaması */
+export function kodEpostasi(ad: string, kod: string, tur: 'sifirla' | 'dogrula', dakika = 15): { subject: string; text: string; html: string } {
+  const a = ad.trim();
+  const sif = tur === 'sifirla';
+  const baslik = sif ? 'Şifre sıfırlama kodun' : 'E-posta doğrulama kodun';
+  const subject = `${kod} – Xanaphian ${sif ? 'şifre sıfırlama' : 'doğrulama'} kodun`;
+  const amac = sif ? 'şifreni sıfırlamak için' : 'e-posta adresini doğrulamak için';
+  const ekran = sif ? 'Şifreni sıfırla' : 'Kodu gir';
+  const yoksay = sif ? 'Bu isteği sen yapmadıysan bu e-postayı yok say; şifren değişmez ve kimse hesabına giremez.' : 'Bu isteği sen yapmadıysan bu e-postayı yok say; adresin hiçbir hesaba bağlanmaz.';
   const text = [
-    `Merhaba ${a},`,
+    a ? `Merhaba ${a},` : 'Merhaba,',
     '',
-    'Xanaphian şifreni sıfırlamak için kodun:',
+    `Xanaphian'da ${amac} kodun:`,
     '',
     `    ${kod}`,
     '',
-    `Bu kodu uygulamadaki "Şifreni sıfırla" ekranına yaz. Kod ${dakika} dakika geçerli ve yalnız bir kez kullanılabilir.`,
+    `Bu kodu uygulamadaki "${ekran}" ekranına yaz. Kod ${dakika} dakika geçerli ve yalnız bir kez kullanılabilir.`,
     '',
-    'Bu isteği sen yapmadıysan bu e-postayı yok say; şifren değişmez.',
+    yoksay,
     '',
     '— Xanaphian',
   ].join('\n');
@@ -47,13 +53,13 @@ export function sifirlamaEpostasi(ad: string, kod: string, dakika = 15): { subje
         <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#0ac8b9;margin-right:8px;vertical-align:middle;"></span>Xanaphian
       </td></tr>
       <tr><td class="kart" style="background:#ffffff;border:1px solid #e1e5ee;border-radius:12px;padding:32px 28px;font-family:${font};">
-        <p class="yazi" style="margin:0 0 6px;font-size:20px;font-weight:700;color:#0b1325;">Şifre sıfırlama kodun</p>
-        <p class="soluk" style="margin:0 0 24px;font-size:14px;line-height:1.55;color:#5b6478;">Merhaba ${kacir(a)}, şifreni sıfırlamak için bu kodu uygulamadaki <b>Şifreni sıfırla</b> ekranına yaz.</p>
+        <p class="yazi" style="margin:0 0 6px;font-size:20px;font-weight:700;color:#0b1325;">${baslik}</p>
+        <p class="soluk" style="margin:0 0 24px;font-size:14px;line-height:1.55;color:#5b6478;">${a ? `Merhaba ${kacir(a)}, ` : 'Merhaba, '}${amac} bu kodu uygulamadaki <b>${ekran}</b> ekranına yaz.</p>
         <div class="kod" style="margin:0 0 24px;padding:18px 12px;border:1px solid #e1e5ee;border-radius:10px;background:#f6f8fb;text-align:center;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#0b1325;">${kod}</div>
         <p class="soluk" style="margin:0 0 8px;font-size:13px;line-height:1.55;color:#5b6478;">Kod <b>${dakika} dakika</b> geçerli ve yalnız bir kez kullanılabilir.</p>
-        <p class="soluk" style="margin:0;font-size:13px;line-height:1.55;color:#5b6478;">Bu isteği sen yapmadıysan bu e-postayı yok say; şifren değişmez ve kimse hesabına giremez.</p>
+        <p class="soluk" style="margin:0;font-size:13px;line-height:1.55;color:#5b6478;">${yoksay}</p>
       </td></tr>
-      <tr><td class="soluk" style="padding:16px 4px 0;font-family:${font};font-size:12px;line-height:1.5;color:#8a92a6;">Bu e-posta, Xanaphian hesabın için şifre sıfırlama istendiği için gönderildi. Bu adrese yanıt verme.</td></tr>
+      <tr><td class="soluk" style="padding:16px 4px 0;font-family:${font};font-size:12px;line-height:1.5;color:#8a92a6;">Bu e-posta, Xanaphian'da bu adres için kod istendiği için gönderildi. Bu adrese yanıt verme.</td></tr>
     </table>
   </td></tr>
 </table>

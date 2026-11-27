@@ -67,7 +67,7 @@ function startMirror() {
 // ---------- sunucu ----------
 function startServer() {
   const p = spawn(process.execPath, [path.join(ROOT, 'server/paket/kovan-server.js')], {
-    env: { ...process.env, KOVAN_PORT: String(PORT), KOVAN_DATA: path.join(TMP, 'data'), KOVAN_ADMINS: OWNER.id, KOVAN_UPLOAD_PER_10MIN: '3', KOVAN_LINK_MIRROR: mirrorUrl },
+    env: { ...process.env, KOVAN_PORT: String(PORT), KOVAN_DATA: path.join(TMP, 'data'), KOVAN_ADMINS: OWNER.id, KOVAN_UPLOAD_PER_10MIN: '3', KOVAN_LINK_MIRROR: mirrorUrl, KOVAN_MISAFIR: 'kapali' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   p.stdout.on('data', () => {});

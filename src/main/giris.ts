@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type http from 'node:http';
-import { sifirlamaEpostasi } from './eposta-sablon';
+import { kodEpostasi } from './eposta-sablon';
 import type { ClientFrame, ID, ServerFrame, UserPublic } from '../shared/protocol';
 import {
   QR_SURE,
@@ -23,6 +23,8 @@ import {
 export interface GirisOptions {
   /** şifre sıfırlama e-postası gönderici (sunucudaki .env'de SMTP ayarı varsa) */
   mail?: (to: string, subject: string, text: string, html?: string) => Promise<void>;
+  /** v1.70 yeni hesaplar e-posta doğrulanana kadar misafir (kısıtlı) olsun mu (varsayılan: evet) */
+  misafir?: boolean;
 }
 
 export interface GirisBaglantisi {
@@ -31,6 +33,8 @@ export interface GirisBaglantisi {
   pub(uid: ID): UserPublic | undefined;
   /** bu cihaz anahtarıyla açılmış oturumları kapat */
   cihazKapat(uid: ID, h: string): void;
+  /** v1.70 e-postası kodla doğrulandı: misafir kısıtları kalkar */
+  dogrulandi(uid: ID): void;
 }
 
 interface Cihaz {
@@ -138,6 +142,11 @@ export class Giris {
   private adlar = new Map<string, ID>();
   private qr = new Map<string, Bekleyen>();
   private sifirlama = new Map<string, Sifirlama>();
+  /** v1.70 e-posta doğrulama: e-posta -> gönderilen kod; bilet -> doğrulanmış e-posta */
+  private dogrulama = new Map<string, Sifirlama>();
+  private biletler = new Map<string, { email: string; exp: number }>();
+  private kodIp = new Sayac(60 * MIN, 20);
+  private kodEposta = new Sayac(60 * MIN, 4);
   private file: string;
   private yaziliyor: Promise<void> = Promise.resolve();
 
@@ -177,6 +186,8 @@ export class Giris {
     const now = Date.now();
     for (const [k, b] of this.qr) if (b.exp < now - MIN) this.qr.delete(k);
     for (const [k, r] of this.sifirlama) if (r.exp < now) this.sifirlama.delete(k);
+    for (const [k, r] of this.dogrulama) if (r.exp < now) this.dogrulama.delete(k);
+    for (const [k, r] of this.biletler) if (r.exp < now) this.biletler.delete(k);
   }
 
   /** Hemen diske yazar; yanıt yazma bittikten sonra verilir (sunucu kapanırsa yeni cihaz anahtarı kaybolmasın) */
@@ -301,8 +312,15 @@ export class Giris {
     const email = f.email !== undefined ? epostaDuzelt(str(f.email, 300)) : a?.email || '';
     const user = f.username !== undefined ? kullaniciAdiDuzelt(str(f.username, 100)) : a?.user || '';
     const pw = typeof f.password === 'string' ? f.password : '';
-    const e1 = epostaHatasi(email) || kullaniciAdiHatasi(user);
+    // v1.70: kullanıcı adı isteğe bağlı (yalnız e-postayla da girilir)
+    const e1 = epostaHatasi(email) || (user ? kullaniciAdiHatasi(user) : '');
     if (e1) return e1;
+    // v1.70: yeni ya da değişen e-posta, o adrese gönderilen kodla doğrulanmış olmalı (bilet)
+    const yeniEposta = email !== (a?.email || '');
+    if (yeniEposta) {
+      const b = this.biletler.get(str(f.bilet, 80));
+      if (!b || b.exp < Date.now() || b.email !== email) return 'E-postanı doğrulaman gerekiyor: adresine gelen kodu gir.';
+    }
     if (!a?.pw && !pw) return 'Bir şifre belirle.';
     if (pw) {
       const e2 = sifreHatasi(pw);
@@ -310,18 +328,19 @@ export class Giris {
     }
     const eSahip = this.epostalar.get(email);
     if (eSahip && eSahip !== uid) return 'Bu e-posta başka bir hesapta kullanılıyor.';
-    const aSahip = this.adlar.get(user);
+    const aSahip = user ? this.adlar.get(user) : undefined;
     if (aSahip && aSahip !== uid) return 'Bu kullanıcı adı alınmış, başka bir tane dene.';
     const ozet = pw ? await sifreOzeti(pw) : a!.pw;
     // özet hesaplanırken başka biri aynı adı almış olabilir
-    if ((this.epostalar.get(email) || uid) !== uid || (this.adlar.get(user) || uid) !== uid) return 'Bu e-posta ya da kullanıcı adı az önce alındı.';
+    if ((this.epostalar.get(email) || uid) !== uid || (user && (this.adlar.get(user) || uid) !== uid)) return 'Bu e-posta ya da kullanıcı adı az önce alındı.';
     const h = this.hesaplar[uid] || (this.hesaplar[uid] = { email: '', user: '', pw: '', pwAt: 0, dev: [] });
     if (h.email && h.email !== email) this.epostalar.delete(h.email);
     if (h.user && h.user !== user) this.adlar.delete(h.user);
     h.email = email;
     h.user = user;
     this.epostalar.set(email, uid);
-    this.adlar.set(user, uid);
+    if (user) this.adlar.set(user, uid);
+    if (yeniEposta) this.biletler.delete(str(f.bilet, 80));
     if (pw) {
       const vardi = !!h.pw;
       h.pw = ozet;
@@ -333,6 +352,7 @@ export class Giris {
       }
     }
     await this.kaydet();
+    if (yeniEposta) this.bag.dogrulandi(uid);
     return '';
   }
 
@@ -409,6 +429,39 @@ export class Giris {
         if (q.exp < Date.now()) return this.qr.delete(k), [200, { state: 'bitti' }];
         return [200, { state: q.uid ? 'okundu' : 'bekliyor', user: q.uid ? this.bag.pub(q.uid) : undefined }];
       }
+      // v1.70 e-posta doğrulama: önce koda, sonra kod doğruysa bilete (kayıt ve e-posta bağlama bileti kullanır)
+      case '/auth/kod': {
+        if (!this.opts.mail) return [503, { msg: 'E-posta gönderimi bu sunucuda henüz açık değil.' }];
+        const email = epostaDuzelt(str(b.email, 300));
+        if (epostaHatasi(email)) return [400, { msg: epostaHatasi(email) }];
+        if (this.epostalar.has(email) && this.bag.gercek(this.epostalar.get(email)!))
+          return [409, { msg: 'Bu e-posta zaten bir hesaba bağlı. Giriş yap ya da "Şifremi unuttum"u kullan.' }];
+        if (this.kodIp.dolu(ip) || this.kodEposta.dolu(email)) return [429, { msg: 'Kısa sürede çok fazla kod istendi. Biraz sonra yeniden dene.' }];
+        this.kodIp.ekle(ip);
+        this.kodEposta.ekle(email);
+        const kod = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+        this.dogrulama.set(email, { uid: '', h: sha(email + ':' + kod), exp: Date.now() + 15 * MIN, deneme: 0 });
+        const e = kodEpostasi('', kod, 'dogrula');
+        try {
+          await this.opts.mail(email, e.subject, e.text, e.html);
+        } catch (err) {
+          console.error('doğrulama e-postası gönderilemedi', (err as Error)?.message);
+          return [502, { msg: 'E-posta gönderilemedi. Adresi kontrol edip yeniden dene.' }];
+        }
+        return [200, { ok: true }];
+      }
+      case '/auth/kod/dogrula': {
+        const email = epostaDuzelt(str(b.email, 300));
+        const kod = str(b.code, 12).replace(/\s/g, '');
+        const r = this.dogrulama.get(email);
+        if (!r || r.exp < Date.now() || r.deneme >= 5) return [400, { msg: 'Kodun süresi dolmuş. Yeniden kod iste.' }];
+        r.deneme++;
+        if (!crypto.timingSafeEqual(Buffer.from(sha(email + ':' + kod)), Buffer.from(r.h))) return [400, { msg: 'Kod yanlış.' }];
+        this.dogrulama.delete(email);
+        const bilet = crypto.randomBytes(24).toString('base64url');
+        this.biletler.set(bilet, { email, exp: Date.now() + 30 * MIN });
+        return [200, { bilet }];
+      }
       case '/auth/unuttum': {
         if (!this.opts.mail) return [503, { msg: 'Şifre sıfırlama e-postası bu sunucuda henüz açık değil.' }];
         const email = epostaDuzelt(str(b.email, 300));
@@ -422,7 +475,7 @@ export class Giris {
           const kod = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
           this.sifirlama.set(email, { uid, h: sha(email + ':' + kod), exp: Date.now() + 15 * MIN, deneme: 0 });
           const ad = this.bag.pub(uid)?.name || '';
-          const e = sifirlamaEpostasi(ad, kod);
+          const e = kodEpostasi(ad, kod, 'sifirla');
           this.opts
             .mail(email, e.subject, e.text, e.html)
             .catch((e) => console.error('sıfırlama e-postası gönderilemedi', (e as Error)?.message));

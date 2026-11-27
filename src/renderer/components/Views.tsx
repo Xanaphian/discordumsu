@@ -18,14 +18,14 @@ export function HomeView() {
   return tab === 'home' ? <HomeStart /> : tab === 'communities' ? <CommunitiesView /> : tab === 'news' ? <SonEklenenler /> : <FriendsView />;
 }
 
-export function Onboarding({ onBack }: { onBack?: () => void } = {}) {
+export function Onboarding({ onBack, baslangic = 0, onFinish }: { onBack?: () => void; baslangic?: number; onFinish?: () => void } = {}) {
   const me = useStore((s) => s.me);
   const [name, setName] = useState('');
   const [color, setColor] = useState(me.color);
   const [avatar, setAvatar] = useState<string | undefined>();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(baslangic);
   const file = React.useRef<HTMLInputElement>(null);
-  const done = () => !nameError(name) && finishOnboarding({ name: name.trim(), color, avatar });
+  const done = () => !nameError(name) && finishOnboarding({ name: name.trim(), color, avatar }).then(() => onFinish?.());
   return (
     <div className="onboarding">
       <div className="ob-bg" aria-hidden>

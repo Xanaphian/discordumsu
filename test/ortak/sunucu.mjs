@@ -39,7 +39,7 @@ export async function startServer(env = {}) {
   let log = '';
   const open = async () => {
     proc = spawn(process.execPath, [SERVER_JS], {
-      env: { ...process.env, KOVAN_PORT: String(port), KOVAN_HOST: '127.0.0.1', KOVAN_DATA: path.join(dir, 'data'), ...env },
+      env: { ...process.env, KOVAN_PORT: String(port), KOVAN_HOST: '127.0.0.1', KOVAN_DATA: path.join(dir, 'data'), KOVAN_MISAFIR: 'kapali', ...env },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const keep = (d) => (log = (log + d).slice(-8000));

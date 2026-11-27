@@ -34,6 +34,8 @@ export interface Profile {
   status: Status;
   /** v1.50 etiket kodu (ad#kod); merkezi sunucu atar, yalnız bellekte tutulur */
   tag?: string;
+  /** v1.70 merkezi sunucuda misafir hesap (e-posta doğrulanmamış; bazı şeyler kısıtlı) */
+  misafir?: boolean;
 }
 
 export interface Settings {
@@ -1037,7 +1039,7 @@ function onFrame(host: string, f: ServerFrame) {
           lastIds: { ...s.lastIds, ...f.lastIds },
           voice: { ...voice, ...f.voice },
           // etiket yalnız merkezi sunucudan alınır (eski sunucu göndermez)
-          ...(host === homeHost() ? { me: { ...s.me, tag: f.tag } } : {}),
+          ...(host === homeHost() ? { me: { ...s.me, tag: f.tag, misafir: !!f.misafir } } : {}),
         };
       });
       siteHooks.onFrame?.(f);
