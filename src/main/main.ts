@@ -403,7 +403,7 @@ const themeBg = (theme: string) => THEME_BG[theme] || THEME_BG.destan;
 
 function overlayFor(theme: string) {
   const t = theme in THEME_BAR ? theme : 'destan';
-  return { color: THEME_BAR[t], symbolColor: THEME_SYM[t], height: 46 };
+  return { color: THEME_BAR[t], symbolColor: THEME_SYM[t], height: 44 };
 }
 
 // v1.71: pencere düğmeleri bölgesinin rengi sayfadaki üst çubuğun gerçek renginden ölçülür.
@@ -443,7 +443,7 @@ async function matchOverlay() {
   const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 140;
   const sym = THEME_SYM[overlayTheme] || (light ? '#2a2a30' : '#e4e6ee');
   if (w.isDestroyed()) return;
-  w.setTitleBarOverlay({ color: '#' + hex2(r) + hex2(g) + hex2(b), symbolColor: sym, height: 46 });
+  w.setTitleBarOverlay({ color: '#' + hex2(r) + hex2(g) + hex2(b), symbolColor: sym, height: 44 });
 }
 function scheduleOverlayMatch(ms = 400) {
   if (overlayTimer) clearTimeout(overlayTimer);
