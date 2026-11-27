@@ -65,6 +65,8 @@ interface BotRecord {
 }
 
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+/** Sabit süreli karşılaştırma: anahtar doğrulamasında yanıt süresinden ipucu sızmasın */
+const sameHash = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const clamp = (s: unknown, n: number) => (typeof s === 'string' ? s.slice(0, n) : '');
 const MAX_CONTENT = 4000;
 const lower = (s: string) => s.toLocaleLowerCase('tr');
@@ -986,7 +988,7 @@ export class BotManager {
     if (!p) return null;
     const b = this.bots.get(p.id);
     const u = this.host.user(p.id);
-    if (!b || !u || u.secretHash !== sha(p.secret) || !b.api.on) return null;
+    if (!b || !u || !sameHash(u.secretHash, sha(p.secret)) || !b.api.on) return null;
     const c = this.host.comm(b.cid);
     if (!c || !c.members.some((m) => m.userId === b.id)) return null;
     return { b, c };

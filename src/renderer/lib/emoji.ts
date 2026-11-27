@@ -55,10 +55,8 @@ export function searchEmoji(q: string, limit = 60) {
 
 /** ":smile:" kısa kodlarını gönderirken emojiye çevirir */
 export function replaceShortcodes(s: string) {
-  return s.replace(/(^|[^\w`]):([a-z0-9_+\-]{2,30}):/g, (m, pre, name) => {
-    const e = emojiByName(name);
-    return e ? pre + e : m;
-  });
+  // Ön ek yakalanmaz (geriye bakış): yan yana ":smile::smile:" ikisi de çevrilir; büyük harf de olur
+  return s.replace(/(?<![\w`]):([a-zA-Z0-9_+\-]{2,30}):/g, (m, name) => emojiByName(name) ?? m);
 }
 
 export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🔥', '🎉', '👀'];
