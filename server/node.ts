@@ -15,6 +15,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { Hub } from '../src/main/hub';
 import { fetchPublic } from './guvenli-getir';
+import { parseLinkMeta } from '../src/shared/onizleme';
 
 const env = process.env;
 const port = Number(env.KOVAN_PORT) || 47900;
@@ -96,6 +97,38 @@ hub.siteMeta = async (pageUrl: string) => {
     icon = undefined;
   }
   return title || icon ? { title: title || undefined, icon } : null;
+};
+
+// Bağlantı önizlemesi (v1.67): sayfayı ve görselini sunucu getirir; üyenin adresi karşı siteye gitmez.
+// Görsel küçültülmeden (en çok 3 MB) gönderilir, uygulama gösterirken küçültür.
+const PREVIEW_UA = 'Mozilla/5.0 (compatible; XanaphianBot/1.0; +https://xanaphian.com)';
+const dataUrl = (r: { buf: Buffer; type: string }) => `data:${r.type.split(';')[0].trim().toLowerCase()};base64,${r.buf.toString('base64')}`;
+const isImage = (type: string) => /^image\/(png|jpe?g|gif|webp|avif|bmp)\b/i.test(type.trim());
+/** Yalnız otomatik sınama için: verilirse sayfalar bu adresten alınır (?u=<adres>); gerçek sunucuda ayarlanmaz */
+const LINK_MIRROR = env.KOVAN_LINK_MIRROR || '';
+async function getPreview(url: string, accept: string, max: number, cut = false) {
+  if (!LINK_MIRROR) return fetchPublic(url, accept, max, 0, { cut, ua: PREVIEW_UA });
+  const r = await fetch(`${LINK_MIRROR}/?u=${encodeURIComponent(url)}`, { headers: { accept }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return null;
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length > max && !cut) return null;
+  return { buf: buf.subarray(0, max), type: r.headers.get('content-type') || '', url };
+}
+hub.linkMeta = async (raw: string) => {
+  const page = await getPreview(raw, 'text/html,application/xhtml+xml,image/*;q=0.8', 700_000, true).catch(() => null);
+  if (!page) return null;
+  if (isImage(page.type)) {
+    // adres doğrudan bir görsel: kesik gelmiş olabilir, bütününü al
+    const img = page.buf.length < 700_000 ? page : await getPreview(page.url, 'image/*', 3_000_000).catch(() => null);
+    return img && isImage(img.type) && img.buf.length ? { url: raw, image: dataUrl(img), direct: true } : null;
+  }
+  if (page.type && !/html|xml/i.test(page.type)) return null;
+  const { meta, imageUrl } = parseLinkMeta(page.buf.toString('utf8'), page.url, raw);
+  if (imageUrl) {
+    const img = await getPreview(imageUrl, 'image/*', 3_000_000).catch(() => null);
+    if (img && isImage(img.type) && img.buf.length) meta.image = dataUrl(img);
+  }
+  return meta.title || meta.desc || meta.image ? meta : null;
 };
 
 hub

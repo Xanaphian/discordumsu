@@ -2,6 +2,7 @@
 // main.ts'e yalnızca initEkstralar() çağrısı ve bildirim/rozet için iki denetim satırı eklenir; geri kalan her şey burada.
 import { BrowserWindow, ipcMain, nativeImage, net, shell, type WebContents } from 'electron';
 import { execFile } from 'node:child_process';
+import { parseLinkMeta, type LinkMeta } from '../shared/onizleme';
 
 interface Opts {
   preload: string;
@@ -17,25 +18,7 @@ let opts: Opts;
 
 // ---------------------------------------------------------------------------
 // Bağlantı önizlemesi: sayfanın Open Graph bilgileri (başlık, açıklama, görsel)
-export interface LinkMeta {
-  url: string;
-  site?: string;
-  title?: string;
-  desc?: string;
-  image?: string; // küçültülmüş data URL
-  imageW?: number;
-  imageH?: number;
-  color?: string;
-  icon?: string;
-  /** adres doğrudan bir görsel */
-  direct?: boolean;
-}
-
-const ENT: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', mdash: '—', ndash: '–', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”' };
-const decode = (s: string) =>
-  s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e: string) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : ENT[e.toLowerCase()] ?? m));
-const attr = (tag: string, name: string) => tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'))?.slice(1).find((x) => x !== undefined);
-const clean = (s: string | undefined, max: number) => (s ? decode(s).replace(/\s+/g, ' ').trim().slice(0, max) : undefined) || undefined;
+export type { LinkMeta } from '../shared/onizleme';
 
 /** Deneme için: KOVAN_LINK_MIRROR verilirse sayfalar oradan alınır (?u=<adres>) */
 const MIRROR = process.env.KOVAN_LINK_MIRROR || '';
@@ -111,34 +94,10 @@ async function loadMeta(raw: string): Promise<LinkMeta | null> {
     return t ? { url: raw, image: t.src, imageW: t.w, imageH: t.h, direct: true } : null;
   }
   if (!/html|xml/.test(page.type || 'text/html')) return null;
-  const html = page.buf.toString('utf8');
-  const head = html.split(/<\/head>/i)[0].slice(0, 300_000);
-  const metas = head.match(/<meta\b[^>]*>/gi) || [];
-  const get = (...keys: string[]) => {
-    for (const k of keys)
-      for (const tag of metas) {
-        const key = (attr(tag, 'property') || attr(tag, 'name') || '').toLowerCase();
-        if (key === k) {
-          const v = attr(tag, 'content');
-          if (v) return v;
-        }
-      }
-    return undefined;
-  };
-  const meta: LinkMeta = { url: raw };
-  meta.site = clean(get('og:site_name', 'application-name', 'twitter:site'), 60) || new URL(page.url).hostname.replace(/^www\./, '');
-  meta.title = clean(get('og:title', 'twitter:title') || head.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1], 160);
-  meta.desc = clean(get('og:description', 'twitter:description', 'description'), 300);
-  const color = get('theme-color');
-  if (color && /^#[0-9a-f]{3,8}$/i.test(color.trim())) meta.color = color.trim();
-  const img = get('og:image:secure_url', 'og:image', 'og:image:url', 'twitter:image', 'twitter:image:src');
-  if (img) {
-    try {
-      const t = await thumb(new URL(decode(img), page.url).toString(), 520);
-      if (t) (meta.image = t.src), (meta.imageW = t.w), (meta.imageH = t.h);
-    } catch {
-      /* geçersiz adres */
-    }
+  const { meta, imageUrl } = parseLinkMeta(page.buf.toString('utf8'), page.url, raw);
+  if (imageUrl) {
+    const t = await thumb(imageUrl, 520);
+    if (t) (meta.image = t.src), (meta.imageW = t.w), (meta.imageH = t.h);
   }
   if (!meta.title && !meta.desc && !meta.image) return null;
   return meta;

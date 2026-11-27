@@ -56,10 +56,13 @@ export async function startServer(env = {}) {
   };
   const close = () =>
     new Promise((res) => {
-      if (!proc || proc.exitCode !== null) return res();
-      proc.once('exit', res);
-      proc.kill('SIGTERM');
-      setTimeout(() => proc.exitCode === null && proc.kill('SIGKILL'), 3000);
+      // kapatılan süreç ayrı tutulur: restart() sonrası `proc` yeni süreci gösterir ve 3 sn sonraki
+      // "hâlâ açıksa zorla kapat" denetimi yanlışlıkla yeni sunucuyu öldürüyordu
+      const p = proc;
+      if (!p || p.exitCode !== null) return res();
+      const force = setTimeout(() => p.exitCode === null && p.kill('SIGKILL'), 3000);
+      p.once('exit', () => (clearTimeout(force), res()));
+      p.kill('SIGTERM');
     });
   await open();
   return {

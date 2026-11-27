@@ -210,3 +210,29 @@ button.ch-topic[aria-expanded='true'] {
 .lfg-game small {
   margin-top: auto;
 }
+
+/* ---------- v1.67: kalan küçükler ---------- */
+/* Rol rengi yazıları light-dark() ile temaya uyar (lib/util.ts readableColor).
+   Kendi rengi olan profil kartında temaya değil kartın tonuna uysun. */
+.pcard.themed.tone-dark { color-scheme: dark; }
+.pcard.themed.tone-light { color-scheme: light; }
+
+/* Üye listesinde çok uzun rol başlığı iki satıra kırılıp listeyi itiyordu: tek satır, üç nokta */
+.member-group-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ses odası baloncuğu küçükken sustur rozeti avatarın üstüne biniyordu:
+   rozet baloncukla birlikte küçülür ve avatarla kenar arasındaki boşlukta durur */
+.sd-bub-ball .sd-flag {
+  right: 14%;
+  bottom: 14%;
+  width: clamp(16px, calc(var(--s) * 0.16), 26px);
+  height: clamp(16px, calc(var(--s) * 0.16), 26px);
+}
+.sd-bub-ball .sd-flag svg {
+  width: 56%;
+  height: 56%;
+}

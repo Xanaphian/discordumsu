@@ -14,6 +14,13 @@ const api = {
   setConfig: (patch: unknown) => ipcRenderer.invoke('cfg:set', patch),
   /** Bu sunucuya gönderilecek gizli anahtar (asıl anahtar yalnız resmî sunucuya gider; diğerleri kendine özel türetilmiş anahtar alır) */
   hostSecret: (host: string) => ipcRenderer.sendSync('cfg:host-secret', host) as string,
+  /** v1.67 hesap anahtarını yenileme (ayrıntı: main.ts rekey:*) */
+  rekey: {
+    start: () => ipcRenderer.invoke('rekey:start') as Promise<boolean>,
+    target: (host: string) => ipcRenderer.sendSync('rekey:target', host) as string,
+    done: (host: string) => ipcRenderer.sendSync('rekey:done', host) as boolean,
+    assume: (host: string) => ipcRenderer.sendSync('rekey:assume', host) as boolean,
+  },
   pendingInvite: () => ipcRenderer.invoke('app:pending-invite') as Promise<string | null>,
   /** Bilgisayardaki topluluğu merkezi sunucuya taşır */
   migrate: (cid: string, server: string) => ipcRenderer.invoke('hub:migrate', cid, server) as Promise<{ ok: boolean; error?: string; files?: number; failed?: number }>,

@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Check, X, Slash, Plus, Search, Lock, Shield, Users } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { Avatar, Toggle } from './Common';
-import { cx, displayName } from '../lib/util';
+import { cx, displayName, readableColor } from '../lib/util';
 import { CHANNEL_PERMS, Perm, isVoiceLike, type Community, type Overwrite, type ChannelType } from '../../shared/protocol';
 
 export interface PermDef {
@@ -180,7 +180,7 @@ export function OverwriteEditor({ c, list, onChange, scope, canEdit }: { c: Comm
                 {addRoles.length > 0 && <div className="ow-add-title">Roller</div>}
                 {addRoles.map((r) => (
                   <button key={r.id} onClick={() => add(r.id, 'role')}>
-                    <Shield size={14} style={{ color: r.color || undefined }} /> {r.name}
+                    <Shield size={14} style={{ color: readableColor(r.color) || undefined }} /> {r.name}
                   </button>
                 ))}
                 {addMembers.length > 0 && <div className="ow-add-title">Üyeler</div>}

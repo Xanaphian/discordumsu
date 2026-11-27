@@ -77,8 +77,58 @@ export function memberRoles(c: Community, m: Member | undefined): Role[] {
 
 export function roleColor(c: Community, uid: string): string {
   const m = memberOf(c, uid);
-  for (const r of memberRoles(c, m)) if (r.color) return r.color;
+  for (const r of memberRoles(c, m)) if (r.color) return readableColor(r.color);
   return '';
+}
+
+function relLum(r: number, g: number, b: number): number {
+  const f = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+/** rengi `to`'ya (0 = siyah, 255 = beyaz) doğru, parlaklık sınırı tutana kadar karıştırır */
+function pullTo(rgb: number[], to: number, ok: (lum: number) => boolean): string {
+  let lo = 0;
+  let hi = 1;
+  let out = rgb;
+  for (let i = 0; i < 12; i++) {
+    const t = (lo + hi) / 2;
+    const mix = rgb.map((v) => Math.round(v + (to - v) * t));
+    if (ok(relLum(mix[0], mix[1], mix[2]))) {
+      hi = t;
+      out = mix;
+    } else lo = t;
+  }
+  if (out === rgb) out = rgb.map(() => to);
+  return '#' + out.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+// Yazı olarak kullanılan rol rengi: açık temalarda en çok bu kadar parlak, koyu temalarda en az bu kadar parlak olabilir
+const LIGHT_MAX_LUM = 0.19; // açık zeminde (krem/pembe) yaklaşık 4:1 karşıtlık
+const DARK_MIN_LUM = 0.13; // koyu zeminde siyaha yakın renkler (lacivert, siyah) kaybolmasın
+const readableCache = new Map<string, string>();
+/**
+ * Rol rengini yazı rengi olarak okunur hale getirir: açık temalarda sarı/açık yeşil gibi renkler koyulaşır,
+ * koyu temalarda siyaha yakın renkler açılır. Tema değişince kendiliğinden uyar (CSS light-dark()).
+ * Yalnız yazı rengi için kullan; nokta ve zemin renklerinde rolün kendi rengi kalır.
+ */
+export function readableColor(color: string | undefined): string {
+  if (!color) return '';
+  let out = readableCache.get(color);
+  if (out !== undefined) return out;
+  out = color;
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (m) {
+    const h = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1];
+    const rgb = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const lum = relLum(rgb[0], rgb[1], rgb[2]);
+    const onLight = lum > LIGHT_MAX_LUM ? pullTo(rgb, 0, (l) => l <= LIGHT_MAX_LUM) : color;
+    const onDark = lum < DARK_MIN_LUM ? pullTo(rgb, 255, (l) => l >= DARK_MIN_LUM) : color;
+    if (onLight !== color || onDark !== color) out = `light-dark(${onLight}, ${onDark})`;
+  }
+  readableCache.set(color, out);
+  return out;
 }
 
 export function displayName(c: Community | undefined, uid: string, users: Record<string, UserPublic>) {

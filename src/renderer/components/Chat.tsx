@@ -29,7 +29,7 @@ import { Avatar, Tooltip, STATUS_LABEL, BioText } from './Common';
 import { NameText } from './profile/ProfileCard';
 import { EmojiPicker, type PickerMedia } from './Overlays';
 import { renderMarkdown, isEmojiOnly, MdCtx } from '../lib/markdown';
-import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, copyText, imageSize, modKey, memberRoles, memberOf } from '../lib/util';
+import { cx, fmtTime, hm, sameDay, fmtDay, fmtFull, fmtSize, displayName, roleColor, readableColor, copyText, imageSize, modKey, memberRoles, memberOf } from '../lib/util';
 import { QUICK_REACTIONS, replaceShortcodes, searchEmoji } from '../lib/emoji';
 import { can, canIn, channelPerms, Perm, isVoiceLike, type Channel, type Community, type Message, type Attachment } from '../../shared/protocol';
 import { LinkPreviews } from './BaglantiOnizleme';
@@ -75,7 +75,7 @@ export function useMdCtx(c: Community): MdCtx {
       onChannel: (id) => c.channels.some((x) => x.id === id) && selectChannel(c.id, id),
       roleInfo: (id) => {
         const r = c.roles.find((x) => x.id === id);
-        return r ? { name: r.name, color: r.color, mine: !!memberOf(c, me)?.roles.includes(id) } : null;
+        return r ? { name: r.name, color: readableColor(r.color), mine: !!memberOf(c, me)?.roles.includes(id) } : null;
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1037,7 +1037,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
         .slice(0, 8)
         .map((x) => ({ key: x.id, label: x.name, insert: `@${x.name} `, icon: <Avatar user={x.user} size={22} /> }));
       for (const r of mentionableRoles.filter((x) => x.name.toLocaleLowerCase('tr').includes(q)).slice(0, 5))
-        items.push({ key: 'r' + r.id, label: '@' + r.name, sub: 'Rol', insert: `@${r.name} `, icon: <span className="sug-at" style={{ color: r.color || undefined }}>@</span> });
+        items.push({ key: 'r' + r.id, label: '@' + r.name, sub: 'Rol', insert: `@${r.name} `, icon: <span className="sug-at" style={{ color: readableColor(r.color) || undefined }}>@</span> });
       if (('everyone'.startsWith(q) || 'herkes'.startsWith(q)) && cp & Perm.MENTION_EVERYONE) items.push({ key: 'everyone', label: '@everyone', sub: 'Herkese bildirim', insert: '@everyone ', icon: <span className="sug-at">@</span> });
       setSug(items.length ? { kind: 'user', start: caret - m[2].length - 1, items } : null);
       setSel(0);

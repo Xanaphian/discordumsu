@@ -18,7 +18,8 @@ import { cardSummary } from './cards';
 import { toolSummary } from './tools';
 import type { Blueprint } from '../../shared/topluluk';
 import { FEAT_DM_QUIET } from '../../shared/ekler';
-import { OFFICIAL_SERVER } from '../../shared/guvenlik';
+import { OFFICIAL_SERVER, FEAT_REKEY } from '../../shared/guvenlik';
+import { FEAT_LINKMETA } from '../../shared/onizleme';
 import { FEAT_INVITES, inviteCodeOfLink, inviteLink, type Invite, type InviteInfo } from '../../shared/davetBaglanti';
 
 export interface Profile {
@@ -523,7 +524,7 @@ function ensureConn(host: string, local = false): HostConn {
       const r = S().ringing;
       if (r && S().commHost[r.cid] === h) stopRing();
     }
-  });
+  }, (h) => window.kovan.rekey.assume(h));
   conns.set(host, c);
   set((s) => ({ conns: { ...s.conns, [host]: { host, status: 'connecting', local, home } } }));
   return c;
@@ -1039,6 +1040,8 @@ function onFrame(host: string, f: ServerFrame) {
       });
       siteHooks.onFrame?.(f);
       actHooks.onReady?.(host, f);
+      // hesap anahtarı yenilendiyse bu sunucu da yeni anahtara taşınır
+      void rekeyHost(host);
       // özel mesaj gizliliği her bağlantıda bildirilir (eski sunucular yok sayar)
       conns.get(host)?.send({ t: 'privacy', dms: S().settings.dmPrivacy, blocked: S().settings.blocked });
       // bu sunucudan gelen eski toplulukları temizle
@@ -1850,6 +1853,55 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
         ? "Davetin sahibine ulaşılamadı. Aynı ağda (ya da aynı Radmin/Hamachi ağında) olduğunuzdan, internetten bağlanıyorsan onun modeminde portun yönlendirildiğinden ve Xanaphian'ının açık olduğundan emin ol."
         : 'Bu kod bağlı olduğun sunucularda bulunamadı. Kodu adresiyle birlikte (ör. 2ld8x1k/s3gas25) yapıştır.',
   );
+}
+
+/**
+ * Anahtar yenilendikten sonra: bu sunucu hâlâ eski anahtarı biliyorsa yeni anahtarı bildirir.
+ * Her bağlantı kuruluşunda çağrılır; yapılacak iş yoksa hiçbir şey göndermez.
+ */
+const rekeying = new Set<string>();
+async function rekeyHost(host: string): Promise<boolean> {
+  if (rekeying.has(host) || !S().conns[host]?.feats?.includes(FEAT_REKEY)) return false;
+  const conn = conns.get(host);
+  if (!conn || conn.status !== 'online') return false;
+  const secret = window.kovan.rekey.target(host);
+  if (!secret) return false;
+  rekeying.add(host);
+  try {
+    await conn.request({ t: 'rekey', secret, rid: '' }, 15000);
+    window.kovan.rekey.done(host);
+    return true;
+  } catch {
+    return false; // sonraki bağlantıda yeniden denenir
+  } finally {
+    rekeying.delete(host);
+  }
+}
+
+/** Merkezi sunucu anahtar yenilemeyi destekliyor ve şu an bağlı mı */
+export function rekeySupported(): boolean {
+  const s = S();
+  const c = s.conns[homeHost()];
+  return c?.status === 'online' && !!c.feats?.includes(FEAT_REKEY);
+}
+
+/** Ayarlar > Gizlilik ve Güvenlik > "Anahtarı yenile": yeni anahtar üretir ve bağlı sunuculara bildirir */
+export async function rekeyAccount(): Promise<boolean> {
+  if (!rekeySupported()) return false;
+  await window.kovan.rekey.start();
+  const done = await Promise.all([...conns.keys()].map((h) => rekeyHost(h)));
+  return done.some(Boolean) && !window.kovan.rekey.target(homeHost());
+}
+
+/**
+ * Bağlantı önizlemesini getirebilen sunucu bağlantısı (v1.67). Varsa önizleme hep oradan istenir:
+ * mesajdaki bağlantının sitesi kullanıcının adresini görmez. Yoksa (eski sunucu) undefined döner.
+ */
+export function previewConn(): HostConn | undefined {
+  const s = S();
+  const home = homeHost();
+  for (const h of [home, ...conns.keys()]) if (s.conns[h]?.feats?.includes(FEAT_LINKMETA) && conns.has(h)) return conns.get(h);
+  return undefined;
 }
 
 /** Merkezi sunucu süreli / sınırlı davetleri ve davet önizlemesini destekliyor mu (eski sunucuda false) */

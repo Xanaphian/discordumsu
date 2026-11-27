@@ -8,6 +8,7 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,10 +47,27 @@ async function until(fn, msg, ms = 15000) {
   }
 }
 
+// ---------- sahte internet (bağlantı önizlemesi için) ----------
+// Sunucu önizleme sayfalarını buradan alır (KOVAN_LINK_MIRROR); sınama gerçek internete bağlı kalmaz.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+const mirrorAsked = [];
+let mirrorUrl = '';
+function startMirror() {
+  const srv = http.createServer((req, res) => {
+    const u = new URL(req.url, 'http://x').searchParams.get('u') || '';
+    mirrorAsked.push(u);
+    res.setHeader('connection', 'close');
+    if (u.endsWith('.png')) return res.writeHead(200, { 'content-type': 'image/png' }).end(PNG);
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end('<head><meta property="og:title" content="Duman önizleme başlığı"><meta property="og:description" content="Sunucudan gelen açıklama"><meta property="og:image" content="/kapak.png"></head>');
+  });
+  srv.unref();
+  return new Promise((r) => srv.listen(0, '127.0.0.1', () => r((mirrorUrl = `http://127.0.0.1:${srv.address().port}`))));
+}
+
 // ---------- sunucu ----------
 function startServer() {
   const p = spawn(process.execPath, [path.join(ROOT, 'server/paket/kovan-server.js')], {
-    env: { ...process.env, KOVAN_PORT: String(PORT), KOVAN_DATA: path.join(TMP, 'data'), KOVAN_ADMINS: OWNER.id, KOVAN_UPLOAD_PER_10MIN: '3' },
+    env: { ...process.env, KOVAN_PORT: String(PORT), KOVAN_DATA: path.join(TMP, 'data'), KOVAN_ADMINS: OWNER.id, KOVAN_UPLOAD_PER_10MIN: '3', KOVAN_LINK_MIRROR: mirrorUrl },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   p.stdout.on('data', () => {});
@@ -323,6 +341,16 @@ async function appChecks({ comm, text, voice, bots }) {
   await healthy('mesaj düzenleme ve silme');
   step('uygulama: mesaj düzenleme ve silme');
 
+  // bağlantı önizlemesi: sayfayı uygulama değil sunucu getirir (bağlantının sitesi kullanıcının adresini görmesin)
+  const link = 'https://ornek.example/duman-yazi';
+  bots[1].send(JSON.stringify({ t: 'send', ch: text[0].id, nonce: 'onizle', content: 'duman: şuna bak ' + link }));
+  const card = (q) => page.ev(`(() => { const m = [...document.querySelectorAll('.msg')].find((x) => x.textContent.includes('duman: şuna bak')); return !!m && ${q}; })()`);
+  await until(() => card(`(m.querySelector('.lp-card .lp-title')?.textContent || '').includes('Duman önizleme başlığı')`), 'bağlantı önizlemesi kartı görünmedi', 30000);
+  await until(() => card(`[...m.querySelectorAll('.lp-card img')].some((e) => e.src.startsWith('data:image/') && e.naturalWidth > 0)`), 'önizleme görseli yüklenmedi');
+  must(mirrorAsked.includes(link), 'önizleme sunucu üzerinden istenmedi');
+  await healthy('bağlantı önizlemesi');
+  step('uygulama: bağlantı önizlemesi sunucudan');
+
   // ses odası: başkaları odadayken gir, çık
   for (const b of bots.slice(0, 2)) b.send(JSON.stringify({ t: 'vc.join', ch: voice[0].id, muted: false, deaf: false }));
   await sleep(300);
@@ -414,9 +442,33 @@ async function appChecks({ comm, text, voice, bots }) {
   must(!(await count('.modal.confirm')), 'Esc onay kutusunu kapatmadı');
   must(await count('.settings'), 'Esc onay kutusuyla birlikte ayarları da kapattı');
   await healthy('ayarlarda onay kutusu');
+  step('uygulama: ayarlarda onay kutusu');
+
+  // hesap anahtarını yenileme: eski anahtar geçersiz olmalı, uygulama yeni anahtarla bağlı kalmalı
+  must(await click('.sn-item', 'Gizlilik ve Güvenlik'), 'Gizlilik ve Güvenlik sekmesi yok');
+  await sleep(300);
+  await until(() => click('button', 'Anahtarı yenile'), 'Anahtarı yenile düğmesi yok ya da kapalı');
+  await until(() => count('.modal.confirm'), 'anahtar yenileme onayı açılmadı');
+  must(await click('.modal.confirm button', 'Yenile'), 'onay düğmesi yok');
+  await until(() => page.ev(`[...document.querySelectorAll('.toast')].some((e) => e.textContent.includes('Hesap anahtarın yenilendi'))`), 'anahtar yenilenmedi');
+  const oldKey = await new Promise((res) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
+    ws.on('open', () => ws.send(JSON.stringify({ t: 'hello', user: OWNER, secret: SECRET, status: 'online', v: 1 })));
+    ws.on('message', (d) => JSON.parse(d).t === 'ready' && (res('girdi'), ws.close()));
+    ws.on('close', (code) => res(code));
+    ws.on('error', () => res('hata'));
+  });
+  must(oldKey === 4001, 'eski anahtar hâlâ geçerli (' + oldKey + ')');
   await esc();
   await until(async () => !(await count('.settings')), 'ayarlar Esc ile kapanmadı');
-  step('uygulama: ayarlarda onay kutusu');
+  // uygulama yeniden yüklenince yeni anahtarla girebilmeli
+  page.errors.length = 0;
+  await page.send('Page.reload');
+  await until(() => page.ev(`!!document.querySelector('.app .pt-btn')`).catch(() => false), 'yeniden yüklenince uygulama çizilmedi', 30000);
+  await until(() => click('.pt-btn', comm.name), 'anahtar yenilendikten sonra topluluk gelmedi (yeni anahtarla girilemedi)', 20000);
+  await until(() => count('.ch-row'), 'anahtar yenilendikten sonra kanal listesi gelmedi');
+  await healthy('anahtar yenileme');
+  step('uygulama: hesap anahtarını yenileme');
 
   await monkey();
 }
@@ -426,7 +478,7 @@ async function monkey() {
   let seed = Number(process.env.DUMAN_SEED) || 7;
   const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
   // geri alınamayan ya da pencereyi kapatan işlemlere dokunma
-  const BAD = 'sil|ayrıl|çık|yasakla|\\\\bat\\\\b|kaldır|sıfırla|devret|engelle|uzaklaştır|kapat|taşı|temizle|çıkar|güncelle|denetle|yeniden başlat|yeniden yükle|ayrı pencere|pencerede aç|3d|bağlantı|indir|tarayıcı|kes';
+  const BAD = 'sil|ayrıl|çık|yasakla|\\\\bat\\\\b|kaldır|sıfırla|devret|engelle|uzaklaştır|kapat|taşı|temizle|çıkar|güncelle|yenile|denetle|yeniden başlat|yeniden yükle|ayrı pencere|pencerede aç|3d|bağlantı|indir|tarayıcı|kes';
   const hist = [];
   for (let i = 0; i < STEPS; i++) {
     const r = rnd();
@@ -503,6 +555,7 @@ const guard = setTimeout(() => {
 try {
   must(fs.existsSync(path.join(ROOT, 'dist/renderer/index.html')), 'Önce derle: npm run build');
   must(fs.existsSync(path.join(ROOT, 'server/paket/kovan-server.js')), 'Önce sunucuyu derle: npm run build:server');
+  await startMirror();
   await startServer();
   const ctx = await serverChecks();
   page = await startApp(ctx.comm.id);

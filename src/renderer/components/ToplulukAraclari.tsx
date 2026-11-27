@@ -7,7 +7,7 @@ import { useStore, cmd, toast, homeRequest, selectCommunity, createCommunity, op
 import { Avatar, CommunityIcon, Toggle } from './Common';
 import { Row } from './Settings';
 import { Banner } from './profile/ProfileCard';
-import { cx } from '../lib/util';
+import { cx, readableColor } from '../lib/util';
 import { Perm, type Community } from '../../shared/protocol';
 import {
   DEFAULT_GUARD, EXPLORE_CATS, catLabel, fmtHours, templateCode, blueprintFromDiscord,
@@ -421,7 +421,7 @@ export function TemplateImport({ onBack, onDone }: { onBack: () => void; onDone:
               {[...bp!.roles].reverse().map((r, i) => (
                 <div key={i} className="tp-role">
                   <i style={{ background: r.color || 'var(--text-3, #8a93a6)' }} />
-                  <span style={{ color: r.color || undefined }}>{r.name}</span>
+                  <span style={{ color: readableColor(r.color) || undefined }}>{r.name}</span>
                 </div>
               ))}
               <div className="tp-role muted">
