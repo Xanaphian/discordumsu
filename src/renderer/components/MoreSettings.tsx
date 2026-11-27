@@ -1,6 +1,7 @@
 // Kullanıcı ayarları: sohbet, gizlilik, bildirim istisnaları ve gelişmiş sekmeleri
 import React from 'react';
 import { BellOff, Bell } from 'lucide-react';
+import { GirisBilgileri } from './Giris';
 import { useStore, updateSettings, setNotifyOverride, toggleMuted, confirmDialog, toast, DEFAULT_SETTINGS, openModal, rekeyAccount, rekeySupported } from '../lib/store';
 import { Avatar, Toggle } from './Common';
 import { Row } from './Settings';
@@ -106,6 +107,7 @@ export function PrivacyTab() {
         <Toggle value={s.confirmLinks} onChange={(v) => updateSettings({ confirmLinks: v })} />
       </Row>
       <DmPrivacySection />
+      <GirisBilgileri />
       <RekeySection />
       <h3>Engellenen kullanıcılar ({s.blocked.length})</h3>
       <p className="note">Engellediğin kişilerin mesajları gizlenir ("Göster" ile açabilirsin) ve senden bildirim almazsın. Engellemek için üye listesinde birine sağ tıkla.</p>

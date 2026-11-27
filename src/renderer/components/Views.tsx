@@ -18,44 +18,7 @@ export function HomeView() {
   return tab === 'home' ? <HomeStart /> : tab === 'communities' ? <CommunitiesView /> : tab === 'news' ? <SonEklenenler /> : <FriendsView />;
 }
 
-/** v1.68 telefonda: kullanıcı adı / e-posta ve şifreyle giriş */
-function LoginStep({ back }: { back: () => void }) {
-  const [login, setLogin] = useState('');
-  const [pass, setPass] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const go = async () => {
-    setBusy(true);
-    setErr('');
-    const r = await window.kovan.mobile!.login(login, pass);
-    setBusy(false);
-    if (r.ok) location.reload();
-    else setErr(r.error || 'Olmadı, yeniden dene.');
-  };
-  return (
-    <>
-      <h1>Giriş yap</h1>
-      <p>Hesabının e-postası (ya da kullanıcı adı) ve şifresiyle gir.</p>
-      <label className="field">
-        <span>E-posta ya da kullanıcı adı</span>
-        <input autoFocus autoCapitalize="none" autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} />
-      </label>
-      <label className="field">
-        <span>Şifre</span>
-        <input type="password" autoComplete="current-password" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !busy && go()} />
-        {err && <small className="ob-pair-err">{err}</small>}
-      </label>
-      <button className="btn primary lg" disabled={busy || !login.trim() || !pass} onClick={go}>
-        {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
-      </button>
-      <button className="btn ghost lg" onClick={back}>
-        Geri
-      </button>
-    </>
-  );
-}
-
-export function Onboarding() {
+export function Onboarding({ onBack }: { onBack?: () => void } = {}) {
   const me = useStore((s) => s.me);
   const [name, setName] = useState('');
   const [color, setColor] = useState(me.color);
@@ -85,16 +48,12 @@ export function Onboarding() {
             <button className="btn primary lg" onClick={() => setStep(1)}>
               Başlayalım <ArrowRight size={18} />
             </button>
-            {window.kovan.mobile && (
-              <>
-                <button className="btn ghost lg ob-pair-btn" onClick={() => setStep(3)}>
-                  Hesabıma giriş yap
-                </button>
-              </>
+            {onBack && (
+              <button className="gr-link ob-geri" onClick={onBack}>
+                Zaten hesabım var, giriş yap
+              </button>
             )}
           </>
-        ) : step === 3 ? (
-          <LoginStep back={() => setStep(0)} />
         ) : (
           <>
             <h1>Seni nasıl çağıralım?</h1>

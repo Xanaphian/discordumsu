@@ -1,7 +1,7 @@
 {
   "name": "kovan",
   "productName": "Kovan",
-  "version": "1.68.0",
+  "version": "1.69.0",
   "description": "Kovan - topluluklar, kanallar ve gerçek zamanlı sohbet",
   "author": "Xanaphian",
   "license": "UNLICENSED",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
+    "qrcode-generator": "^2.0.4",
     "uiohook-napi": "^1.5.5",
     "ws": "^8.23.0"
   },

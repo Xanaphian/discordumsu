@@ -453,6 +453,14 @@ export type ClientFrame =
   | { t: 'privacy'; dms: DmPrivacy; blocked?: ID[] }
   /** v1.67 hesabın gizli anahtarını değiştirir; bu bağlantı açık kalır, hesabın diğer oturumları kapatılır */
   | { t: 'rekey'; secret: string; rid: string }
+  /** v1.68 hesap girişi (shared/giris.ts): durum (ok.data = HesapGirisi), e-posta/kullanıcı adı/şifre belirleme, diğer cihazlardan çıkma */
+  | { t: 'auth.me'; rid: string }
+  | { t: 'auth.set'; email?: string; username?: string; password?: string; current?: string; rid: string }
+  | { t: 'auth.out'; rid: string }
+  /** v1.68 QR ile giriş: telefon bilgisayardaki kodu okutur (ok.data = { device, at }), sonra onaylar ya da vazgeçer */
+  | { t: 'qr.scan'; k: string; rid: string }
+  | { t: 'qr.ok'; k: string; rid: string }
+  | { t: 'qr.no'; k: string; rid: string }
   /** v1.48 Ana Sayfa paylaşımları; cevaplar ok.data ile döner */
   | { t: 'post.feed'; scope: FeedScope; before?: ID; uid?: ID; rid: string }
   | { t: 'post.thread'; id: ID; rid: string }

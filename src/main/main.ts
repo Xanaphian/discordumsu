@@ -169,6 +169,8 @@ interface Config {
   keyTry?: Record<string, number>;
   /** Bu düzenden önce bağlanılmış sunucular: eski üyelikler bozulmasın diye asıl anahtarı almaya devam eder */
   trustedHosts?: string[];
+  /** v1.68 çıkış yapılan ya da başka hesaba girilince yerine geçilen hesaplar (en çok 5; kaybolmasın diye saklanır) */
+  oldAccounts?: { profile: Config['profile']; oldSecrets?: string[]; keyGen?: Record<string, number>; trustedHosts?: string[]; hosts?: Config['hosts']; at: number }[];
 }
 
 const cfgFile = path.join(app.getPath('userData'), 'kovan-config.json');
@@ -241,7 +243,7 @@ function keyFor(h: string, gen: number): string {
 
 /** Arayüze verilen yapılandırma: asıl gizli anahtar ana süreçten çıkmaz */
 function publicConfig(): Config {
-  return { ...config, profile: { ...config.profile, secret: '' }, oldSecrets: undefined, keyGen: undefined, keyTry: undefined };
+  return { ...config, profile: { ...config.profile, secret: '' }, oldSecrets: undefined, keyGen: undefined, keyTry: undefined, oldAccounts: undefined };
 }
 
 let scopeMigrated = false;
@@ -770,6 +772,108 @@ function registerIpc() {
   ipcMain.on('cfg:host-secret', (e, host: unknown) => {
     e.returnValue = hostSecret(host);
   });
+  // ---- v1.68 giriş ekranı: e-posta / kullanıcı adı + şifre, QR ile giriş, şifre sıfırlama ----
+  // Sunucu girişte bu cihaza özel bir anahtar verir; o anahtar ve hesabın profili yapılandırmaya yazılır, arayüz yeniden yüklenir.
+  // Önceki hesap silinmez: `oldAccounts` içinde saklanır (yanlışlıkla çıkış yapan biri kaybetmesin).
+  const girisAdresi = (server: unknown) => {
+    const u = typeof server === 'string' ? server.trim().replace(/\/+$/, '').slice(0, 300) : '';
+    if (!/^https?:\/\/[^\s/]+/i.test(u)) throw new Error('Sunucu adresi geçersiz.');
+    return u;
+  };
+  const girisIstek = async (server: unknown, p: string, body: Record<string, unknown>) => {
+    const base = girisAdresi(server);
+    let r: Response;
+    try {
+      r = await fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
+    } catch {
+      return { code: 0, body: { msg: 'Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.' } as Record<string, any> };
+    }
+    const j = ((await r.json().catch(() => ({}))) || {}) as Record<string, any>;
+    if (r.status === 404 && !j.msg && !j.state) j.msg = 'Sunucu bu giriş yöntemini henüz desteklemiyor.';
+    return { code: r.status, body: j };
+  };
+  const cihazAdi = () => (process.platform === 'win32' ? 'Windows bilgisayar' : process.platform === 'darwin' ? 'Mac bilgisayar' : 'Bilgisayar');
+  const girisUygula = (j: Record<string, any>): boolean => {
+    const id = typeof j.id === 'string' ? j.id.slice(0, 40) : '';
+    const secret = typeof j.secret === 'string' ? j.secret : '';
+    if (!id || !/^[0-9a-f]{64}$/.test(secret)) return false;
+    const u = (j.user || {}) as Record<string, any>;
+    if (config.profile.name && config.profile.id !== id) {
+      const eski = { profile: config.profile, oldSecrets: config.oldSecrets, keyGen: config.keyGen, trustedHosts: config.trustedHosts, hosts: config.hosts, at: Date.now() };
+      config.oldAccounts = [...(config.oldAccounts || []).filter((x) => x.profile?.id !== config.profile.id), eski].slice(-5);
+    }
+    config.profile = {
+      id,
+      secret,
+      name: typeof u.name === 'string' ? u.name.slice(0, 32) : '',
+      color: typeof u.color === 'string' && /^#[0-9a-f]{6}$/i.test(u.color) ? u.color : config.profile.color,
+      avatar: typeof u.avatar === 'string' ? u.avatar : undefined,
+      bio: typeof u.bio === 'string' ? u.bio : undefined,
+      ...(u.profile && typeof u.profile === 'object' ? { extra: u.profile } : {}),
+      status: 'online',
+    } as Config['profile'];
+    config.oldSecrets = undefined;
+    config.keyGen = undefined;
+    config.keyTry = undefined;
+    config.trustedHosts = [];
+    // başka bir hesaba geçildiyse önceki hesabın bağlandığı sunucu listesi taşınmaz
+    if (config.oldAccounts?.some((x) => x.profile?.id && x.profile.id !== id)) config.hosts = [];
+    config.onboarded = !!config.profile.name;
+    saveConfig(true);
+    return true;
+  };
+  ipcMain.handle('giris:login', async (_e, server: unknown, login: unknown, password: unknown) => {
+    const r = await girisIstek(server, '/auth/login', { login: String(login || '').slice(0, 300), password: String(password || '').slice(0, 200), device: cihazAdi() });
+    if (r.code === 200 && girisUygula(r.body)) return { ok: true };
+    return { ok: false, error: String(r.body.msg || `Giriş yapılamadı (${r.code}).`) };
+  });
+  // QR: soru anahtarı (p) ana süreçte kalır; arayüz yalnız QR'da gösterilecek kodu görür
+  const qrSorular = new Map<string, { server: string; p: string }>();
+  ipcMain.handle('giris:qr-new', async (_e, server: unknown) => {
+    const r = await girisIstek(server, '/auth/qr', { device: cihazAdi() });
+    if (r.code !== 200 || typeof r.body.k !== 'string' || typeof r.body.p !== 'string') return { ok: false, error: String(r.body.msg || 'QR kodu alınamadı.') };
+    qrSorular.clear();
+    qrSorular.set(r.body.k, { server: girisAdresi(server), p: r.body.p });
+    return { ok: true, k: r.body.k as string, ms: Number(r.body.ms) || 120_000 };
+  });
+  ipcMain.handle('giris:qr-poll', async (_e, k: unknown) => {
+    const q = typeof k === 'string' ? qrSorular.get(k) : undefined;
+    if (!q) return { state: 'yok' };
+    const r = await girisIstek(q.server, '/auth/qr/durum', { k, p: q.p });
+    if (r.code === 200 && r.body.id) {
+      qrSorular.delete(k as string);
+      return girisUygula(r.body) ? { state: 'ok' } : { state: 'yok' };
+    }
+    if (r.code === 0) return { state: 'bekliyor' }; // anlık kopukluk: bir sonraki yoklamada yeniden denenir
+    const u = r.body.user as Record<string, any> | undefined;
+    return { state: String(r.body.state || 'yok'), user: u ? { name: String(u.name || ''), color: String(u.color || ''), avatar: typeof u.avatar === 'string' ? u.avatar : undefined } : undefined };
+  });
+  ipcMain.handle('giris:forgot', async (_e, server: unknown, email: unknown) => {
+    const r = await girisIstek(server, '/auth/unuttum', { email: String(email || '').slice(0, 300) });
+    return r.code === 200 ? { ok: true } : { ok: false, error: String(r.body.msg || `İstek gönderilemedi (${r.code}).`) };
+  });
+  ipcMain.handle('giris:reset', async (_e, server: unknown, email: unknown, code: unknown, password: unknown) => {
+    const r = await girisIstek(server, '/auth/sifirla', { email: String(email || '').slice(0, 300), code: String(code || '').slice(0, 12), password: String(password || '').slice(0, 200), device: cihazAdi() });
+    if (r.code === 200 && girisUygula(r.body)) return { ok: true };
+    return { ok: false, error: String(r.body.msg || `Şifre sıfırlanamadı (${r.code}).`) };
+  });
+  // Çıkış: bu bilgisayardaki hesap saklanır, yerine boş (yeni) bir hesap açılır ve giriş ekranı görünür
+  ipcMain.handle('giris:logout', () => {
+    if (config.profile.name) {
+      const eski = { profile: config.profile, oldSecrets: config.oldSecrets, keyGen: config.keyGen, trustedHosts: config.trustedHosts, hosts: config.hosts, at: Date.now() };
+      config.oldAccounts = [...(config.oldAccounts || []).filter((x) => x.profile?.id !== config.profile.id), eski].slice(-5);
+    }
+    config.profile = { id: makeId(), secret: crypto.randomBytes(32).toString('hex'), name: '', color: config.profile.color, status: 'online' };
+    config.oldSecrets = undefined;
+    config.keyGen = undefined;
+    config.keyTry = undefined;
+    config.trustedHosts = [];
+    config.hosts = [];
+    config.onboarded = false;
+    saveConfig(true);
+    return true;
+  });
+
   // ---- hesap anahtarını yenileme (v1.67) ----
   // Yeni asıl anahtar üretilir; her sunucu, eski anahtarla bağlandıktan hemen sonra `rekey` ile yeni anahtara taşınır.
   ipcMain.handle('rekey:start', () => {
@@ -837,6 +941,7 @@ function registerIpc() {
       oldSecrets: config.oldSecrets,
       keyGen: config.keyGen,
       keyTry: config.keyTry,
+      oldAccounts: config.oldAccounts,
     };
     if (patch.profile?.name) hub.ownerName = config.profile.name;
     saveConfig();

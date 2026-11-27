@@ -20,6 +20,7 @@ import { toolSummary } from './tools';
 import type { Blueprint } from '../../shared/topluluk';
 import { FEAT_DM_QUIET } from '../../shared/ekler';
 import { OFFICIAL_SERVER, FEAT_REKEY } from '../../shared/guvenlik';
+import { FEAT_GIRIS } from '../../shared/giris';
 import { FEAT_LINKMETA } from '../../shared/onizleme';
 import { FEAT_INVITES, inviteCodeOfLink, inviteLink, type Invite, type InviteInfo } from '../../shared/davetBaglanti';
 
@@ -1880,6 +1881,20 @@ async function rekeyHost(host: string): Promise<boolean> {
   } finally {
     rekeying.delete(host);
   }
+}
+
+/** v1.68 merkezi sunucuya istek (giriş bilgileri, QR onayı). Sunucu 'err' dönerse hata metniyle reddedilir. */
+export async function homeData<T = unknown>(f: Record<string, unknown>, timeout = 15000): Promise<T> {
+  const conn = conns.get(homeHost());
+  if (!conn || conn.status !== 'online') throw new Error('Sunucuya bağlı değilsin.');
+  const r = await conn.request<{ data?: T }>({ ...f, rid: '' } as unknown as ClientFrame, timeout);
+  return r.data as T;
+}
+
+/** Merkezi sunucu şifreyle / QR ile girişi destekliyor mu (bağlıyken) */
+export function girisSupported(): boolean {
+  const c = S().conns[homeHost()];
+  return c?.status === 'online' && !!c.feats?.includes(FEAT_GIRIS);
 }
 
 /** Merkezi sunucu anahtar yenilemeyi destekliyor ve şu an bağlı mı */

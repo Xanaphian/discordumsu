@@ -21,6 +21,8 @@ import { PostStore } from './paylasim';
 import { FEAT_POSTS } from '../shared/paylasim';
 import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, TAG_CHANGES_PER_DAY, formatCode, tagKey, parseTag, customCodeError, nameError } from '../shared/etiket';
 import { Ekler, type EkOptions } from './ekler';
+import { Giris, type GirisOptions } from './giris';
+import { FEAT_GIRIS } from '../shared/giris';
 import { RUBIK } from './rubikYazi';
 import { cleanAge, cleanMax, iconBytes, inviteAlive, invitePage, invitePageHeaders } from './davetSayfasi';
 import { FEAT_LINKMETA, type LinkMeta } from '../shared/onizleme';
@@ -219,6 +221,8 @@ export interface HubOptions {
   ek?: EkOptions;
   /** Sunucu kipinde taşıma paketinin en büyük boyutu, MB (varsayılan 64) */
   importMaxMb?: number;
+  /** v1.68 şifreyle / QR ile giriş (yalnız sunucu kipinde) */
+  giris?: GirisOptions;
 }
 
 interface Session {
@@ -240,6 +244,8 @@ interface Session {
   /** bağlantının gerçek adresi (önünde nginx varken X-Forwarded-For'dan) */
   ip: string;
   lastSend: Record<ID, number>;
+  /** v1.68 şifreyle ya da QR ile giriş yapmış bir cihazın anahtarıyla bağlandıysa o anahtarın özeti */
+  dev?: string;
 }
 
 export const BOT_ID = 'kovan-asistan';
@@ -303,6 +309,9 @@ export class Hub {
   /** v1.50 ekler: hata bildirimleri, yükleme kotası, TURN (load() içinde kurulur) */
   private ek!: Ekler;
   private ekOpts: EkOptions;
+  /** v1.68 şifreyle / QR ile giriş (yalnız sunucu kipinde, load() içinde kurulur) */
+  private giris: Giris | null = null;
+  private girisOpts: GirisOptions;
   /** bağlantı hız sınırı: adres -> son bir dakikadaki bağlantı anları */
   private connRate = new Map<string, number[]>();
 
@@ -322,6 +331,7 @@ export class Hub {
     this.maxOwned = opts.maxOwned ?? 20;
     this.importMax = Math.max(1, opts.importMaxMb ?? 64) * 1024 * 1024;
     this.ekOpts = opts.ek || {};
+    this.girisOpts = opts.giris || {};
     if (this.serverMode) this.ownerName = 'Kovan';
     this.bots = new BotManager(this.botHost());
   }
@@ -362,6 +372,18 @@ export class Hub {
     }
     this.ensureBot();
     this.ek = new Ekler(this.dir, this.ekOpts);
+    if (this.serverMode)
+      this.giris = new Giris(
+        this.dir,
+        {
+          gercek: (uid) => own(this.data.users, uid) && !this.data.users[uid].pub.bot && uid !== BOT_ID && !this.bots.isBot(uid),
+          pub: (uid) => (own(this.data.users, uid) ? this.data.users[uid].pub : undefined),
+          cihazKapat: (uid, h) => {
+            for (const x of [...(this.userSessions.get(uid) || [])]) if (x.dev === h) x.ws.close(4001, 'auth');
+          },
+        },
+        this.girisOpts,
+      );
     this.posts = new PostStore({
       dir: this.dir,
       user: (id) => this.data.users[id]?.pub,
@@ -806,6 +828,7 @@ export class Hub {
     }
     if (this.bots.handleHttp(req, res, url)) return;
     if (this.handleInviteHttp(req, res, url)) return;
+    if (this.giris && this.giris.handleHttp(req, res, url, this.clientIp(req))) return;
     if (req.method === 'GET' && url.pathname === '/info') {
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ app: 'kovan', hubId: this.data.hubId, v: PROTOCOL_VERSION }));
       return;
@@ -1421,7 +1444,7 @@ export class Hub {
       friends: this.friendsFor(uid),
       acts,
       v: PROTOCOL_VERSION,
-      feats: [FEAT_POSTS, FEAT_TAGS, FEAT_INVITES, FEAT_REKEY, ...(this.linkMeta ? [FEAT_LINKMETA] : []), ...this.ek.feats(uid)],
+      feats: [FEAT_POSTS, FEAT_TAGS, FEAT_INVITES, FEAT_REKEY, ...(this.giris ? [FEAT_GIRIS] : []), ...(this.linkMeta ? [FEAT_LINKMETA] : []), ...this.ek.feats(uid)],
       tag: this.data.users[uid]?.pub.tag,
     });
   }
@@ -1893,6 +1916,7 @@ export class Hub {
     if (this.handleFriend(s, uid, f) || this.handleDm(s, uid, f)) return;
     if (this.posts.handle(uid, f, (x) => this.send(s, x))) return;
     if (this.ek.handle(uid, f, (x) => this.send(s, x))) return;
+    if (this.giris && this.giris.handle(uid, s.dev || '', f, (x) => this.send(s, x))) return;
     if (this.handleInvite(s, uid, f)) return;
 
     switch (f.t) {
@@ -2075,6 +2099,9 @@ export class Hub {
           () => {
             // 4003: "yeniden bağlan". Yeni anahtarı bilen pencere (aynı bilgisayardaki ayrı pencere) geri gelir, bilmeyen cihaz kimlik hatası alır.
             for (const x of [...(this.userSessions.get(uid) || [])]) if (x !== s) x.ws.close(4003, 'rekey');
+            // şifreyle / QR ile giriş yapmış cihazlar da çıkar; bu bağlantı artık asıl anahtarla bağlı sayılır
+            s.dev = undefined;
+            this.giris?.hepsiniKapat(uid);
             this.send(s, { t: 'ok', rid: f.rid });
           },
           () => {
@@ -3099,10 +3126,13 @@ export class Hub {
     const existing = own(this.data.users, id) ? this.data.users[id] : undefined;
     // yeni hesap: kimlik yalnız harf, rakam ve tireden oluşabilir (dosya adı, özel mesaj kanalı adı ve nesne anahtarı olarak kullanılır)
     if (!existing && !USER_ID.test(id)) return this.send(s, { t: 'err', msg: 'Geçersiz kimlik.' });
-    if (existing && existing.secretHash && !safeEq(existing.secretHash, sha(secret))) {
+    // v1.68: şifreyle ya da QR ile giriş yapmış cihaz kendi anahtarıyla gelir; hesabın asıl anahtarı değişmez
+    const dev = existing && existing.secretHash && !safeEq(existing.secretHash, sha(secret)) ? this.giris?.cihaz(id, secret) || '' : '';
+    if (existing && existing.secretHash && !dev && !safeEq(existing.secretHash, sha(secret))) {
       this.send(s, { t: 'err', msg: 'Kimlik doğrulanamadı.' });
       return void s.ws.close(4001, 'auth');
     }
+    if (dev) s.dev = dev;
     if (!existing && this.serverMode && s.ip) {
       // aynı adresten saatte en çok 30 yeni hesap (sunucu sahte hesaplarla doldurulamasın)
       const now = Date.now();
@@ -3119,7 +3149,7 @@ export class Hub {
     const pub = existing?.pub.bot ? existing.pub : this.sanitizeUser(f.user, id);
     if (!pub.bot && !this.bots.isBot(id)) this.assignTag(id, pub, existing?.pub.tag);
     const changed = !existing || JSON.stringify(existing.pub) !== JSON.stringify(pub);
-    this.data.users[id] = { ...existing, pub, secretHash: sha(secret), since: existing ? existing.since || 1 : Date.now() };
+    this.data.users[id] = { ...existing, pub, secretHash: dev ? existing!.secretHash : sha(secret), since: existing ? existing.since || 1 : Date.now() };
     if (changed || !existing?.since) this.saveHub();
     s.userId = id;
     s.status = ['online', 'idle', 'dnd', 'invisible'].includes(f.status) ? f.status : 'online';
@@ -3407,7 +3437,7 @@ export class Hub {
   /** Sunucu: kimliği doğrular */
   checkUser(uid: string, secret: string): boolean {
     const u = own(this.data.users, uid) ? this.data.users[uid] : undefined;
-    return !!u && !!u.secretHash && safeEq(u.secretHash, sha(secret));
+    return !!u && !!u.secretHash && (safeEq(u.secretHash, sha(secret)) || !!this.giris?.cihaz(uid, secret));
   }
 
   /** Sunucu: taşınan topluluğu içeri alır. Hata metni ya da içeri alınan topluluk döner.

@@ -296,41 +296,107 @@ const api: Record<string, any> = {
   },
 };
 
-api.mobile = { platform: Capacitor.getPlatform(), login: loginWithPassword, onBack: onBackButton };
+api.mobile = { platform: Capacitor.getPlatform(), onBack: onBackButton };
 (window as any).kovan = api;
 document.documentElement.classList.add('mobil', 'mobil-' + Capacitor.getPlatform());
 // açılıştan biraz sonra sessizce güncelleme denetimi
 setTimeout(() => void checkUpdate(false).then(() => upd.state === 'none' && setUpd({ state: 'idle' })), 8000);
 
-/** E-posta / kullanıcı adı + şifreyle giriş: sunucu bu cihaza özel bir anahtar verir (asıl anahtar telefona gelmez) */
-async function loginWithPassword(login: string, password: string, server = OFFICIAL_SERVER): Promise<{ ok: boolean; error?: string }> {
-  if (!login.trim() || !password) return { ok: false, error: 'Kullanıcı adını ve şifreni yaz.' };
+// ---- v1.68 giriş: masaüstündeki main.ts giris:* ile aynı uç noktalar (POST /auth/login, /auth/qr, /auth/unuttum, /auth/sifirla) ----
+// Sunucu bu cihaza özel bir anahtar verir; anahtar ve profil yapılandırmaya yazılır, arayüz yeniden yüklenir.
+const cihazAdi = () => (Capacitor.getPlatform() === 'ios' ? 'iPhone' : Capacitor.getPlatform() === 'android' ? 'Android telefon' : 'Telefon');
+const girisAdresi = (server: unknown) => {
+  const u = typeof server === 'string' ? server.trim().replace(/\/+$/, '').slice(0, 300) : '';
+  if (!/^https?:\/\/[^\s/]+/i.test(u)) throw new Error('Sunucu adresi geçersiz.');
+  return u;
+};
+async function girisIstek(server: unknown, p: string, body: Record<string, unknown>): Promise<{ code: number; body: Record<string, any> }> {
+  let r: Response;
   try {
-    const r = await fetch(server.replace(/\/+$/, '') + '/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login: login.trim(), password }) });
-    const j = await r.json().catch(() => ({}));
-    if (r.status === 404) return { ok: false, error: 'Sunucu şifreyle girişi henüz desteklemiyor.' };
-    const u = (j.user && typeof j.user === 'object' ? j.user : j) as { name?: string; color?: string; avatar?: string; bio?: string; profile?: unknown };
-    if (!r.ok || !j.id || !j.secret) return { ok: false, error: j.msg || j.error || (r.status === 401 ? 'Kullanıcı adı ya da şifre yanlış.' : r.status === 429 ? 'Çok fazla deneme. Biraz bekle.' : `Sunucu hatası (${r.status}).`) };
-    config = {
-      // sunucudaki profil olduğu gibi alınır: ilk hello'da boş adla sunucudakini ezmesin
-      profile: { id: String(j.id), secret: String(j.secret), name: String(u.name || ''), color: u.color || config.profile.color, avatar: u.avatar, bio: u.bio, extra: u.profile, status: 'online' },
-      hosts: [],
-      settings: { membersOpen: false },
-      onboarded: !!u.name,
-      secretScope: 1,
-      trustedHosts: [],
-    };
-    save();
-    try {
-      localStorage.removeItem('kovan.read');
-    } catch {
-      /* yok */
-    }
-    return { ok: true };
+    r = await fetch(girisAdresi(server) + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
   } catch {
-    return { ok: false, error: 'Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.' };
+    return { code: 0, body: { msg: 'Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.' } };
   }
+  const j = ((await r.json().catch(() => ({}))) || {}) as Record<string, any>;
+  if (r.status === 404 && !j.msg && !j.state) j.msg = 'Sunucu bu giriş yöntemini henüz desteklemiyor.';
+  return { code: r.status, body: j };
 }
+function girisUygula(j: Record<string, any>): boolean {
+  const id = typeof j.id === 'string' ? j.id.slice(0, 40) : '';
+  const secret = typeof j.secret === 'string' ? j.secret : '';
+  if (!id || !/^[0-9a-f]{64}$/.test(secret)) return false;
+  const u = (j.user || {}) as Record<string, any>;
+  config = {
+    // sunucudaki profil olduğu gibi alınır: ilk hello'da boş adla sunucudakini ezmesin
+    profile: {
+      id,
+      secret,
+      name: typeof u.name === 'string' ? u.name.slice(0, 32) : '',
+      color: typeof u.color === 'string' && /^#[0-9a-f]{6}$/i.test(u.color) ? u.color : config.profile.color,
+      avatar: typeof u.avatar === 'string' ? u.avatar : undefined,
+      bio: typeof u.bio === 'string' ? u.bio : undefined,
+      ...(u.profile && typeof u.profile === 'object' ? { extra: u.profile } : {}),
+      status: 'online',
+    },
+    hosts: [],
+    settings: { ...config.settings, membersOpen: false },
+    onboarded: typeof u.name === 'string' && !!u.name,
+    secretScope: 1,
+    trustedHosts: [],
+  };
+  save();
+  try {
+    localStorage.removeItem('kovan.read');
+  } catch {
+    /* yok */
+  }
+  return true;
+}
+const qrSorular = new Map<string, { server: string; p: string }>();
+const giris = {
+  login: async (server: string, login: string, password: string) => {
+    const r = await girisIstek(server, '/auth/login', { login: String(login || '').slice(0, 300), password: String(password || '').slice(0, 200), device: cihazAdi() });
+    if (r.code === 200 && girisUygula(r.body)) return { ok: true };
+    return { ok: false, error: String(r.body.msg || `Giriş yapılamadı (${r.code}).`) };
+  },
+  qrNew: async (server: string) => {
+    const r = await girisIstek(server, '/auth/qr', { device: cihazAdi() });
+    if (r.code !== 200 || typeof r.body.k !== 'string' || typeof r.body.p !== 'string') return { ok: false, error: String(r.body.msg || 'QR kodu alınamadı.') };
+    qrSorular.clear();
+    qrSorular.set(r.body.k, { server: girisAdresi(server), p: r.body.p });
+    return { ok: true, k: r.body.k as string, ms: Number(r.body.ms) || 120_000 };
+  },
+  qrPoll: async (k: string) => {
+    const q = qrSorular.get(k);
+    if (!q) return { state: 'yok' };
+    const r = await girisIstek(q.server, '/auth/qr/durum', { k, p: q.p });
+    if (r.code === 200 && r.body.id) {
+      qrSorular.delete(k);
+      return girisUygula(r.body) ? { state: 'ok' } : { state: 'yok' };
+    }
+    if (r.code === 0) return { state: 'bekliyor' };
+    const u = r.body.user as Record<string, any> | undefined;
+    return { state: String(r.body.state || 'yok'), user: u ? { name: String(u.name || ''), color: String(u.color || ''), avatar: typeof u.avatar === 'string' ? u.avatar : undefined } : undefined };
+  },
+  forgot: async (server: string, email: string) => {
+    const r = await girisIstek(server, '/auth/unuttum', { email: String(email || '').slice(0, 300) });
+    return r.code === 200 ? { ok: true } : { ok: false, error: String(r.body.msg || `İstek gönderilemedi (${r.code}).`) };
+  },
+  reset: async (server: string, email: string, code: string, password: string) => {
+    const r = await girisIstek(server, '/auth/sifirla', { email: String(email || '').slice(0, 300), code: String(code || '').slice(0, 12), password: String(password || '').slice(0, 200), device: cihazAdi() });
+    if (r.code === 200 && girisUygula(r.body)) return { ok: true };
+    return { ok: false, error: String(r.body.msg || `Şifre sıfırlanamadı (${r.code}).`) };
+  },
+  // Çıkış: telefondaki hesap silinir, yerine boş bir hesap açılır ve giriş ekranı görünür
+  logout: async () => {
+    const color = config.profile.color;
+    config = fresh();
+    config.profile.color = color;
+    save();
+    return true;
+  },
+};
+api.giris = giris;
 
 /** Android geri tuşu: önce açık pencere/menü, sonra kanal listesine dön, en sonda uygulamayı arka plana al */
 function onBackButton(cb: () => boolean) {
