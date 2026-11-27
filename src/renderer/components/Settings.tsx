@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { cikisYap } from './Giris';
 import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleCheck, Mic } from 'lucide-react';
 import {
   useStore, openModal, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT, escBusy, flushSaves, setHomeTab,
@@ -292,9 +293,10 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       footer={
         <>
           <div className="sn-sep" />
-          {!mobile && <button className="sn-item danger" onClick={() => confirmDialog('Xanaphian kapatılsın mı?', 'Uygulama tamamen kapanır; yeniden açana kadar mesaj bildirimi almazsın.', () => (flushSaves(), window.kovan.quit()), 'Kapat')}>
-            Uygulamadan çık
-          </button>}
+          {/* v1.70.1: "Uygulamadan çık" yerine hesaptan çıkış (giriş ekranına döner) */}
+          <button className="sn-item danger" onClick={() => void cikisYap()}>
+            Çıkış yap
+          </button>
           <div className="sn-version">Xanaphian v{version}</div>
         </>
       }
