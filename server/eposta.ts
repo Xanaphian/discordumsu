@@ -16,7 +16,7 @@ const temiz = (s: string) => s.replace(/[\r\n]/g, '');
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
 
 export function smtpGonderici(a: SmtpAyar) {
-  return (to: string, subject: string, text: string) =>
+  return (to: string, subject: string, text: string, html?: string) =>
     new Promise<void>((ok, no) => {
       if (/[\r\n<>]/.test(to)) return no(new Error('geçersiz alıcı'));
       const sock = tls.connect({ host: a.host, port: a.port, servername: a.host });
@@ -55,19 +55,35 @@ export function smtpGonderici(a: SmtpAyar) {
         await komut(`MAIL FROM:<${temiz(a.from)}>`, 250);
         await komut(`RCPT TO:<${to}>`, 250);
         await komut('DATA', 354);
-        const govde = b64(text).replace(/.{1,76}/g, '$&\r\n');
-        const msg = [
+        const parca = (s: string) => b64(s).replace(/.{1,76}/g, '$&\r\n');
+        const sinir = 'xnp-' + crypto.randomBytes(12).toString('hex');
+        const ust = [
           `From: Xanaphian <${temiz(a.from)}>`,
           `To: <${to}>`,
           `Subject: =?UTF-8?B?${b64(temiz(subject))}?=`,
           `Date: ${new Date().toUTCString()}`,
           `Message-ID: <${crypto.randomBytes(12).toString('hex')}@${temiz(a.from.split('@')[1] || 'xanaphian')}>`,
           'MIME-Version: 1.0',
-          'Content-Type: text/plain; charset=utf-8',
-          'Content-Transfer-Encoding: base64',
-          '',
-          govde,
-        ].join('\r\n');
+        ];
+        // HTML varsa iki parçalı gönderilir: HTML gösteremeyen program düz metni gösterir
+        const msg = html
+          ? [
+              ...ust,
+              `Content-Type: multipart/alternative; boundary="${sinir}"`,
+              '',
+              `--${sinir}`,
+              'Content-Type: text/plain; charset=utf-8',
+              'Content-Transfer-Encoding: base64',
+              '',
+              parca(text),
+              `--${sinir}`,
+              'Content-Type: text/html; charset=utf-8',
+              'Content-Transfer-Encoding: base64',
+              '',
+              parca(html),
+              `--${sinir}--`,
+            ].join('\r\n')
+          : [...ust, 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64', '', parca(text)].join('\r\n');
         await komut(msg + '\r\n.', 250);
         sock.write('QUIT\r\n');
         sock.end();

@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type http from 'node:http';
+import { sifirlamaEpostasi } from './eposta-sablon';
 import type { ClientFrame, ID, ServerFrame, UserPublic } from '../shared/protocol';
 import {
   QR_SURE,
@@ -21,7 +22,7 @@ import {
 
 export interface GirisOptions {
   /** şifre sıfırlama e-postası gönderici (sunucudaki .env'de SMTP ayarı varsa) */
-  mail?: (to: string, subject: string, text: string) => Promise<void>;
+  mail?: (to: string, subject: string, text: string, html?: string) => Promise<void>;
 }
 
 export interface GirisBaglantisi {
@@ -421,12 +422,9 @@ export class Giris {
           const kod = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
           this.sifirlama.set(email, { uid, h: sha(email + ':' + kod), exp: Date.now() + 15 * MIN, deneme: 0 });
           const ad = this.bag.pub(uid)?.name || '';
+          const e = sifirlamaEpostasi(ad, kod);
           this.opts
-            .mail(
-              email,
-              'Xanaphian şifre sıfırlama kodu',
-              `Merhaba ${ad},\n\nXanaphian şifreni sıfırlamak için kodun: ${kod}\n\nKod 15 dakika geçerli. Bu isteği sen yapmadıysan bu e-postayı yok say; şifren değişmez.\n`,
-            )
+            .mail(email, e.subject, e.text, e.html)
             .catch((e) => console.error('sıfırlama e-postası gönderilemedi', (e as Error)?.message));
         }
         return [200, { ok: true }];
