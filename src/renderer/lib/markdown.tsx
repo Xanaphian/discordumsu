@@ -34,6 +34,8 @@ export interface MdCtx {
   roleInfo?: (id: string) => { name: string; color: string; mine: boolean } | null;
   /** topluluk çıkartmalarının resim adresi için sunucu kökü */
   base?: string;
+  /** maskeli bağlantının yazısı içindeyiz: iç içe <a> olmasın, adresler düz yazı kalsın */
+  inLink?: boolean;
 }
 
 type Rule = { re: RegExp; render: (m: RegExpExecArray, ctx: MdCtx, key: number) => ReactNode };
@@ -94,13 +96,13 @@ const inlineRules: Rule[] = [
     re: /^\[([^\]\n]{1,200})\]\((https?:\/\/[^\s)]+)\)/,
     render: (m, c, k) => (
       <Link key={k} href={m[2]} masked={m[1].trim() !== m[2]}>
-        {inline(m[1], c)}
+        {inline(m[1], { ...c, inLink: true })}
       </Link>
     ),
   },
   // <adres>: önizleme kartı çıkmaz, köşeli ayraçlar görünmez (v1.26)
-  { re: /^<(https?:\/\/[^\s<>]+)>/, render: (m, _c, k) => <Link key={k} href={m[1]}>{m[1]}</Link> },
-  { re: URL_RE, render: (m, _c, k) => <Link key={k} href={m[0]}>{m[0]}</Link> },
+  { re: /^<(https?:\/\/[^\s<>]+)>/, render: (m, c, k) => (c.inLink ? m[1] : <Link key={k} href={m[1]}>{m[1]}</Link>) },
+  { re: URL_RE, render: (m, c, k) => (c.inLink ? m[0] : <Link key={k} href={m[0]}>{m[0]}</Link>) },
   {
     re: /^<@&([\w-]+)>/,
     render: (m, c, k) => {
@@ -168,7 +170,7 @@ export function inline(src: string, ctx: MdCtx): ReactNode[] {
       const m = rest.startsWith('www.') && (i === 0 || !WWW_BEFORE.test(src[i - 1])) ? WWW_RE.exec(rest) : null;
       if (m) {
         if (buf) out.push(buf), (buf = '');
-        out.push(<Link key={key++} href={'https://' + m[0]}>{m[0]}</Link>);
+        out.push(ctx.inLink ? m[0] : <Link key={key++} href={'https://' + m[0]}>{m[0]}</Link>);
         i += m[0].length;
       } else {
         buf += 'w';

@@ -949,6 +949,7 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
   filesRef.current = files;
   useEffect(() => () => filesRef.current.forEach((f) => f.preview && URL.revokeObjectURL(f.preview)), []);
   const [uploading, setUploading] = useState(false);
+  const [upPct, setUpPct] = useState(0);
   const [sug, setSug] = useState<Suggest | null>(null);
   const [sel, setSel] = useState(0);
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -1112,9 +1113,14 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
       setUploading(true);
       try {
         atts = [];
+        // birden çok dosyada ilerleme toplam bayta göre (büyük dosya çubuğu daha çok ilerletir)
+        const total = files.reduce((n, f) => n + f.file.size, 0) || 1;
+        let done = 0;
+        setUpPct(0);
         for (const f of files) {
           const size = await imageSize(f.file);
-          atts.push(await uploadFile(c.id, f.file, size?.w, size?.h));
+          atts.push(await uploadFile(c.id, f.file, size?.w, size?.h, (fr) => setUpPct(Math.min(100, Math.round(((done + fr * f.file.size) / total) * 100)))));
+          done += f.file.size;
         }
       } catch (e) {
         setUploading(false);
@@ -1427,7 +1433,15 @@ export function Composer({ c, ch }: { c: Community; ch: Channel }) {
             {4000 - value.length}
           </span>
         )}
-        {uploading && <LoaderCircle size={18} className="spin composer-spin" />}
+        {uploading && (
+          <span className="composer-up" role="progressbar" aria-valuenow={upPct} aria-valuemin={0} aria-valuemax={100} title="Dosya yükleniyor">
+            <LoaderCircle size={16} className="spin" />
+            <span className="composer-up-bar">
+              <i style={{ width: upPct + '%' }} />
+            </span>
+            <b>%{upPct}</b>
+          </span>
+        )}
         {ch.slowmode ? (
           <Tooltip text={`Yavaş mod: ${ch.slowmode} sn`} side="top">
             <span className="composer-btn static">

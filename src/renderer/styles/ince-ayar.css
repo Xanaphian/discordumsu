@@ -251,3 +251,34 @@ button.ch-topic[aria-expanded='true'] {
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* Dosya yükleme ilerlemesi (v1.68.2) */
+.composer-up {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 13px;
+  height: 20px;
+  color: var(--accent);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.composer-up b {
+  min-width: 32px;
+  font-weight: 650;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.composer-up-bar {
+  width: 56px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.composer-up-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}

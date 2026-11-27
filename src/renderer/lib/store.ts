@@ -1665,7 +1665,8 @@ export function request<T = any>(cidOrCh: ID, f: ClientFrame): Promise<T> {
   return c.request<T>(f);
 }
 
-export async function uploadFile(cid: ID, file: File, w?: number, h?: number): Promise<Attachment> {
+/** onProgress: gönderilen bayt oranı (0–1); yazma kutusunda ilerleme çubuğu için (v1.68.2) */
+export async function uploadFile(cid: ID, file: File, w?: number, h?: number, onProgress?: (frac: number) => void): Promise<Attachment> {
   const s = S();
   const base = hostHttp(cid);
   const headers: Record<string, string> = {
@@ -1678,11 +1679,25 @@ export async function uploadFile(cid: ID, file: File, w?: number, h?: number): P
     headers['x-kovan-w'] = String(w);
     headers['x-kovan-h'] = String(h);
   }
-  const r = await fetch(`${base}/upload`, { method: 'POST', headers, body: file });
+  const r = onProgress ? await xhrPost(`${base}/upload`, headers, file, onProgress) : await fetch(`${base}/upload`, { method: 'POST', headers, body: file });
   if (r.status === 413) throw new Error('Dosya çok büyük (en fazla 25 MB).');
   if (r.status === 429) throw new Error(await uploadLimitText(r));
   if (!r.ok) throw new Error('Yükleme başarısız (' + r.status + ')');
   return r.json();
+}
+
+/** fetch yükleme ilerlemesi vermez: XHR ile gönderip yanıtı Response'a çevirir */
+function xhrPost(url: string, headers: Record<string, string>, body: Blob, onProgress: (frac: number) => void): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', url);
+    for (const [k, v] of Object.entries(headers)) x.setRequestHeader(k, v);
+    x.upload.onprogress = (e) => e.lengthComputable && e.total > 0 && onProgress(e.loaded / e.total);
+    x.onload = () => resolve(new Response(x.status === 204 ? null : x.responseText, { status: x.status, headers: { 'content-type': x.getResponseHeader('content-type') || 'application/json' } }));
+    x.onerror = () => reject(new Error('Yükleme başarısız: sunucuya ulaşılamadı.'));
+    x.ontimeout = x.onerror;
+    x.send(body);
+  });
 }
 
 /** Sunucu yükleme sınırına takılınca gönderdiği açıklama (v1.50) */
