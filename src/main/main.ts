@@ -159,6 +159,14 @@ interface Config {
   bounds?: { x?: number; y?: number; width: number; height: number; maximized?: boolean };
   /** 1 = gizli anahtar sunucuya göre ayrılıyor (bkz. hostSecret) */
   secretScope?: number;
+  /**
+   * v1.67 anahtar yenileme. `oldSecrets`: önceki asıl anahtarlar (eskiden yeniye); şimdiki anahtarın kuşağı = uzunluğu.
+   * `keyGen[sunucu]`: o sunucunun bildiği anahtarın kuşağı (kayıt yoksa en eski kuşak). `keyTry[sunucu]`: yenileme isteği
+   * gönderilen ama yanıtı kaydedilemeyen kuşak (bkz. keyFor, rekey:*).
+   */
+  oldSecrets?: string[];
+  keyGen?: Record<string, number>;
+  keyTry?: Record<string, number>;
   /** Bu düzenden önce bağlanılmış sunucular: eski üyelikler bozulmasın diye asıl anahtarı almaya devam eder */
   trustedHosts?: string[];
 }
@@ -210,15 +218,30 @@ function loadConfig(): Config {
 function hostSecret(host: unknown): string {
   const h = normHost(typeof host === 'string' ? host.slice(0, 300) : '');
   if (!h) return '';
-  const master = config.profile.secret;
+  return keyFor(h, hostGen(h));
+}
+
+/** Şimdiki asıl anahtarın kuşağı: anahtar her yenilendiğinde bir artar */
+const curGen = () => config.oldSecrets?.length || 0;
+/** Sunucunun şu an bildiği anahtarın kuşağı. Anahtar yenilendikten sonra her sunucu ilk bağlantıda yeni kuşağa taşınır. */
+function hostGen(h: string): number {
+  const cur = curGen();
+  if (!cur) return 0;
+  const g = config.keyGen?.[h];
+  return typeof g === 'number' && g >= 0 && g <= cur ? g : 0;
+}
+/** `gen` kuşağında bu sunucuya gönderilen anahtar */
+function keyFor(h: string, gen: number): string {
+  const master = gen < curGen() ? config.oldSecrets![gen] : config.profile.secret;
   const env = normHost(process.env.KOVAN_SERVER);
-  if (h === normHost(OFFICIAL_SERVER) || isLoopbackHost(h) || (env && h === env) || config.trustedHosts?.includes(h)) return master;
+  // "güncellemeden önce bağlanılmış" sunucular asıl anahtarı yalnız ilk kuşakta bilir; anahtar yenilenince onlar da kendine özel anahtara geçer
+  if (h === normHost(OFFICIAL_SERVER) || isLoopbackHost(h) || (env && h === env) || (gen === 0 && config.trustedHosts?.includes(h))) return master;
   return crypto.createHmac('sha256', master).update('xanaphian-host:v1:' + h).digest('hex');
 }
 
 /** Arayüze verilen yapılandırma: asıl gizli anahtar ana süreçten çıkmaz */
 function publicConfig(): Config {
-  return { ...config, profile: { ...config.profile, secret: '' } };
+  return { ...config, profile: { ...config.profile, secret: '' }, oldSecrets: undefined, keyGen: undefined, keyTry: undefined };
 }
 
 let scopeMigrated = false;
@@ -747,6 +770,47 @@ function registerIpc() {
   ipcMain.on('cfg:host-secret', (e, host: unknown) => {
     e.returnValue = hostSecret(host);
   });
+  // ---- hesap anahtarını yenileme (v1.67) ----
+  // Yeni asıl anahtar üretilir; her sunucu, eski anahtarla bağlandıktan hemen sonra `rekey` ile yeni anahtara taşınır.
+  ipcMain.handle('rekey:start', () => {
+    // eski anahtarlar saklanır: uzun süredir bağlanılmayan bir sunucu hâlâ eski kuşaktaki anahtarı biliyor olabilir
+    config.oldSecrets = [...(config.oldSecrets || []), config.profile.secret];
+    config.profile = { ...config.profile, secret: crypto.randomBytes(32).toString('hex') };
+    config.keyTry = {};
+    saveConfig();
+    return true;
+  });
+  /** Bu sunucu eski anahtarda mı? Öyleyse gönderilecek yeni anahtarı verir ve isteğin gönderildiğini kaydeder. */
+  ipcMain.on('rekey:target', (e, host: unknown) => {
+    const h = normHost(typeof host === 'string' ? host.slice(0, 300) : '');
+    if (!h || hostGen(h) >= curGen()) return void (e.returnValue = '');
+    config.keyTry = { ...(config.keyTry || {}), [h]: curGen() };
+    saveConfig();
+    e.returnValue = keyFor(h, curGen());
+  });
+  /** Sunucu yeni anahtarı kabul etti */
+  ipcMain.on('rekey:done', (e, host: unknown) => {
+    const h = normHost(typeof host === 'string' ? host.slice(0, 300) : '');
+    if (h && curGen()) {
+      config.keyGen = { ...(config.keyGen || {}), [h]: curGen() };
+      if (config.keyTry) delete config.keyTry[h];
+      saveConfig();
+    }
+    e.returnValue = true;
+  });
+  /**
+   * Kimlik doğrulanamadı: yenileme isteği gönderilmiş ama yanıtı kaydedilememişse (uygulama tam o anda kapandıysa)
+   * sunucu aslında yeni anahtara geçmiştir. O durumda yeni anahtarı geçerli say; true dönerse bağlantı yeniden denenir.
+   */
+  ipcMain.on('rekey:assume', (e, host: unknown) => {
+    const h = normHost(typeof host === 'string' ? host.slice(0, 300) : '');
+    const t = h ? config.keyTry?.[h] : undefined;
+    if (!h || typeof t !== 'number' || t !== curGen() || hostGen(h) >= t) return void (e.returnValue = false);
+    config.keyGen = { ...(config.keyGen || {}), [h]: t };
+    delete config.keyTry![h];
+    saveConfig();
+    e.returnValue = true;
+  });
   ipcMain.handle('act:config', (_e, c: ActivityConfig) => (configureActivity(c), getActivity()));
   ipcMain.handle('act:apps', () => runningApps());
   ipcMain.handle('game:has', (_e, name: string) => hasGame(String(name).slice(0, 80)));
@@ -770,6 +834,9 @@ function registerIpc() {
       // arayüz bu alanları değiştiremez
       secretScope: config.secretScope,
       trustedHosts: config.trustedHosts,
+      oldSecrets: config.oldSecrets,
+      keyGen: config.keyGen,
+      keyTry: config.keyTry,
     };
     if (patch.profile?.name) hub.ownerName = config.profile.name;
     saveConfig();

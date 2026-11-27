@@ -407,10 +407,6 @@ export function ChannelSidebar({ c }: { c: Community }) {
                     manage &&
                     openMenu(e, [
                       { label: 'Kanal oluştur', onClick: () => openModal({ type: 'createChannel', cid: c.id, categoryId: cat.id }) },
-                      {
-                        label: 'Kategoriyi yeniden adlandır',
-                        onClick: () => openModal({ type: 'createCategory', cid: c.id, catId: cat.id }),
-                      },
                       { label: 'Kategoriyi düzenle', onClick: () => openModal({ type: 'editCategory', cid: c.id, catId: cat.id }) },
                       ...(can(c, me, Perm.MANAGE_ROLES) ? [{ label: 'Kategori izinleri', onClick: () => openModal({ type: 'editCategory', cid: c.id, catId: cat.id, tab: 'perms' }) }] : []),
                       { sep: true },

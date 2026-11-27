@@ -23,6 +23,8 @@ import { FEAT_TAGS, TAG_CODE_RE, TAG_CODE_MIN, TAG_CODE_MAX, TAG_CHANGES_PER_DAY
 import { Ekler, type EkOptions } from './ekler';
 import { RUBIK } from './rubikYazi';
 import { cleanAge, cleanMax, iconBytes, inviteAlive, invitePage, invitePageHeaders } from './davetSayfasi';
+import { FEAT_LINKMETA, type LinkMeta } from '../shared/onizleme';
+import { FEAT_REKEY } from '../shared/guvenlik';
 import { FEAT_INVITES, INVITE_BG_MAX, INVITE_BG_RE, MAX_INVITES, inviteBgKind, type Invite, type InviteInfo } from '../shared/davetBaglanti';
 import { cleanAttachments, cleanImportedCommunity, cleanImportedMessage, SAFE_ID, USER_ID } from './ithal';
 import { sanitizeGuard, fmtHours, EXPLORE_CATS, catLabel, BLUEPRINT_LIMITS, type ExploreItem, type Blueprint, type BlueprintOverwrite } from '../shared/topluluk';
@@ -274,12 +276,19 @@ export class Hub {
   private tagIndex = new Map<string, ID>();
   /** etiketle arama sınırı: kullanıcı -> son denemelerin anları */
   private tagTries = new Map<ID, number[]>();
+  private rekeyTries = new Map<ID, number[]>();
   private spaceRooms = new Map<ID, Map<ID, { s: Session; av: SpaceAvatar }>>();
   private booths = new Map<ID, Booth[]>();
   private webRooms = new Map<ID, Map<ID, WebViewer>>();
   /** site odası için başlık + simge getirici (main.ts verir; Electron ağı ile) */
   siteMeta: ((url: string) => Promise<{ title?: string; icon?: string } | null>) | null = null;
   private metaBusy = new Set<ID>();
+  /** v1.67 bağlantı önizlemesi getirici (yalnız bulut sunucusu verir; yoksa uygulamalar kendileri getirir) */
+  linkMeta: ((url: string) => Promise<LinkMeta | null>) | null = null;
+  private linkCache = new Map<string, { at: number; size: number; p: Promise<LinkMeta | null> }>();
+  private linkBytes = 0;
+  private linkBusy = 0;
+  private linkTries = new Map<ID, number[]>();
   private server: http.Server | null = null;
   private wss: WebSocketServer | null = null;
   private saveTimers = new Map<string, NodeJS.Timeout>();
@@ -1410,7 +1419,7 @@ export class Hub {
       friends: this.friendsFor(uid),
       acts,
       v: PROTOCOL_VERSION,
-      feats: [FEAT_POSTS, FEAT_TAGS, FEAT_INVITES, ...this.ek.feats(uid)],
+      feats: [FEAT_POSTS, FEAT_TAGS, FEAT_INVITES, FEAT_REKEY, ...(this.linkMeta ? [FEAT_LINKMETA] : []), ...this.ek.feats(uid)],
       tag: this.data.users[uid]?.pub.tag,
     });
   }
@@ -2040,6 +2049,41 @@ export class Hub {
         const c = this.commFor(s, f.cid);
         if (!c) return;
         return this.send(s, { t: 'ok', rid: f.rid, data: this.stats(c, uid, f.days) });
+      }
+      case 'rekey': {
+        // Hesabın gizli anahtarını yenile: eski anahtar geçersiz olur, bu bağlantı dışındaki oturumlar kapatılır.
+        const secret = typeof f.secret === 'string' ? f.secret : '';
+        const u = own(this.data.users, uid) ? this.data.users[uid] : undefined;
+        if (!u || u.pub.bot || this.bots.isBot(uid)) return this.send(s, { t: 'err', rid: f.rid, msg: 'Bu hesabın anahtarı yenilenemez.' });
+        if (secret.length < 32 || secret.length > 200) return this.send(s, { t: 'err', rid: f.rid, msg: 'Geçersiz anahtar.' });
+        const now = Date.now();
+        const tries = (this.rekeyTries.get(uid) || []).filter((t) => now - t < 3600_000);
+        if (tries.length >= 6) return this.send(s, { t: 'err', rid: f.rid, msg: 'Anahtar kısa sürede çok kez yenilendi. Bir saat sonra yeniden dene.' });
+        tries.push(now);
+        this.rekeyTries.set(uid, tries);
+        const before = u.secretHash;
+        u.secretHash = sha(secret);
+        // Hemen diske yazılır ve yanıt ondan sonra verilir: sunucu tam bu anda kapanırsa hesap eski anahtarda kalıp kilitlenmesin.
+        atomicWrite(path.join(this.dir, 'hub.json'), JSON.stringify(this.data)).then(
+          () => {
+            // 4003: "yeniden bağlan". Yeni anahtarı bilen pencere (aynı bilgisayardaki ayrı pencere) geri gelir, bilmeyen cihaz kimlik hatası alır.
+            for (const x of [...(this.userSessions.get(uid) || [])]) if (x !== s) x.ws.close(4003, 'rekey');
+            this.send(s, { t: 'ok', rid: f.rid });
+          },
+          () => {
+            u.secretHash = before;
+            this.send(s, { t: 'err', rid: f.rid, msg: 'Anahtar kaydedilemedi, eskisi geçerli.' });
+          },
+        );
+        return;
+      }
+      case 'link.meta': {
+        const rid = f.rid;
+        this.linkPreview(uid, f.url).then(
+          (data) => this.send(s, { t: 'ok', rid, data }),
+          () => this.send(s, { t: 'err', rid, msg: 'Çok fazla önizleme isteği, biraz sonra yeniden denenir.' }),
+        );
+        return;
       }
       case 'pins': {
         const r = this.commOfChannel(s, f.ch);
@@ -2848,7 +2892,48 @@ export class Hub {
     return null;
   }
 
-  /** Rol konumlarını 0..n aralığında sıkıştırır; @herkes her zaman 0 */
+  /**
+   * Bağlantı önizlemesi: sayfayı sunucu getirir, böylece site üyenin değil sunucunun adresini görür.
+   * Kişi başına dakikada 40 istek, aynı anda en çok 16 getirme; sonuçlar 30 dk bellekte (en çok ~48 MB) tutulur.
+   */
+  private linkPreview(uid: ID, raw: unknown): Promise<LinkMeta | null> {
+    if (!this.linkMeta || typeof raw !== 'string' || raw.length > 2000 || !/^https?:\/\//i.test(raw)) return Promise.resolve(null);
+    const now = Date.now();
+    const hit = this.linkCache.get(raw);
+    if (hit && now - hit.at < 30 * 60_000) return hit.p;
+    const tries = (this.linkTries.get(uid) || []).filter((t) => now - t < 60_000);
+    if (tries.length >= 40 || this.linkBusy >= 16) return Promise.reject(new Error('meşgul'));
+    tries.push(now);
+    this.linkTries.set(uid, tries);
+    if (this.linkTries.size > 5000) this.linkTries.clear();
+    if (hit) this.linkDrop(raw);
+    this.linkBusy++;
+    const entry = { at: now, size: 0, p: Promise.resolve<LinkMeta | null>(null) };
+    entry.p = this.linkMeta(raw)
+      .catch(() => null)
+      .then((m) => {
+        this.linkBusy--;
+        if (this.linkCache.get(raw) === entry) {
+          entry.size = 200 + (m?.image?.length || 0);
+          this.linkBytes += entry.size;
+          // en eskiden başlayarak yer aç
+          for (const k of this.linkCache.keys()) {
+            if (this.linkBytes <= 48_000_000 && this.linkCache.size <= 400) break;
+            if (k !== raw) this.linkDrop(k);
+          }
+        }
+        return m;
+      });
+    this.linkCache.set(raw, entry);
+    return entry.p;
+  }
+  private linkDrop(url: string) {
+    const e = this.linkCache.get(url);
+    if (!e) return;
+    this.linkBytes -= e.size;
+    this.linkCache.delete(url);
+  }
+
   /** Topluluk istatistikleri: üyenin görebildiği kanallardaki mesajlardan hesaplanır */
   private stats(c: StoredCommunity, uid: ID, daysIn: number): CommunityStats {
     const days = [7, 30, 90].includes(daysIn) ? daysIn : 30;

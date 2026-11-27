@@ -8,3 +8,6 @@ export const normHost = (h: unknown) => (typeof h === 'string' ? h : '').trim().
 
 /** Adres bu bilgisayarın kendisini mi gösteriyor (yerel sunucu)? */
 export const isLoopbackHost = (h: string) => /^(?:https?:\/\/)?(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(?:\/.*)?$/i.test(h);
+
+/** Sunucu hesap anahtarını yenilemeyi destekliyor (v1.67; `rekey` çerçevesi) */
+export const FEAT_REKEY = 'rekey';

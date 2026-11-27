@@ -25,6 +25,7 @@ export class HostConn {
     private hello: (host: string) => ClientFrame,
     private onFrame: (host: string, f: ServerFrame) => void,
     private onStatus: (host: string, s: ConnStatus, err?: string) => void,
+    private onAuthFail?: (host: string) => boolean,
   ) {
     this.connect();
   }
@@ -116,6 +117,8 @@ export class HostConn {
     }
     this.reqs.clear();
     if (code === 4001) {
+      // anahtar yenileme yarıda kaldıysa (bkz. main.ts rekey:assume) yeni anahtarla bir kez daha denenir
+      if (this.onAuthFail?.(this.host)) return this.scheduleRetry();
       this.setStatus('offline', 'Kimlik doğrulanamadı');
       return;
     }

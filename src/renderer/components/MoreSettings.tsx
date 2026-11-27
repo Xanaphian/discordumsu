@@ -1,7 +1,7 @@
 // Kullanıcı ayarları: sohbet, gizlilik, bildirim istisnaları ve gelişmiş sekmeleri
 import React from 'react';
 import { BellOff, Bell } from 'lucide-react';
-import { useStore, updateSettings, setNotifyOverride, toggleMuted, confirmDialog, toast, DEFAULT_SETTINGS, openModal } from '../lib/store';
+import { useStore, updateSettings, setNotifyOverride, toggleMuted, confirmDialog, toast, DEFAULT_SETTINGS, openModal, rekeyAccount, rekeySupported } from '../lib/store';
 import { Avatar, Toggle } from './Common';
 import { Row } from './Settings';
 import { DmPrivacySection } from './YayinciModu';
@@ -54,6 +54,45 @@ export function ChatTab() {
   );
 }
 
+/** Hesap anahtarını yenileme: eski anahtar geçersiz olur, başka cihazdaki oturumlar kapanır */
+function RekeySection() {
+  // bağlantı durumu değişince yeniden çizilsin
+  const ok = useStore((x) => (x.conns, rekeySupported()));
+  const [busy, setBusy] = React.useState(false);
+  const run = async () => {
+    setBusy(true);
+    const done = await rekeyAccount().catch(() => false);
+    setBusy(false);
+    toast(done ? 'Hesap anahtarın yenilendi. Eski anahtar artık geçersiz.' : 'Anahtar yenilenemedi. Bağlantını kontrol edip yeniden dene.', done ? 'ok' : 'err');
+  };
+  return (
+    <>
+      <h3>Hesap anahtarı</h3>
+      <p className="note">
+        Hesabın, bu bilgisayarda saklanan gizli bir anahtarla açılır (şifre gibidir ama sen yazmazsın). Anahtarının başkasının eline geçmiş olabileceğini düşünüyorsan yenile: eski anahtar anında geçersiz olur ve
+        hesabın başka bir cihazda açıksa oradaki oturum kapanır. Adın, arkadaşların ve toplulukların aynen kalır.
+      </p>
+      <Row title="Anahtarı yenile" sub={ok ? 'Yeni bir anahtar üretilir; senin bir şey yapman gerekmez.' : 'Sunucuya bağlıyken kullanılabilir.'}>
+        <button
+          className="btn ghost sm"
+          disabled={!ok || busy}
+          onClick={() =>
+            confirmDialog(
+              'Hesap anahtarı yenilensin mi?',
+              'Eski anahtar geçersiz olur. Bu bilgisayarda hiçbir şey değişmez; hesabını başka bir cihaza kopyaladıysan orada oturum kapanır.',
+              run,
+              'Yenile',
+              false,
+            )
+          }
+        >
+          {busy ? 'Yenileniyor…' : 'Anahtarı yenile'}
+        </button>
+      </Row>
+    </>
+  );
+}
+
 export function PrivacyTab() {
   const s = useStore((x) => x.settings);
   const users = useStore((x) => x.users);
@@ -67,6 +106,7 @@ export function PrivacyTab() {
         <Toggle value={s.confirmLinks} onChange={(v) => updateSettings({ confirmLinks: v })} />
       </Row>
       <DmPrivacySection />
+      <RekeySection />
       <h3>Engellenen kullanıcılar ({s.blocked.length})</h3>
       <p className="note">Engellediğin kişilerin mesajları gizlenir ("Göster" ile açabilirsin) ve senden bildirim almazsın. Engellemek için üye listesinde birine sağ tıkla.</p>
       <div className="list-card">

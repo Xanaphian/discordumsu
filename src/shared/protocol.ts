@@ -377,6 +377,8 @@ export type ClientFrame =
   /** full: araç kanalları için son 2000 öğeyi tek seferde ister */
   | { t: 'hist'; ch: ID; before?: ID; around?: ID; rid: string; full?: boolean }
   | { t: 'stats'; cid: ID; days: number; rid: string }
+  /** v1.67 bağlantı önizlemesini sunucu getirir (yanıt: ok.data = LinkMeta | null) */
+  | { t: 'link.meta'; url: string; rid: string }
   | { t: 'pins'; ch: ID; rid: string }
   | { t: 'search'; cid: ID; q: string; rid: string }
   | { t: 'typing'; ch: ID }
@@ -449,6 +451,8 @@ export type ClientFrame =
   | { t: 'friend.mutual'; uid: ID; rid: string }
   /** özel mesaj gizliliği (her bağlantıda gönderilir); blocked: v1.48 engellenenler (paylaşımlarda iki yönlü gizlenir) */
   | { t: 'privacy'; dms: DmPrivacy; blocked?: ID[] }
+  /** v1.67 hesabın gizli anahtarını değiştirir; bu bağlantı açık kalır, hesabın diğer oturumları kapatılır */
+  | { t: 'rekey'; secret: string; rid: string }
   /** v1.48 Ana Sayfa paylaşımları; cevaplar ok.data ile döner */
   | { t: 'post.feed'; scope: FeedScope; before?: ID; uid?: ID; rid: string }
   | { t: 'post.thread'; id: ID; rid: string }

@@ -57,8 +57,14 @@ export interface Fetched {
   url: string;
 }
 
+export interface FetchOpts {
+  /** yanıt `max` bayttan büyükse reddetme, ilk `max` baytı döndür (sayfa başlığı okumak için) */
+  cut?: boolean;
+  ua?: string;
+}
+
 /** En çok `max` baytlık bir yanıtı getirir; yönlendirmeleri (en çok 3) her adımda yeniden denetleyerek izler. */
-export function fetchPublic(url: string, accept: string, max: number, hops = 0): Promise<Fetched | null> {
+export function fetchPublic(url: string, accept: string, max: number, hops = 0, opt: FetchOpts = {}): Promise<Fetched | null> {
   return new Promise((resolve) => {
     let u: URL;
     try {
@@ -71,7 +77,7 @@ export function fetchPublic(url: string, accept: string, max: number, hops = 0):
     if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return resolve(null);
     if (net.isIP(host) && blockedIp(host)) return resolve(null);
     const mod = u.protocol === 'https:' ? https : http;
-    const req = mod.request(u, { method: 'GET', headers: { accept, 'user-agent': 'Mozilla/5.0 KovanSunucu' }, lookup: safeLookup, agent: false }, (res) => {
+    const req = mod.request(u, { method: 'GET', headers: { accept, 'user-agent': opt.ua || 'Mozilla/5.0 KovanSunucu', 'accept-language': 'tr,en;q=0.8' }, lookup: safeLookup, agent: false }, (res) => {
       const code = res.statusCode || 0;
       if (code >= 300 && code < 400 && res.headers.location) {
         res.resume();
@@ -83,9 +89,9 @@ export function fetchPublic(url: string, accept: string, max: number, hops = 0):
         } catch {
           return resolve(null);
         }
-        return resolve(fetchPublic(next, accept, max, hops + 1));
+        return resolve(fetchPublic(next, accept, max, hops + 1, opt));
       }
-      if (code < 200 || code >= 300 || Number(res.headers['content-length'] || 0) > max) {
+      if (code < 200 || code >= 300 || (!opt.cut && Number(res.headers['content-length'] || 0) > max)) {
         req.destroy();
         return resolve(null);
       }
@@ -94,8 +100,11 @@ export function fetchPublic(url: string, accept: string, max: number, hops = 0):
       res.on('data', (d: Buffer) => {
         size += d.length;
         if (size > max) {
+          if (opt.cut) {
+            chunks.push(d);
+            resolve({ buf: Buffer.concat(chunks).subarray(0, max), type: String(res.headers['content-type'] || ''), url: u.toString() });
+          } else resolve(null);
           req.destroy();
-          resolve(null);
         } else chunks.push(d);
       });
       res.on('end', () => resolve({ buf: Buffer.concat(chunks), type: String(res.headers['content-type'] || ''), url: u.toString() }));
