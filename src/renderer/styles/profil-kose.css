@@ -12,3 +12,11 @@ html[data-style] .modal.pc-modal {
   max-height: 190px;
   border-radius: 9px;
 }
+
+/* v1.71.2 tam profil yanlardan daha dar: eski genişliğin %75'i (düzenleme şeridi ayrı) */
+.modal.pc-modal.wide {
+  width: min(795px, calc((100vw - 48px) * 0.75));
+}
+.modal.pc-modal.wide.studio {
+  width: min(1100px, calc(100vw - 40px));
+}
