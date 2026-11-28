@@ -105,7 +105,7 @@ function Overlay() {
     <div className={'ovl' + (bottom ? ' ovl-bottom' : '')}>
       {!st.voice && !msgs.length && st.game && (
         <div className="ovl-card ovl-pill">
-          <Gamepad2 size={13} /> Xanaphian · {st.game}
+          <Gamepad2 size={13} /> Naphian · {st.game}
         </div>
       )}
       {voice}

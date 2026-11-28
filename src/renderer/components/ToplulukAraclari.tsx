@@ -72,7 +72,7 @@ export function JoinGuardTab({ c }: { c: Community }) {
       )}
 
       <h3>Hesap yaşı</h3>
-      <Row title="En az hesap yaşı" sub="Hesabı Xanaphian'da bu süreden yeni olanlar katılamaz; ne zaman tekrar deneyebileceği kendisine söylenir.">
+      <Row title="En az hesap yaşı" sub="Hesabı Naphian'da bu süreden yeni olanlar katılamaz; ne zaman tekrar deneyebileceği kendisine söylenir.">
         <select className="mini-select" value={g.minAgeH} onChange={(e) => save({ minAgeH: Number(e.target.value) })}>
           <option value={0}>Kural yok</option>
           <option value={1}>1 saat</option>

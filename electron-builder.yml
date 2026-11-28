@@ -1,6 +1,6 @@
 appId: com.xanaphian.kovan
-productName: Kovan
-copyright: Copyright © 2026 Xanaphian
+productName: Naphian
+copyright: Copyright © 2026 Naphian
 directories:
   output: release
   buildResources: build
@@ -22,6 +22,9 @@ win:
     - target: nsis
       arch: [x64]
   icon: build/icon.png
+  # exe dosyasının adı Kovan.exe kalır: masaüstü/görev çubuğu kısayolları, otomatik başlatma ve Claude Desktop
+  # bot ayarları bu yolu gösteriyor. Görünen ad (kurulum, kısayol, Görev Yöneticisi) productName'den gelir.
+  executableName: Kovan
   artifactName: Kovan-Setup-${version}.${ext}
   signAndEditExecutable: true
 nsis:
@@ -30,7 +33,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: Kovan
+  shortcutName: Naphian
+  uninstallDisplayName: Naphian
   deleteAppDataOnUninstall: false
   differentialPackage: true
 publish:

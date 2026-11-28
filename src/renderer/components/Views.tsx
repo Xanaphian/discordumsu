@@ -37,7 +37,7 @@ export function Onboarding({ onBack, baslangic = 0, onFinish }: { onBack?: () =>
         {step === 0 ? (
           <>
             <Logo size={64} />
-            <h1>Xanaphian'a hoş geldin</h1>
+            <h1>Naphian'a hoş geldin</h1>
             <p>Arkadaşlarınla topluluklar kur, kanallarda yazış, sesli sohbet et. Hızlı ve hafif; bilgisayarın kapalıyken de toplulukların açık kalır.</p>
             <ul className="ob-list">
               <li>Topluluklar, kategoriler, metin / ses / duyuru kanalları</li>
@@ -82,7 +82,7 @@ export function Onboarding({ onBack, baslangic = 0, onFinish }: { onBack?: () =>
               </div>
             </div>
             <button className="btn primary lg" disabled={!!nameError(name)} onClick={done}>
-              Xanaphian'a gir
+              Naphian'a gir
             </button>
           </>
         )}

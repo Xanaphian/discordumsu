@@ -220,7 +220,7 @@ while ($true) {
   if (-not $mgr -and ($tick % 15) -eq 1) { $mgr = GetMgr }
   if ($mgr) {
     try {
-      # Xanaphian'ın kendi ses oturumu (ses odası, bildirim sesi) müzik sayılmaz. Kalan oturumlar puanlanır,
+      # Naphian'ın kendi ses oturumu (ses odası, bildirim sesi) müzik sayılmaz. Kalan oturumlar puanlanır,
       # adı (başlığı) olan en yüksek puanlı oturum seçilir: çalan > Spotify ya da Spotify'a bağlı oynatıcı > bilinen müzik uygulaması.
       $cands = New-Object System.Collections.ArrayList
       foreach ($ss in $mgr.GetSessions()) {

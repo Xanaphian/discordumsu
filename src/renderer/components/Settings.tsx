@@ -183,10 +183,10 @@ function AppTab() {
   return (
     <>
       <h1>Uygulama ve Kısayollar</h1>
-      <Row title="Kapatınca tepside çalış" sub="Pencereyi kapatınca Xanaphian arka planda çalışmaya devam eder; topluluğuna gelenler sohbet edebilir.">
+      <Row title="Kapatınca tepside çalış" sub="Pencereyi kapatınca Naphian arka planda çalışmaya devam eder; topluluğuna gelenler sohbet edebilir.">
         <Toggle value={s.closeToTray} onChange={(v) => updateSettings({ closeToTray: v })} />
       </Row>
-      <Row title="Bilgisayar açılınca başlat" sub="Windows oturumu açıldığında Xanaphian tepside başlar.">
+      <Row title="Bilgisayar açılınca başlat" sub="Windows oturumu açıldığında Naphian tepside başlar.">
         <Toggle value={s.openAtLogin} onChange={(v) => updateSettings({ openAtLogin: v })} />
       </Row>
       <ShortcutSettings />
@@ -203,10 +203,10 @@ function UpdatesTab() {
       <div className="update-card">
         <Logo size={56} />
         <div className="uc-text">
-          <div className="uc-title">Xanaphian v{info?.version}</div>
+          <div className="uc-title">Naphian v{info?.version}</div>
           <div className="uc-sub">
             {u.state === 'checking' && 'Güncellemeler denetleniyor…'}
-            {u.state === 'none' && `Xanaphian güncel. Son denetim: ${new Date(u.checkedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`}
+            {u.state === 'none' && `Naphian güncel. Son denetim: ${new Date(u.checkedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`}
             {u.state === 'available' && `Yeni sürüm hazır: v${u.version}${u.size ? ` (${fmtSize(u.size)})` : ''}`}
             {u.state === 'downloading' && `v${u.version} indiriliyor… %${Math.floor(u.percent)} · ${fmtSize(u.bps)}/sn`}
             {u.state === 'ready' && `v${u.version} indirildi. Yeniden başlatınca yüklenecek.`}
@@ -280,7 +280,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
     { id: 'chat', label: 'Sohbet', group: 'Uygulama Ayarları' },
     { id: 'advanced', label: 'Gelişmiş', group: 'Uygulama Ayarları' },
     { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama Ayarları' },
-    { id: 'updates', label: 'Güncellemeler', group: 'Xanaphian' },
+    { id: 'updates', label: 'Güncellemeler', group: 'Naphian' },
   ];
   // telefonda olmayanlar: oyun/müzik etkinliği okuma, yayıncı modu, oyun içi kaplama, klavye kısayolları
   const nav = mobile ? all.filter((n) => !['activity', 'streamer', 'overlay', 'app'].includes(n.id)) : all;
@@ -297,7 +297,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
           <button className="sn-item danger" onClick={() => void cikisYap()}>
             Çıkış yap
           </button>
-          <div className="sn-version">Xanaphian v{version}</div>
+          <div className="sn-version">Naphian v{version}</div>
         </>
       }
     >

@@ -38,7 +38,7 @@ const GIF_DEFS: [string, string, string][] = [
 ];
 
 const ST_DEFS: [string, string, string][] = [
-  ['xanaphian', 'Xanaphian', 'xanaphian yengeç logo'],
+  ['xanaphian', 'Naphian', 'xanaphian yengeç logo'],
   ['gg', 'GG', 'gg iyi oyun'],
   ['arti1', '+1', 'artı bir katılıyorum evet'],
   ['efsane', 'Efsane', 'efsane yıldız harika'],

@@ -62,7 +62,7 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
   const link = `${INVITE_LINK_BASE}/${code}`;
   const title = info ? `${info.name} topluluğuna katıl` : 'Davet geçersiz';
   const desc = info
-    ? `${info.about ? info.about + ' · ' : ''}${info.online} çevrimiçi, ${info.members} üye. Xanaphian'da sohbete katıl.`
+    ? `${info.about ? info.about + ' · ' : ''}${info.online} çevrimiçi, ${info.members} üye. Naphian'da sohbete katıl.`
     : 'Bu davet bağlantısı geçersiz ya da süresi dolmuş.';
   const hasIcon = !!info?.icon;
   const iconUrl = `${link}/simge`;
@@ -80,14 +80,14 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
       <h1>${esc(info.name)}</h1>
       ${info.about ? `<p class="ab">${esc(info.about)}</p>` : ''}
       <p class="st"><span class="pl"><i class="on"></i>${info.online} çevrimiçi</span><span class="pl"><i></i>${info.members} üye</span></p>
-      <a class="b" id="ac" href="${esc(appLink)}">Xanaphian'da aç</a>
+      <a class="b" id="ac" href="${esc(appLink)}">Naphian'da aç</a>
       <p class="n" id="not">Uygulama kuruluysa düğmeye basınca açılır.</p>
       <div class="sep"><span>uygulaman yok mu?</span></div>
-      <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Xanaphian'ı indir</a>
+      <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Naphian'ı indir</a>
       <p class="n kc">Uygulamada <b>Bir topluluğa katıl</b> kutusuna bu bağlantıyı da yapıştırabilirsin<code>${esc(link.replace(/^https?:\/\//, ''))}</code></p>`
     : `<h1>Davet geçersiz</h1>
       <p class="ab">Bu davet bağlantısı geçersiz ya da süresi dolmuş. Seni davet eden kişiden yeni bir bağlantı iste.</p>
-      <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Xanaphian'ı indir</a>`;
+      <a class="b ik" href="${esc(DOWNLOAD_URL)}" rel="noopener">Naphian'ı indir</a>`;
   return `<!doctype html>
 <html lang="tr">
 <head>
@@ -96,9 +96,9 @@ export function invitePage(info: InviteInfo | null, code: string, nonce: string)
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0d0f14">
-<title>${esc(title)} · Xanaphian</title>
+<title>${esc(title)} · Naphian</title>
 <meta name="description" content="${esc(desc)}">
-<meta property="og:site_name" content="Xanaphian">
+<meta property="og:site_name" content="Naphian">
 <meta property="og:type" content="website">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
@@ -148,23 +148,23 @@ code{display:block;margin:8px auto 0;width:fit-content;max-width:100%;padding:5p
 </head>
 <body>
 ${bgLayer}
-<div class="brand"><b>X</b>Xanaphian</div>
+<div class="brand"><b>N</b>Naphian</div>
 <main>
       <div class="bn"></div>
       ${icon}
       ${body}
 </main>
-<p class="ft">Xanaphian · Arkadaşlarınla sohbet et, oyna, birlikte vakit geçir</p>
+<p class="ft">Naphian · Arkadaşlarınla sohbet et, oyna, birlikte vakit geçir</p>
 ${info ? `<script nonce="${nonce}">
 (function(){
-  // uygulama kendiliğinden açılmaz (tarayıcı üstte izin penceresi çıkarıp sayfayı örtüyordu); yalnız "Xanaphian'da aç"a basınca açılır
+  // uygulama kendiliğinden açılmaz (tarayıcı üstte izin penceresi çıkarıp sayfayı örtüyordu); yalnız "Naphian'da aç"a basınca açılır
   var ac=document.getElementById('ac'), not=document.getElementById('not'), t;
   if(!ac||!not) return;
   var first=not.textContent;
-  window.addEventListener('blur',function(){ clearTimeout(t); not.textContent="Xanaphian açılıyor. Katılma penceresi uygulamada seni bekliyor."; });
+  window.addEventListener('blur',function(){ clearTimeout(t); not.textContent="Naphian açılıyor. Katılma penceresi uygulamada seni bekliyor."; });
   ac.addEventListener('click',function(){
     clearTimeout(t);
-    t=setTimeout(function(){ not.textContent="Xanaphian açılmadı mı? Yüklü değilse aşağıdan indir, sonra bu sayfaya dön."; },2500);
+    t=setTimeout(function(){ not.textContent="Naphian açılmadı mı? Yüklü değilse aşağıdan indir, sonra bu sayfaya dön."; },2500);
   });
   window.addEventListener('focus',function(){ clearTimeout(t); not.textContent=first; });
 })();

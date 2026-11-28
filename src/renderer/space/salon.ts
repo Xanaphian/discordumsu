@@ -1,6 +1,6 @@
 // "Salon" dünyası: ses odalarının varsayılan 3D görünümü.
 // Kapalı, sade bir oturma salonu: duvarda ekran paylaşımının göründüğü büyük ekran, kanepeler, koltuklar, iki masa.
-// Renkler Xanaphian Gece paletinden: gece mavisi duvarlar, ince altın çıtalar, turkuaz vurgu.
+// Renkler Naphian Gece paletinden: gece mavisi duvarlar, ince altın çıtalar, turkuaz vurgu.
 import * as THREE from 'three';
 import { textCanvas, roundRect, type Collider, type Seat, type World } from './world';
 import { propPlacer, UNIT } from './props';

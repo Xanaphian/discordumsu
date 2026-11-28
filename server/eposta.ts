@@ -58,7 +58,7 @@ export function smtpGonderici(a: SmtpAyar) {
         const parca = (s: string) => b64(s).replace(/.{1,76}/g, '$&\r\n');
         const sinir = 'xnp-' + crypto.randomBytes(12).toString('hex');
         const ust = [
-          `From: Xanaphian <${temiz(a.from)}>`,
+          `From: Naphian <${temiz(a.from)}>`,
           `To: <${to}>`,
           `Subject: =?UTF-8?B?${b64(temiz(subject))}?=`,
           `Date: ${new Date().toUTCString()}`,

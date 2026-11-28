@@ -4,7 +4,7 @@
 // yere dosya koymak yeterli; ayrıntı release-notes/README.md'de.
 // Dosyanın başındaki gizli yorumlar (GitHub'da görünmez):
 //   <!-- tarih: 2026-11-14 -->
-//   <!-- baslik: Kısa başlık -->            (isteğe bağlı; yoksa "## Xanaphian 1.2.3: başlık" satırından alınır)
+//   <!-- baslik: Kısa başlık -->            (isteğe bağlı; yoksa "## Naphian 1.2.3: başlık" satırından alınır)
 //   <!-- gorsel: 1-dosya.webp | Açıklama --> (isteğe bağlı açıklama; klasördeki her görsel yine gösterilir)
 
 const notes = import.meta.glob('../../../release-notes/*.md', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>;
@@ -70,7 +70,7 @@ function parse(version: string, raw: string): Kayit {
     if (h) {
       flushPara();
       list = null;
-      const m = /^(?:Kovan|Xanaphian)\s+v?\d+(?:\.\d+){0,2}\s*[:\-–]?\s*(.*)$/i.exec(h[1].trim());
+      const m = /^(?:Kovan|Xanaphian|Naphian)\s+v?\d+(?:\.\d+){0,2}\s*[:\-–]?\s*(.*)$/i.exec(h[1].trim());
       if (m) {
         if (!title && m[1]) title = stripEmoji(m[1]);
       } else if (!/^Yenilikler$/i.test(h[1].trim())) blocks.push({ t: 'h', text: stripEmoji(h[1]) });
