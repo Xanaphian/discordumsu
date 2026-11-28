@@ -472,6 +472,13 @@ const MessageItem = memo(function MessageItem({ m, prev, c, md, me, canManage, i
           toolsSide(e);
           useHot.setState({ id: m.id });
         }}
+        // fare yerinden kıpırdamadan mesajın üstüne geri gelince (ör. sağ tık menüsü ya da düzenleme kutusu kapanınca)
+        // mouseenter yeniden gelmiyor, düğmeler çıkmıyordu: ilk kıpırdamada yakala
+        onMouseMove={(e) => {
+          if (useHot.getState().id === m.id) return;
+          toolsSide(e);
+          useHot.setState({ id: m.id });
+        }}
         onMouseLeave={() => useHot.getState().id === m.id && useHot.setState({ id: null })}
         onDoubleClick={(e) => {
           if (mine && !card && !isEditing && !(e.target as HTMLElement).closest('a,button,.att-img,.md-pre')) startEdit();

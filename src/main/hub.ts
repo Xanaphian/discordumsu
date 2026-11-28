@@ -253,7 +253,7 @@ interface Session {
 export const BOT_ID = 'kovan-asistan';
 /** v1.70 misafir hesabın yapamadıkları (bkz. StoredUser.misafir) */
 const MISAFIR_YASAK = new Set<string>(['comm.create', 'friend.req', 'friend.tag', 'post.create', 'bot.create']);
-const MISAFIR_MSG = 'Misafir hesaplar bunu yapamaz. Ayarlar → Gizlilik ve Güvenlik → Giriş bilgileri\'nden e-postanı doğrulayıp hesabını kalıcı yap.';
+const MISAFIR_MSG = 'Misafir hesaplar bunu yapamaz. Ayarlar → Hesabım\'dan e-postanı doğrulayıp hesabını kalıcı yap.';
 /** Araç kanallarının adı boş bırakılınca kullanılan adlar */
 const TOOL_NAMES: Record<ToolType, string> = { ideas: 'Öneri panosu', tasks: 'Görev panosu', events: 'Etkinlikler', wall: 'Ortak duvar' };
 

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { ArrowLeft, Eye, EyeOff, RefreshCw, Smartphone } from 'lucide-react';
-import { useStore, homeHost, homeData, homeRequest, girisSupported, toast, confirmDialog, finishOnboarding } from '../lib/store';
+import { useStore, homeHost, homeData, homeRequest, girisSupported, toast, confirmDialog, finishOnboarding, flushSaves } from '../lib/store';
 import { Avatar, Logo } from './Common';
 import { IS_MOBILE } from '../lib/mobil';
 import { QR_ONEK, epostaHatasi, kullaniciAdiHatasi, sifreHatasi, kullaniciAdiDuzelt, epostaDuzelt, type HesapGirisi } from '../../shared/giris';
@@ -121,7 +121,7 @@ function SifreAlani({ value, onChange, auto, onEnter, placeholder }: { value: st
   const [gor, setGor] = useState(false);
   return (
     <div className="gr-sifre">
-      <input type={gor ? 'text' : 'password'} value={value} autoComplete={auto} placeholder={placeholder} maxLength={128} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onEnter?.()} />
+      <input type={gor ? 'text' : 'password'} value={value} autoComplete={auto} placeholder={placeholder} maxLength={128} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.currentTarget.form && onEnter?.()} />
       <button type="button" className="gr-goz" onClick={() => setGor(!gor)} aria-label={gor ? 'Şifreyi gizle' : 'Şifreyi göster'} title={gor ? 'Şifreyi gizle' : 'Şifreyi göster'}>
         {gor ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>
@@ -479,6 +479,8 @@ export async function cikisYap() {
   const bilgi = girisSupported() ? await homeData<HesapGirisi>({ t: 'auth.me' }).catch(() => null) : null;
   const sifreli = !!bilgi?.hasPassword;
   const cik = async () => {
+    // bekleyen ayar kayıtları yeniden yüklemeden önce diske yazılsın
+    flushSaves();
     await window.kovan.giris.logout();
     yenidenYukle();
   };
@@ -559,17 +561,6 @@ export function GirisBilgileri() {
     }
     setMesgul(false);
   };
-  const cikis = () =>
-    confirmDialog(
-      'Çıkış yapılsın mı?',
-      'Bu bilgisayardan çıkarsın. Yeniden girmek için e-posta / kullanıcı adın ve şifren ya da telefonundaki QR kodu yeterli.',
-      async () => {
-        await window.kovan.giris.logout();
-        yenidenYukle();
-      },
-      'Çıkış yap',
-      true,
-    );
   return (
     <>
       <h3>Giriş bilgileri</h3>
@@ -702,15 +693,6 @@ export function GirisBilgileri() {
           </button>
         </div>
       )}
-      <div className="gr-ayar-ozet">
-        <div>
-          <b>Bu bilgisayardan çık</b>
-          <span>{me?.hasPassword ? 'Giriş ekranına dönülür.' : 'Önce e-posta ve şifre belirle; yoksa bu hesaba geri giremezsin.'}</span>
-        </div>
-        <button className="btn danger sm" disabled={!me?.hasPassword} onClick={cikis}>
-          Çıkış yap
-        </button>
-      </div>
     </>
   );
 }
