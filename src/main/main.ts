@@ -17,6 +17,10 @@ import { OFFICIAL_SERVER, isLoopbackHost, normHost } from '../shared/guvenlik';
 
 const isDev = !app.isPackaged;
 app.setAppUserModelId('com.xanaphian.kovan');
+// v1.71.3: görünen ad Naphian oldu (package.json productName). Electron veri klasörünü bu addan türetir; herkesin
+// ayarları, oturumu ve mesajları eski %APPDATA%/Kovan klasöründe kaldığı için klasör sabit tutulur. Bu satır, veri
+// klasörünü okuyan her şeyden önce çalışmalı. --user-data-dir verilmişse (sınamalar) ona dokunulmaz.
+if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'Kovan'));
 
 // WebRTC: donanım hızlandırmalı kodlama/çözme ve ekran yakalama iyileştirmeleri
 app.commandLine.appendSwitch('enable-features', 'AllowWgcScreenCapturer,AllowWgcWindowCapturer,WebRtcUseMinMaxVEADimensions');
@@ -304,7 +308,7 @@ function createWindow() {
     minWidth: 940,
     minHeight: 560,
     show: false,
-    title: 'Xanaphian',
+    title: 'Naphian',
     icon: iconPath(),
     backgroundColor: themeBg(theme),
     titleBarStyle: 'hidden',
@@ -466,10 +470,10 @@ function showWindow() {
 function createTray() {
   const img = nativeImage.createFromPath(iconPath()).resize({ width: 16, height: 16 });
   tray = new Tray(img);
-  tray.setToolTip('Xanaphian');
+  tray.setToolTip('Naphian');
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Xanaphian\'ı aç', click: showWindow },
+      { label: 'Naphian\'ı aç', click: showWindow },
       { type: 'separator' },
       {
         label: 'Güncellemeleri denetle',
@@ -702,7 +706,7 @@ app.whenReady().then(async () => {
     return mine && port >= prefPort && port < prefPort + 20;
   })();
   const localWanted = hub.hasStoredCommunities() || srvIsMe || process.env.KOVAN_LOCAL_HUB === '1';
-  hub.ownerName = config.profile.name || 'Xanaphian';
+  hub.ownerName = config.profile.name || 'Naphian';
   hub.siteMeta = fetchSiteMeta;
   if (localWanted) {
     try {
@@ -741,7 +745,7 @@ app.whenReady().then(async () => {
       if (win?.isVisible() || !Notification.isSupported()) return;
       const body =
         u.state === 'none' ? 'En son sürümü kullanıyorsun.' : u.state === 'available' ? `Yeni sürüm hazır: v${u.version}. Yüklemek için tıkla.` : `Denetlenemedi: ${u.message}`;
-      const n = new Notification({ title: 'Xanaphian güncellemesi', body, icon: iconPath() });
+      const n = new Notification({ title: 'Naphian güncellemesi', body, icon: iconPath() });
       n.on('click', () => showWindow());
       n.show();
     }
@@ -1049,7 +1053,7 @@ function registerIpc() {
     const srcs = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 400, height: 225 }, fetchWindowIcons: true });
     const displays = screen.getAllDisplays();
     return srcs
-      .filter((s) => (s.name !== 'Kovan' && s.name !== 'Xanaphian') || s.id.startsWith('screen'))
+      .filter((s) => (s.name !== 'Kovan' && s.name !== 'Naphian') || s.id.startsWith('screen'))
       .map((s) => {
         const d = displays.find((x) => String(x.id) === s.display_id);
         return {
@@ -1082,7 +1086,7 @@ function registerIpc() {
     if (process.platform === 'win32') {
       if (count > 0 && !win?.isFocused()) win?.flashFrame(true);
     } else app.setBadgeCount(count);
-    tray?.setToolTip(count > 0 ? `Xanaphian (${count} bahsetme)` : 'Xanaphian');
+    tray?.setToolTip(count > 0 ? `Naphian (${count} bahsetme)` : 'Naphian');
   });
   ipcMain.on('open-external', (_e, url: string) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);

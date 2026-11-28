@@ -10,5 +10,5 @@ Site (ScuttleLol, Cloudflare Pages) tarafında iki değişiklik gerekir; site ka
 
 Sonra site her zamanki yolla yayınlanır: Git Bash'te `bash vds/site-gonder.sh --yayinla`.
 
-Sıra önemli değil: sunucu henüz güncellenmediyse aktarıcı sade bir yedek sayfa gösterir ("Xanaphian'da aç" yine çalışır,
+Sıra önemli değil: sunucu henüz güncellenmediyse aktarıcı sade bir yedek sayfa gösterir ("Naphian'da aç" yine çalışır,
 çünkü uygulama kodu kendisi çözer). Alan adı değişirse `INVITE_LINK_BASE` ve aktarıcının yolu birlikte değişir.

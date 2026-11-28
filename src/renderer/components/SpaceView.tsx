@@ -615,7 +615,7 @@ function Room({ c, ch }: { c: Community; ch: Channel }) {
             Ses ve görüntü ayarları
           </button>
           <p className="sv-credits">
-            <b>Emeği geçenler</b> · Karakterler, mobilyalar ve dekor: KayKit, Kay Lousberg (CC0, kaylousberg.com). Çeşme, ateş, şapkalar ve tepki hareketleri Xanaphian için üretildi.
+            <b>Emeği geçenler</b> · Karakterler, mobilyalar ve dekor: KayKit, Kay Lousberg (CC0, kaylousberg.com). Çeşme, ateş, şapkalar ve tepki hareketleri Naphian için üretildi.
           </p>
         </div>
       )}

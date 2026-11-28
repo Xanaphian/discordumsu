@@ -374,7 +374,7 @@ function AiPane({ cid, bot }: { cid: string; bot: BotView }) {
           <b>{ai.context}</b>
         </div>
       </Row>
-      <Row title="Xanaphian araçları" sub="Gerektiğinde kanal geçmişini okur, arama yapar, üyeleri görür, tepki ekler, başka kanala yazar.">
+      <Row title="Naphian araçları" sub="Gerektiğinde kanal geçmişini okur, arama yapar, üyeleri görür, tepki ekler, başka kanala yazar.">
         <Toggle value={ai.tools} onChange={(v) => upd({ tools: v })} />
       </Row>
       <Row title="Web araması" sub="Güncel bilgi gerekince internette arar (arama başına ek ücret).">
@@ -626,7 +626,7 @@ function ConnectPane({ cid, bot, freshToken }: { cid: string; bot: BotView; fres
         <Bot size={22} />
         <div>
           <b>Tek tıkla ekle</b>
-          <span>Xanaphian, Claude Desktop'ın yapılandırma dosyasına bu botu ekler. Sonra Claude Desktop'ı tamamen kapatıp yeniden aç; araçlar menüsünde "{slug}" görünür.</span>
+          <span>Naphian, Claude Desktop'ın yapılandırma dosyasına bu botu ekler. Sonra Claude Desktop'ı tamamen kapatıp yeniden aç; araçlar menüsünde "{slug}" görünür.</span>
         </div>
         <button className="btn primary" disabled={!token || busy} onClick={addDesktop}>
           {busy ? <LoaderCircle className="spin" size={14} /> : <MessageSquareReply size={14} />} Claude Desktop'a ekle
@@ -640,7 +640,7 @@ function ConnectPane({ cid, bot, freshToken }: { cid: string; bot: BotView; fres
       <h3>Diğer MCP istemcileri (HTTP)</h3>
       <CodeBox label="Adres ve başlık" text={httpJson} secret={token} />
       <p className="note">
-        Adres: <code>{url}</code>. Xanaphian kapalıyken ya da bu bilgisayardan topluluğu barındıran bilgisayara ulaşılamıyorsa bağlantı kurulmaz.
+        Adres: <code>{url}</code>. Naphian kapalıyken ya da bu bilgisayardan topluluğu barındıran bilgisayara ulaşılamıyorsa bağlantı kurulmaz.
       </p>
 
       <h3>Kendi kodunla (REST API)</h3>

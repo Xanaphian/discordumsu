@@ -50,6 +50,11 @@ const rt = field('releaseType');
 if (rt && rt !== 'release') errors.push(`electron-builder.yml: releaseType "${rt}"; taslak ya da ön sürüm güncelleyiciye görünmez, "release" olmalı.`);
 if (!/artifactName:\s*Kovan-Setup-\$\{version\}\.\$\{ext\}/.test(yml)) warns.push('Kurulum dosyasının adı değişmiş; release.yml yükleme adımındaki "release/Kovan-Setup-*.exe" kalıbını da güncelle.');
 
+// v1.71.3: görünen ad Naphian; exe adı ve veri klasörü Kovan kalmalı (yoksa kısayollar ve herkesin ayarları/oturumu kopar)
+if (!/^\s*executableName:\s*Kovan\s*$/m.test(yml)) errors.push('electron-builder.yml: win.executableName "Kovan" olmalı; exe adı değişirse kısayollar, otomatik başlatma ve bot ayarları bozulur.');
+if (!/app\.setPath\('userData',\s*path\.join\(app\.getPath\('appData'\),\s*'Kovan'\)\)/.test(read('src/main/main.ts')))
+  errors.push("src/main/main.ts: veri klasörü %APPDATA%/Kovan'a sabitlenmeli (app.setPath('userData', ...)); yoksa herkesin ayarları ve oturumu kaybolur.");
+
 // Yayın akışı latest.yml'i yüklüyor mu (güncelleyici bu dosyayı okur)
 const rel = read('.github/workflows/release.yml');
 for (const f of ['latest.yml', '.exe.blockmap']) if (!rel.includes(f)) errors.push(`release.yml "${f}" dosyasını yüklemiyor; güncelleme düğmesi çalışmaz.`);

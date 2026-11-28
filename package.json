@@ -1,8 +1,8 @@
 {
   "name": "kovan",
-  "productName": "Kovan",
-  "version": "1.71.2",
-  "description": "Kovan - topluluklar, kanallar ve gerçek zamanlı sohbet",
+  "productName": "Naphian",
+  "version": "1.71.3",
+  "description": "Naphian - topluluklar, kanallar ve gerçek zamanlı sohbet",
   "author": "Xanaphian",
   "license": "UNLICENSED",
   "private": true,

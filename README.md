@@ -1,4 +1,4 @@
-# Xanaphian
+# Naphian
 
 Topluluklar, kanallar ve gerçek zamanlı sohbet için hafif bir masaüstü uygulaması (Windows).
 

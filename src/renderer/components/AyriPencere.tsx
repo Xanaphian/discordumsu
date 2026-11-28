@@ -11,7 +11,7 @@ import { Logo, Tooltip, Avatar } from './Common';
 import type { Channel, Community } from '../../shared/protocol';
 
 export function popoutTitle(c: Community, ch: Channel) {
-  if (c.dm) return `@${useStore.getState().users[c.dm]?.name || c.name} · Xanaphian`;
+  if (c.dm) return `@${useStore.getState().users[c.dm]?.name || c.name} · Naphian`;
   return `#${ch.name} · ${c.name}`;
 }
 
@@ -78,7 +78,7 @@ export function PopoutApp() {
       <header className="titlebar popout-bar">
         <div className="tb-brand">
           {c?.dm ? <Avatar user={peer} size={20} plain /> : <Logo size={20} />}
-          <span>{c && ch ? (c.dm ? peer?.name || c.name : `#${ch.name}`) : 'Xanaphian'}</span>
+          <span>{c && ch ? (c.dm ? peer?.name || c.name : `#${ch.name}`) : 'Naphian'}</span>
           {c && !c.dm && <small>{c.name}</small>}
         </div>
         <div className="tb-drag" />

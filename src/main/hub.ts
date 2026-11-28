@@ -305,7 +305,7 @@ export class Hub {
   private saveTimers = new Map<string, NodeJS.Timeout>();
   private heartbeat: NodeJS.Timeout | null = null;
   port = 0;
-  ownerName = 'Xanaphian';
+  ownerName = 'Naphian';
   /** Bot API anahtarlarını şifrelemek için (main.ts safeStorage ile ayarlar) */
   crypt: BotHost['crypt'] = null;
   readonly bots: BotManager;
@@ -577,7 +577,7 @@ export class Hub {
     }
     this.migrateSite(c);
     this.migrate11(c);
-    // v1.12: Xanaphian kimliği. Kendiliğinden kurulan adlardaki "Kovan" kalkar (kullanıcının verdiği adlara dokunulmaz).
+    // v1.12: Naphian kimliği. Kendiliğinden kurulan adlardaki "Kovan" kalkar (kullanıcının verdiği adlara dokunulmaz).
     if (!c.m112) {
       c.m112 = 1;
       for (const ch of c.channels) if (ch.type === 'space' && ch.name === 'Kovan Meydanı') ch.name = 'Meydan';
@@ -585,6 +585,9 @@ export class Hub {
       if (owner && c.name === `${owner} Kovanı`) c.name = `${owner} Topluluğu`;
       this.saveComm(c.id);
     }
+    // v1.71.3: kendiliğinden kurulan hoş geldin kanalının konusu yeni adla (kullanıcının yazdığı konulara dokunulmaz)
+    for (const ch of c.channels)
+      if (ch.topic === "Xanaphian'a hoş geldin! Buradan başla.") (ch.topic = "Naphian'a hoş geldin! Buradan başla."), this.saveComm(c.id);
     // v1.31: 3D oda ayrı tür değil; eski 3D odalar kendi dünyasıyla (meydan) ses odası olur, adı/izinleri/resmi aynı kalır
     if (!c.m131) {
       c.m131 = 1;
@@ -645,7 +648,7 @@ export class Hub {
         authorId: BOT_ID,
         ts: Date.now(),
         content:
-          '## Yeni: Site Odaları 🌐\n**xanaphian.com** artık Xanaphian\'ın içinde. Soldaki **Site Odaları** bölümünden odaya gir; site ortada açılır, sağda o odanın sohbeti durur.\n- Odada kimin hangi sayfaya baktığını görürsün; birinin üstüne tıklayıp **takip et**, o gezdikçe sen de gezersin\n- Sohbetteki xanaphian.com bağlantıları doğrudan odada açılır\n- Yöneticiler kanal oluştururken türü **Site Odası** seçip başka bir site de bağlayabilir',
+          '## Yeni: Site Odaları 🌐\n**xanaphian.com** artık Naphian\'ın içinde. Soldaki **Site Odaları** bölümünden odaya gir; site ortada açılır, sağda o odanın sohbeti durur.\n- Odada kimin hangi sayfaya baktığını görürsün; birinin üstüne tıklayıp **takip et**, o gezdikçe sen de gezersin\n- Sohbetteki xanaphian.com bağlantıları doğrudan odada açılır\n- Yöneticiler kanal oluştururken türü **Site Odası** seçip başka bir site de bağlayabilir',
       });
     }
     this.saveComm(c.id);
@@ -653,13 +656,18 @@ export class Hub {
 
   private ensureBot() {
     const b = this.data.users[BOT_ID];
+    // v1.71.3: uygulamanın adı Naphian; eski kurulumlarda kalan "Xanaphian'ın yerleşik yardımcısı" yazısı da düzelir
+    if (b && b.pub.bio?.startsWith('Xanaphian')) {
+      b.pub = { ...b.pub, bio: b.pub.bio.replace(/^Xanaphian/, 'Naphian') };
+      this.saveHub();
+    }
     if (b && b.pub.name === 'Kovan Asistanı') {
-      b.pub = { ...b.pub, name: 'Asistan', color: '#c9a35a', bio: 'Xanaphian\'ın yerleşik yardımcısı. Mesajlara yanıt vermez, sadece bilgilendirir.' };
+      b.pub = { ...b.pub, name: 'Asistan', color: '#c9a35a', bio: 'Naphian\'ın yerleşik yardımcısı. Mesajlara yanıt vermez, sadece bilgilendirir.' };
       this.saveHub();
     }
     if (!this.data.users[BOT_ID]) {
       this.data.users[BOT_ID] = {
-        pub: { id: BOT_ID, name: 'Asistan', color: '#c9a35a', bio: 'Xanaphian\'ın yerleşik yardımcısı. Mesajlara yanıt vermez, sadece bilgilendirir.' },
+        pub: { id: BOT_ID, name: 'Asistan', color: '#c9a35a', bio: 'Naphian\'ın yerleşik yardımcısı. Mesajlara yanıt vermez, sadece bilgilendirir.' },
         secretHash: sha(crypto.randomBytes(32).toString('hex')),
       };
       this.saveHub();
@@ -1721,7 +1729,7 @@ export class Hub {
       }
       case 'friend.code':
         // v1.50: arkadaş kodları kalktı; eski istemciye anlaşılır bir cevap
-        this.send(s, { t: 'err', rid: f.rid, msg: "Arkadaş kodları kalktı. Xanaphian'ı güncelle; artık herkesin ad#kod biçiminde bir etiketi var." });
+        this.send(s, { t: 'err', rid: f.rid, msg: "Arkadaş kodları kalktı. Naphian'ı güncelle; artık herkesin ad#kod biçiminde bir etiketi var." });
         return true;
       case 'tag.set': {
         const r = this.setCustomTag(uid, f.code);
@@ -3270,7 +3278,7 @@ export class Hub {
     } else if (template === 'lobby') {
       roles.push({ id: makeId(), name: 'Bot', color: '#f5a524', perms: 0, hoist: true, position: 3 });
       const info = cat('Bilgi');
-      welcome = chan('hoş-geldin', 'announce', info, 'Xanaphian\'a hoş geldin! Buradan başla.');
+      welcome = chan('hoş-geldin', 'announce', info, 'Naphian\'a hoş geldin! Buradan başla.');
       chan('duyurular', 'announce', info, 'Önemli duyurular');
       const talk = cat('Sohbet');
       chan('genel', 'text', talk, 'Her şeyden konuşulur');
@@ -3318,7 +3326,7 @@ export class Hub {
 
   private seedWelcome(ch: ID) {
     const texts = [
-      '# Xanaphian\'a hoş geldin! 👋\nBurası senin topluluğun. Topluluklar oluştur, kanallar aç, arkadaşlarını davet et ve gerçek zamanlı sohbet et.',
+      '# Naphian\'a hoş geldin! 👋\nBurası senin topluluğun. Topluluklar oluştur, kanallar aç, arkadaşlarını davet et ve gerçek zamanlı sohbet et.',
       '## Hızlı başlangıç\n- **Arkadaş davet et:** sol üstteki topluluk adına tıkla → *Davet et*. Kodu gönder, karşı taraf *Davetle katıl* ile girer.\n- **Kanal aç:** kategori başlığındaki **+** düğmesi.\n- **Hızlı geçiş:** `Ctrl+K` ile kanallar ve topluluklar arasında atla.\n- **Yanıtla / düzenle / tepki:** mesajın üzerine gel, sağda araç çubuğu çıkar. Kendi son mesajını düzenlemek için boş kutuda `↑` tuşu.',
       '## Biçimlendirme\n**kalın**, *italik*, __altı çizili__, ~~üstü çizili~~, `satır içi kod`, ||spoiler|| ve\n```js\nconst xanaphian = "hızlı ve hafif";\n```\n> Alıntı da yapabilirsin.',
       '## Güncellemeler\nYeni sürüm çıktığında üst çubukta **Güncelle** düğmesi belirir. Tek tıkla indirip yeniden başlatır, tekrar kurulum dosyası indirmen gerekmez. Ayarlar → *Güncellemeler* bölümünden elle de denetleyebilirsin.',

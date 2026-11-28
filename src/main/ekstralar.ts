@@ -176,7 +176,7 @@ function openPopout(cid: string, ch: string, title: string) {
     minWidth: 380,
     minHeight: 420,
     ...(b ? { x: b.x + b.width - 560 - popouts.size * 30, y: b.y + 60 + popouts.size * 30 } : {}),
-    title: title.slice(0, 80) || 'Xanaphian',
+    title: title.slice(0, 80) || 'Naphian',
     icon: opts.icon,
     backgroundColor: look.bg,
     titleBarStyle: 'hidden',

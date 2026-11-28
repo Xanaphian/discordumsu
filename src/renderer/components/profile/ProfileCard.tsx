@@ -330,7 +330,7 @@ export function ProfileCard({ uid, user, status, c, variant, isMe, onClose, disp
       {variant !== 'popout' && (/^[0-9a-z]{14}$/.test(uid) || !!member) && <section className="pc-sec pc-dates">
         {/^[0-9a-z]{14}$/.test(uid) && (
           <div>
-            <h4>Xanaphian'a katıldı</h4>
+            <h4>Naphian'a katıldı</h4>
             <span>{fmtDay(idTime(uid))}</span>
           </div>
         )}

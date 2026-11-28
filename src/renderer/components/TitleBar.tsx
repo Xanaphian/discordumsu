@@ -88,7 +88,7 @@ export function TitleBar() {
   React.useEffect(() => {
     if (u.state === 'none' && u.manual && u.checkedAt !== lastNone.current) {
       lastNone.current = u.checkedAt;
-      toast('Xanaphian güncel. En son sürümü kullanıyorsun.', 'ok');
+      toast('Naphian güncel. En son sürümü kullanıyorsun.', 'ok');
     }
     if (u.state === 'error' && u.manual) toast('Güncelleme denetlenemedi: ' + u.message, 'err');
   }, [u]);

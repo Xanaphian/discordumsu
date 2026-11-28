@@ -109,8 +109,8 @@ export function useClickOutside(ref: React.RefObject<HTMLElement | null>, cb: ()
 }
 
 export function Logo({ size = 22 }: { size?: number }) {
-  // Xanaphian logosu: xanaphian.com'daki yengeç rozeti; görseli temaya göre CSS seçer (marka.css)
-  return <span className="logo-wrap logo-crab" style={{ width: size, height: size, ['--ls' as any]: size + 'px' }} role="img" aria-label="Xanaphian" />;
+  // Naphian logosu: xanaphian.com'daki yengeç rozeti; görseli temaya göre CSS seçer (marka.css)
+  return <span className="logo-wrap logo-crab" style={{ width: size, height: size, ['--ls' as any]: size + 'px' }} role="img" aria-label="Naphian" />;
 }
 
 /** Hazır renk karelerinin sonundaki "istediğin rengi seç" düğmesi: gökkuşağı halka + damlalık ve "Özel" yazısı.

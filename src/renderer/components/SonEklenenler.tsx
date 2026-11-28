@@ -289,7 +289,7 @@ export function SonEklenenler() {
               <Sparkles size={14} /> Sürüm notları
             </span>
             <h1>Son eklenenler</h1>
-            <p>Xanaphian'a sürüm sürüm neler geldi, ekran görüntüleriyle.</p>
+            <p>Naphian'a sürüm sürüm neler geldi, ekran görüntüleriyle.</p>
           </div>
           <div className="se-stats">
             <div>

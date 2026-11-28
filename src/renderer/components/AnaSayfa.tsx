@@ -206,7 +206,7 @@ export function HomeStart() {
       ? 'Henüz arkadaşın yok. Birini ekleyince ne oynadığını, ne dinlediğini burada görürsün.'
       : list.length
         ? 'Şimdilik sessiz. Her şeyi okudun, kimse seste değil.'
-      : "Xanaphian'a hoş geldin. Bir topluluk kur ya da bir davetle katıl, arkadaşların burada belirsin.";
+      : "Naphian'a hoş geldin. Bir topluluk kur ya da bir davetle katıl, arkadaşların burada belirsin.";
 
   const firstRun = !list.length || !friends.length;
   const now = new Date();

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 
-/** Xanaphian'ın Spotify geliştirici uygulamasının Client ID'si (gizli değildir). Boşsa Ayarlar'dan girilir. */
+/** Naphian'ın Spotify geliştirici uygulamasının Client ID'si (gizli değildir). Boşsa Ayarlar'dan girilir. */
 export const DEFAULT_SPOTIFY_CLIENT_ID = '89bac0ff109440f499d0d900f7c72fce';
 export const SPOTIFY_REDIRECT_PORT = 47833;
 export const SPOTIFY_REDIRECT = `http://127.0.0.1:${SPOTIFY_REDIRECT_PORT}/spotify`;
@@ -216,7 +216,7 @@ export function spotifyConnect(id?: string): Promise<SpotifyStatus> {
     const page = (res: http.ServerResponse, ok: boolean, msg: string) => {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       res.end(
-        `<!doctype html><meta charset="utf-8"><title>Xanaphian</title><body style="font:16px system-ui;background:#111;color:#eee;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center"><h2>${ok ? 'Spotify bağlandı' : 'Bağlanamadı'}</h2><p>${msg}</p><p style="opacity:.6">Bu sekmeyi kapatıp Xanaphian'a dönebilirsin.</p></div>`,
+        `<!doctype html><meta charset="utf-8"><title>Naphian</title><body style="font:16px system-ui;background:#111;color:#eee;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center"><h2>${ok ? 'Spotify bağlandı' : 'Bağlanamadı'}</h2><p>${msg}</p><p style="opacity:.6">Bu sekmeyi kapatıp Naphian'a dönebilirsin.</p></div>`,
       );
     };
     const server = http.createServer(async (req, res) => {
@@ -240,7 +240,7 @@ export function spotifyConnect(id?: string): Promise<SpotifyStatus> {
           /* ad alınamadı */
         }
         save();
-        page(res, true, saved.user ? `${saved.user} hesabı Xanaphian'a bağlandı.` : 'Hesap Xanaphian\'a bağlandı.');
+        page(res, true, saved.user ? `${saved.user} hesabı Naphian'a bağlandı.` : 'Hesap Naphian\'a bağlandı.');
         done();
         if (wanted) schedule(300);
       } catch (e: any) {

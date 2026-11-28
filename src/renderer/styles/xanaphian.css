@@ -1,5 +1,5 @@
 /* ==========================================================================
-   1.12: Xanaphian kimliği. Arı/petek dili bırakıldı; şekiller sade ve yuvarlak,
+   1.12: Naphian kimliği. Arı/petek dili bırakıldı; şekiller sade ve yuvarlak,
    tek vurgu rengi (tema rengi). En son yüklenir, eski kuralları ezer.
    ========================================================================== */
 
@@ -351,7 +351,7 @@ html[data-style] {
   box-shadow: inset 0 -2px 0 var(--accent);
 }
 
-/* ---------------- yalnızca Xanaphian temalarında: sitenin derin katmanları ---------------- */
+/* ---------------- yalnızca Naphian temalarında: sitenin derin katmanları ---------------- */
 [data-style='destan'] .app {
   background: linear-gradient(180deg, var(--bg-app), color-mix(in srgb, var(--bg-app) 82%, #000));
 }
@@ -455,7 +455,7 @@ html[data-style] {
    - açılır menü: gece %96, altın %16 kenar, solda 2px altın %42, köşesiz
    - liste satırı: seçili altın %10 zemin + solda 3px altın
    - arama kutusu: zemin altın %4 + gece, 1px altın %52 kenar, 12px köşe
-   Diğer Xanaphian temaları (Kor, Buzul...) aynı kalıbı kendi metal rengiyle alır.
+   Diğer Naphian temaları (Kor, Buzul...) aynı kalıbı kendi metal rengiyle alır.
    ========================================================================== */
 [data-style='destan'] {
   --x-btn-bg: color-mix(in srgb, var(--orn) 9%, var(--bg-app));

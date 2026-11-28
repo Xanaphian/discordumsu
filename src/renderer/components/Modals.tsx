@@ -296,7 +296,7 @@ function InviteModal({ cid }: { cid: string }) {
               <> · İnternet üzerinden davet için Ayarlar → Bağlantı'dan dış adres ekleyebilirsin.</>
             )}
             <br />
-            Arkadaşların bağlıyken Xanaphian'ın açık kalması gerekir (kapatınca tepside çalışmaya devam eder).
+            Arkadaşların bağlıyken Naphian'ın açık kalması gerekir (kapatınca tepside çalışmaya devam eder).
           </div>
         )}
         {can(c, me, Perm.MANAGE_COMMUNITY) && (

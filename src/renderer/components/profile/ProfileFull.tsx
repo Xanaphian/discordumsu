@@ -374,7 +374,7 @@ export function ProfileFull({
               <Label>Künye</Label>
               <div className="xp-facts">
                 {isUid && (
-                  <Fact icon={<CalendarDays size={14} />} label="Xanaphian'da">
+                  <Fact icon={<CalendarDays size={14} />} label="Naphian'da">
                     {fmtDay(idTime(uid))}
                   </Fact>
                 )}

@@ -56,8 +56,8 @@ jobs:
           V="v${{ steps.ver.outputs.v }}"
           gh release delete "$V" --yes --cleanup-tag 2>/dev/null || true
           NOTES="release-notes/${{ steps.ver.outputs.v }}.md"
-          [ -f "$NOTES" ] || { echo "Kovan $V" > /tmp/notes.md; NOTES=/tmp/notes.md; }
-          gh release create "$V" --target "$GITHUB_SHA" --title "Kovan $V" --notes-file "$NOTES" \
+          [ -f "$NOTES" ] || { echo "Naphian $V" > /tmp/notes.md; NOTES=/tmp/notes.md; }
+          gh release create "$V" --target "$GITHUB_SHA" --title "Naphian $V" --notes-file "$NOTES" \
             release/Kovan-Setup-*.exe release/Kovan-Setup-*.exe.blockmap release/latest.yml
       - if: steps.exists.outputs.skip != '1'
         name: Güncelleme düğmesi bu sürümü görüyor mu

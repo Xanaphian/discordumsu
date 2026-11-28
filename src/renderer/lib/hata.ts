@@ -54,7 +54,7 @@ function ortam() {
 /** Gönderilecek bilginin kullanıcıya gösterilebilen düz metni */
 export function raporMetni(not = '') {
   const { ver, os } = ortam();
-  const head = `Xanaphian ${ver} · ${os}`;
+  const head = `Naphian ${ver} · ${os}`;
   const body = items.map((x) => `[${x.where}] ${x.msg}\n${x.stack}`).join('\n\n');
   return [head, not.trim() && 'Not: ' + not.trim(), body].filter(Boolean).join('\n\n');
 }
