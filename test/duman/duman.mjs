@@ -325,14 +325,21 @@ async function appChecks({ comm, text, voice, bots }) {
   await key('Enter', 'Enter', 13);
   await until(() => page.ev(`[...document.querySelectorAll('.msg')].some((m) => m.textContent.includes('duman: düzenlendi'))`), 'düzenlenen mesaj ekranda değişmedi');
   await until(async () => bots[2].frames.some((f) => f.t === 'msg.upd' && f.m.content === 'duman: düzenlendi'), 'düzenleme diğer üyeye ulaşmadı', 4000);
-  await sleep(250);
-  at = await msgAt('duman: düzenlendi');
-  await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+  // Fare düzenleme öncesinden beri aynı mesajın üstünde: tek bir "aynı yere hareket" olayı üzerine gelmeyi
+  // tetiklemeyebiliyordu (yayın sınamasında bir kez takıldı). Her denemede yeri yeniden ölç, fareyi biraz oynat.
+  let kipir = 0;
   must(
     await until(
-      () => page.ev(`(() => { const m = [...document.querySelectorAll('.msg')].reverse().find((m) => m.textContent.includes('duman: düzenlendi')); const b = m?.querySelector('.mt-btn.danger'); if (!b) return false; b.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })); return true; })()`),
+      async () => {
+        at = await msgAt('duman: düzenlendi');
+        if (!at) return false;
+        kipir = (kipir + 1) % 4;
+        await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x + kipir * 3, y: at.y });
+        await sleep(120);
+        return page.ev(`(() => { const m = [...document.querySelectorAll('.msg')].reverse().find((m) => m.textContent.includes('duman: düzenlendi')); const b = m?.querySelector('.mt-btn.danger'); if (!b) return false; b.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true })); return true; })()`);
+      },
       'mesajın sil düğmesi görünmedi',
-      4000,
+      6000,
     ),
     'silinemedi',
   );
