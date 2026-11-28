@@ -17,7 +17,7 @@ import { OFFICIAL_SERVER, isLoopbackHost, normHost } from '../shared/guvenlik';
 
 const isDev = !app.isPackaged;
 app.setAppUserModelId('com.xanaphian.kovan');
-// v1.71.2: görünen ad Naphian oldu (package.json productName). Electron veri klasörünü bu addan türetir; herkesin
+// v1.71.3: görünen ad Naphian oldu (package.json productName). Electron veri klasörünü bu addan türetir; herkesin
 // ayarları, oturumu ve mesajları eski %APPDATA%/Kovan klasöründe kaldığı için klasör sabit tutulur. Bu satır, veri
 // klasörünü okuyan her şeyden önce çalışmalı. --user-data-dir verilmişse (sınamalar) ona dokunulmaz.
 if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'Kovan'));

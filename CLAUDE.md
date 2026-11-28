@@ -1,6 +1,6 @@
 # Naphian (eski adları Xanaphian, Kovan; depo discordumsu) — Claude için proje rehberi
 
-Discord benzeri Windows masaüstü uygulaması: Electron + React (Vite) + TypeScript. Görünen ad **Naphian** (v1.71.2; exe adı Kovan.exe ve veri klasörü %APPDATA%/Kovan bilerek aynı kaldı). Kod içinde eski adı **Kovan** geçer (`window.kovan`, `KOVAN_*`, `%APPDATA%/Kovan`); ikisi aynı şey.
+Discord benzeri Windows masaüstü uygulaması: Electron + React (Vite) + TypeScript. Görünen ad **Naphian** (v1.71.3; exe adı Kovan.exe ve veri klasörü %APPDATA%/Kovan bilerek aynı kaldı). Kod içinde eski adı **Kovan** geçer (`window.kovan`, `KOVAN_*`, `%APPDATA%/Kovan`); ikisi aynı şey.
 Arayüz metinleri, sürüm notları, PR başlıkları ve kullanıcıyla konuşma **Türkçe**. Kullanıcı yazılımcı değil: sade anlat, teknik terimleri açıkla.
 
 ## Kullanım tasarrufu (önemli)

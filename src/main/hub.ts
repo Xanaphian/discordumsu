@@ -585,7 +585,7 @@ export class Hub {
       if (owner && c.name === `${owner} Kovanı`) c.name = `${owner} Topluluğu`;
       this.saveComm(c.id);
     }
-    // v1.71.2: kendiliğinden kurulan hoş geldin kanalının konusu yeni adla (kullanıcının yazdığı konulara dokunulmaz)
+    // v1.71.3: kendiliğinden kurulan hoş geldin kanalının konusu yeni adla (kullanıcının yazdığı konulara dokunulmaz)
     for (const ch of c.channels)
       if (ch.topic === "Xanaphian'a hoş geldin! Buradan başla.") (ch.topic = "Naphian'a hoş geldin! Buradan başla."), this.saveComm(c.id);
     // v1.31: 3D oda ayrı tür değil; eski 3D odalar kendi dünyasıyla (meydan) ses odası olur, adı/izinleri/resmi aynı kalır
@@ -656,7 +656,7 @@ export class Hub {
 
   private ensureBot() {
     const b = this.data.users[BOT_ID];
-    // v1.71.2: uygulamanın adı Naphian; eski kurulumlarda kalan "Xanaphian'ın yerleşik yardımcısı" yazısı da düzelir
+    // v1.71.3: uygulamanın adı Naphian; eski kurulumlarda kalan "Xanaphian'ın yerleşik yardımcısı" yazısı da düzelir
     if (b && b.pub.bio?.startsWith('Xanaphian')) {
       b.pub = { ...b.pub, bio: b.pub.bio.replace(/^Xanaphian/, 'Naphian') };
       this.saveHub();
