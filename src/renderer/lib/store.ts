@@ -40,7 +40,7 @@ export interface Profile {
 
 export interface Settings {
   /** xanaphian.com temaları: destan = Gece */
-  theme: 'destan' | 'kagit' | 'tozpembe' | 'siyah' | 'bej' | 'bordo' | 'koyuyesil';
+  theme: 'destan' | 'kagit' | 'tozpembe' | 'siyah' | 'bej' | 'bordo' | 'koyuyesil' | 'stereo';
   accent: string;
   fontSize: number;
   compact: boolean;
@@ -161,6 +161,7 @@ export const SITE_GOLD: Record<string, string> = {
   bej: '#7a5a1e',
   bordo: '#d6a86e',
   koyuyesil: '#c8b06a',
+  stereo: '#f08a24',
 };
 /** 1.16 öncesi temalar → en yakın site teması */
 const THEME_MOVE: Record<string, string> = { kor: 'bordo', buzul: 'siyah', zumrut: 'koyuyesil', alaca: 'bordo', dark: 'destan', midnight: 'siyah', ocean: 'destan', forest: 'koyuyesil', rose: 'tozpembe', light: 'kagit' };

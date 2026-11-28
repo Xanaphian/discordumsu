@@ -1,0 +1,565 @@
+/* ==========================================================================
+   1.73: Stereo teması — eski hi-fi müzik seti / teyp havası.
+   Fırçalı metal paneller, köşelerde vida, yeşil ekran (VFD) yazıları,
+   turuncu vurgu ve fiziksel tuş görünümlü düğmeler.
+   Yalnız [data-theme='stereo'] açıkken etkilidir; diğer temalara dokunmaz.
+   Ağır efekt yok: titreşim, tarama çizgisi animasyonu ya da parıldama kullanılmaz.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(../assets/fonts/vt323-latin-ext-400-normal.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(../assets/fonts/vt323-latin-400-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Michroma';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(../assets/fonts/michroma-latin-ext-400-normal.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Michroma';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(../assets/fonts/michroma-latin-400-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---------------- renkler ---------------- */
+[data-theme='stereo'] {
+  color-scheme: dark;
+  --site-void: #151617;
+  --site-void-2: #1b1d1f;
+  --site-void-3: #26292c;
+  --bg-app: #151617;
+  --bg-rail: #151617;
+  --bg-side: #1f2123;
+  --bg-chat: #1b1d1f;
+  --bg-elev: #2a2d30;
+  --bg-elev-2: #33373a;
+  --bg-input: #0f1112;
+  --bg-float: #212326;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(240, 138, 36, 0.12);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.16);
+  --text: #e6e8ea;
+  --text-2: #c4c8cc;
+  --text-3: #9da3a9;
+  --text-4: #878d93;
+  --code-bg: #0c1311;
+  --shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  --orn-hi: #e6e8ea;
+  --orn: #f08a24;
+  --orn-lo: #8a4a10;
+  --arc: #46e6b4;
+  --glow: 70, 230, 180;
+  --accent-ink: #1a0f04;
+  --site-crimson: #e0574a;
+  --site-bar: #1f2123;
+
+  /* Stereo'ya özel parçalar */
+  --st-vfd: #46e6b4; /* yeşil ekran yazısı */
+  --st-vfd-dim: rgba(70, 230, 180, 0.55);
+  --st-vfd-bg: #06130f;
+  --st-vfd-line: rgba(70, 230, 180, 0.18);
+  --st-metal: linear-gradient(180deg, #34373a 0%, #2a2d30 45%, #232628 100%);
+  --st-metal-dark: linear-gradient(180deg, #232527 0%, #1c1e20 100%);
+  --st-brush: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px);
+  --st-edge: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.6);
+  --st-key: linear-gradient(180deg, #e4e6e8 0%, #c3c6c9 100%);
+  --st-key-ink: #1c1e20;
+  --st-mono: 'VT323', ui-monospace, monospace;
+  --st-label: 'Michroma', 'Rubik Variable', sans-serif;
+}
+
+/* ---------------- ortak parçalar ----------------
+   --x-* değişkenleri Naphian'ın panel/düğme kalıbını besler; Stereo'da metal olur.
+   Vidalar arka plan katmanı olarak çizilir (ek öğe yok): sol üst ve sağ üst köşe. */
+html[data-theme='stereo'] {
+  --st-screw: radial-gradient(circle at 50% 50%, #9aa0a5 0 2.4px, #50555a 3.1px 3.9px, rgba(0, 0, 0, 0.7) 4.4px, transparent 5.2px);
+  --x-panel:
+    var(--st-screw) left 6px top 6px / 11px 11px no-repeat,
+    var(--st-screw) right 6px top 6px / 11px 11px no-repeat,
+    var(--st-brush),
+    linear-gradient(180deg, #2b2e31 0%, #222527 140px, #1d1f21 100%);
+  --x-panel-line: rgba(0, 0, 0, 0.75);
+  --x-panel-top: rgba(255, 255, 255, 0.12);
+  --x-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 0 0 1px rgba(255, 255, 255, 0.025), 0 2px 0 rgba(0, 0, 0, 0.5), 0 18px 36px -20px rgba(0, 0, 0, 0.9);
+  --x-pop: #222427;
+  --x-field: #0f1112;
+  --x-btn-bg: linear-gradient(180deg, #3a3e42, #2c2f32);
+  --x-btn-bg-hi: linear-gradient(180deg, #44484c, #33373a);
+  --x-btn-line: rgba(0, 0, 0, 0.7);
+  --x-btn-ink: #e6e8ea;
+  --x-glow: none;
+}
+html[data-theme='stereo'] body {
+  background: #111213;
+}
+/* tüm temada köşeler hafif yuvarlak: metal kasa */
+html[data-theme='stereo'] .sidebar,
+html[data-theme='stereo'] .content > *,
+html[data-theme='stereo'] .settings,
+html[data-theme='stereo'] .tip-card,
+html[data-theme='stereo'] .comm-card,
+html[data-theme='stereo'] .home-hero {
+  border-radius: 6px !important;
+  border: 1px solid rgba(0, 0, 0, 0.8);
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* yeşil ekran: içeri gömük, koyu yeşil cam */
+html[data-theme='stereo'] .st-vfd,
+html[data-theme='stereo'] .sidebar .side-header,
+html[data-theme='stereo'] .titlebar .tb-now {
+  background:
+    linear-gradient(180deg, rgba(70, 230, 180, 0.06), transparent 40%),
+    var(--st-vfd-bg);
+  border: 1px solid #000;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 0 0 1px var(--st-vfd-line), 0 1px 0 rgba(255, 255, 255, 0.07);
+  color: var(--st-vfd);
+}
+
+/* ---------------- üst çubuk: cihazın ön kapağı ---------------- */
+html[data-theme='stereo'] .titlebar {
+  background: var(--st-brush), linear-gradient(180deg, #2a2d30, #1c1e20);
+  border-bottom: 1px solid #000;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05), 0 6px 16px -6px rgba(0, 0, 0, 0.9);
+}
+html[data-theme='stereo'] .titlebar .tb-now {
+  padding: 2px 12px 2px 4px;
+  border-radius: 4px;
+  height: 30px;
+}
+html[data-theme='stereo'] .titlebar .tb-now-name {
+  font-family: var(--st-mono);
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--st-vfd);
+  text-shadow: 0 0 6px rgba(70, 230, 180, 0.35);
+}
+
+/* ---------------- sol şerit: tuş takımı ---------------- */
+html[data-theme='stereo'] .rail-v .pt-btn .pt-hex {
+  border-radius: 8px;
+}
+html[data-theme='stereo'] .rail-v :is(.pt-home, .pt-act) .pt-hex {
+  background: linear-gradient(180deg, #3a3e42, #2a2d30);
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 2px 0 #0b0c0d, 0 3px 6px rgba(0, 0, 0, 0.5);
+  color: #c9cdd1;
+}
+html[data-theme='stereo'] .rail-v :is(.pt-home, .pt-act):hover .pt-hex {
+  background: linear-gradient(180deg, #44484c, #33373a);
+  color: #fff;
+}
+html[data-theme='stereo'] .rail-v .pt-home.on .pt-hex {
+  background: linear-gradient(180deg, #ff9d3d, #e07a14);
+  color: #1a0f04;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 0 #7a3f08, 0 3px 8px rgba(240, 138, 36, 0.25);
+}
+
+/* ---------------- sol panel ---------------- */
+html[data-theme='stereo'] .sidebar .side-header {
+  margin: 14px 12px 6px;
+  width: auto;
+  border-radius: 5px;
+  min-height: 62px;
+}
+html[data-theme='stereo'] .sidebar .side-header .side-title {
+  font-family: var(--st-mono);
+  font-size: 25px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--st-vfd);
+  text-shadow: 0 0 6px rgba(70, 230, 180, 0.35);
+}
+html[data-theme='stereo'] .sidebar .side-header .sh-sub {
+  font-family: var(--st-mono);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: var(--st-vfd-dim);
+}
+html[data-theme='stereo'] .sidebar .side-header svg {
+  color: var(--st-vfd);
+}
+/* bölüm başlıkları: ön paneldeki ince, geniş aralıklı yazı */
+html[data-theme='stereo'] :is(.cat-row, .cat-row > span:not(.tip-wrap), .member-group-title) {
+  font-family: var(--st-label);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.28em;
+  color: #8f959b;
+}
+/* kanal satırları: numaralı liste (P01, P02…) */
+html[data-theme='stereo'] .ch-list {
+  counter-reset: st-kanal;
+}
+html[data-theme='stereo'] .ch-list .ch-row {
+  counter-increment: st-kanal;
+  border-radius: 3px;
+}
+html[data-theme='stereo'] .ch-list .ch-row .ch-name {
+  font-family: var(--st-mono);
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+html[data-theme='stereo'] .ch-list .ch-row.active {
+  background: linear-gradient(90deg, rgba(70, 230, 180, 0.16), rgba(70, 230, 180, 0.05)) !important;
+  box-shadow: inset 3px 0 0 var(--st-vfd), inset 0 0 0 1px var(--st-vfd-line) !important;
+}
+/* P01, P02… sıra numarası (yalnız görünüş; sıralamayı değiştirmez) */
+html[data-theme='stereo'] .ch-list .ch-row:not(.room)::before {
+  content: 'P' counter(st-kanal, decimal-leading-zero);
+  flex: none;
+  width: 26px;
+  font-family: var(--st-mono);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: #6b7176;
+}
+html[data-theme='stereo'] .ch-list .ch-row.active::before {
+  color: var(--st-vfd-dim);
+}
+html[data-theme='stereo'] .ch-list .ch-row.active :is(.ch-name, .ch-icon) {
+  color: var(--st-vfd);
+}
+html[data-theme='stereo'] .ch-list .ch-row.active .ch-name {
+  text-shadow: 0 0 6px rgba(70, 230, 180, 0.3);
+}
+
+/* ses ve site odaları: metal kasaya oturtulmuş kart */
+html[data-theme='stereo'] .room-box {
+  --room-frame: rgba(0, 0, 0, 0.85);
+  border-width: 1px;
+  border-radius: 6px;
+  background: var(--st-brush), linear-gradient(180deg, #303336, #25282a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 2px 0 rgba(0, 0, 0, 0.55);
+}
+html[data-theme='stereo'] .room-box:hover {
+  --room-frame: #000;
+  background: var(--st-brush), linear-gradient(180deg, #373a3d, #2a2d30);
+}
+html[data-theme='stereo'] .room-box.on {
+  --room-frame: rgba(70, 230, 180, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 0 0 1px rgba(70, 230, 180, 0.15), 0 2px 0 rgba(0, 0, 0, 0.55);
+}
+html[data-theme='stereo'] .room-box .ch-row.room .ch-name {
+  font-size: 19px;
+}
+html[data-theme='stereo'] .room-box.on .ch-row.room :is(.ch-name, .ch-icon) {
+  color: var(--st-vfd);
+}
+
+/* ---------------- alttaki kendi panelin: kontrol ünitesi ---------------- */
+html[data-theme='stereo'] .user-panel {
+  background: var(--st-brush), linear-gradient(180deg, #2f3235, #232628) !important;
+  border: 1px solid #000 !important;
+  border-radius: 6px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 0 rgba(0, 0, 0, 0.5) !important;
+}
+html[data-theme='stereo'] .user-panel .up-status {
+  font-family: var(--st-mono);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--st-vfd);
+}
+html[data-theme='stereo'] .user-panel .up-controls {
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
+  padding: 2px 0 3px;
+  gap: 6px;
+}
+/* mikrofon / kulaklık / ayarlar: açık gri fiziksel tuşlar */
+html[data-theme='stereo'] .user-panel .up-controls > .up-dev,
+html[data-theme='stereo'] .user-panel .up-controls > .tip-wrap {
+  background: var(--st-key);
+  border: 1px solid #000;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 0 #fff, inset 0 -2px 0 #9ea2a6, 0 2px 0 #0b0c0d;
+}
+html[data-theme='stereo'] .user-panel .up-controls :is(.icon-btn, .up-chev) {
+  color: var(--st-key-ink);
+  background: transparent;
+}
+html[data-theme='stereo'] .user-panel .up-controls :is(.icon-btn, .up-chev):hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: #000;
+}
+html[data-theme='stereo'] .user-panel .up-controls .icon-btn.danger-on {
+  color: #c2361f;
+}
+html[data-theme='stereo'] .user-panel .up-controls > :active {
+  transform: translateY(1px);
+}
+
+/* ---------------- sohbet ---------------- */
+html[data-theme='stereo'] .chat-header {
+  background: var(--st-brush), linear-gradient(180deg, #2b2e31, #222527);
+  border-bottom: 1px solid #000;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html[data-theme='stereo'] .chat-header h2 {
+  font-family: var(--st-mono);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--st-vfd);
+  text-shadow: 0 0 6px rgba(70, 230, 180, 0.3);
+}
+html[data-theme='stereo'] .chat-header .ch-head-icon {
+  background: var(--st-vfd-bg);
+  color: var(--st-vfd);
+  border: 1px solid #000;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--st-vfd-line);
+}
+html[data-theme='stereo'] .msg-list,
+html[data-theme='stereo'] .msg-scroller {
+  background: transparent;
+}
+/* saatler: küçük yeşil ekran rakamı */
+html[data-theme='stereo'] :is(.msg-time, .msg-gutter-time, .msg-time-inline) {
+  font-family: var(--st-mono);
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  color: var(--st-vfd-dim);
+}
+html[data-theme='stereo'] .msg-author {
+  font-weight: 700;
+}
+/* kod blokları: yeşil ekran */
+html[data-theme='stereo'] pre,
+html[data-theme='stereo'] .code-block {
+  background: var(--st-vfd-bg) !important;
+  border: 1px solid #000 !important;
+  box-shadow: inset 0 0 0 1px var(--st-vfd-line);
+}
+/* yazma kutusu: içeri gömük siyah alan */
+html[data-theme='stereo'] .composer-box {
+  border-radius: 6px;
+  background: #0e0f10;
+  border: 1px solid #000;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+html[data-theme='stereo'] .composer-box:focus-within {
+  border-color: rgba(240, 138, 36, 0.8);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(240, 138, 36, 0.25);
+}
+html[data-theme='stereo'] .typing-bar {
+  font-family: var(--st-mono);
+  font-size: 16px;
+  color: var(--st-vfd-dim);
+}
+
+/* ---------------- üye listesi ---------------- */
+html[data-theme='stereo'] .members-roles-btn {
+  background: var(--st-key) !important;
+  color: var(--st-key-ink) !important;
+  border: 1px solid #000 !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 1px 0 #fff, inset 0 -2px 0 #9ea2a6, 0 2px 0 #0b0c0d !important;
+  font-family: var(--st-label);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+}
+
+/* ---------------- düğmeler: fiziksel tuşlar ---------------- */
+html[data-theme='stereo'] .btn {
+  border-radius: 4px;
+  font-family: var(--st-label);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: var(--st-key);
+  color: var(--st-key-ink);
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 0 #fff, inset 0 -2px 0 #9ea2a6, 0 2px 0 #0b0c0d;
+}
+html[data-theme='stereo'] .btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f2f3f4, #d0d3d6);
+  color: #000;
+}
+html[data-theme='stereo'] .btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 #9ea2a6, 0 1px 0 #0b0c0d;
+}
+html[data-theme='stereo'] .btn.primary {
+  background: linear-gradient(180deg, #ff9d3d, #e57d16);
+  color: #1a0f04;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -2px 0 #a8580c, 0 2px 0 #3d1f04;
+}
+html[data-theme='stereo'] .btn.primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffab55, #f08a24);
+  color: #120a02;
+}
+html[data-theme='stereo'] .btn.danger {
+  background: linear-gradient(180deg, #e8604f, #c2392b);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 #7e2219, 0 2px 0 #2a0b07;
+}
+html[data-theme='stereo'] .btn:disabled {
+  opacity: 0.5;
+}
+/* ikincil (ghost) düğmeler: koyu metal tuş, açık yazı */
+html[data-theme='stereo'] .btn.ghost {
+  background: linear-gradient(180deg, #3a3e42, #2a2d30);
+  color: #dfe2e5;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 2px 0 #0b0c0d;
+}
+html[data-theme='stereo'] .btn.ghost:hover:not(:disabled) {
+  background: linear-gradient(180deg, #44484c, #33373a);
+  color: #fff;
+}
+
+/* ---------------- ses ---------------- */
+/* soldaki "Ses bağlı" kutusu: küçük ekranlı kontrol paneli */
+html[data-theme='stereo'] .voice-panel {
+  background: var(--st-brush), linear-gradient(180deg, #2f3235, #232628) !important;
+  border: 1px solid #000 !important;
+  border-radius: 6px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 0 rgba(0, 0, 0, 0.5) !important;
+}
+html[data-theme='stereo'] .voice-panel .vp-info {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--st-vfd-bg);
+  border: 1px solid #000;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 0 0 1px var(--st-vfd-line);
+}
+html[data-theme='stereo'] .voice-panel .vp-state {
+  font-family: var(--st-mono);
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--st-vfd);
+}
+html[data-theme='stereo'] .voice-panel .vp-where {
+  font-family: var(--st-mono);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: var(--st-vfd-dim);
+}
+html[data-theme='stereo'] :is(.vp-btn, .vv-btn) {
+  background: linear-gradient(180deg, #3a3e42, #2a2d30);
+  color: #dfe2e5;
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 2px 0 #0b0c0d;
+}
+html[data-theme='stereo'] .vp-btn {
+  border-radius: 4px;
+}
+html[data-theme='stereo'] :is(.vp-btn, .vv-btn):hover {
+  background: linear-gradient(180deg, #44484c, #33373a);
+  color: #fff;
+}
+html[data-theme='stereo'] :is(.vp-btn, .vv-btn):active {
+  transform: translateY(1px);
+}
+html[data-theme='stereo'] :is(.vp-btn, .vv-btn):is(.on, .live) {
+  background: linear-gradient(180deg, #ff9d3d, #e57d16);
+  color: #1a0f04;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -2px 0 #a8580c, 0 2px 0 #3d1f04;
+}
+html[data-theme='stereo'] .vv-btn.off {
+  color: #ff6a55;
+}
+html[data-theme='stereo'] .vv-btn.leave {
+  background: linear-gradient(180deg, #e8604f, #c2392b);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 0 #7e2219, 0 2px 0 #2a0b07;
+}
+/* alttaki düğme sırası: tuşların oturduğu metal şerit */
+html[data-theme='stereo'] .vv-controls {
+  padding: 9px 12px 11px;
+  border-radius: 8px;
+  background: var(--st-brush), linear-gradient(180deg, #26292b, #1a1c1e);
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 8px 20px -8px rgba(0, 0, 0, 0.9);
+}
+html[data-theme='stereo'] .vv-controls .vv-btn {
+  border-radius: 6px;
+}
+html[data-theme='stereo'] .sd-picker-btn {
+  font-family: var(--st-label);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ---------------- ayarlar ---------------- */
+html[data-theme='stereo'] .settings-content > h1 {
+  display: inline-block;
+  padding: 4px 16px 2px;
+  border-radius: 5px;
+  font-family: var(--st-mono);
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--st-vfd);
+  text-shadow: 0 0 6px rgba(70, 230, 180, 0.3);
+  background: var(--st-vfd-bg);
+  border: 1px solid #000;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 0 0 1px var(--st-vfd-line), 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+html[data-theme='stereo'] .ayar-yeni .an-iz {
+  font-family: var(--st-mono);
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+html[data-theme='stereo'] .ayar-yeni .an-grup {
+  font-family: var(--st-label);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.28em;
+  color: #8f959b;
+}
+html[data-theme='stereo'] .ayar-yeni .an-kat.an-on {
+  background: linear-gradient(90deg, rgba(70, 230, 180, 0.16), rgba(70, 230, 180, 0.05));
+  box-shadow: inset 3px 0 0 var(--st-vfd), inset 0 0 0 1px var(--st-vfd-line);
+  color: var(--st-vfd);
+}
+html[data-theme='stereo'] .ayar-yeni .an-kat.an-on .an-ikon {
+  background: var(--st-vfd-bg);
+  color: var(--st-vfd);
+}
+html[data-theme='stereo'] .ayar-yeni .an-alt-item.an-on {
+  color: var(--st-vfd);
+}
+html[data-theme='stereo'] .ayar-yeni .an-ara {
+  background: #0e0f10;
+  border: 1px solid #000;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* yeşil ekran yazılarında kalınlaştırma çizgisi yok: piksel yazı keskin kalsın */
+html[data-theme='stereo'] :is(.side-title, .chat-header h2, .settings-content h1, .tb-now-name, .ch-name, .vp-state) {
+  -webkit-text-stroke: 0 !important;
+}

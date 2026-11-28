@@ -29,6 +29,7 @@ export const THEMES: ThemeDef[] = [
   { id: 'bej', label: 'Bej', sub: 'keten · bronz', rail: '#f2ebdb', side: '#ded2b8', chat: '#f6efdf', ink: '#20190f', accent: '#7a5a1e', light: true },
   { id: 'bordo', label: 'Bordo', sub: 'şarap · eski altın', rail: '#1a0508', side: '#311015', chat: '#240a0e', ink: '#f8ecdf', accent: '#d6a86e', light: false },
   { id: 'koyuyesil', label: 'Koyu Yeşil', sub: 'orman · pirinç', rail: '#04120c', side: '#0c2619', chat: '#071b12', ink: '#eef6e8', accent: '#c8b06a', light: false },
+  { id: 'stereo', label: 'Stereo', sub: 'metal · yeşil ekran', rail: '#151617', side: '#2a2d30', chat: '#1b1d1f', ink: '#e6e8ea', accent: '#f08a24', light: false },
 ];
 
 export const DESTAN_FAMILY = THEMES.map((t) => t.id) as string[];
