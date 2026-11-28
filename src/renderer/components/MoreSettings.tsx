@@ -1,7 +1,6 @@
 // Kullanıcı ayarları: sohbet, gizlilik, bildirim istisnaları ve gelişmiş sekmeleri
 import React from 'react';
 import { BellOff, Bell } from 'lucide-react';
-import { GirisBilgileri } from './Giris';
 import { useStore, updateSettings, setNotifyOverride, toggleMuted, confirmDialog, toast, DEFAULT_SETTINGS, openModal, rekeyAccount, rekeySupported } from '../lib/store';
 import { Avatar, Toggle } from './Common';
 import { Row } from './Settings';
@@ -56,7 +55,7 @@ export function ChatTab() {
 }
 
 /** Hesap anahtarını yenileme: eski anahtar geçersiz olur, başka cihazdaki oturumlar kapanır */
-function RekeySection() {
+export function RekeySection() {
   // bağlantı durumu değişince yeniden çizilsin
   const ok = useStore((x) => (x.conns, rekeySupported()));
   const [busy, setBusy] = React.useState(false);
@@ -107,8 +106,13 @@ export function PrivacyTab() {
         <Toggle value={s.confirmLinks} onChange={(v) => updateSettings({ confirmLinks: v })} />
       </Row>
       <DmPrivacySection />
-      <GirisBilgileri />
-      <RekeySection />
+      {/* v1.71 giriş bilgileri ve hesap anahtarı Hesabım'a taşındı (sunucunun misafir uyarısı hâlâ buraya yönlendiriyor) */}
+      <h3>Giriş bilgileri</h3>
+      <Row title="E-posta, şifre ve hesap anahtarı" sub="Bunlar artık Hesabım bölümünde.">
+        <button className="btn ghost sm" onClick={() => openModal({ type: 'settings', tab: 'hesap' })}>
+          Hesabım'a git
+        </button>
+      </Row>
       <h3>Engellenen kullanıcılar ({s.blocked.length})</h3>
       <p className="note">Engellediğin kişilerin mesajları gizlenir ("Göster" ile açabilirsin) ve senden bildirim almazsın. Engellemek için üye listesinde birine sağ tıkla.</p>
       <div className="list-card">

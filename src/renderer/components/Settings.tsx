@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { cikisYap } from './Giris';
-import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleCheck, Mic } from 'lucide-react';
+import { X, LoaderCircle, Download, RotateCw, RefreshCw, Trash2, Plus, CircleCheck, Mic, CircleUserRound, IdCard, ShieldCheck, Server, Gamepad2, Paintbrush, Bell, MessageSquare, Layers, Radio, Keyboard, Wrench, LogOut } from 'lucide-react';
+import { AyarKabugu, HesabimTab, type AyarKat } from './AyarlarDuzen';
 import {
   useStore, openModal, updateSettings, updateProfile, toast, cmd, forgetHost, confirmDialog, deleteCommunity, makeInvite, Settings as SettingsT, escBusy, flushSaves, setHomeTab,
 } from '../lib/store';
@@ -264,29 +265,35 @@ function UpdatesTab() {
   );
 }
 
+const KATLAR: AyarKat[] = [
+  { id: 'hesap', label: 'Hesabım', group: 'Hesap', icon: CircleUserRound, kw: 'Hesap bilgileri|Görünen ad|Etiket|Kullanıcı adı|E-posta|Şifre|Giriş bilgileri|Hesap anahtarı|Anahtarı yenile|Hesap durumu|Misafir hesap|Çıkış yap' },
+  { id: 'profile', label: 'Profilim', group: 'Hesap', icon: IdCard, kw: 'Profil resmi|Avatar|Afiş|Arka plan|Hakkımda|Renk|Çerçeve|Bağlı hesaplar' },
+  { id: 'privacy', label: 'Gizlilik ve Güvenlik', group: 'Hesap', icon: ShieldCheck, kw: 'Yazıyor bilgisini gönder|Bağlantıları açmadan önce sor|Özel mesajlar|Engellenen kullanıcılar' },
+  { id: 'connection', label: 'Bağlantı', group: 'Hesap', icon: Server, kw: 'Sunucu|Adres|Bağlı olduğun diğer sunucular' },
+  { id: 'appearance', label: 'Görünüm', group: 'Uygulama', icon: Paintbrush, kw: 'Tema|Vurgu rengi|Yerleşim|Mesaj stili|Yazı boyutu|Arka plan dokusu|Pil dostu mod|Sıkışık mod|Hareketi azalt|Yakınlaştırma' },
+  { id: 'voice', label: 'Ses ve Görüntü', group: 'Uygulama', icon: Mic, kw: 'Mikrofon|Kulaklık|Hoparlör|Mikrofon testi|Giriş modu|Bas-konuş tuşu|Hassasiyet eşiği|Ses işleme|Gürültü engelleme|Yankı engelleme|Otomatik kazanç|Ses kalitesi|Kamera|Görüntümü aynala|Ekran paylaşımı|Çözünürlük|Kare hızı|Bilgisayar sesini de paylaş|Görüntü kodeği|Kişi ses seviyeleri' },
+  { id: 'notifications', label: 'Bildirimler', group: 'Uygulama', icon: Bell, kw: 'Masaüstü bildirimleri|Arayüz sesleri|Bildirimde mesaj içeriğini göster|Topluluk ve kanal istisnaları|Sustur' },
+  { id: 'chat', label: 'Sohbet', group: 'Uygulama', icon: MessageSquare, kw: 'Görselleri sohbette göster|Bağlantı önizlemelerini göster|Katılma mesajlarını göster|Rol rozetlerini göster|Spoiler içerik|Emoji kısa kodlarını dönüştür|Enter ile gönder' },
+  { id: 'activity', label: 'Etkinlik', group: 'Uygulama', icon: Gamepad2, kw: 'Etkinliğimi paylaş|Oynadığım oyunu göster|Dinlediğim müziği göster|Spotify|Oyunlar|Son etkinlik|Bağlı hesaplar' },
+  { id: 'overlay', label: 'Oyun İçi Kaplama', group: 'Uygulama', icon: Layers, kw: 'Köşe|Görünürlük|Boyut|Sesli kanaldakiler|Yalnız konuşanları göster|Gelen mesajlar|Kaplamayı gizle' },
+  { id: 'streamer', label: 'Yayıncı modu', group: 'Uygulama', icon: Radio, kw: 'Ne zaman açılsın|Davet kodlarını gizle|Kişisel bilgileri gizle|Sesleri kapat' },
+  { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama', icon: Keyboard, kw: 'Kapatınca tepside çalış|Bilgisayar açılınca başlat|Genel tuşlar|Mikrofonu aç / kapat|Sağırlaştır|Klavye kısayolları' },
+  { id: 'advanced', label: 'Gelişmiş', group: 'Uygulama', icon: Wrench, kw: 'Geliştirici modu|Kullanıcı kimliğin|Sorun bildir|Hata bildir|Sıfırlama|Tercihleri sıfırla' },
+  { id: 'updates', label: 'Güncellemeler', group: 'Naphian', icon: RefreshCw, kw: 'Sürüm|Denetle|Sürüm notları' },
+];
+
 export function UserSettings({ tab: initial }: { tab?: string }) {
-  const [tab, setTab] = useState(initial || 'profile');
+  const [tab, setTab] = useState(initial || 'hesap');
+  // pencere açıkken başka bir yerden belirli bir sekme istenirse oraya geç
+  useEffect(() => {
+    if (initial) setTab(initial);
+  }, [initial]);
   const mobile = !!window.kovan.mobile;
-  const all = [
-    { id: 'profile', label: 'Profilim', group: 'Kullanıcı Ayarları' },
-    { id: 'activity', label: 'Etkinlik', group: 'Kullanıcı Ayarları' },
-    { id: 'connection', label: 'Bağlantı', group: 'Kullanıcı Ayarları' },
-    { id: 'privacy', label: 'Gizlilik ve Güvenlik', group: 'Kullanıcı Ayarları' },
-    { id: 'streamer', label: 'Yayıncı modu', group: 'Uygulama Ayarları' },
-    { id: 'appearance', label: 'Görünüm', group: 'Uygulama Ayarları' },
-    { id: 'notifications', label: 'Bildirimler', group: 'Uygulama Ayarları' },
-    { id: 'voice', label: 'Ses ve Görüntü', group: 'Uygulama Ayarları' },
-    { id: 'overlay', label: 'Oyun İçi Kaplama', group: 'Uygulama Ayarları' },
-    { id: 'chat', label: 'Sohbet', group: 'Uygulama Ayarları' },
-    { id: 'advanced', label: 'Gelişmiş', group: 'Uygulama Ayarları' },
-    { id: 'app', label: 'Uygulama ve Kısayollar', group: 'Uygulama Ayarları' },
-    { id: 'updates', label: 'Güncellemeler', group: 'Naphian' },
-  ];
   // telefonda olmayanlar: oyun/müzik etkinliği okuma, yayıncı modu, oyun içi kaplama, klavye kısayolları
-  const nav = mobile ? all.filter((n) => !['activity', 'streamer', 'overlay', 'app'].includes(n.id)) : all;
+  const nav = mobile ? KATLAR.filter((n) => !['activity', 'streamer', 'overlay', 'app'].includes(n.id)) : KATLAR;
   const version = useStore((x) => x.info?.version);
   return (
-    <Shell
+    <AyarKabugu
       nav={nav}
       tab={tab}
       setTab={setTab}
@@ -294,13 +301,17 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
         <>
           <div className="sn-sep" />
           {/* v1.70.1: "Uygulamadan çık" yerine hesaptan çıkış (giriş ekranına döner) */}
-          <button className="sn-item danger" onClick={() => void cikisYap()}>
-            Çıkış yap
+          <button className="an-kat an-cikis" onClick={() => void cikisYap()}>
+            <span className="an-ikon">
+              <LogOut size={16} />
+            </span>
+            <span className="an-ad">Çıkış yap</span>
           </button>
           <div className="sn-version">Naphian v{version}</div>
         </>
       }
     >
+      {tab === 'hesap' && <HesabimTab git={setTab} />}
       {tab === 'profile' && <ProfileTab />}
       {tab === 'activity' && <ActivityTab />}
       {tab === 'appearance' && <AppearanceTab />}
@@ -314,7 +325,7 @@ export function UserSettings({ tab: initial }: { tab?: string }) {
       {tab === 'privacy' && <PrivacyTab />}
       {tab === 'streamer' && <StreamerTab />}
       {tab === 'advanced' && <AdvancedTab />}
-    </Shell>
+    </AyarKabugu>
   );
 }
 

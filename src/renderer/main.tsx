@@ -48,6 +48,7 @@ import './styles/ince-ayar.css';
 import './styles/giris.css';
 import './styles/kullanici-paneli.css';
 import './styles/profil-kose.css';
+import './styles/ayarlar.css';
 
 hataDinle();
 

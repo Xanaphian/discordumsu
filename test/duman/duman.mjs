@@ -368,14 +368,14 @@ async function appChecks({ comm, text, voice, bots }) {
 
   // ayarların bütün sekmeleri
   must(await click('.icon-btn', 'Ayarlar'), 'ayarlar düğmesi yok');
-  await until(() => count('.sn-item'), 'ayarlar açılmadı');
-  const tabs = await page.ev(`[...document.querySelectorAll('.sn-item:not(.danger)')].map((e) => e.textContent.trim())`);
+  await until(() => count('.settings-nav .an-kat'), 'ayarlar açılmadı');
+  const tabs = await page.ev(`[...document.querySelectorAll('.settings-nav .an-kat:not(.an-cikis)')].map((e) => e.textContent.trim())`);
   must(tabs.length >= 8, 'ayar sekmeleri eksik: ' + tabs.join(', '));
   for (const t of tabs) {
-    await page.ev(`[...document.querySelectorAll('.sn-item:not(.danger)')].find((e) => e.textContent.trim() === ${JSON.stringify(t)})?.click()`);
+    await page.ev(`[...document.querySelectorAll('.settings-nav .an-kat:not(.an-cikis)')].find((e) => e.textContent.trim() === ${JSON.stringify(t)})?.click()`);
     await sleep(300);
     await healthy('ayarlar > ' + t);
-    must(await count('.sn-item'), `ayarlar > ${t}: ayarlar penceresi kendiliğinden kapandı`);
+    must(await count('.settings-nav .an-kat'), `ayarlar > ${t}: ayarlar penceresi kendiliğinden kapandı`);
   }
   await esc();
   await sleep(300);
@@ -425,7 +425,7 @@ async function appChecks({ comm, text, voice, bots }) {
   // ayarlar içinden açılan onay kutusu ayar penceresini kapatmamalı
   must(await click('.icon-btn', 'Ayarlar'), 'ayarlar düğmesi yok');
   await until(() => count('.settings'), 'ayarlar açılmadı');
-  must(await click('.sn-item', 'Gelişmiş'), 'Gelişmiş sekmesi yok');
+  must(await click('.settings-nav .an-kat', 'Gelişmiş'), 'Gelişmiş sekmesi yok');
   await sleep(300);
   must(await click('button', 'Tercihleri sıfırla'), 'Tercihleri sıfırla düğmesi yok');
   await until(() => count('.modal.confirm'), 'onay kutusu açılmadı');
@@ -445,7 +445,8 @@ async function appChecks({ comm, text, voice, bots }) {
   step('uygulama: ayarlarda onay kutusu');
 
   // hesap anahtarını yenileme: eski anahtar geçersiz olmalı, uygulama yeni anahtarla bağlı kalmalı
-  must(await click('.sn-item', 'Gizlilik ve Güvenlik'), 'Gizlilik ve Güvenlik sekmesi yok');
+  // v1.72: hesap anahtarı Hesabım sayfasına taşındı
+  must(await click('.settings-nav .an-kat', 'Hesabım'), 'Hesabım sekmesi yok');
   await sleep(300);
   await until(() => click('button', 'Anahtarı yenile'), 'Anahtarı yenile düğmesi yok ya da kapalı');
   await until(() => count('.modal.confirm'), 'anahtar yenileme onayı açılmadı');
@@ -488,7 +489,7 @@ async function monkey() {
     } else {
       const t = await page.ev(`(() => {
         const bad = new RegExp(${JSON.stringify(BAD)}, 'i');
-        const els = [...document.querySelectorAll('button, [role=button], .ch-row, .pt-btn, .sn-item, .ctx-item, .tab, .msg, .member, .dm-row')].filter((e) => {
+        const els = [...document.querySelectorAll('button, [role=button], .ch-row, .pt-btn, .sn-item, .an-kat, .an-alt-item, .ctx-item, .tab, .msg, .member, .dm-row')].filter((e) => {
           const b = e.getBoundingClientRect();
           if (b.width < 4 || b.height < 4 || b.top < 0 || b.left < 0 || b.bottom > innerHeight || b.right > innerWidth) return false;
           if (e.closest('.titlebar, .title-bar, a[href]')) return false;
