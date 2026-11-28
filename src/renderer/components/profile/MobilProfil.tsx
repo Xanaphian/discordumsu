@@ -129,7 +129,7 @@ export function MobilProfil({ uid, user, status, c, isMe, onClose, menu }: { uid
               <section>
                 <h4>Şu Tarihten Beri Üye</h4>
                 <div className="mp-since">
-                  {isUid && <span>Xanaphian · {fmtDay(idTime(uid))}</span>}
+                  {isUid && <span>Naphian · {fmtDay(idTime(uid))}</span>}
                   {member && c && (
                     <span>
                       {c.name} · {fmtDay(member.joinedAt)}

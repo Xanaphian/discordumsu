@@ -105,7 +105,7 @@ export function GifPanel({ onSend, inputRef }: { onSend: (token: string) => void
         <Chips<GifCat>
           value={cat}
           onChange={setCat}
-          items={[['fav', '★ Favoriler'], ['recent', 'Son kullanılan'], ['trend', 'Trend'], ['xn', 'Xanaphian']]}
+          items={[['fav', '★ Favoriler'], ['recent', 'Son kullanılan'], ['trend', 'Trend'], ['xn', 'Naphian']]}
         />
       )}
       <div className="ep-body scroll-thin media-body">
@@ -167,7 +167,7 @@ export function StickerPanel({ cid, onSend, onClose, inputRef }: { cid?: string;
   );
   const found = q ? searchMedia(all, q) : null;
   const shown = cat === 'fav' ? pick(prefs.favSt) : cat === 'recent' ? pick(prefs.recentSt) : cat === 'comm' ? own : builtIn;
-  const chips: [StCat, string][] = [['fav', '★ Favoriler'], ['recent', 'Son kullanılan'], ...(real ? ([['comm', real.name.length > 14 ? real.name.slice(0, 13) + '…' : real.name]] as [StCat, string][]) : []), ['xn', 'Xanaphian']];
+  const chips: [StCat, string][] = [['fav', '★ Favoriler'], ['recent', 'Son kullanılan'], ...(real ? ([['comm', real.name.length > 14 ? real.name.slice(0, 13) + '…' : real.name]] as [StCat, string][]) : []), ['xn', 'Naphian']];
   return (
     <>
       <SearchBox value={q} onChange={setQ} placeholder="Çıkartma ara" inputRef={inputRef} />

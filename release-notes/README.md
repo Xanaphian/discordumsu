@@ -14,13 +14,13 @@ Buradaki her `<sürüm>.md` iki yerde kullanılır:
    <!-- baslik: Kısa, anlaşılır başlık -->
    <!-- gorsel: 1-afis-kirpma.webp | Afiş kırpma penceresi -->
    <!-- gorsel: 2-profil-karti.webp | Profil kartı -->
-   ## Xanaphian 1.2.3
+   ## Naphian 1.2.3
 
    - **Yeni şey.** Açıklaması.
    ```
 
    - `tarih` yoksa derleme günü kullanılır.
-   - `baslik` yoksa `## Xanaphian 1.2.3: başlık` satırındaki iki noktadan sonraki kısım alınır.
+   - `baslik` yoksa `## Naphian 1.2.3: başlık` satırındaki iki noktadan sonraki kısım alınır.
    - `gorsel` satırları isteğe bağlıdır: görsele Türkçe karakterli açıklama verir ve sırasını belirler. Satırı olmayan görsel de gösterilir (açıklaması dosya adından çıkar).
 
 2. Bitmiş halin ekran görüntülerini `release-notes/gorseller/1.2.3/` klasörüne koy. WebP, en çok 1400 piksel genişlik önerilir (uygulamanın boyutu şişmesin), örneğin:

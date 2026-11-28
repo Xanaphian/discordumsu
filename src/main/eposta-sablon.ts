@@ -8,14 +8,14 @@ export function kodEpostasi(ad: string, kod: string, tur: 'sifirla' | 'dogrula',
   const a = ad.trim();
   const sif = tur === 'sifirla';
   const baslik = sif ? 'Şifre sıfırlama kodun' : 'E-posta doğrulama kodun';
-  const subject = `${kod} – Xanaphian ${sif ? 'şifre sıfırlama' : 'doğrulama'} kodun`;
+  const subject = `${kod} – Naphian ${sif ? 'şifre sıfırlama' : 'doğrulama'} kodun`;
   const amac = sif ? 'şifreni sıfırlamak için' : 'e-posta adresini doğrulamak için';
   const ekran = sif ? 'Şifreni sıfırla' : 'Kodu gir';
   const yoksay = sif ? 'Bu isteği sen yapmadıysan bu e-postayı yok say; şifren değişmez ve kimse hesabına giremez.' : 'Bu isteği sen yapmadıysan bu e-postayı yok say; adresin hiçbir hesaba bağlanmaz.';
   const text = [
     a ? `Merhaba ${a},` : 'Merhaba,',
     '',
-    `Xanaphian'da ${amac} kodun:`,
+    `Naphian'da ${amac} kodun:`,
     '',
     `    ${kod}`,
     '',
@@ -23,7 +23,7 @@ export function kodEpostasi(ad: string, kod: string, tur: 'sifirla' | 'dogrula',
     '',
     yoksay,
     '',
-    '— Xanaphian',
+    '— Naphian',
   ].join('\n');
   const font = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const html = `<!doctype html>
@@ -50,7 +50,7 @@ export function kodEpostasi(ad: string, kod: string, tur: 'sifirla' | 'dogrula',
   <tr><td align="center" style="padding:32px 16px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;">
       <tr><td style="padding:0 4px 16px;font-family:${font};font-size:16px;font-weight:700;letter-spacing:0.3px;color:#0b1325;" class="yazi">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#0ac8b9;margin-right:8px;vertical-align:middle;"></span>Xanaphian
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#0ac8b9;margin-right:8px;vertical-align:middle;"></span>Naphian
       </td></tr>
       <tr><td class="kart" style="background:#ffffff;border:1px solid #e1e5ee;border-radius:12px;padding:32px 28px;font-family:${font};">
         <p class="yazi" style="margin:0 0 6px;font-size:20px;font-weight:700;color:#0b1325;">${baslik}</p>
@@ -59,7 +59,7 @@ export function kodEpostasi(ad: string, kod: string, tur: 'sifirla' | 'dogrula',
         <p class="soluk" style="margin:0 0 8px;font-size:13px;line-height:1.55;color:#5b6478;">Kod <b>${dakika} dakika</b> geçerli ve yalnız bir kez kullanılabilir.</p>
         <p class="soluk" style="margin:0;font-size:13px;line-height:1.55;color:#5b6478;">${yoksay}</p>
       </td></tr>
-      <tr><td class="soluk" style="padding:16px 4px 0;font-family:${font};font-size:12px;line-height:1.5;color:#8a92a6;">Bu e-posta, Xanaphian'da bu adres için kod istendiği için gönderildi. Bu adrese yanıt verme.</td></tr>
+      <tr><td class="soluk" style="padding:16px 4px 0;font-family:${font};font-size:12px;line-height:1.5;color:#8a92a6;">Bu e-posta, Naphian'da bu adres için kod istendiği için gönderildi. Bu adrese yanıt verme.</td></tr>
     </table>
   </td></tr>
 </table>

@@ -59,7 +59,7 @@ function ensure(isDev: boolean) {
     hasShadow: false,
     fullscreenable: false,
     alwaysOnTop: true,
-    title: 'Xanaphian kaplama',
+    title: 'Naphian kaplama',
     backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

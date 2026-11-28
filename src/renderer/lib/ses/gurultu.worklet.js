@@ -1,4 +1,4 @@
-// Xanaphian gürültü engelleme (v1.35): spektral kapı.
+// Naphian gürültü engelleme (v1.35): spektral kapı.
 // 512 örnek pencere, %50 örtüşme, kök-Hann pencereler (tam yeniden kurulum). Gecikme ~11 ms.
 // Her frekans bandı için arka plan gürültüsü sürekli öğrenilir (fan, klima, uğultu, hışırtı),
 // konuşmadan zayıf kalan bantlar kısılır. Kazançlar zamanda ve frekansta yumuşatılır ki "su sesi" olmasın.

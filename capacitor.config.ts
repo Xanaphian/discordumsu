@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.xanaphian.app',
-  appName: 'Xanaphian',
+  appName: 'Naphian',
   webDir: 'dist/mobil',
   backgroundColor: '#0f1115',
   android: {

@@ -109,7 +109,7 @@ function QrPaneli() {
         <>
           <h2>Telefonla gir</h2>
           <p>
-            Telefondaki Xanaphian'da <b>QR ile giriş</b>'e dokun ve bu kodu okut. Şifre yazmana gerek kalmaz.
+            Telefondaki Naphian'da <b>QR ile giriş</b>'e dokun ve bu kodu okut. Şifre yazmana gerek kalmaz.
           </p>
         </>
       )}
@@ -433,7 +433,7 @@ export function GirisEkrani({ onYeniHesap }: { onYeniHesap: () => void }) {
         <div className="gr-sol">
           <div className="gr-marka">
             <Logo size={34} />
-            <span>Xanaphian</span>
+            <span>Naphian</span>
           </div>
           {kayit ? (
             <KayitFormu onGeri={() => setKayit(false)} onTamam={onYeniHesap} />

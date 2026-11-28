@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Xanaphian</string>
-    <string name="title_activity_main">Xanaphian</string>
+    <string name="app_name">Naphian</string>
+    <string name="title_activity_main">Naphian</string>
     <string name="package_name">com.xanaphian.app</string>
     <string name="custom_url_scheme">com.xanaphian.app</string>
 </resources>

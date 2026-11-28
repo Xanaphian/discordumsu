@@ -792,7 +792,7 @@ function sharedHost(uid: ID): string | null {
 
 /** Eski sürüm kovanlar yeni çerçevelere hiç cevap vermez: zaman aşımını anlaşılır bir mesaja çevir */
 const oldHubMsg = (e: any) =>
-  e?.message === 'Zaman aşımı' ? "Ortak topluluğunuzu barındıran kişinin Xanaphian'ı eski sürümde. Özel mesaj ve arkadaşlık için onun da 1.10'a güncellemesi gerekiyor." : '';
+  e?.message === 'Zaman aşımı' ? "Ortak topluluğunuzu barındıran kişinin Naphian'ı eski sürümde. Özel mesaj ve arkadaşlık için onun da 1.10'a güncellemesi gerekiyor." : '';
 
 export async function addFriend(uid: ID) {
   const f = S().friends[uid];
@@ -1872,7 +1872,7 @@ async function joinShort(tokenHost: string | null, code: string, prefix?: string
   }
   throw new Error(
     triedSomething
-        ? "Davetin sahibine ulaşılamadı. Aynı ağda (ya da aynı Radmin/Hamachi ağında) olduğunuzdan, internetten bağlanıyorsan onun modeminde portun yönlendirildiğinden ve Xanaphian'ının açık olduğundan emin ol."
+        ? "Davetin sahibine ulaşılamadı. Aynı ağda (ya da aynı Radmin/Hamachi ağında) olduğunuzdan, internetten bağlanıyorsan onun modeminde portun yönlendirildiğinden ve Naphian'ının açık olduğundan emin ol."
         : 'Bu kod bağlı olduğun sunucularda bulunamadı. Kodu adresiyle birlikte (ör. 2ld8x1k/s3gas25) yapıştır.',
   );
 }
@@ -2009,7 +2009,7 @@ export async function joinByInvite(code: string): Promise<ID> {
     const results = await Promise.all(d.h.map(async (h) => ((await probeHost(h)) ? h : null)));
     host = results.find(Boolean) || null;
   }
-  if (!host) throw new Error('Davetin sahibine ulaşılamadı. Aynı ağda olduğunuzdan ve onun Xanaphian\'ının açık olduğundan emin ol.');
+  if (!host) throw new Error('Davetin sahibine ulaşılamadı. Aynı ağda olduğunuzdan ve onun Naphian\'ının açık olduğundan emin ol.');
   const conn = ensureConn(host, host === localHost());
   saveHosts();
   await waitOnline(host);

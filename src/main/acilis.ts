@@ -6,7 +6,7 @@ import { BrowserWindow } from 'electron';
 import path from 'node:path';
 
 /** Pencere başlığı (görev çubuğunda görünür) */
-export const UYGULAMA_ADI = 'Xanaphian';
+export const UYGULAMA_ADI = 'Naphian';
 /** Videonun zemin rengiyle aynı; pencere açılırken beyaz kırpışma olmasın */
 const ZEMIN = '#0b1325';
 const GENISLIK = 640;

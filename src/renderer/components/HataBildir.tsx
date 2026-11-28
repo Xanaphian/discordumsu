@@ -65,7 +65,7 @@ function GelenBildirimler() {
   useEffect(() => {
     load();
   }, []);
-  const text = (r: ErrReport) => `Xanaphian ${r.ver} · ${r.os} · ${r.n} kez\n[${r.where}] ${r.msg}\n${r.stack}`;
+  const text = (r: ErrReport) => `Naphian ${r.ver} · ${r.os} · ${r.n} kez\n[${r.where}] ${r.msg}\n${r.stack}`;
   return (
     <>
       <div className="hb-head">

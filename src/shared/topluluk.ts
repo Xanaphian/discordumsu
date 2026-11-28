@@ -109,7 +109,7 @@ export interface Blueprint {
 
 export const BLUEPRINT_LIMITS = { roles: 48, categories: 50, channels: 200 };
 
-// Discord yetki bitleri -> Xanaphian yetkileri
+// Discord yetki bitleri -> Naphian yetkileri
 const D: [bigint, number][] = [
   [1n << 0n, Perm.CREATE_INVITE],
   [1n << 1n, Perm.KICK],

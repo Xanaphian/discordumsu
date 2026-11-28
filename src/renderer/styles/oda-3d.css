@@ -1,5 +1,5 @@
 /* v1.31 — ses odasının 3D görünümü. Sahnenin üstündeki her şey koyu cam: tema açık olsa da 3D'nin üstünde okunur.
-   Vurgu: Xanaphian altını (--orn) ve turkuaz (--arc). */
+   Vurgu: Naphian altını (--orn) ve turkuaz (--arc). */
 .sv-room {
   --sv-glass: rgba(8, 13, 28, 0.78);
   --sv-glass-2: rgba(14, 22, 44, 0.9);

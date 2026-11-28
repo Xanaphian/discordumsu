@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Xanaphian ses aktarma sunucusunu (TURN, coturn) kurar ya da günceller.
+# Naphian ses aktarma sunucusunu (TURN, coturn) kurar ya da günceller.
 # Ne işe yarar: iki kişi birbirine doğrudan bağlanamadığında (katı modem, yurt/okul/şirket ağı, mobil ağ)
 # ses ve yayın bu sunucu üstünden geçer. Doğrudan bağlanabilenler aktarmayı hiç kullanmaz.
 #
@@ -72,7 +72,7 @@ done
 
 umask 077
 cat > "$CONF" <<CFG
-# Xanaphian ses aktarma sunucusu (server/turn-kur.sh yazar; elle değiştirme, yeniden kurulumda üstüne yazılır)
+# Naphian ses aktarma sunucusu (server/turn-kur.sh yazar; elle değiştirme, yeniden kurulumda üstüne yazılır)
 listening-port=${PORT}
 min-port=${MINP}
 max-port=${MAXP}
